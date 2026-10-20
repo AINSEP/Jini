@@ -121,18 +121,24 @@ export interface McpDaemonUrlOptions {
 // runtime dependency on another shell. No discovery/default URL is selected for a run child.
 async function resolveDaemonUrlDefault(_required: Record<string, never>, options: McpDaemonUrlOptions): Promise<string> {
   const url = options.env[options.envVarName];
-  if (!url) throw new Error('no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, ' +
-    'supply a discover() probe, or provide defaultUrl.');
+  if (!url) {
+    throw new Error(`no daemon URL resolved: ${options.envVarName} is unset or empty; ` +
+      'the spawning Jini daemon must set it to its HTTP base URL.');
+  }
   let parsed: URL;
   try { parsed = new URL(url); } catch { return url; }
   if (parsed.protocol !== 'https:' && !isLoopbackHostname({ hostname: parsed.hostname })) {
-    let display = url;
-    if (parsed.username || parsed.password) {
-      parsed.username = ''; parsed.password = ''; display = parsed.toString();
-    }
-    options.warn({ message: `daemon URL ${display} is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.` });
+    options.warn({ message: `daemon URL ${redactUserinfo(url, parsed)} is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.` });
   }
   return url;
+}
+
+// Keeps credentials out of the warning; a URL without userinfo is shown exactly as given.
+function redactUserinfo(url: string, parsed: URL): string {
+  if (!parsed.username && !parsed.password) return url;
+  parsed.username = '';
+  parsed.password = '';
+  return parsed.toString();
 }
 
 function defaultWriteErr({ text }: { text: string }): void {
@@ -148,11 +154,7 @@ function defaultWriteErr({ text }: { text: string }): void {
  * path below writes a message to `writeErr` and calls `exit(1)` instead.
  */
 export async function serve(_requiredArgs: Record<string, never>, deps: ServeDeps = {}): Promise<void> {
-  const env = deps.env ?? process.env;
-  const writeErr = deps.writeErr ?? defaultWriteErr;
-  const exit = deps.exit ?? (({ code }: { code: number }): never => process.exit(code));
-  const resolveDaemonUrlFn = deps.resolveDaemonUrl ?? resolveDaemonUrlDefault;
-  const createMcpToolServerFn = deps.createMcpToolServer ?? createMcpToolServerDefault;
+  const { env, writeErr, exit, resolveDaemonUrlFn, createMcpToolServerFn } = withProcessDefaults(deps);
 
   const runId = env[RUN_ID_ENV_VAR];
   if (typeof runId !== 'string' || runId.length === 0) {
@@ -165,18 +167,60 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
     return resolveDaemonUrlFn({}, options);
   };
 
-  // Shared by both gateways so their run scope, correlation-id source, and deadline cannot diverge
-  // — the only difference between the two defs is the read-only constraint each declares.
-  const delegatedGatewayOptions = {
-    ...(deps.generateToolUseId !== undefined ? { generateToolUseId: deps.generateToolUseId } : {}),
+  const delegatedGatewayOptions = buildDelegatedGatewayOptions({ env }, deps);
+  const requiredArgs: McpToolServerRequiredArgs = {
+    name: SERVER_NAME,
+    version: SERVER_VERSION,
+    tools: buildTools({ runId, delegatedGatewayOptions }),
+    resolveBaseUrl,
+  };
+  const serverOptions = buildServerOptions({ env, runId, delegatedGatewayOptions }, deps);
+
+  try {
+    const diagnosticToolIds = parseDiagnosticToolIds({ env });
+    if (diagnosticToolIds.length) Object.assign(serverOptions, { diagnosticToolIds });
+    await createMcpToolServerFn(requiredArgs, serverOptions).run({});
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    writeErr({ text: `${SERVER_NAME}: ${message}\n` });
+    return exit({ code: 1 });
+  }
+}
+
+// The process-bound fallbacks for every injectable seam `serve()` itself calls.
+function withProcessDefaults(deps: ServeDeps) {
+  return {
+    env: deps.env ?? process.env,
+    writeErr: deps.writeErr ?? defaultWriteErr,
+    exit: deps.exit ?? (({ code }: { code: number }): never => process.exit(code)),
+    resolveDaemonUrlFn: deps.resolveDaemonUrl ?? resolveDaemonUrlDefault,
+    createMcpToolServerFn: deps.createMcpToolServer ?? createMcpToolServerDefault,
+  };
+}
+
+type DelegatedGatewayOptions = { generateToolUseId?: (required: Record<string, never>) => string; delegatedToolTimeoutMs?: number };
+
+// Drops `undefined` values so an absent dependency leaves no key at all — required under
+// `exactOptionalPropertyTypes`, and it keeps built option objects byte-identical to the
+// pre-injection shape when nothing is overridden.
+function definedOnly<T extends Record<string, unknown>>(entries: T): { [K in keyof T]?: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(entries).filter(([, value]) => value !== undefined)) as { [K in keyof T]?: Exclude<T[K], undefined> };
+}
+
+// Shared by both gateways so their run scope, correlation-id source, and deadline cannot diverge
+// — the only difference between the two defs is the read-only constraint each declares.
+function buildDelegatedGatewayOptions({ env }: { env: NodeJS.ProcessEnv }, deps: ServeDeps): DelegatedGatewayOptions {
+  const rawTimeout = env[DELEGATED_TOOL_TIMEOUT_ENV_VAR];
+  return definedOnly({
+    generateToolUseId: deps.generateToolUseId,
     // Parsed, not validated: `createExecuteDelegatedToolTool` already rejects a non-finite or
     // non-positive value back to the default, so `NaN` from a malformed env var lands there too.
-    ...(env[DELEGATED_TOOL_TIMEOUT_ENV_VAR] !== undefined
-      ? { delegatedToolTimeoutMs: Number(env[DELEGATED_TOOL_TIMEOUT_ENV_VAR]) }
-      : {}),
-  };
+    delegatedToolTimeoutMs: rawTimeout === undefined ? undefined : Number(rawTimeout),
+  });
+}
 
-  const tools: readonly McpToolDef[] = [
+function buildTools({ runId, delegatedGatewayOptions }: { runId: string; delegatedGatewayOptions: DelegatedGatewayOptions }): readonly McpToolDef[] {
+  return [
     ...RUN_TOOLS,
     ...TOOL_CATALOG_TOOLS,
     ...COMPONENT_CATALOG_TOOLS,
@@ -186,39 +230,35 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
     // sees both and picks by what its call actually does.
     createExecuteReadonlyDelegatedToolTool({ runId }, delegatedGatewayOptions),
   ];
+}
 
+function buildServerOptions(
+  { env, runId, delegatedGatewayOptions }: { env: NodeJS.ProcessEnv; runId: string; delegatedGatewayOptions: DelegatedGatewayOptions },
+  deps: ServeDeps,
+): McpToolServerOptions {
   // Absent credential => no `authHeaders` at all => byte-identical request headers to before this
   // env var existed. See DAEMON_TOKEN_ENV_VAR's doc for why an unset value is not a startup failure.
   const credential = env[DAEMON_TOKEN_ENV_VAR];
-  const authHeaders =
-    typeof credential === 'string' && credential.length > 0
-      ? { Authorization: `Bearer ${credential}` }
-      : undefined;
-
-  const requiredArgs: McpToolServerRequiredArgs = { name: SERVER_NAME, version: SERVER_VERSION, tools, resolveBaseUrl };
-  const serverOptions: McpToolServerOptions = {
+  return {
     resources: [...KERNEL_RESOURCES, createSiteGuideResource({ runId }, delegatedGatewayOptions)],
     instructions: INSTRUCTIONS,
-    ...(authHeaders !== undefined ? { authHeaders } : {}),
-    ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
-    ...(deps.stdin !== undefined ? { stdin: deps.stdin } : {}),
-    ...(deps.stdout !== undefined ? { stdout: deps.stdout } : {}),
+    ...definedOnly({
+      authHeaders: credential ? { Authorization: `Bearer ${credential}` } : undefined,
+      fetchImpl: deps.fetchImpl,
+      stdin: deps.stdin,
+      stdout: deps.stdout,
+    }),
   };
+}
 
-  try {
-    // Only the spawning host supplies registration metadata. Never learn exceptions from an
-    // error body or model arguments: either would turn a secret into its own redaction exemption.
-    const diagnosticToolIds: unknown = JSON.parse(env.JINI_DIAGNOSTIC_TOOL_IDS ?? '[]');
-    if (!Array.isArray(diagnosticToolIds) || !diagnosticToolIds.every(id => typeof id === 'string')) {
-      throw new Error('JINI_DIAGNOSTIC_TOOL_IDS must be a JSON array of registered tool IDs');
-    }
-    if (diagnosticToolIds.length) Object.assign(serverOptions, { diagnosticToolIds });
-    await createMcpToolServerFn(requiredArgs, serverOptions).run({});
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    writeErr({ text: `${SERVER_NAME}: ${message}\n` });
-    return exit({ code: 1 });
+// Only the spawning host supplies registration metadata. Never learn exceptions from an
+// error body or model arguments: either would turn a secret into its own redaction exemption.
+function parseDiagnosticToolIds({ env }: { env: NodeJS.ProcessEnv }): string[] {
+  const diagnosticToolIds: unknown = JSON.parse(env.JINI_DIAGNOSTIC_TOOL_IDS ?? '[]');
+  if (!Array.isArray(diagnosticToolIds) || !diagnosticToolIds.every(id => typeof id === 'string')) {
+    throw new Error('JINI_DIAGNOSTIC_TOOL_IDS must be a JSON array of registered tool IDs');
   }
+  return diagnosticToolIds;
 }
 
 // Only run for real when this module is the actual process entrypoint (`node dist/bin/serve.js`,

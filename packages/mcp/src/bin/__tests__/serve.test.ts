@@ -409,7 +409,7 @@ it('reports the existing unresolved URL error through the executable boundary', 
     exit: () => { throw new Error('exit 1'); },
     createMcpToolServer: required => ({ run: async () => { await required.resolveBaseUrl(); } }),
   })).rejects.toThrow('exit 1');
-  expect(errors).toEqual(['jini-mcp: no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, supply a discover() probe, or provide defaultUrl.\n']);
+  expect(errors).toEqual(['jini-mcp: no daemon URL resolved: JINI_DAEMON_URL is unset or empty; the spawning Jini daemon must set it to its HTTP base URL.\n']);
 });
 
 describe('serve() — characterization pins (before refactor)', () => {
@@ -477,6 +477,19 @@ describe('serve() — characterization pins (before refactor)', () => {
     expect(await resolveWith('http://daemon.example:4111')).toEqual({ resolved: 'http://daemon.example:4111', errors: [
       'daemon URL http://daemon.example:4111 is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.',
     ] });
+  });
+
+  it('still serves with a bearer credential against a remote plain-HTTP daemon, warning only (reported, not fixed)', async () => {
+    // The credential would travel in cleartext to a non-loopback host; the resolver only warns.
+    const errors: string[] = [];
+    let seen: McpToolServerOptions | undefined;
+    await serve({}, makeDeps({
+      env: { [RUN_ID_ENV_VAR]: 'run', [DAEMON_URL_ENV_VAR]: 'http://daemon.example', [DAEMON_TOKEN_ENV_VAR]: 'tok' },
+      writeErr: ({ text }) => { errors.push(text); },
+      createMcpToolServer: (required, options) => ({ run: async () => { seen = options; await required.resolveBaseUrl(); } }),
+    }));
+    expect(seen?.authHeaders).toEqual({ Authorization: 'Bearer tok' });
+    expect(errors).toEqual(['daemon URL http://daemon.example is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.']);
   });
 
   it('redacts a password-only userinfo from the warning', async () => {
