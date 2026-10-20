@@ -83,6 +83,24 @@ describe('state and single use', () => {
     await expectClosed(receiver);
   });
 
+  test('a refused callback is answered 400 with the static failure page', async () => {
+    const receiver = await start();
+    const result = receiver.receive({ expectedState: STATE });
+    const reply = await send({ url: callbackUrl(receiver, { state: 'forged', code: 'one-time' }) });
+    await result.catch(() => undefined);
+    expect(reply.status).toBe(400);
+    expect(reply.body).toContain('<h1>Sign-in did not finish</h1>');
+  });
+
+  test('an accepted callback is answered 200 with the static completion page', async () => {
+    const receiver = await start();
+    const result = receiver.receive({ expectedState: STATE });
+    const reply = await send({ url: callbackUrl(receiver, { state: STATE, code: 'one-time' }) });
+    await result;
+    expect(reply.status).toBe(200);
+    expect(reply.body).toContain('<h1>Sign-in complete</h1>');
+  });
+
   test('after one successful callback the listener is closed', async () => {
     const receiver = await start();
     const result = receiver.receive({ expectedState: STATE });
@@ -220,8 +238,27 @@ describe('closes on cancel and expiry', () => {
     const receiver = await start({ signal: controller.signal });
     const result = receiver.receive({ expectedState: STATE });
     controller.abort();
-    await expect(result).rejects.toMatchObject({ code: 'OAUTH_AUTHORIZATION_CANCELLED' });
+    await expect(result).rejects.toMatchObject({
+      code: 'OAUTH_AUTHORIZATION_CANCELLED', message: 'the sign-in was cancelled before the browser returned', operatorAction: 'Start the connection again when you are ready.',
+    });
     await expectClosed(receiver);
+  });
+
+  test('the default timer expires the attempt after the configured time', async () => {
+    const receiver = await startLoopbackAuthorizationReceiver({}, { timeoutMs: 25 });
+    await expect(receiver.receive({ expectedState: STATE })).rejects.toMatchObject({ code: 'OAUTH_AUTHORIZATION_EXPIRED' });
+    await expectClosed(receiver);
+  });
+
+  test('finishing removes the abort listener from the caller signal', async () => {
+    const controller = new AbortController();
+    const added = vi.spyOn(controller.signal, 'addEventListener');
+    const removed = vi.spyOn(controller.signal, 'removeEventListener');
+    const receiver = await start({ signal: controller.signal });
+    const result = receiver.receive({ expectedState: STATE });
+    await send({ url: callbackUrl(receiver, { state: STATE, code: 'c' }) });
+    await result;
+    expect(removed).toHaveBeenCalledWith('abort', added.mock.calls[0]![1]);
   });
 
   test('an already-aborted signal refuses to start', async () => {
@@ -236,7 +273,9 @@ describe('closes on cancel and expiry', () => {
     const receiver = await start({ timers, timeoutMs: 1234 });
     const result = receiver.receive({ expectedState: STATE });
     fire!();
-    await expect(result).rejects.toMatchObject({ code: 'OAUTH_AUTHORIZATION_EXPIRED' });
+    await expect(result).rejects.toMatchObject({
+      code: 'OAUTH_AUTHORIZATION_EXPIRED', message: 'the sign-in window expired before the browser returned', operatorAction: 'Start the connection again and finish it in the browser.',
+    });
     await expectClosed(receiver);
   });
 
@@ -248,5 +287,92 @@ describe('closes on cancel and expiry', () => {
     await send({ url: callbackUrl(receiver, { state: STATE, code: 'c' }) });
     await result;
     expect(cancelled).toBe(true);
+  });
+});
+
+describe('arming refusals', () => {
+  const armOnce = { code: 'OAUTH_INVALID_REQUEST', message: 'the loopback receiver must be armed once with a non-empty state' };
+
+  test('a second receive() is refused and the first attempt still completes', async () => {
+    const receiver = await start();
+    const first = receiver.receive({ expectedState: STATE });
+    await expect(receiver.receive({ expectedState: 'other-state' })).rejects.toMatchObject(armOnce);
+    await send({ url: callbackUrl(receiver, { state: STATE, code: 'real' }) });
+    await expect(first).resolves.toMatchObject({ code: 'real' });
+  });
+
+  test('an empty state cannot arm the listener', async () => {
+    const receiver = await start();
+    await expect(receiver.receive({ expectedState: '' })).rejects.toMatchObject(armOnce);
+    const early = await send({ url: callbackUrl(receiver, { state: '', code: 'x' }) });
+    expect(early.status).toBe(404);
+  });
+
+  test('a state longer than the sealed-state bound cannot arm the listener', async () => {
+    const receiver = await start();
+    await expect(receiver.receive({ expectedState: 's'.repeat(4097) })).rejects.toMatchObject(armOnce);
+  });
+});
+
+describe('timeout configuration', () => {
+  const badTimeout = { code: 'OAUTH_INVALID_REQUEST', message: 'the loopback timeout must be a whole number of milliseconds up to one hour' };
+
+  test.each([0, -1, 1.5, 60 * 60 * 1000 + 1])('refuses a timeout of %s before opening a port', async (timeoutMs) => {
+    const listen = vi.spyOn(Server.prototype, 'listen');
+    await expect(start({ timeoutMs })).rejects.toMatchObject(badTimeout);
+    expect(listen).not.toHaveBeenCalled();
+  });
+
+  test('accepts the one-hour maximum', async () => {
+    let seen: number | undefined;
+    const timers: LoopbackReceiverTimers = { after: ({ ms }) => { seen = ms; return () => undefined; } };
+    await start({ timers, timeoutMs: 60 * 60 * 1000 });
+    expect(seen).toBe(60 * 60 * 1000);
+  });
+
+  test('defaults to a ten-minute expiry', async () => {
+    let seen: number | undefined;
+    const timers: LoopbackReceiverTimers = { after: ({ ms }) => { seen = ms; return () => undefined; } };
+    await start({ timers });
+    expect(seen).toBe(10 * 60 * 1000);
+  });
+});
+
+describe('first terminal outcome wins', () => {
+  test('an expiry that fires after the callback finished does not change the result', async () => {
+    let fire: (() => void) | undefined;
+    // This timer ignores cancellation so the late fire really reaches the receiver.
+    let cancels = 0;
+    const timers: LoopbackReceiverTimers = { after: ({ run }) => { fire = run; return () => { cancels += 1; }; } };
+    const receiver = await start({ timers });
+    const result = receiver.receive({ expectedState: STATE });
+    await send({ url: callbackUrl(receiver, { state: STATE, code: 'real' }) });
+    await expect(result).resolves.toEqual({ code: 'real', fields: {} });
+    fire!();
+    await expect(result).resolves.toEqual({ code: 'real', fields: {} });
+    // Teardown ran once: the late expiry did not re-enter it.
+    expect(cancels).toBe(1);
+  });
+
+  test('an abort after expiry keeps the expired outcome', async () => {
+    let fire: (() => void) | undefined;
+    const timers: LoopbackReceiverTimers = { after: ({ run }) => { fire = run; return () => undefined; } };
+    const controller = new AbortController();
+    const receiver = await start({ timers, signal: controller.signal });
+    const result = receiver.receive({ expectedState: STATE });
+    fire!();
+    fire!();
+    controller.abort();
+    await expect(result).rejects.toMatchObject({ code: 'OAUTH_AUTHORIZATION_EXPIRED' });
+  });
+});
+
+describe('without a signal', () => {
+  test('starts and completes when no abort signal is given', async () => {
+    const receiver = await startLoopbackAuthorizationReceiver({});
+    const result = receiver.receive({ expectedState: STATE });
+    await send({ url: callbackUrl(receiver, { state: STATE, code: 'real' }) });
+    await expect(result).resolves.toEqual({ code: 'real', fields: {} });
+    await expectClosed(receiver);
   });
 });
