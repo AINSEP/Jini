@@ -23,7 +23,7 @@ import { installMetaForAgent } from './metadata.js';
 import { AGENT_DEFS } from './registry.js';
 import { applyAgentLaunchEnv, resolveAgentLaunch } from './launch.js';
 import { spawnEnvForAgent } from './env.js';
-import { probeAgentAuthStatus } from './auth.js';
+import { probeAgentAuthStatus, type AgentAuthProbeResult } from './auth.js';
 import { noopAmrProfileResolver, type AmrProfileResolver } from './amr-profile-resolver.js';
 import { buildAuthDiagnostic, buildExecutableDiagnostic, buildNotInvocableDiagnostic, type NotInvocableCause } from './diagnostics.js';
 import type {
@@ -39,37 +39,22 @@ import type {
 type FetchedRuntimeModels = {
   models: RuntimeModelOption[];
   source: RuntimeModelSource;
-  catalog?: ModelCatalogSnapshot;
-  defaultModelResolution?: DefaultModelResolution;
+  catalog: ModelCatalogSnapshot;
+  defaultModelResolution: DefaultModelResolution;
 };
 
-function amrModelScopeFromEnv(env: NodeJS.ProcessEnv, amrProfileResolver: AmrProfileResolver): string {
-  return amrProfileResolver.resolveProfile({ env: env });
-}
-
-function withRememberedAmrModels(
-  def: RuntimeAgentDef,
-  env: NodeJS.ProcessEnv,
-  modelResult: FetchedRuntimeModels,
-  amrProfileResolver: AmrProfileResolver,
-): FetchedRuntimeModels {
-  // The old remembered AMR list had no age/launch fingerprint. Scoped snapshots now own
-  // last-good recovery; never present unscoped remembered rows as live.
-  void def; void env; void amrProfileResolver;
-  return modelResult;
-}
+/** Options every internal detection step receives: `detectAgents` always resolves state, env and deps. */
+type DetectionOptions = AgentDetectionModelOptions & { state: AgentRuntimeState; env: NodeJS.ProcessEnv; deps: ModelDiscoveryDeps };
 
 async function fetchModels(
-  def: RuntimeAgentDef,
-  resolvedBin: string,
-  env: NodeJS.ProcessEnv,
-  optional: { cwd?: string; version?: string | null; context?: ModelDiscoveryContext; deps?: ModelDiscoveryDeps; force?: boolean } = {},
+  { def, resolvedBin, env, deps }: { def: RuntimeAgentDef; resolvedBin: string; env: NodeJS.ProcessEnv; deps: ModelDiscoveryDeps },
+  { context, version, force }: { context?: ModelDiscoveryContext | undefined; version?: string | null | undefined; force?: boolean | undefined } = {},
 ): Promise<FetchedRuntimeModels> {
-  const context = optional.context ?? { executable: resolvedBin, env, cwd: optional.cwd ?? process.cwd(), ...(optional.version !== undefined ? { version: optional.version } : {}) };
-  const options = { ...(optional.deps ? { deps: optional.deps } : {}), ...(optional.force ? { force: true } : {}) };
+  const scope = context ?? { executable: resolvedBin, env, cwd: process.cwd(), ...(version !== undefined ? { version } : {}) };
+  const options = { deps, ...(force ? { force: true } : {}) };
   const discovery = modelDiscoveryForDef(def);
-  const catalog = await discovery.discoverModels({ context }, options);
-  const defaultModelResolution = await discovery.resolveDefaultModel({ context, catalog }, options);
+  const catalog = await discovery.discoverModels({ context: scope }, options);
+  const defaultModelResolution = await discovery.resolveDefaultModel({ context: scope, catalog }, options);
   // Models lists can exceed 1MB (e.g. opencode's OpenRouter catalog); the shared process port
   // retains the existing 8MB bound. Empty/unusable metadata falls back with explicit provenance,
   // so a failed CLI never silently empties the picker or labels packaged hints as live.
@@ -113,25 +98,40 @@ async function probeVersionAtPath(def: RuntimeAgentDef, resolved: string, env: N
     const version = String(stdout).trim().split('\n')[0]!;
     return { kind: 'spawned', version };
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException)?.code;
-    if (typeof code === 'string') {
-      if (code === 'EACCES') return { kind: 'not-invocable', cause: 'not-executable' };
-      if (code === 'ENOENT' || code === 'ENOTDIR') return { kind: 'not-invocable', cause: 'missing-target' };
-    } else if (typeof code === 'number' && (code === 126 || code === 127)) {
-      return { kind: 'not-invocable', cause: code === 126 ? 'not-executable' : 'missing-target' };
-    }
-    return { kind: 'spawned', version: null };
+    const cause = notInvocableCause((err as NodeJS.ErrnoException)?.code);
+    return cause ? { kind: 'not-invocable', cause } : { kind: 'spawned', version: null };
   }
 }
 
+/** Classify a spawn rejection's `code`: OS-level string codes and wrapper exit statuses 126/127 mean not invocable. */
+function notInvocableCause(code: unknown): NotInvocableCause | undefined {
+  switch (code) {
+    case 'EACCES':
+    case 126:
+      return 'not-executable';
+    case 'ENOENT':
+    case 'ENOTDIR':
+    case 127:
+      return 'missing-target';
+    default:
+      return undefined;
+  }
+}
+
+function unavailableModels(def: RuntimeAgentDef): FetchedRuntimeModels {
+  // `fallbackModels` is a required field on `RuntimeAgentDef`, never
+  // `undefined` for a well-typed def.
+  const catalog = offlineSnapshot('', Date.now(), def.fallbackModels);
+  return { models: catalog.models, source: 'fallback', catalog, defaultModelResolution: { status: 'unresolved', reason: 'Agent executable is unavailable.' } };
+}
+
 function unavailableAgent(def: RuntimeAgentDef, diagnostics: AgentDiagnostic[] = []): DetectedAgent {
+  const fallback = unavailableModels(def);
   return {
     ...stripFns(def),
-    // `fallbackModels` is a required field on `RuntimeAgentDef`, never
-    // `undefined` for a well-typed def.
-    models: offlineSnapshot('', Date.now(), def.fallbackModels).models,
-    modelCatalog: offlineSnapshot('', Date.now(), def.fallbackModels),
-    defaultModelResolution: { status: 'unresolved', reason: 'Agent executable is unavailable.' },
+    models: fallback.models,
+    modelCatalog: fallback.catalog,
+    defaultModelResolution: fallback.defaultModelResolution,
     modelsSource: 'fallback',
     available: false,
     ...(diagnostics.length > 0 ? { diagnostics } : {}),
@@ -142,12 +142,13 @@ function unavailableAgent(def: RuntimeAgentDef, diagnostics: AgentDiagnostic[] =
 // Probe the agent's `--help` once and record which advertised flags the
 // installed CLI supports, so buildArgs can consult the cache. Extracted
 // from the main probe so it can run before model discovery. It shares the existing
-// capability cache with real launches. Returns the capability map (or null when the
-// agent declares no help/capability metadata or the probe failed).
-async function probeCapabilities(def: RuntimeAgentDef, launchPath: string, env: NodeJS.ProcessEnv): Promise<RuntimeCapabilityMap | null> {
-  if (!def.helpArgs || !def.capabilityFlags) return null;
+// capability cache with real launches (`ensureAgentCapabilities` only calls this
+// when the def declares help/capability metadata).
+async function probeCapabilitiesOrEmpty(
+  { helpArgs, capabilityFlags, launchPath, env }: { helpArgs: readonly string[]; capabilityFlags: Readonly<Record<string, string>>; launchPath: string; env: NodeJS.ProcessEnv },
+): Promise<RuntimeCapabilityMap> {
   try {
-    return await readCapabilities(def.helpArgs, def.capabilityFlags, launchPath, env);
+    return await readCapabilities(helpArgs, capabilityFlags, launchPath, env);
   } catch {
     // If --help fails, leave caps empty so buildArgs falls back to the
     // safe baseline (no optional flags).
@@ -235,22 +236,19 @@ function derivedReasoningOverride(
 
 /** The env every probe of one def spawns with — the same env a real run would see. */
 function probeEnvForLaunch(
-  def: RuntimeAgentDef,
-  configuredEnv: Record<string, string>,
-  launch: ReturnType<typeof resolveAgentLaunch>,
-  options: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv } = {},
+  { def, configuredEnv, launch, state, env }: { def: RuntimeAgentDef; configuredEnv: Record<string, string>; launch: ReturnType<typeof resolveAgentLaunch>; state: AgentRuntimeState; env: NodeJS.ProcessEnv },
 ): NodeJS.ProcessEnv {
-  return applyAgentLaunchEnv({ env: spawnEnvForAgent({ agentId: def.id, baseEnv: { ...(options.env ?? process.env), ...(def.env || {}) } }, { configuredEnv: configuredEnv, hooks: {} }), launch: launch }, { appendPathDirs: userToolchainBinDirs({}, options) }
+  return applyAgentLaunchEnv({ env: spawnEnvForAgent({ agentId: def.id, baseEnv: { ...env, ...(def.env || {}) } }, { configuredEnv: configuredEnv, hooks: {} }), launch: launch }, { appendPathDirs: userToolchainBinDirs({}, { state, env }) }
   );
 }
 
-function unavailableModels(def: RuntimeAgentDef): FetchedRuntimeModels {
-  const catalog = offlineSnapshot('', Date.now(), def.fallbackModels);
-  return { models: catalog.models, source: 'fallback', catalog, defaultModelResolution: { status: 'unresolved', reason: 'Agent executable is unavailable.' } };
-}
-
 /** Result of {@link probeAgentModels}: the models to surface and where they came from. */
-export type ProbedAgentModels = FetchedRuntimeModels;
+export type ProbedAgentModels = {
+  models: RuntimeModelOption[];
+  source: RuntimeModelSource;
+  catalog?: ModelCatalogSnapshot;
+  defaultModelResolution?: DefaultModelResolution;
+};
 
 /**
  * The model half of {@link detectAgents} for ONE def, without the `--version`/`--help`/auth probes:
@@ -266,14 +264,22 @@ export type ProbedAgentModels = FetchedRuntimeModels;
  */
 export async function probeAgentModels({ def }: { def: RuntimeAgentDef }, { configuredEnv = {}, amrProfileResolver = noopAmrProfileResolver, context, version, deps, force = false, state = defaultRuntimeState, env = process.env }: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnv?: Record<string, string>; amrProfileResolver?: AmrProfileResolver; context?: ModelDiscoveryContext; version?: string | null; deps?: ModelDiscoveryDeps; force?: boolean } = {}
 ): Promise<ProbedAgentModels> {
+  return probeModels({ def, configuredEnv, amrProfileResolver, state, env }, { context, version, deps, force });
+}
+
+async function probeModels(
+  { def, configuredEnv, amrProfileResolver, state, env }: { def: RuntimeAgentDef; configuredEnv: Record<string, string>; amrProfileResolver: AmrProfileResolver; state: AgentRuntimeState; env: NodeJS.ProcessEnv },
+  { context, version, deps, force }: { context?: ModelDiscoveryContext | undefined; version?: string | null | undefined; deps?: ModelDiscoveryDeps | undefined; force?: boolean | undefined },
+): Promise<FetchedRuntimeModels> {
   try {
     const launch = resolveAgentLaunch({ def: def }, { configuredEnv: configuredEnv, state, env });
     if (!launch.launchPath) return unavailableModels(def);
-    const probeEnv = probeEnvForLaunch(def, configuredEnv, launch, { state, env });
-    const fetched = await fetchModels(def, launch.launchPath, probeEnv, { ...(context ? { context } : {}), ...(version !== undefined ? { version } : {}), deps: deps ?? getRuntimeModelDiscoveryDeps({ state }), force });
-    const result = withRememberedAmrModels(def, probeEnv, fetched, amrProfileResolver);
-    rememberDetectedModelList(def, configuredEnv, result.models, amrProfileResolver, { state, env });
-    return result;
+    const probeEnv = probeEnvForLaunch({ def, configuredEnv, launch, state, env });
+    const fetched = await fetchModels({ def, resolvedBin: launch.launchPath, env: probeEnv, deps: deps ?? getRuntimeModelDiscoveryDeps({ state }) }, { context, version, force });
+    // The old remembered AMR list had no age/launch fingerprint. Scoped snapshots now own
+    // last-good recovery; never present unscoped remembered rows as live.
+    rememberDetectedModelList({ def, configuredEnv, models: fetched.models, amrProfileResolver }, { state, env });
+    return fetched;
   } catch {
     return unavailableModels(def);
   }
@@ -281,9 +287,8 @@ export async function probeAgentModels({ def }: { def: RuntimeAgentDef }, { conf
 
 async function probe(
   def: RuntimeAgentDef,
-  configuredEnv: Record<string, string> = {},
-  amrProfileResolver: AmrProfileResolver,
-  options: AgentDetectionModelOptions = {},
+  configuredEnv: Record<string, string>,
+  options: DetectionOptions,
 ): Promise<DetectedAgent> {
   // Detection must probe the exact path the runtime will spawn, not just
   // the PATH-visible shim. This is load-bearing under nvm/fnm/mise: the
@@ -293,46 +298,69 @@ async function probe(
   // detection probes the shim but chat/run spawns the native binary, the
   // UI incorrectly reports "not installed" until the user pins the bin
   // override by hand even though the real launch path is healthy.
-  const launch = resolveAgentLaunch({ def: def }, { configuredEnv: configuredEnv, ...(options.state ? { state: options.state } : {}), ...(options.env ? { env: options.env } : {}) });
+  const { state, env } = options;
+  const launch = resolveAgentLaunch({ def: def }, { configuredEnv: configuredEnv, state, env });
   if (!launch.selectedPath || !launch.launchPath) {
-    return unavailableAgent(def, [buildExecutableDiagnostic({ def: def }, { configuredEnv: configuredEnv, ...(options.state ? { state: options.state } : {}), ...(options.env ? { env: options.env } : {}) })]);
+    return unavailableAgent(def, [buildExecutableDiagnostic({ def: def }, { configuredEnv: configuredEnv, state, env })]);
   }
-  const probeEnv = probeEnvForLaunch(def, configuredEnv, launch, options);
+  const probeEnv = probeEnvForLaunch({ def, configuredEnv, launch, state, env });
   const outcome = await probeVersionAtPath(def, launch.launchPath, probeEnv);
   if (outcome.kind === 'not-invocable') {
     return unavailableAgent(def, [buildNotInvocableDiagnostic({ def: def, launch: launch, cause: outcome.cause })]);
   }
+  return probeInvocableAgent({ def, launchPath: launch.launchPath, selectedPath: launch.selectedPath, probeEnv, version: outcome.version }, options);
+}
+
+/** Drop stale capability evidence (always on force) and re-probe through the shared cache. */
+async function refreshCapabilities(
+  { def, launchPath, probeEnv, state }: { def: RuntimeAgentDef; launchPath: string; probeEnv: NodeJS.ProcessEnv; state: AgentRuntimeState },
+  { force }: { force: boolean },
+): Promise<RuntimeCapabilityMap | undefined> {
+  const capabilityKey = `${def.id}\u0000${launchPath}`;
+  if (force || !state.capabilityProbes.has(capabilityKey)) {
+    state.capabilities.delete(def.id);
+    if (force) state.capabilityProbes.delete(capabilityKey);
+  }
+  await ensureAgentCapabilities({ def, launchPath, env: probeEnv }, { state, probe: probeCapabilitiesOrEmpty });
+  return state.capabilities.get(def.id);
+}
+
+async function probeInvocableAgent(
+  { def, launchPath, selectedPath, probeEnv, version }: { def: RuntimeAgentDef; launchPath: string; selectedPath: string; probeEnv: NodeJS.ProcessEnv; version: string | null },
+  options: DetectionOptions,
+): Promise<DetectedAgent> {
   // The version probe must finish first (it gates availability). Cheap help/auth checks
   // precede model discovery; the shared process scheduler prevents concurrent CLI startups.
   // Capability evidence belongs to the existing ensureAgentCapabilities cache, also used by runs.
-  const runtimeState = options.state ?? defaultRuntimeState;
-  const capabilityKey = `${def.id}\u0000${launch.launchPath}`;
-  if (options.force || !runtimeState.capabilityProbes.has(capabilityKey)) {
-    runtimeState.capabilities.delete(def.id);
-    if (options.force) runtimeState.capabilityProbes.delete(capabilityKey);
-  }
-  await ensureAgentCapabilities({ def, launchPath: launch.launchPath, env: probeEnv }, { state: runtimeState,
-    probe: async () => (await probeCapabilities(def, launch.launchPath!, probeEnv)) ?? {},
-  });
-  const caps = runtimeState.capabilities.get(def.id);
-  const auth = await probeAgentAuthStatus({ def, resolvedBin: launch.launchPath, env: probeEnv });
-  const modelResult = await fetchModels(def, launch.launchPath, probeEnv, { version: outcome.version, ...options, deps: options.deps ?? getRuntimeModelDiscoveryDeps({ state: runtimeState }) });
-  const surfacedModelResult = withRememberedAmrModels(def, probeEnv, modelResult, amrProfileResolver);
+  const caps = await refreshCapabilities({ def, launchPath, probeEnv, state: options.state }, { force: options.force === true });
+  const auth = await probeAgentAuthStatus({ def, resolvedBin: launchPath, env: probeEnv });
+  const fetched = await fetchModels({ def, resolvedBin: launchPath, env: probeEnv, deps: options.deps }, { version, context: options.context, force: options.force });
   if (caps) {
-    (options.state ?? defaultRuntimeState).capabilities.set(def.id, caps);
+    options.state.capabilities.set(def.id, caps);
   }
+  return availableAgent({ def, selectedPath, version, fetched, auth });
+}
+
+function authFields(auth: AgentAuthProbeResult | null): Pick<DetectedAgent, 'authStatus' | 'authMessage'> {
+  if (!auth) return {};
+  return { authStatus: auth.status, ...(auth.message ? { authMessage: auth.message } : {}) };
+}
+
+function availableAgent(
+  { def, selectedPath, version, fetched, auth }: { def: RuntimeAgentDef; selectedPath: string; version: string | null; fetched: FetchedRuntimeModels; auth: AgentAuthProbeResult | null },
+): DetectedAgent {
   const authDiagnostic = auth ? buildAuthDiagnostic({ def: def, auth: auth }) : null;
   return {
     ...stripFns(def),
-    ...derivedReasoningOverride(def, surfacedModelResult.models),
-    models: surfacedModelResult.models,
-    modelsSource: surfacedModelResult.source,
-    ...(surfacedModelResult.catalog ? { modelCatalog: surfacedModelResult.catalog } : {}),
-    ...(surfacedModelResult.defaultModelResolution ? { defaultModelResolution: surfacedModelResult.defaultModelResolution } : {}),
+    ...derivedReasoningOverride(def, fetched.models),
+    models: fetched.models,
+    modelsSource: fetched.source,
+    modelCatalog: fetched.catalog,
+    defaultModelResolution: fetched.defaultModelResolution,
     available: true,
-    path: launch.selectedPath,
-    version: outcome.version,
-    ...(auth ? { authStatus: auth.status, ...(auth.message ? { authMessage: auth.message } : {}) } : {}),
+    path: selectedPath,
+    version,
+    ...authFields(auth),
     ...(authDiagnostic ? { diagnostics: [authDiagnostic] } : {}),
     ...installMetaForAgent({ agentId: def.id }),
   };
@@ -385,48 +413,53 @@ function stripFns(def: RuntimeAgentDef): Omit<DetectedAgent, 'models' | 'modelsS
 /** Cache executable/version/help/auth per host and effective launch; only expired catalogs refresh.
  * Explicit force queues after the current scan, so a rescan cannot overlap its predecessor.
  * Hash credentials rather than retaining them in keys. @complexity O(e) launch-env hashing. */
-function safeProbe(def: RuntimeAgentDef, configuredEnv: Record<string, string>, amrProfileResolver: AmrProfileResolver, options: AgentDetectionModelOptions = {}): Promise<DetectedAgent> {
-  const state = options.state ?? defaultRuntimeState;
+function safeProbe(def: RuntimeAgentDef, configuredEnv: Record<string, string>, amrProfileResolver: AmrProfileResolver, options: DetectionOptions): Promise<DetectedAgent> {
+  const { state } = options;
   let key: string;
-  try { key = detectionCacheKey({ def, configuredEnv, options, state }); }
+  try { key = detectionCacheKey({ def, configuredEnv, options }); }
   catch { return Promise.resolve(unavailableAgent(def)); }
   const previous = state.detections.get(key);
-  const pending = previous && !options.force ? previous.then(async agent => {
-    const now = options.deps?.clock.now() ?? Date.now();
-    if (!agent.available || !agent.modelCatalog || Date.parse(agent.modelCatalog.expiresAt) > now) return agent;
-    // Reuse the model-only probe with the detected version so the launch fingerprint stays stable.
-    const result = await probeAgentModels({ def }, { ...options, configuredEnv, amrProfileResolver,
-      ...(agent.version !== undefined ? { version: agent.version } : {}) });
-    return { ...agent, ...derivedReasoningOverride(def, result.models), models: result.models, modelsSource: result.source,
-      ...(result.catalog ? { modelCatalog: result.catalog } : {}),
-      ...(result.defaultModelResolution ? { defaultModelResolution: result.defaultModelResolution } : {}) };
-  }) : (previous ?? Promise.resolve()).then(() => executeSafeProbe(def, configuredEnv, amrProfileResolver, options));
+  const pending = previous && !options.force
+    ? previous.then(agent => refreshExpiredCatalog({ def, agent, configuredEnv, amrProfileResolver }, options))
+    : (previous ?? Promise.resolve()).then(() => executeSafeProbe(def, configuredEnv, amrProfileResolver, options));
   state.detections.set(key, pending);
   return pending;
 }
 
+/** A cached detection, with its model catalog re-probed once that catalog has expired. */
+async function refreshExpiredCatalog(
+  { def, agent, configuredEnv, amrProfileResolver }: { def: RuntimeAgentDef; agent: DetectedAgent; configuredEnv: Record<string, string>; amrProfileResolver: AmrProfileResolver },
+  options: DetectionOptions,
+): Promise<DetectedAgent> {
+  const now = options.deps.clock.now();
+  if (!agent.available || !agent.modelCatalog || Date.parse(agent.modelCatalog.expiresAt) > now) return agent;
+  // Reuse the model-only probe with the detected version so the launch fingerprint stays stable.
+  const result = await probeModels({ def, configuredEnv, amrProfileResolver, state: options.state, env: options.env },
+    { context: options.context, version: agent.version, deps: options.deps, force: options.force });
+  return { ...agent, ...derivedReasoningOverride(def, result.models), models: result.models, modelsSource: result.source,
+    modelCatalog: result.catalog, defaultModelResolution: result.defaultModelResolution };
+}
+
 /** Effective launch material is hashed, so cache keys never expose credentials.
  * Legacy remembered-model profile resolution must not gate executable availability. */
-function detectionCacheKey({ def, configuredEnv, options, state }: {
-  def: RuntimeAgentDef; configuredEnv: Record<string, string>;
-  options: AgentDetectionModelOptions; state: AgentRuntimeState;
+function detectionCacheKey({ def, configuredEnv, options }: {
+  def: RuntimeAgentDef; configuredEnv: Record<string, string>; options: DetectionOptions;
 }, _options: Record<string, never> = {}): string {
-  const launch = resolveAgentLaunch({ def }, { configuredEnv, state, ...(options.env ? { env: options.env } : {}) });
-  const env = options.env ?? process.env;
+  const launch = resolveAgentLaunch({ def }, { configuredEnv, state: options.state, env: options.env });
   return createHash('sha256').update(JSON.stringify({ id: def.id, path: launch.launchPath,
-    env: Object.entries(env).sort(([a], [b]) => a.localeCompare(b)), configuredEnv,
+    env: Object.entries(options.env).sort(([a], [b]) => a.localeCompare(b)), configuredEnv,
     context: options.context })).digest('hex');
 }
 
 async function executeSafeProbe(
   def: RuntimeAgentDef,
-  configuredEnv: Record<string, string> = {},
+  configuredEnv: Record<string, string>,
   amrProfileResolver: AmrProfileResolver,
-  options: AgentDetectionModelOptions = {},
+  options: DetectionOptions,
 ): Promise<DetectedAgent> {
   try {
     if (options.probeAgent) return await options.probeAgent({ def, configuredEnv, amrProfileResolver }, options);
-    return await probe(def, configuredEnv, amrProfileResolver, options);
+    return await probe(def, configuredEnv, options);
   } catch {
     // Fault isolation: one adapter's probe blowing up — e.g. a
     // synchronous filesystem throw during PATH walking on a packaged
@@ -436,51 +469,55 @@ async function executeSafeProbe(
   }
 }
 
-function rememberDetectedLiveModels(
-  def: RuntimeAgentDef,
-  configuredEnv: Record<string, string>,
-  agent: DetectedAgent,
-  amrProfileResolver: AmrProfileResolver,
-  options: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv } = {},
-): void {
-  rememberDetectedModelList(def, configuredEnv, agent.models, amrProfileResolver, options);
-}
-
 function rememberDetectedModelList(
-  def: RuntimeAgentDef,
-  configuredEnv: Record<string, string>,
-  models: RuntimeModelOption[],
-  amrProfileResolver: AmrProfileResolver,
-  options: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv } = {},
+  { def, configuredEnv, models, amrProfileResolver }: { def: RuntimeAgentDef; configuredEnv: Record<string, string>; models: RuntimeModelOption[]; amrProfileResolver: AmrProfileResolver },
+  { state, env }: { state: AgentRuntimeState; env: NodeJS.ProcessEnv },
 ): void {
   if (def.id === 'amr' && models.length === 0) return;
   const scope =
     def.id === 'amr'
-      ? amrModelScopeFromEnv({ ...(options.env ?? process.env), ...(def.env || {}), ...configuredEnv }, amrProfileResolver)
+      ? amrProfileResolver.resolveProfile({ env: { ...env, ...(def.env || {}), ...configuredEnv } })
       : null;
-  rememberLiveModels({ agentId: def.id, models: models.filter((row) => row.identityKind !== 'routing-mode') }, { scope: scope, ...(options.state ? { state: options.state } : {}) });
+  rememberLiveModels({ agentId: def.id, models: models.filter((row) => row.identityKind !== 'routing-mode') }, { scope: scope, state });
 }
 
 export interface AgentDetectionModelOptions { context?: ModelDiscoveryContext; deps?: ModelDiscoveryDeps; force?: boolean; state?: AgentRuntimeState; env?: NodeJS.ProcessEnv;
   probeAgent?: (input: { def: RuntimeAgentDef; configuredEnv: Record<string, string>; amrProfileResolver: AmrProfileResolver }, options: AgentDetectionModelOptions) => Promise<DetectedAgent>;
 }
 
-export async function detectAgents({  }: {  }, { configuredEnvByAgent = {}, amrProfileResolver = noopAmrProfileResolver, modelContextByAgent = {}, modelDiscoveryDeps, force = false, state = defaultRuntimeState, env = process.env, probeAgent }: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnvByAgent?: Record<string, Record<string, string>>; amrProfileResolver?: AmrProfileResolver; modelContextByAgent?: Record<string, ModelDiscoveryContext>; modelDiscoveryDeps?: ModelDiscoveryDeps; force?: boolean; probeAgent?: AgentDetectionModelOptions['probeAgent'] } = {}
-) {
-  const results = await Promise.all(
-    AGENT_DEFS.map((def) => safeProbe(def, configuredEnvByAgent?.[def.id] ?? {}, amrProfileResolver, { ...(modelContextByAgent[def.id] ? { context: modelContextByAgent[def.id]! } : {}), deps: modelDiscoveryDeps ?? getRuntimeModelDiscoveryDeps({ state }), force, state, env, ...(probeAgent ? { probeAgent } : {}) })),
-  );
+type DetectAgentsSettings = {
+  configuredEnvByAgent: Record<string, Record<string, string>>;
+  amrProfileResolver: AmrProfileResolver;
+  modelContextByAgent: Record<string, ModelDiscoveryContext>;
+  base: DetectionOptions;
+};
+
+/** Options accepted by {@link detectAgents} and {@link detectAgentsStream}. */
+type DetectAgentsOptions = { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnvByAgent?: Record<string, Record<string, string>>; amrProfileResolver?: AmrProfileResolver; modelContextByAgent?: Record<string, ModelDiscoveryContext>; modelDiscoveryDeps?: ModelDiscoveryDeps; force?: boolean; probeAgent?: AgentDetectionModelOptions['probeAgent'] };
+
+function detectionSettings(
+  { configuredEnvByAgent = {}, amrProfileResolver = noopAmrProfileResolver, modelContextByAgent = {}, modelDiscoveryDeps, force = false, state = defaultRuntimeState, env = process.env, probeAgent }: DetectAgentsOptions,
+): DetectAgentsSettings {
+  return { configuredEnvByAgent, amrProfileResolver, modelContextByAgent,
+    base: { deps: modelDiscoveryDeps ?? getRuntimeModelDiscoveryDeps({ state }), force, state, env, ...(probeAgent ? { probeAgent } : {}) } };
+}
+
+/** Probe one def with the shared settings, refreshing the model-validation cache from the result. */
+async function detectOne(def: RuntimeAgentDef, { configuredEnvByAgent, amrProfileResolver, modelContextByAgent, base }: DetectAgentsSettings): Promise<DetectedAgent> {
+  const configuredEnv = configuredEnvByAgent[def.id] ?? {};
+  const context = modelContextByAgent[def.id];
+  const agent = await safeProbe(def, configuredEnv, amrProfileResolver, { ...(context ? { context } : {}), ...base });
   // Refresh the validation cache from whatever we just surfaced to the UI
   // so a chat endpoint can accept any model the user could have just
   // picked, including ones that only showed up after a CLI re-auth.
-  for (const [index, agent] of results.entries()) {
-    // `results` is `AGENT_DEFS.map(...)`, so every index in `results.entries()`
-    // is in-bounds for `AGENT_DEFS` too — the assertion just satisfies
-    // `noUncheckedIndexedAccess`.
-    const def = AGENT_DEFS[index]!;
-    rememberDetectedLiveModels(def, configuredEnvByAgent?.[def.id] ?? {}, agent, amrProfileResolver, { state, env });
-  }
-  return results;
+  rememberDetectedModelList({ def, configuredEnv, models: agent.models, amrProfileResolver }, { state: base.state, env: base.env });
+  return agent;
+}
+
+export async function detectAgents({  }: {  }, optional: DetectAgentsOptions = {}
+) {
+  const settings = detectionSettings(optional);
+  return Promise.all(AGENT_DEFS.map((def) => detectOne(def, settings)));
 }
 
 // Streaming variant: yields each agent the moment its probe settles, in
@@ -489,14 +526,10 @@ export async function detectAgents({  }: {  }, { configuredEnvByAgent = {}, amrP
 // validation cache is refreshed per-agent (same effect as the batch path,
 // just incrementally). `detectAgents` keeps the array contract for callers
 // that don't care about incremental delivery.
-export async function* detectAgentsStream({  }: {  }, { configuredEnvByAgent = {}, amrProfileResolver = noopAmrProfileResolver, modelContextByAgent = {}, modelDiscoveryDeps, force = false, state = defaultRuntimeState, env = process.env, probeAgent }: { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnvByAgent?: Record<string, Record<string, string>>; amrProfileResolver?: AmrProfileResolver; modelContextByAgent?: Record<string, ModelDiscoveryContext>; modelDiscoveryDeps?: ModelDiscoveryDeps; force?: boolean; probeAgent?: AgentDetectionModelOptions['probeAgent'] } = {}
+export async function* detectAgentsStream({  }: {  }, optional: DetectAgentsOptions = {}
 ): AsyncGenerator<DetectedAgent> {
-  const tagged = AGENT_DEFS.map((def, index) =>
-    safeProbe(def, configuredEnvByAgent?.[def.id] ?? {}, amrProfileResolver, { ...(modelContextByAgent[def.id] ? { context: modelContextByAgent[def.id]! } : {}), deps: modelDiscoveryDeps ?? getRuntimeModelDiscoveryDeps({ state }), force, state, env, ...(probeAgent ? { probeAgent } : {}) }).then((agent) => {
-      rememberDetectedLiveModels(def, configuredEnvByAgent?.[def.id] ?? {}, agent, amrProfileResolver, { state, env });
-      return { index, agent };
-    }),
-  );
+  const settings = detectionSettings(optional);
+  const tagged = AGENT_DEFS.map((def, index) => detectOne(def, settings).then((agent) => ({ index, agent })));
   const pending = new Set(tagged.keys());
   while (pending.size > 0) {
     const { index, agent } = await Promise.race(tagged.filter((_, i) => pending.has(i)));

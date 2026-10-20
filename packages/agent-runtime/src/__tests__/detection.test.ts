@@ -191,6 +191,35 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     expect(cursor.diagnostics?.[0]?.reason).toBe('auth-missing');
   });
 
+  it('publishes the auth probe\'s guidance as authMessage', async () => {
+    const bin = path.join(dir, 'cursor-agent');
+    makeExecutable(bin);
+    mockState.responses.set(JSON.stringify(['--version']), { stdout: '1.2.3\n' });
+    mockState.responses.set(JSON.stringify(['status']), { stdout: 'Error: not authenticated. Run cursor-agent login.' });
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) });
+    expect(results.find((a) => a.id === 'cursor-agent')?.authMessage).toContain('cursor-agent login');
+  });
+
+  it('omits authMessage when the agent is authenticated', async () => {
+    const bin = path.join(dir, 'cursor-agent');
+    makeExecutable(bin);
+    mockState.responses.set(JSON.stringify(['--version']), { stdout: '1.2.3\n' });
+    mockState.responses.set(JSON.stringify(['status']), { stdout: 'authenticated' });
+    const cursor = (await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin) })).find((a) => a.id === 'cursor-agent')!;
+    expect(cursor.authStatus).toBe('ok');
+    expect('authMessage' in cursor).toBe(false);
+  });
+
+  it('discovers the full probe\'s models against the host-supplied model context', async () => {
+    const bin = path.join(dir, 'cursor-agent');
+    makeExecutable(bin);
+    mockState.responses.set(JSON.stringify(['--version']), { stdout: '1.2.3\n' });
+    mockState.responses.set(JSON.stringify(['models']), { stdout: 'gpt-5 - GPT-5\n' });
+    const context = { executable: bin, cwd: dir, env: {}, model: 'gpt-5' };
+    const results = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin), modelContextByAgent: { 'cursor-agent': context }, state: createAgentRuntimeState({}) });
+    expect(results.find((a) => a.id === 'cursor-agent')?.modelCatalog?.defaultSelectionId).toBe('gpt-5');
+  });
+
   it('reports not-executable when the version probe rejects with EACCES', async () => {
     const bin = path.join(dir, 'cursor-agent');
     makeExecutable(bin);
@@ -428,6 +457,24 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     expect(amr.models.some((m) => m.id === 'live-model')).toBe(true);
   });
 
+  it('reuses a launch path\'s --help evidence across detection scopes and re-probes it on force', async () => {
+    const bin = path.join(dir, 'cursor-agent');
+    makeExecutable(bin);
+    mockState.responses.set(JSON.stringify(['--version']), { stdout: '1.2.3\n' });
+    mockState.responses.set(JSON.stringify(['--help']), { stdout: 'Usage: cursor-agent [--trust] ...' });
+    const state = createAgentRuntimeState({});
+    const helpCalls = () => mockState.calls.filter(call => call.file === bin && JSON.stringify(call.args) === '["--help"]').length;
+    const before = helpCalls();
+    const env = { PATH: '/missing', HOME: '/missing' };
+    await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin), state, env });
+    const second = await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin), state, env: { ...env, EXTRA: '1' } });
+    expect(helpCalls()).toBe(before + 1);
+    expect(state.capabilities.get('cursor-agent')).toEqual({ trust: true });
+    expect(second.find(agent => agent.id === 'cursor-agent')?.available).toBe(true);
+    await detectAgents({  }, { configuredEnvByAgent: scopedEnv(bin), state, env, force: true });
+    expect(helpCalls()).toBe(before + 2);
+  });
+
   it('detectAgentsStream yields every registered agent exactly once, in completion order', async () => {
     const bin = path.join(dir, 'cursor-agent');
     makeExecutable(bin);
@@ -606,6 +653,8 @@ describe('cached detection catalog lifetimes', () => {
         expect(cursor(next).models.map(model => model.id)).toEqual(['gpt-catalog-2']);
         expect(cursor(concurrent)).toEqual(cursor(next));
         expect(cursor(next).modelCatalog?.freshness).toBe('fresh');
+        // The refresh reuses the detected version, so the catalog keeps its launch scope.
+        expect(cursor(next).modelCatalog?.launchFingerprint).toBe(first.modelCatalog?.launchFingerprint);
         expect(calls).toBe(2);
         const executableCalls = mockState.calls.filter(call => call.file === bin);
         expect(executableCalls.filter(call => call.args[0] === '--version')).toHaveLength(1);
@@ -705,6 +754,13 @@ describe('probeAgentModels — option boundaries', () => {
     const one = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin }, version: '1' });
     const two = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin }, version: '2' });
     expect(one.catalog?.launchFingerprint).not.toBe(two.catalog?.launchFingerprint);
+  });
+
+  it('discovers through the state\'s runtime deps when none are injected', async () => {
+    const bin = liveBin(); const state = createAgentRuntimeState({});
+    const result = await nativeProbeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin }, state, env: { PATH: '/missing', HOME: dir } });
+    expect(result.catalog?.launchFingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(state.modelCatalog.size).toBe(1);
   });
 
   it('reports a discovery failure as an unavailable executable (reported, not fixed)', async () => {
