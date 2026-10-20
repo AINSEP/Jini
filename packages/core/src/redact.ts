@@ -269,9 +269,9 @@ interface RedactionPass {
 
 // PII rules run last (after credential and opt-in opaque rules) and only when PII redaction is on;
 // splitting once keeps each list in PATTERNS order.
-const PII_PATTERN_NAMES = new Set(['email', 'ipv4', 'phone']);
-const NON_PII_PATTERNS = PATTERNS.filter((pattern) => !PII_PATTERN_NAMES.has(pattern.name));
-const PII_PATTERNS = PATTERNS.filter((pattern) => PII_PATTERN_NAMES.has(pattern.name));
+const PII_PATTERN_NAMES: readonly string[] = ['email', 'ipv4', 'phone'];
+const NON_PII_PATTERNS = PATTERNS.filter((pattern) => !PII_PATTERN_NAMES.includes(pattern.name));
+const PII_PATTERNS = PATTERNS.filter((pattern) => PII_PATTERN_NAMES.includes(pattern.name));
 
 /** Built-in credential rules, then the static-scan shapes (labeled `credential`), then the caller's extra rules. */
 function credentialPatterns(extraPatterns: readonly SecretRedactionPattern[]): SecretRedactionPattern[] {
