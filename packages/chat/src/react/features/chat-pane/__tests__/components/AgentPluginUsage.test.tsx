@@ -21,4 +21,9 @@ describe('automatic plugin usage chip', () => {
     rerender(<AgentPluginUsage conversationId="c" messages={[{ ...messages[0]!, events: [{ kind: 'ext', name: 'agent_plugins', data: { conversationId: 'c', plugins: [] } }] }]} />);
     expect(screen.queryByRole('status')).toBeNull();
   });
+  it('falls back to the usage event\'s own conversation when the host passes none, skipping event-less turns', () => {
+    const userTurn: ChatMessage = { id: 'u', role: 'user', content: 'hi', createdAt: 0 };
+    render(<AgentPluginUsage messages={[userTurn, ...messages]} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Using:Tovu Theme×UI/UX Design×');
+  });
 });
