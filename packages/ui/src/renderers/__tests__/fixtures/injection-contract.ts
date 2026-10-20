@@ -184,6 +184,8 @@ export const SRCDOC_FOCUS = `<script data-jini-preview-focus-guard>(function(){
 
 export const ACTIVATION = `<script data-jini-srcdoc-transport-activation>(function(){
   window.addEventListener('message', function(ev){
+    // Only the embedding host may replace this document; nested frames are untrusted.
+    if (ev.source !== window.parent) return;
     var data = ev && ev.data;
     if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
     document.open();
@@ -199,6 +201,8 @@ export const LAZY_SHELL = `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script data-jini-lazy-srcdoc-transport>(function(){
       window.addEventListener('message', function(ev){
+        // Only the embedding host may replace this document; nested frames are untrusted.
+        if (ev.source !== window.parent) return;
         var data = ev && ev.data;
         if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
         document.open();

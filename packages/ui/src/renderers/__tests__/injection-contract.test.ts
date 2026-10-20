@@ -52,22 +52,22 @@ describe('builder injection byte contracts', () => {
     );
   });
 
-  it('keeps body fallback injection separate from generic string-only prepending', () => {
+  it('splices srcdoc safety tags into the implicit head where the generic builder prepends', () => {
     const html = '<html><body>hi</body></html>';
     expect(buildSandboxedDocument(html)).toEqual({ html: DOCUMENT_STORAGE + html, isFullDocument: true });
     expect(buildSrcDoc(html, { csp: false, previewFocusGuard: true })).toBe(
-      '<html><body>' + SRCDOC_FOCUS + SRCDOC_STORAGE + 'hi' + ACTIVATION + '</body></html>',
+      '<html>' + SRCDOC_FOCUS + SRCDOC_STORAGE + '<body>hi' + ACTIVATION + '</body></html>',
     );
   });
 
-  it('synthesizes the same base-only head before injection in both builders', () => {
+  it('synthesizes a base-only head generically while srcdoc splices into the implicit head', () => {
     const html = '<html><body>hi</body></html>';
     expect(buildSandboxedDocument(html, { baseHref, focusGuard: true })).toEqual({
       html: '<html><head>' + DOCUMENT_STORAGE + BASE + DOCUMENT_FOCUS + '</head><body>hi</body></html>',
       isFullDocument: true,
     });
     expect(buildSrcDoc(html, { baseHref, csp: false, previewFocusGuard: true })).toBe(
-      '<html><head>' + SRCDOC_FOCUS + SRCDOC_STORAGE + BASE + '</head><body>hi' + ACTIVATION + '</body></html>',
+      '<html>' + SRCDOC_FOCUS + SRCDOC_STORAGE + BASE + '<body>hi' + ACTIVATION + '</body></html>',
     );
   });
 

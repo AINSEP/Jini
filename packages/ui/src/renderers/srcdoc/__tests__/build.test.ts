@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_SRC_DOC_CSP,
   buildLazySrcDocTransport,
@@ -135,6 +135,14 @@ describe('splice helpers', () => {
     expect(injectAfterHeadOpen('<div/>', '<X/>')).toBe('<X/><div/>');
   });
 
+  it.each([
+    ['<html><!-- <head> --><head>', '<html><!-- <head> --><head><meta data-probe>'],
+    ['<html><head data-note=">">', '<html><head data-note=">"><meta data-probe>'],
+    ['<html><script>const fake = "<head>";</script>', '<html><meta data-probe><script>const fake = "<head>";</script>'],
+  ])('injectAfterHeadOpen uses parsed offsets for %s', (doc, expected) => {
+    expect(injectAfterHeadOpen(doc, '<meta data-probe>')).toBe(expected);
+  });
+
   it('injectBeforeHeadEnd splices right before the real </head>', () => {
     expect(injectBeforeHeadEnd('<html><head><meta/></head><body></body></html>', '<X/>')).toBe(
       '<html><head><meta/><X/></head><body></body></html>',
@@ -242,6 +250,31 @@ describe('sanitizeTitleInDoc malformed-markup edge cases', () => {
 });
 
 describe('buildSrcDoc', () => {
+  it.each([
+    '<html><!-- <head> --><head></head><body><script src="https://evil.example/p.js"></script></body></html>',
+    '<html><head data-note=">"><script>var fake = "<head>";</script></head><body></body></html>',
+    '<html><!-- <head> --><script src="https://evil.example/p.js"></script></html>',
+    '<!doctype html><!-- <head> --><script src="https://evil.example/p.js"></script>',
+    '<html><head><template><head></head></template><script src="https://evil.example/p.js"></script></head><body></body></html>',
+    // A quoted `<head` once caught the shim/base splice, whose own quotes then pushed the policy into <body>.
+    "<html><head data-x='<head>'><script src=\"https://evil.example/p.js\"></script></head></html>",
+    '<html lang="<head>"><script src="https://evil.example/p.js"></script></html>',
+  ])('places CSP in the parsed head before authored scripts: %s', html => {
+    const policy = "script-src 'none'";
+    const output = buildSrcDoc(html, { csp: policy, previewFocusGuard: true, baseHref: '/assets/' });
+    const parsed = new DOMParser().parseFromString(output, 'text/html');
+    const metas = parsed.querySelectorAll('meta[http-equiv="Content-Security-Policy"]');
+    expect(metas).toHaveLength(1);
+    expect(metas[0]?.parentElement).toBe(parsed.head);
+    expect(metas[0]?.getAttribute('content')).toBe(policy);
+    const follows = (node: Node) => (metas[0]!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    // The host's own <base> must precede the policy, or the default base-uri 'none' would block it.
+    expect(follows(parsed.querySelector('base[href="/assets/"]')!)).toBe(false);
+    const authored = [...parsed.querySelectorAll('script')].filter(script => ![...script.attributes].some(attr => attr.name.startsWith('data-jini-')));
+    expect(authored.length).toBeGreaterThan(0);
+    for (const script of authored) expect(follows(script)).toBe(true);
+  });
+
   it('wraps a bare fragment in a minimal document', () => {
     const doc = buildSrcDoc('<p>hi</p>');
     expect(doc).toContain('<!doctype html>');
@@ -349,6 +382,36 @@ describe('buildLazySrcDocTransport', () => {
     const shell = buildLazySrcDocTransport();
     expect(shell).toContain('jini:srcdoc-transport-activate');
     expect(shell).toContain('jini:srcdoc-transport-ready');
+  });
+});
+
+describe('srcdoc activation sender boundary', () => {
+  it.each([
+    ['lazy shell', () => buildLazySrcDocTransport(), 'script[data-jini-lazy-srcdoc-transport]'],
+    ['active document', () => buildSrcDoc('<p>preview</p>'), 'script[data-jini-srcdoc-transport-activation]'],
+  ] as const)('%s accepts replacement HTML only from its parent', (_name, build, selector) => {
+    const parsed = new DOMParser().parseFromString(build(), 'text/html');
+    const script = parsed.querySelector(selector)!.textContent!;
+    const parent = { postMessage: vi.fn() };
+    const handlers: Array<(event: { source: unknown; data: unknown }) => void> = [];
+    const frame = { parent, addEventListener: (_type: string, handler: typeof handlers[number]) => handlers.push(handler) };
+    const document = { open: vi.fn(), write: vi.fn(), close: vi.fn() };
+    // Execute the generated listener with explicit window/document ports; no markup runs.
+    new Function('window', 'document', script)(frame, document);
+    expect(handlers).toHaveLength(1);
+    const data = { type: 'jini:srcdoc-transport-activate', html: '<h1>Fake sign-in</h1>' };
+    for (const source of [null, {}, frame]) handlers[0]!({ source, data });
+    expect(document.open).not.toHaveBeenCalled();
+    expect(document.write).not.toHaveBeenCalled();
+    expect(document.close).not.toHaveBeenCalled();
+    handlers[0]!({ source: parent, data: { ...data, type: 'other' } });
+    handlers[0]!({ source: parent, data: { ...data, html: 42 } });
+    expect(document.write).not.toHaveBeenCalled();
+    handlers[0]!({ source: parent, data });
+    expect(document.open).toHaveBeenCalledTimes(1);
+    expect(document.write).toHaveBeenCalledTimes(1);
+    expect(document.write).toHaveBeenCalledWith(data.html);
+    expect(document.close).toHaveBeenCalledTimes(1);
   });
 });
 

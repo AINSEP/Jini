@@ -13,7 +13,7 @@
  */
 import { defaultTreeAdapter, parse, type DefaultTreeAdapterMap } from 'parse5';
 import { escapeHtmlAttribute } from '../html-utils.js';
-import { injectBaseHref, wrapFragmentAsDocument } from '../sandboxed-document.js';
+import { wrapFragmentAsDocument } from '../sandboxed-document.js';
 import { buildFocusScript, buildStorageScript } from '../sandbox-scripts.js';
 import { applySrcDocBridges, type SrcDocBridge, type SrcDocBridgeContext } from './bridge.js';
 
@@ -61,9 +61,22 @@ export interface BuildSrcDocOptions {
 export const DEFAULT_SRC_DOC_CSP =
   "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data:; style-src 'unsafe-inline'; img-src * data: blob:; font-src * data:; media-src * data: blob:; connect-src *; frame-src *; child-src *; object-src 'none'; base-uri 'none'; form-action 'none';";
 
-function injectContentSecurityPolicy(doc: string, csp: string): string {
-  const tag = `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}">`;
-  return injectAfterHeadOpen(doc, tag);
+/** Resolve the existing default/disabled/custom policy contract without changing caller options. */
+function resolveContentSecurityPolicy({ csp }: Pick<BuildSrcDocOptions, 'csp'>): string | null {
+  if (csp === false) return null;
+  return csp === true || csp === undefined ? DEFAULT_SRC_DOC_CSP : csp;
+}
+
+/** The safety tags spliced once at the parsed head opener. Order is load-bearing: the host's
+ * own scripts precede the policy, the host `<base>` precedes it so the default `base-uri 'none'`
+ * cannot block it, and authored markup follows it. Separate regex splices could match `<head`
+ * inside a quoted attribute, and the next tag's quotes then pushed the policy into `<body>`. */
+function buildSafetyHead(options: BuildSrcDocOptions): string {
+  const csp = resolveContentSecurityPolicy(options);
+  return (options.previewFocusGuard ? buildFocusScript({ format: 'srcdoc' }) : '')
+    + buildStorageScript({ format: 'srcdoc' })
+    + (options.baseHref ? `<base href="${escapeHtmlAttribute(options.baseHref)}">` : '')
+    + (csp ? `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}">` : '');
 }
 
 /**
@@ -126,10 +139,24 @@ function serializeHtmlDocument(doc: Document): string {
   return `${doctype}${doc.documentElement.outerHTML}`;
 }
 
-/** Splice `payload` right after the opening `<head …>` tag, prepending it when no `<head>` exists. */
+/** An implicit element has no authored opening tag to splice after. */
+function openingTagEnd({ node }: { node: DefaultTreeAdapterMap['element'] | undefined }): number | undefined {
+  return node?.sourceCodeLocation?.startTag?.endOffset;
+}
+
+/** Splice after the parsed head opener, or before content in an implicit head.
+ * Source offsets exclude comments, raw text and quoted attributes without rewriting the document.
+ * @complexity O(n) time and space for parsing n source characters.
+ */
 export function injectAfterHeadOpen(doc: string, payload: string): string {
-  if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (m) => `${m}${payload}`);
-  return payload + doc;
+  const document = parse(doc, { sourceCodeLocationInfo: true });
+  const root = findElementChild({ parent: document, tagName: 'html' });
+  const head = findElementChild({ parent: root, tagName: 'head' });
+  const doctype = document.childNodes.find(defaultTreeAdapter.isDocumentTypeNode);
+  const offset = openingTagEnd({ node: head })
+    ?? openingTagEnd({ node: root })
+    ?? doctype?.sourceCodeLocation?.endOffset ?? 0;
+  return doc.slice(0, offset) + payload + doc.slice(offset);
 }
 
 /**
@@ -177,16 +204,11 @@ export function injectBeforeBodyEnd(doc: string, payload: string): string {
   return doc + payload;
 }
 
-/** Srcdoc keeps its head/body/prepend fallback instead of the generic builder's string-only head insertion. */
-function injectSandboxScript(doc: string, script: string): string {
-  if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (m) => `${m}${script}`);
-  if (/<body[^>]*>/i.test(doc)) return doc.replace(/<body[^>]*>/i, (m) => `${m}${script}`);
-  return script + doc;
-}
-
 function injectSrcdocTransportActivationBridge(doc: string): string {
   const script = `<script data-jini-srcdoc-transport-activation>(function(){
   window.addEventListener('message', function(ev){
+    // Only the embedding host may replace this document; nested frames are untrusted.
+    if (ev.source !== window.parent) return;
     var data = ev && ev.data;
     if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
     document.open();
@@ -220,6 +242,8 @@ export function buildLazySrcDocTransport(): string {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script data-jini-lazy-srcdoc-transport>(function(){
       window.addEventListener('message', function(ev){
+        // Only the embedding host may replace this document; nested frames are untrusted.
+        if (ev.source !== window.parent) return;
         var data = ev && ev.data;
         if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
         document.open();
@@ -280,17 +304,12 @@ export function buildSrcDoc(html: string, options: BuildSrcDocOptions = {}): str
 
   const wrapped = wrapFragmentAsDocument(html);
 
-  const withSafeTitle = sanitizeTitleInDoc(wrapped);
-  const cspValue = options.csp === false ? null : options.csp === true || options.csp === undefined ? DEFAULT_SRC_DOC_CSP : options.csp;
-  const withCsp = cspValue ? injectContentSecurityPolicy(withSafeTitle, cspValue) : withSafeTitle;
-  const withBase = options.baseHref ? injectBaseHref(withCsp, options.baseHref) : withCsp;
-  const withShim = injectSandboxScript(withBase, buildStorageScript({ format: 'srcdoc' }));
-  const withFocusGuard = options.previewFocusGuard ? injectSandboxScript(withShim, buildFocusScript({ format: 'srcdoc' })) : withShim;
+  const withSafety = injectAfterHeadOpen(sanitizeTitleInDoc(wrapped), buildSafetyHead(options));
 
   const ctx: SrcDocBridgeContext = { baseHref: options.baseHref, ...options.bridgeContext };
   const withBridges = options.bridges?.length
-    ? applySrcDocBridges(withFocusGuard, options.bridges, ctx)
-    : withFocusGuard;
+    ? applySrcDocBridges(withSafety, options.bridges, ctx)
+    : withSafety;
 
   return injectSrcdocTransportActivationBridge(withBridges);
 }
