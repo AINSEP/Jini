@@ -95,3 +95,27 @@ test("known non-images are refused through the required featured-image port befo
   assert.deepEqual(await postRepo.findById({ workspaceId: "workspace-1", id: "post-1" }), before);
   assert.deepEqual(await postRepo.listRevisions({ workspaceId: "workspace-1", postId: "post-1" }), []);
 });
+
+test.each(["onEntryPublished", "onEntryUpdated", "onEntryUnpublished"] as const)("the %s subscription invalidates only that workspace's cached sitemap", async (name) => {
+  const { postRepo, service } = harness("before");
+  const input = { workspaceId: "workspace-1" };
+  assert.deepEqual((await service.buildSitemap(input)).map(e => e.loc), ["/before"]);
+  await postRepo.save(buildPostRecord({ slug: "after" }));
+  assert.deepEqual((await service.buildSitemap(input)).map(e => e.loc), ["/before"], "served from cache before the event");
+  await service.createSeoEventSubscriptions({})[name]({ workspaceId: "workspace-1", payload: { entryId: "post-1", contentType: "post" } });
+  assert.deepEqual((await service.buildSitemap(input)).map(e => e.loc), ["/after"]);
+});
+
+test("the service's computeIndexableEntries lists published entries in id order with their resolved meta", async () => {
+  const { postRepo, service } = harness("b-slug");
+  await postRepo.save(buildPostRecord({ id: "post-0", slug: "a-slug" }));
+  await postRepo.save(buildPostRecord({ id: "post-2", slug: "draft", status: "draft" }));
+  const entries = await service.computeIndexableEntries({ workspaceId: "workspace-1" });
+  assert.deepEqual(entries.map(e => [e.post.id, e.meta.canonical]), [["post-0", "/a-slug"], ["post-1", "/b-slug"]]);
+});
+
+test("the service's buildRobots advertises the relative sitemap URL when no origin is verified", async () => {
+  const { service } = harness("a");
+  const robots = await service.buildRobots({ workspaceId: "workspace-1" });
+  assert.deepEqual(robots.sitemapUrls, ["/sitemap.xml"]);
+});

@@ -63,31 +63,44 @@ export async function computeIndexableEntries(required: { deps: SeoSitemapDeps; 
   const { deps, input } = required;
   const { workspaceId } = input;
   const nowIso = input.nowIso ?? deps.clock.nowIso();
-  const posts = [...(await deps.postRepo.list({ workspaceId }))].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const posts = [...(await deps.postRepo.list({ workspaceId }))].sort(compareById);
 
   const entries: IndexableEntry[] = [];
   for (const post of posts) {
-    if (post.status !== "published") continue;
-    // Scheduled publishing (2026-10-05): not in sitemap/feed/llms.txt until its go-live time.
-    if (deps.liveness.isScheduledAt({ post, nowIso })) continue;
-    // 2026-09-04 fix: `softDelete` (post.ts) stamps only `deletedAt`/`updatedAt`/`version` — it
-    // never clears `status`, so a post that was `published` when trashed stays `status:
-    // "published"` forever and the guard above alone can't catch it. `PostRepoPort.list()` is
-    // documented (and deliberately kept) trash-BLIND (see `PostRecord.deletedAt`'s own doc: "every
-    // trash-AWARE read filter lives in this file's own domain functions"), the same contract
-    // `listAdminPosts`/`listPublishedPosts`/`listAdminPages` (post.ts) already honor with their own
-    // `!isTrashed(post)` filter — this is that same filter, applied at this domain function's own
-    // trash-aware read boundary rather than widening the shared repo port.
-    if (deps.postRepo.isTrashed({ post })) continue;
-    // ADR-030 §4 (2026-09-03 sweep): a members/paid/tiers-gated post must not advertise its
-    // canonical URL or existence to crawlers here, the same way it was already excluded from the
-    // ungated home-page listing (`pages.ts`'s `filterVisiblePosts`).
-    if (!deps.isPubliclyAccessible({ post })) continue;
+    if (!isPublicCandidate({ deps, post, nowIso })) continue;
     const meta = await getEntryMeta({ deps, input: { workspaceId, entryId: post.id } });
     if (meta.robots.noindex) continue;
     entries.push({ post, meta });
   }
   return entries;
+}
+
+/** Deterministic `id` order, so every SEO document lists entries identically across builds. */
+function compareById(a: PostRecord, b: PostRecord): number {
+  // No equal-id arm: `id` is the post repository's primary key, so two listed rows never tie.
+  return a.id < b.id ? -1 : 1;
+}
+
+/** Whether `post` is published, live, untrashed and anonymously readable — every gate short of
+ *  the effective-`noindex` check, which needs the resolved `SeoMeta`. @complexity O(1). */
+function isPublicCandidate(required: { deps: SeoSitemapDeps; post: PostRecord; nowIso: string }): boolean {
+  const { deps, post, nowIso } = required;
+  if (post.status !== "published") return false;
+  // Scheduled publishing (2026-10-05): not in sitemap/feed/llms.txt until its go-live time.
+  if (deps.liveness.isScheduledAt({ post, nowIso })) return false;
+  // 2026-09-04 fix: `softDelete` (post.ts) stamps only `deletedAt`/`updatedAt`/`version` — it
+  // never clears `status`, so a post that was `published` when trashed stays `status:
+  // "published"` forever and the guard above alone can't catch it. `PostRepoPort.list()` is
+  // documented (and deliberately kept) trash-BLIND (see `PostRecord.deletedAt`'s own doc: "every
+  // trash-AWARE read filter lives in this file's own domain functions"), the same contract
+  // `listAdminPosts`/`listPublishedPosts`/`listAdminPages` (post.ts) already honor with their own
+  // `!isTrashed(post)` filter — this is that same filter, applied at this domain function's own
+  // trash-aware read boundary rather than widening the shared repo port.
+  if (deps.postRepo.isTrashed({ post })) return false;
+  // ADR-030 §4 (2026-09-03 sweep): a members/paid/tiers-gated post must not advertise its
+  // canonical URL or existence to crawlers here, the same way it was already excluded from the
+  // ungated home-page listing (`pages.ts`'s `filterVisiblePosts`).
+  return deps.isPubliclyAccessible({ post });
 }
 
 /**
@@ -257,11 +270,10 @@ export function createSitemapService(required: { deps: SeoSitemapDeps }, _option
    * `bus.subscribe` at `server/app.ts` boot (T038).
    */
   function createSeoEventSubscriptions(_required: Record<string, never>, _optional: Record<string, never> = {}): SeoEventSubscriptions {
-    const handler = async (event: { payload: { entryId: UUID; contentType: string }; workspaceId: UUID }, _optional: Record<string, never> = {}) => {
+    const handler = async (event: { workspaceId: UUID }, _optional: Record<string, never> = {}) => {
       invalidateSitemapCache({ workspaceId: event.workspaceId });
     };
-    return { onEntryPublished: handler, onEntryUpdated: handler, onEntryUnpublished: handler,
-      onSitemapInvalidated: async (event, _optional: Record<string, never> = {}) => { invalidateSitemapCache({ workspaceId: event.workspaceId }); } };
+    return { onEntryPublished: handler, onEntryUpdated: handler, onEntryUnpublished: handler, onSitemapInvalidated: handler };
   }
 
   return {
