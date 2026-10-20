@@ -19,7 +19,7 @@ claude-segment-usage 32/25, detection 23/19, model-discovery 34/24, qoder-stream
 | L059 | MERGED 5dc18720 | fa204f53, 568038fd, 10a3b051, dc446d1b, 8e7b9c4e, 35d2023e, 3749c3bb | json -/11, models 20/20, session-params 25/19, session 15/12, updates 14/15 → all ≤10 (0 violations) | 100/100/100 on all 5 (438 acp tests) | eslint 0, tsc ok; why-comments verified moved; behaviour-preserving extractions |
 | L174 | pending | | | | |
 | L198 | MERGED 0f6c99be | 88dca258, c6667314 | 18/16 → ≤10/≤10 (0 violations) | 100/100/100 (34 tests; needs `--coverage.exclude=__none__`) | eslint 0, tsc ok, tests green; markup proof 864 old-vs-new renders identical (temp test deleted) |
-| L283 | dispatched 01:50Z | | | | |
+| L283 | MERGED 95a9e86d | 7c4964d6, 073a6995, bacab59c | antigravity 11/- → 8/9, pi 11/- → 5/2 | 100/100/100 both (544 defs tests) | eslint 0, tsc ok; removed dead empty-id/label guards in parseAgyModels (provably unreachable: line trimmed) |  | | | |
 
 ## Timings
 - Setup (install + `pnpm --no-bail -r build`): 156 s; only `@jini-ai/integrations` failed tsc (expected), all dist emitted.
