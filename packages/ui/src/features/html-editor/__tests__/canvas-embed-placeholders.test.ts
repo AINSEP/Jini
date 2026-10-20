@@ -311,3 +311,72 @@ it('re-measures a runtime card after its authored height changes', () => {
     body.remove();
   }
 });
+
+describe('W5 placeholder characterization', () => {
+  const mounted: HTMLElement[] = [];
+  afterEach(() => {
+    vi.restoreAllMocks();
+    mounted.splice(0).forEach(body => body.remove());
+    document.head.querySelectorAll('style[data-jini-embed-placeholder-style]').forEach(style => style.remove());
+  });
+  it('retains the parent guard when a host detaches a snapshotted marker', () => {
+    const body = bodyWith('<div data-marker="x"></div>');
+    const marker = body.firstElementChild!;
+    applyCanvasEmbedPlaceholders(body, el => {
+      if (el !== marker) return undefined;
+      el.remove();
+      return { kindLabel: 'x', identityLabel: 'detached' };
+    });
+    expect(body.innerHTML).toBe('');
+    expect(marker.parentNode).toBeNull();
+  });
+  it('refreshes only direct runtime markers and restores the overlay sheet after a measurement error', () => {
+    const body = document.createElement('div');
+    body.innerHTML = '<div id="runtime" style="height:120px"><b>child</b></div>';
+    mounted.push(body);
+    document.body.append(body);
+    const marker = body.firstElementChild!;
+    const describe = vi.fn((el: Element): CanvasEmbedPlaceholderDescriptor | undefined => el === marker
+      ? { kindLabel: 'Runtime', identityLabel: 'r', presentation: 'runtime' } : undefined);
+    applyCanvasEmbedPlaceholders(body, describe);
+    const card = marker.parentElement!;
+    expect(card.style.height).toBe('120px');
+    describe.mockClear();
+    marker.setAttribute('style', 'height:220px');
+    applyCanvasEmbedPlaceholders(body, describe);
+    expect(describe.mock.calls.map(call => call[0])).toEqual([marker]);
+    expect(card.style.height).toBe('220px');
+    const overlay = document.head.querySelector<HTMLStyleElement>('style[data-jini-embed-placeholder-style]')!;
+    const sheet = overlay.sheet!;
+    sheet.disabled = true;
+    const computed = vi.spyOn(window, 'getComputedStyle').mockImplementation(() => { throw new Error('measure'); });
+    expect(() => applyCanvasEmbedPlaceholders(body, describe)).toThrow('measure');
+    expect(sheet.disabled).toBe(true);
+    computed.mockRestore();
+    body.remove();
+  });
+  it('uses native geometry without a window', () => {
+    const doc = document.implementation.createHTMLDocument('canvas');
+    doc.body.innerHTML = '<canvas height="350"></canvas>';
+    const marker = doc.body.firstElementChild!;
+    applyCanvasEmbedPlaceholders(doc.body, el => el === marker ? {
+      kindLabel: 'Canvas', identityLabel: 'c', presentation: 'runtime', inline: true,
+    } : undefined);
+    expect(marker.parentElement!.style.height).toBe('160px');
+    expect(marker.parentElement!.style.verticalAlign).toBe('middle');
+  });
+
+  it('leaves runtime geometry intact when re-description returns no runtime presentation', () => {
+    const body = bodyWith('<canvas></canvas>');
+    const marker = body.firstElementChild!;
+    const runtime: CanvasEmbedPlaceholderDescriptor = { kindLabel: 'Canvas', identityLabel: 'c', presentation: 'runtime', declaredHeight: 300 };
+    applyCanvasEmbedPlaceholders(body, el => el === marker ? runtime : undefined);
+    const card = marker.parentElement!;
+    applyCanvasEmbedPlaceholders(body, () => undefined);
+    expect(card.style.height).toBe('300px');
+    applyCanvasEmbedPlaceholders(body, el => el === marker ? { ...runtime, presentation: 'embed', declaredHeight: 500 } : undefined);
+    expect(card.style.height).toBe('300px');
+    expect(marker.parentElement).toBe(card);
+  });
+
+});

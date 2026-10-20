@@ -1,5 +1,5 @@
 import grapesjs, { type Editor } from 'grapesjs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { prepareEditorSource, type RequestEditHtml } from '../editor-blocks.js';
 import { assertPreparedSourceModel, EditorSourceError, protectTextAncestors, registerProtectedElementType } from '../protected-elements.js';
 import { serializeEditorSource } from '../editor-serialization.js';
@@ -124,3 +124,77 @@ describe('same protected type — exact raw model contract', () => {
    wrapper.findType('protected-element')[0]!.remove();
    expect(() => assertPreparedSourceModel({ editor, sourcePlan: plan }, {})).toThrow(EditorSourceError);
  });
+
+it('runs preparation before ignoring ordinary selection and nonvisual atoms', async () => {
+  const { editor, plan, wrapper } = mount('<p>x</p><script>keep()</script>');
+  const calls: string[] = [];
+  registerProtectedElementType({ editor, sourcePlan: plan }, {
+    beforeRequestEditHtml: async () => { calls.push('prepare'); },
+    onRequestEditHtml: () => { calls.push('navigate'); },
+  });
+  editor.select(wrapper.components().at(0));
+  await editor.Commands.run('jini:protected-edit-html');
+  editor.select(wrapper.findType('protected-element')[0]!);
+  await editor.Commands.run('jini:protected-edit-html');
+  editor.select();
+  await editor.Commands.run('jini:protected-edit-html');
+  expect(calls).toEqual(['prepare', 'prepare', 'prepare']);
+});
+it('normalizes preparation and navigation failures while preserving integrity errors', async () => {
+  const { editor, plan, wrapper } = mount('<canvas></canvas>');
+  const errors: EditorSourceError[] = [];
+  const integrity = new EditorSourceError();
+  editor.select(wrapper.findType('protected-element')[0]!);
+  registerProtectedElementType({ editor, sourcePlan: plan }, {
+    beforeRequestEditHtml: async () => { throw integrity; }, onRequestEditHtml: () => { throw new Error('unused'); },
+    onSerializationError: error => { errors.push(error); },
+  });
+  await editor.Commands.run('jini:protected-edit-html');
+  expect(errors).toEqual([integrity]);
+  registerProtectedElementType({ editor, sourcePlan: plan }, {
+    onRequestEditHtml: () => { throw new Error('host'); }, onSerializationError: error => { errors.push(error); },
+  });
+  await editor.Commands.run('jini:protected-edit-html');
+  expect(errors).toHaveLength(2);
+  expect(errors[1]).toBeInstanceOf(EditorSourceError);
+  expect(errors[1]!.message).toBe("Can't edit this source visually. Use HTML.");
+});
+it('rejects source targets whose tag or id metadata no longer matches the authored opening', async () => {
+  const { editor, plan, wrapper } = mount('<canvas></canvas>');
+  const block = wrapper.findType('protected-element')[0]!;
+  const errors: EditorSourceError[] = [];
+  const targets: unknown[] = [];
+  registerProtectedElementType({ editor, sourcePlan: plan }, {
+    onRequestEditHtml: target => { targets.push(target); }, onSerializationError: error => { errors.push(error); },
+  });
+  editor.select(block);
+  block.set('sourceTagName', 'video');
+  await editor.Commands.run('jini:protected-edit-html');
+  expect(targets).toEqual([]);
+  expect(errors).toHaveLength(1);
+  expect(errors[0]).toBeInstanceOf(EditorSourceError);
+});
+
+it('fails closed when wrapper serialization omits the selected original or places its opening later', async () => {
+  const { editor, plan, wrapper } = mount('<canvas></canvas>');
+  const selected = wrapper.findType('protected-element')[0]!;
+  const errors: EditorSourceError[] = [];
+  const targets: unknown[] = [];
+  registerProtectedElementType({ editor, sourcePlan: plan }, {
+    onRequestEditHtml: target => { targets.push(target); }, onSerializationError: error => { errors.push(error); },
+  });
+  editor.select(selected);
+  const serialize = vi.spyOn(wrapper, 'getInnerHTML');
+  try {
+    serialize.mockReturnValue('');
+    await editor.Commands.run('jini:protected-edit-html');
+    // The bytes appear in a comment first; the actual opening is later than that untrusted match.
+    serialize.mockReturnValue('<!--<canvas></canvas>--><canvas></canvas>');
+    await editor.Commands.run('jini:protected-edit-html');
+    expect(targets).toEqual([]);
+    expect(errors).toHaveLength(2);
+    expect(errors.map(error => error.code)).toEqual(['EDITOR_SOURCE_INTEGRITY', 'EDITOR_SOURCE_INTEGRITY']);
+  } finally {
+    serialize.mockRestore();
+  }
+});

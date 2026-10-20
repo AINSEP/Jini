@@ -74,6 +74,39 @@ export function protectedCanvasDescriber({ editor }: { editor: Editor }, _option
   return el => descriptors.get(el);
 }
 
+function selectedSourceStart(
+  { wrapper, selected, original, html }: { wrapper: Component; selected: Component; original: string; html: string },
+  _options: object = {},
+): number {
+  // Search only exact authored slices. Copies share bytes, so count preceding equal instances
+  // in model order; no mapping export mode or persistent source tokens are needed.
+  let copiesBefore = 0;
+  let reached = false;
+  visit(wrapper, component => {
+    if (component === selected) reached = true;
+    else if (!reached && component.is(PROTECTED_ELEMENT_TYPE) && protectedElementHtml({ component }, {}) === original) copiesBefore++;
+  });
+  let start = -1;
+  for (let i = 0; i <= copiesBefore; i++) start = html.indexOf(original, start + 1);
+  if (start < 0) throw new EditorSourceError();
+  return start;
+}
+
+function selectedSourceTarget(
+  { selected, html, start }: { selected: Component; html: string; start: number }, _options: object = {},
+): Parameters<RequestEditHtml>[0] {
+  const tagName = selected.get('sourceTagName') as string;
+  const id = selected.get('sourceId') as string | undefined;
+  let occurrenceIndex = 0;
+  for (;;) {
+    const range = findEditorBlockOpening({ html, target: { occurrenceIndex, tagName, ...(id ? { id } : {}) } }, {});
+    if (!range || range.start > start) throw new EditorSourceError();
+    if (range.start === start) break;
+    occurrenceIndex++;
+  }
+  return { occurrenceIndex, tagName, ...(id ? { id } : {}) };
+}
+
 /**
  * Registers the `protected-element` component type so any parsed element `isProtectedElement`
  * recognizes becomes one atomic block: its content can never be edited (excluded from RTE
@@ -108,27 +141,9 @@ export function registerProtectedElementType(
         if (!selected?.is(PROTECTED_ELEMENT_TYPE) || !wrapper || selected.get('sourceNonvisual')) return;
         const original = protectedElementHtml({ component: selected }, {});
         const html = wrapper.getInnerHTML();
-        // Search only exact authored slices. Copies share bytes, so count preceding equal instances
-        // in model order; no mapping export mode or persistent source tokens are needed.
-        let copiesBefore = 0;
-        let reached = false;
-        visit(wrapper, component => {
-          if (component === selected) reached = true;
-          else if (!reached && component.is(PROTECTED_ELEMENT_TYPE) && protectedElementHtml({ component }, {}) === original) copiesBefore++;
-        });
-        let start = -1;
-        for (let i = 0; i <= copiesBefore; i++) start = html.indexOf(original, start + 1);
-        if (start < 0) throw new EditorSourceError();
-        const tagName = selected.get('sourceTagName') as string;
-        const id = selected.get('sourceId') as string | undefined;
-        let occurrenceIndex = 0;
-        for (;;) {
-          const range = findEditorBlockOpening({ html, target: { occurrenceIndex, tagName, ...(id ? { id } : {}) } }, {});
-          if (!range || range.start > start) throw new EditorSourceError();
-          if (range.start === start) break;
-          occurrenceIndex++;
-        }
-        await requestEditHtml({ occurrenceIndex, tagName, ...(id ? { id } : {}) }, {});
+        const start = selectedSourceStart({ wrapper, selected, original, html }, {});
+        const target = selectedSourceTarget({ selected, html, start }, {});
+        await requestEditHtml(target, {});
       } catch (error) {
         options.onSerializationError?.(error instanceof EditorSourceError ? error : new EditorSourceError());
       }

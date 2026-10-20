@@ -69,6 +69,44 @@ const isEditableEffect = (el: SourceElement): boolean => {
   return (TEXT_EFFECT_TAGS.has(el.tagName) || PHRASING_TAGS.has(el.tagName)) && isPhrasingOnly(el);
 };
 
+function runtimeBlockReason({ el, isLive }: { el: SourceElement; isLive: boolean }, _options: object = {}): EditorBlockReason | undefined {
+  if (isLive) return undefined;
+  if (Object.keys(el.attributes).some(name => name.startsWith('data-kui')) && !isEditableEffect(el)) return 'kuinetic';
+  if (el.tagName === 'canvas') return 'canvas';
+  if (el.tagName === 'video' && 'autoplay' in el.attributes) return 'autoplay-video';
+  if (el.attributes['data-editor'] === 'block') return 'scripted';
+  return undefined;
+}
+
+function describeBlock(
+  { el, isLive, hasLiveDescendants }: { el: SourceElement; isLive: boolean; hasLiveDescendants: boolean },
+  options: EditorBlockOptions = {},
+): { reason: EditorBlockReason | undefined; host: CanvasEmbedPlaceholderDescriptor | undefined } {
+  const view = sourceElementAttributeView(el, {});
+  const host = options.describeHostElement?.(view);
+  const embed = !!host || !!options.isProtectedElement?.(view);
+  let reason = runtimeBlockReason({ el, isLive }, {});
+  if (reason && hasLiveDescendants) reason = undefined;
+  if (!reason && embed) reason = 'embed';
+  return { reason, host };
+}
+
+function createEditorBlock(
+  { el, reason, host }: { el: SourceElement; reason: EditorBlockReason; host: CanvasEmbedPlaceholderDescriptor | undefined },
+  options: EditorBlockOptions = {},
+): EditorBlock {
+  const t = options.translate ?? ((key: string) => key);
+  const id = el.attributes.id;
+  const identity = id ? `#${id}` : el.attributes.class ? `.${el.attributes.class.trim().split(/\s+/).slice(0, 2).join('.')}` : el.tagName;
+  return {
+    ...el.outerRange!, tagName: el.tagName, ...(id ? { id } : {}), reason, element: el,
+    descriptor: reason === 'embed' && host ? host : {
+      kindLabel: t(LABELS[reason]), identityLabel: identity.slice(0, 64), presentation: reason === 'embed' ? 'embed' : 'runtime',
+      guidanceLabel: t('Locked · Edit in HTML · Preview plays it'), inline: INLINE_TAGS.has(el.tagName),
+    },
+  };
+}
+
 /** Outermost disjoint roots; explicit live islands veto aggregation but never host embed safety. */
 export function detectEditorBlocks({ html }: { html: string }, options: EditorBlockOptions = {}):
   { ok: true; blocks: EditorBlock[]; elements: SourceElement[] } | { ok: false; problem: string } {
@@ -82,39 +120,19 @@ export function detectEditorBlocks({ html }: { html: string }, options: EditorBl
   };
   elements.forEach(annotate);
   let unsupported = false;
-  const walk = (el: SourceElement, live: boolean, invalidAncestor: boolean) => {
+  const walk = ({ el, live, invalidAncestor }: { el: SourceElement; live: boolean; invalidAncestor: boolean }, _options: object = {}) => {
     const mode = el.attributes['data-editor'];
     const isLive = mode === 'live' || (mode !== 'block' && live);
-    const view = sourceElementAttributeView(el, {});
-    const host = options.describeHostElement?.(view);
-    const embed = !!host || !!options.isProtectedElement?.(view);
-    let reason: EditorBlockReason | undefined;
-    if (!isLive) {
-      if (Object.keys(el.attributes).some(name => name.startsWith('data-kui')) && !isEditableEffect(el)) reason = 'kuinetic';
-      else if (el.tagName === 'canvas') reason = 'canvas';
-      else if (el.tagName === 'video' && 'autoplay' in el.attributes) reason = 'autoplay-video';
-      else if (mode === 'block') reason = 'scripted';
-    }
-    if (reason && liveIslands.get(el)) reason = undefined;
-    if (!reason && embed) reason = 'embed';
+    const { reason, host } = describeBlock({ el, isLive, hasLiveDescendants: !!liveIslands.get(el) }, options);
     const invalid = invalidAncestor || !el.outerRange || UNSUPPORTED_CONTEXTS.has(el.tagName);
     if (reason) {
       if (invalid || !el.sourceSupported) { unsupported = true; return; }
-      const t = options.translate ?? ((key: string) => key);
-      const id = el.attributes.id;
-      const identity = id ? `#${id}` : el.attributes.class ? `.${el.attributes.class.trim().split(/\s+/).slice(0, 2).join('.')}` : el.tagName;
-      blocks.push({
-        ...el.outerRange!, tagName: el.tagName, ...(id ? { id } : {}), reason, element: el,
-        descriptor: reason === 'embed' && host ? host : {
-          kindLabel: t(LABELS[reason]), identityLabel: identity.slice(0, 64), presentation: reason === 'embed' ? 'embed' : 'runtime',
-          guidanceLabel: t('Locked · Edit in HTML · Preview plays it'), inline: INLINE_TAGS.has(el.tagName),
-        },
-      });
+      blocks.push(createEditorBlock({ el, reason, host }, options));
       return;
     }
-    el.children.forEach(child => walk(child, isLive, invalid));
+    el.children.forEach(child => walk({ el: child, live: isLive, invalidAncestor: invalid }, {}));
   };
-  elements.forEach(el => walk(el, false, false));
+  elements.forEach(el => walk({ el, live: false, invalidAncestor: false }, {}));
   return unsupported || (blocks.length > 0 && elements.some(el => !el.sourceSupported))
     ? { ok: false, problem: "Can't edit this source visually. Use HTML." } : { ok: true, blocks, elements };
 }
@@ -175,8 +193,16 @@ export function prepareEditorSource({ html }: { html: string }, options: EditorB
   let markerAttribute = 'data-jini-raw-source-0';
   let namespace = 0;
   while (html.toLowerCase().includes(markerAttribute)) markerAttribute = `data-jini-raw-source-${++namespace}`;
+  const prepared = renderSourceShells({ html, instances, blocks: detected.blocks, markerAttribute }, {});
+  return { ok: true, html: prepared, markerAttribute, instances, canvasCss: css.join('\n') };
+}
+
+function renderSourceShells(
+  { html, instances, blocks, markerAttribute }: { html: string; instances: readonly RawSourceInstance[]; blocks: readonly EditorBlock[]; markerAttribute: string },
+  _options: object = {},
+): string {
   let prepared = html;
-  const roots = new Map(detected.blocks.map(block => [block.outerStart, block]));
+  const roots = new Map(blocks.map(block => [block.outerStart, block]));
   for (let i = instances.length - 1; i >= 0; i--) {
     const instance = instances[i]!;
     const block = roots.get(instance.outerStart);
@@ -192,7 +218,7 @@ export function prepareEditorSource({ html }: { html: string }, options: EditorB
     const shell = `<${tag} ${markerAttribute}="${i}"${layout}>${voidTag && !instance.nonvisual ? '' : `</${tag}>`}`;
     prepared = prepared.slice(0, instance.outerStart) + shell + prepared.slice(instance.outerEnd);
   }
-  return { ok: true, html: prepared, markerAttribute, instances, canvasCss: css.join('\n') };
+  return prepared;
 }
 
 /** Exact authored opening tag and its source offsets; no regex-based HTML parsing or id guessing. */

@@ -261,36 +261,60 @@ export function applyCanvasEmbedPlaceholders(
     // Skip existing embed cards and all chrome before calling the host. Runtime cards still
     // re-describe their direct marker so theme changes can refresh its bounded footprint.
     const existingCard = el.closest(`[${CARD_ROOT_MARKER}]`) as HTMLElement | null;
-    if (existingCard && (!existingCard.hasAttribute(CARD_RUNTIME_MARKER)
-      || el.parentElement !== existingCard || el.hasAttribute(CARD_CHROME_MARKER))) continue;
+    if (existingCard && !canRefreshRuntimeCard({ el, card: existingCard }, {})) continue;
     const descriptor = describe(el);
     if (!descriptor) continue;
-    if (existingCard) {
-      if (descriptor.presentation === 'runtime') applyRuntimeFootprint(el, existingCard, descriptor);
-      continue;
-    }
-    const parent = el.parentNode;
-    if (!parent) continue; // Unreachable for a live `body` descendant; defensive only.
-
-    const card = buildPlaceholderCard(doc, descriptor);
-    // Respect the author's own box (e.g. `style="max-width:600px"` on the marker) by carrying its
-    // inline style onto the card BEFORE the card's own chrome declarations, so same-named properties
-    // in `CARD_STYLE` win on the cascade's normal "last declaration wins" rule while anything the
-    // author set that `CARD_STYLE` doesn't touch (like `max-width`) still applies unopposed. Guarded
-    // on presence so a marker with no `style` attribute at all is a no-op, not a leading `;`.
-    const authoredStyle = el.getAttribute('style');
-    if (authoredStyle && descriptor.presentation !== 'runtime') card.setAttribute('style', `${authoredStyle};${card.getAttribute('style')}`);
-    applyResolvedMaxWidth(el, card);
-    if (descriptor.presentation === 'runtime') applyRuntimeFootprint(el, card, descriptor);
-
-    parent.insertBefore(card, el);
-    card.appendChild(el); // Moves the SAME node (auto-detaches from `parent`) — never cloned.
-    ensureOverlayRule(doc);
+    updatePlaceholder({ el, doc, descriptor, existingCard }, {});
   }
+}
+
+function canRefreshRuntimeCard({ el, card }: { el: Element; card: HTMLElement }, _options: object = {}): boolean {
+  return card.hasAttribute(CARD_RUNTIME_MARKER) && el.parentElement === card && !el.hasAttribute(CARD_CHROME_MARKER);
+}
+
+function updatePlaceholder(
+  { el, doc, descriptor, existingCard }: { el: Element; doc: Document; descriptor: CanvasEmbedPlaceholderDescriptor; existingCard: HTMLElement | null },
+  _options: object = {},
+): void {
+  if (existingCard) {
+    if (descriptor.presentation === 'runtime') applyRuntimeFootprint(el, existingCard, descriptor);
+    return;
+  }
+  const parent = el.parentNode;
+  if (!parent) return; // Unreachable for a live `body` descendant; defensive only.
+
+  const card = buildPlaceholderCard(doc, descriptor);
+  // Respect the author's own box (e.g. `style="max-width:600px"` on the marker) by carrying its
+  // inline style onto the card BEFORE the card's own chrome declarations, so same-named properties
+  // in `CARD_STYLE` win on the cascade's normal "last declaration wins" rule while anything the
+  // author set that `CARD_STYLE` doesn't touch (like `max-width`) still applies unopposed. Guarded
+  // on presence so a marker with no `style` attribute at all is a no-op, not a leading `;`.
+  const authoredStyle = el.getAttribute('style');
+  if (authoredStyle && descriptor.presentation !== 'runtime') card.setAttribute('style', `${authoredStyle};${card.getAttribute('style')}`);
+  applyResolvedMaxWidth(el, card);
+  if (descriptor.presentation === 'runtime') applyRuntimeFootprint(el, card, descriptor);
+
+  parent.insertBefore(card, el);
+  card.appendChild(el); // Moves the SAME node (auto-detaches from `parent`) — never cloned.
+  ensureOverlayRule(doc);
 }
 
 /** Geometry belongs to canvas DOM only; arbitrary transforms/min-height cannot defeat the clamp. */
 function applyRuntimeFootprint(el: Element, card: HTMLElement, descriptor: CanvasEmbedPlaceholderDescriptor): void {
+  const resolved = measureAuthoredHeight({ el }, {});
+  const native = el.getAttribute('height');
+  const declared = descriptor.declaredHeight ?? (resolved?.endsWith('px') ? Number.parseFloat(resolved) : undefined);
+  card.style.height = `${editorBlockHeight({ declaredHeight: declared, nativeHeight: native ? Number(native) : undefined, inline: descriptor.inline }, {})}px`;
+  card.style.minHeight = '0';
+  card.style.maxHeight = descriptor.inline ? '160px' : '960px';
+  card.style.overflow = 'hidden';
+  if (descriptor.inline) { card.style.display = 'inline-flex'; card.style.verticalAlign = 'middle'; }
+  // The marker is the selectable hit surface, never an authored layout/transform or media view.
+  (el as HTMLElement).style.setProperty('transform', 'none', 'important');
+  (el as HTMLElement).style.setProperty('overflow', 'hidden', 'important');
+}
+
+function measureAuthoredHeight({ el }: { el: Element }, _options: object = {}): string | undefined {
   // Re-measure the authored shell after theme links settle, without our selection overlay's
   // !important auto-height masking its declarations. No component/model styles are changed.
   const overlay = el.ownerDocument.head.querySelector<HTMLStyleElement>(`style[${OVERLAY_STYLE_MARKER}]`);
@@ -303,14 +327,5 @@ function applyRuntimeFootprint(el: Element, card: HTMLElement, descriptor: Canva
   } finally {
     if (sheet) sheet.disabled = wasDisabled ?? false;
   }
-  const native = el.getAttribute('height');
-  const declared = descriptor.declaredHeight ?? (resolved?.endsWith('px') ? Number.parseFloat(resolved) : undefined);
-  card.style.height = `${editorBlockHeight({ declaredHeight: declared, nativeHeight: native ? Number(native) : undefined, inline: descriptor.inline }, {})}px`;
-  card.style.minHeight = '0';
-  card.style.maxHeight = descriptor.inline ? '160px' : '960px';
-  card.style.overflow = 'hidden';
-  if (descriptor.inline) { card.style.display = 'inline-flex'; card.style.verticalAlign = 'middle'; }
-  // The marker is the selectable hit surface, never an authored layout/transform or media view.
-  (el as HTMLElement).style.setProperty('transform', 'none', 'important');
-  (el as HTMLElement).style.setProperty('overflow', 'hidden', 'important');
+  return resolved;
 }
