@@ -117,6 +117,28 @@ function defaultCreateTransport(_requiredArgs: Record<string, never>, { stdin, s
 }
 
 /**
+ * The tool context shared by every call in one run: the resolved daemon URL without its trailing
+ * slash (coerced to a string for JS hosts that ignore the contract), the configured or global
+ * `fetch`, and the auth headers and diagnostic IDs only when configured.
+ */
+function buildToolContext({ resolvedBaseUrl }: { resolvedBaseUrl: string }, options: McpToolServerOptions): McpToolContext {
+  return {
+    ...(options.diagnosticToolIds !== undefined ? { diagnosticToolIds: options.diagnosticToolIds } : {}),
+    baseUrl: String(resolvedBaseUrl).replace(/\/$/, ''),
+    fetchImpl: options.fetchImpl ?? fetch,
+    ...(options.authHeaders !== undefined ? { authHeaders: options.authHeaders } : {}),
+  };
+}
+
+/** The stdio pair handed to `createTransport`, carrying only the streams the caller configured. */
+function stdioOptions(options: McpToolServerOptions): { stdin?: Readable; stdout?: Writable } {
+  return {
+    ...(options.stdin === undefined ? {} : { stdin: options.stdin }),
+    ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
+  };
+}
+
+/**
  * Builds a stdio MCP server hosting `requiredArgs.tools` (and, optionally, `options.resources`).
  * Construction is synchronous and cheap (validates tool-name uniqueness via
  * {@link buildToolIndex} and resource-uri uniqueness via {@link buildResourceIndex}); all I/O —
@@ -132,13 +154,7 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
 
   return {
     async run(_required: Record<string, never>): Promise<void> {
-      const resolvedBaseUrl = await requiredArgs.resolveBaseUrl();
-      const ctx: McpToolContext = {
-        ...(options.diagnosticToolIds !== undefined ? { diagnosticToolIds: options.diagnosticToolIds } : {}),
-        baseUrl: String(resolvedBaseUrl).replace(/\/$/, ''),
-        fetchImpl: options.fetchImpl ?? fetch,
-        ...(options.authHeaders !== undefined ? { authHeaders: options.authHeaders } : {}),
-      };
+      const ctx = buildToolContext({ resolvedBaseUrl: await requiredArgs.resolveBaseUrl() }, options);
 
       let closeTransportForIdle: (() => void) | null = null;
       const idleExit = createMcpIdleExitController({
@@ -181,10 +197,7 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
         });
       }
 
-      const transport = createTransport({}, {
-        ...(options.stdin === undefined ? {} : { stdin: options.stdin }),
-        ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
-      });
+      const transport = createTransport({}, stdioOptions(options));
       try {
         closeTransportForIdle = () => {
           void transport.close({}).catch(() => {});
