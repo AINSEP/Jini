@@ -52,8 +52,8 @@ export function readPublicDnsName({ value, errorPrefix }: { value: unknown; erro
 /** Shared normalization keeps URL/IP/internal-name refusals identical for both kinds of public name. */
 function readPublicName(value: unknown, toolId: string, options: { allowUnderscores?: boolean } = {}): string {
   const invalid = () => new DomainDnsInputError({ message: `${toolId}: pass a public DNS hostname such as 'example.com', without a URL, IP address, path, or port.` });
-  if (typeof value !== "string" || value.length > 254 || value.trim() !== value || /[/\\?#@:%\[\]\s]/u.test(value)) throw invalid();
-  const domain = domainToASCII(value.replace(/\.$/, "")).toLowerCase();
+  const text = readPublicNameText({ value, invalid });
+  const domain = domainToASCII(text.replace(/\.$/, "")).toLowerCase();
   const labels = domain.split(".");
   const labelPattern = options.allowUnderscores ? /^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?$/ : /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
   const validLabels = labels.every(label => labelPattern.test(label));
@@ -61,6 +61,13 @@ function readPublicName(value: unknown, toolId: string, options: { allowUndersco
   const reservedName = /\.(?:local|localhost|internal|invalid|test|onion)$/.test(domain);
   if (!domain || domain.length > 253 || isIP(domain) || labels.length < 2 || !validLabels || !validSuffix || reservedName) throw invalid();
   return domain;
+}
+function readPublicNameText(
+  { value, invalid }: { value: unknown; invalid: () => DomainDnsInputError },
+  _options: Record<string, never> = {},
+): string {
+  if (typeof value !== "string" || value.length > 254 || value.trim() !== value || /[/\\?#@:%\[\]\s]/u.test(value)) throw invalid();
+  return value;
 }
 /** Checks the bounded record type selection without silently dropping unknown/duplicate types. */
 function readTypes(value: unknown): DnsRecordType[] {
