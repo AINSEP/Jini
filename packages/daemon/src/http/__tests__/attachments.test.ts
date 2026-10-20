@@ -16,7 +16,7 @@
  */
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import {
   appendFile,
   lstat,
@@ -39,6 +39,7 @@ import {
   attachmentSidecarFileName,
   createDiskAttachmentStore,
   detectAttachmentKind,
+  handleAttachmentUpload,
   hasAvifSignature,
   hasGifSignature,
   hasJpegSignature,
@@ -2071,5 +2072,272 @@ describe('removeUnadoptedUploads', () => {
     await expect(stat(strayBatch)).rejects.toMatchObject({ code: 'ENOENT' });
     // The sidecar directory is never swept — it is not a batch.
     await expect(stat(resolve(root, SIDECAR_DIRECTORY))).resolves.toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleAttachmentUpload — every branch, called directly with a caller-owned slot counter
+// ---------------------------------------------------------------------------
+
+/**
+ * Mounts `handleAttachmentUpload` itself (no origin guard, no `registerAttachmentRoutes` wrapper)
+ * so a test owns the `state` object and can stage `activeUploads` at a boundary and read it back
+ * afterwards — the route-level cases above can only observe the limiter from outside.
+ */
+async function directUploadHarness(
+  { deps, state }: { readonly deps: AttachmentsHttpDeps; readonly state: { activeUploads: number } },
+  { jsonParser = false }: { readonly jsonParser?: boolean } = {},
+): Promise<string> {
+  const app = express();
+  if (jsonParser) app.use(express.json());
+  app.post(ATTACHMENTS_ROUTE_PATH, (req, res) => handleAttachmentUpload({ req, res, deps, state }));
+  const server: Server = app.listen(0);
+  await new Promise((ready) => server.once('listening', ready));
+  const { port } = server.address() as { port: number };
+  cleanups.push(() => new Promise<void>((closed) => {
+    server.close(() => closed());
+  }));
+  return `http://127.0.0.1:${port}${ATTACHMENTS_ROUTE_PATH}`;
+}
+
+/** A real disk store whose every method is a spy delegating to the real one. */
+async function spiedStore(): Promise<{ root: string; store: AttachmentStore & {
+  pruneExpired: ReturnType<typeof vi.fn<AttachmentStore['pruneExpired']>>;
+  createBatchDirectory: ReturnType<typeof vi.fn<AttachmentStore['createBatchDirectory']>>;
+  register: ReturnType<typeof vi.fn<AttachmentStore['register']>>;
+  deleteUnclaimed: ReturnType<typeof vi.fn<AttachmentStore['deleteUnclaimed']>>;
+} }> {
+  const { root, store: real } = await diskStore();
+  return {
+    root,
+    store: {
+      ...real,
+      pruneExpired: vi.fn(real.pruneExpired),
+      createBatchDirectory: vi.fn(real.createBatchDirectory),
+      register: vi.fn(real.register),
+      deleteUnclaimed: vi.fn(real.deleteUnclaimed),
+    },
+  };
+}
+
+describe('handleAttachmentUpload', () => {
+  it('serves an upload while one slot under the default cap of 4 is free, and releases its slot', async () => {
+    const { store } = await spiedStore();
+    const state = { activeUploads: 3 };
+    const url = await directUploadHarness({ deps: { store }, state });
+
+    const response = await upload(url, { batch: 'batch-direct-1', name: 'a.txt' });
+
+    expect(response.status).toBe(201);
+    expect(state.activeUploads).toBe(3);
+  });
+
+  it('refuses at the default cap of 4 with 429 before touching the store or taking a slot', async () => {
+    const { store } = await spiedStore();
+    const state = { activeUploads: 4 };
+    const url = await directUploadHarness({ deps: { store }, state });
+
+    const response = await upload(url, { batch: 'batch-direct-2', name: 'a.txt' });
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({
+      error: { code: 'RATE_LIMITED', message: 'Too many attachment uploads are in progress' },
+    });
+    expect(state.activeUploads).toBe(4);
+    expect(store.pruneExpired).not.toHaveBeenCalled();
+    expect(store.deleteUnclaimed).not.toHaveBeenCalled();
+  });
+
+  it('honours an explicit maxConcurrentUploads above the default', async () => {
+    const { store } = await spiedStore();
+    const state = { activeUploads: 4 };
+    const url = await directUploadHarness({ deps: { store, maxConcurrentUploads: 5 }, state });
+
+    const response = await upload(url, { batch: 'batch-direct-3', name: 'a.txt' });
+
+    expect(response.status).toBe(201);
+    expect(state.activeUploads).toBe(4);
+  });
+
+  it('checks the concurrency cap before the drained-body check', async () => {
+    const { store } = await spiedStore();
+    const onInternalError = vi.fn();
+    const state = { activeUploads: 1 };
+    const url = await directUploadHarness({ deps: { store, onInternalError, maxConcurrentUploads: 1 }, state }, { jsonParser: true });
+
+    const response = await upload(url, { batch: 'batch-direct-4', name: 'a.json', body: '{}', contentType: 'application/json' });
+
+    expect(response.status).toBe(429);
+    expect(onInternalError).not.toHaveBeenCalled();
+  });
+
+  it('refuses a drained body as an internal error naming the mount order, without a slot or the store', async () => {
+    const { store } = await spiedStore();
+    const onInternalError = vi.fn();
+    const state = { activeUploads: 0 };
+    const url = await directUploadHarness({ deps: { store, onInternalError }, state }, { jsonParser: true });
+
+    const response = await upload(url, { batch: 'batch-direct-5', name: 'a.json', body: '{"a":1}', contentType: 'application/json' });
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'attachment-upload',
+      batchId: 'batch-direct-5',
+      error: expect.objectContaining({
+        reason: 'attachment-body-consumed',
+        message: `the request body was already consumed before ${ATTACHMENTS_ROUTE_PATH} received it — mount this route pack before any global body parser, or scope that parser to skip this path`,
+      }),
+    }));
+    expect(state.activeUploads).toBe(0);
+    expect(store.pruneExpired).not.toHaveBeenCalled();
+    expect(store.deleteUnclaimed).not.toHaveBeenCalled();
+  });
+
+  it('accepts a body of exactly the default 20 MB cap', async () => {
+    const { store } = await spiedStore();
+    const url = await directUploadHarness({ deps: { store }, state: { activeUploads: 0 } });
+
+    const response = await upload(url, { batch: 'batch-direct-6', name: 'big.bin', body: new Uint8Array(20 * 1024 * 1024) });
+
+    expect(response.status).toBe(201);
+    expect((await response.json() as { attachment: StoredAttachment }).attachment.size).toBe(20 * 1024 * 1024);
+  });
+
+  it('refuses one byte past the default 20 MB cap with 413', async () => {
+    const { store } = await spiedStore();
+    const state = { activeUploads: 0 };
+    const url = await directUploadHarness({ deps: { store }, state });
+
+    const response = await upload(url, { batch: 'batch-direct-7', name: 'big.bin', body: new Uint8Array(20 * 1024 * 1024 + 1) });
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Each attachment must be 20 MB or smaller' },
+    });
+    expect(store.register).not.toHaveBeenCalled();
+    expect(state.activeUploads).toBe(0);
+  });
+
+  it('registers a server-named file inside the batch directory, keeping at most 12 suffix characters', async () => {
+    const { store } = await spiedStore();
+    const url = await directUploadHarness({ deps: { store }, state: { activeUploads: 0 } });
+
+    const response = await upload(url, { batch: 'batch-direct-8', name: '../x/report.verylongextension', body: PNG });
+
+    expect(response.status).toBe(201);
+    const batchDirectory = await store.createBatchDirectory.mock.results[0]?.value;
+    const input = store.register.mock.calls[0]?.[0].input;
+    expect(input).toEqual({
+      batchId: 'batch-direct-8',
+      path: expect.stringMatching(/[a-f0-9-]{36}\.verylongext$/u),
+      name: 'report.verylongextension',
+      kind: 'image',
+      size: PNG.byteLength,
+    });
+    expect(dirname(input?.path ?? '')).toBe(batchDirectory);
+  });
+
+  it('gives a name without an extension no suffix at all', async () => {
+    const { store } = await spiedStore();
+    const url = await directUploadHarness({ deps: { store }, state: { activeUploads: 0 } });
+
+    await upload(url, { batch: 'batch-direct-9', name: 'README', body: 'x' });
+
+    expect(store.register.mock.calls[0]?.[0].input.path).toMatch(/\/[a-f0-9-]{36}$/u);
+  });
+
+  it('omits ownerId entirely when resolveOwnerId answers undefined', async () => {
+    const { store } = await spiedStore();
+    const resolveOwnerId = vi.fn(() => undefined);
+    const url = await directUploadHarness({ deps: { store, resolveOwnerId }, state: { activeUploads: 0 } });
+
+    await upload(url, { batch: 'batch-direct-10', name: 'a.txt' });
+
+    expect(resolveOwnerId).toHaveBeenCalledTimes(1);
+    expect(store.register.mock.calls[0]?.[0].input).not.toHaveProperty('ownerId');
+  });
+
+  it('passes a resolved ownerId to register', async () => {
+    const { store } = await spiedStore();
+    const url = await directUploadHarness({ deps: { store, resolveOwnerId: () => 'owner-direct' }, state: { activeUploads: 0 } });
+
+    await upload(url, { batch: 'batch-direct-11', name: 'a.txt' });
+
+    expect(store.register.mock.calls[0]?.[0].input).toMatchObject({ ownerId: 'owner-direct' });
+  });
+
+  it('deletes a zero-byte file, never registers it, and tidies the empty batch directory', async () => {
+    const { store } = await spiedStore();
+    const state = { activeUploads: 0 };
+    const url = await directUploadHarness({ deps: { store }, state });
+
+    const response = await upload(url, { batch: 'batch-direct-12', name: 'empty.txt', body: '' });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { code: 'BAD_REQUEST', message: 'Attachment is empty' } });
+    expect(store.register).not.toHaveBeenCalled();
+    const batchDirectory = await store.createBatchDirectory.mock.results[0]?.value;
+    await expect(stat(batchDirectory as string)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(store.deleteUnclaimed).toHaveBeenCalledWith({ batchId: 'batch-direct-12', paths: [] });
+    expect(state.activeUploads).toBe(0);
+  });
+
+  it('runs the empty-path directory tidy after a success too, without deleting the upload', async () => {
+    const { store } = await spiedStore();
+    const url = await directUploadHarness({ deps: { store }, state: { activeUploads: 0 } });
+
+    await upload(url, { batch: 'batch-direct-13', name: 'a.txt', body: 'kept' });
+
+    expect(store.deleteUnclaimed).toHaveBeenCalledWith({ batchId: 'batch-direct-13', paths: [] });
+    const path = store.register.mock.calls[0]?.[0].input.path ?? '';
+    expect(await readFile(path, 'utf8')).toBe('kept');
+  });
+
+  it('swallows a failing directory tidy, so a successful upload still answers 201 and frees its slot', async () => {
+    const { store } = await spiedStore();
+    store.deleteUnclaimed.mockRejectedValue(new Error('tidy failed'));
+    const onInternalError = vi.fn();
+    const state = { activeUploads: 0 };
+    const url = await directUploadHarness({ deps: { store, onInternalError }, state });
+
+    const response = await upload(url, { batch: 'batch-direct-14', name: 'a.txt' });
+
+    expect(response.status).toBe(201);
+    expect(onInternalError).not.toHaveBeenCalled();
+    expect(state.activeUploads).toBe(0);
+  });
+
+  it('redacts a pruneExpired failure, stops before creating a batch, and frees its slot', async () => {
+    const { store } = await spiedStore();
+    store.pruneExpired.mockRejectedValue(new Error('prune exploded at /secret/path'));
+    const onInternalError = vi.fn();
+    const state = { activeUploads: 0 };
+    const url = await directUploadHarness({ deps: { store, onInternalError }, state });
+
+    const response = await upload(url, { batch: 'batch-direct-15', name: 'a.txt' });
+
+    expect(response.status).toBe(500);
+    const body = await response.json() as { error: { message: string; requestId?: string } };
+    expect(body.error.message).toBe('an internal error occurred');
+    expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'attachment-upload', batchId: 'batch-direct-15', correlationId: body.error.requestId,
+    }));
+    expect(store.createBatchDirectory).not.toHaveBeenCalled();
+    expect(store.deleteUnclaimed).toHaveBeenCalledWith({ batchId: 'batch-direct-15', paths: [] });
+    expect(state.activeUploads).toBe(0);
+  });
+
+  it('keeps a classified rejection from the store (an unusable batch) as its real 400', async () => {
+    const { store } = await spiedStore();
+    const onInternalError = vi.fn();
+    const url = await directUploadHarness({ deps: { store, onInternalError }, state: { activeUploads: 0 } });
+
+    const response = await upload(url, { name: 'a.txt' });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { message: 'Invalid attachment batch' } });
+    expect(store.createBatchDirectory).toHaveBeenCalledWith({ batchId: '' });
+    expect(onInternalError).not.toHaveBeenCalled();
   });
 });
