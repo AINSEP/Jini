@@ -14,7 +14,7 @@
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { requireInputRecord, ToolInputError } from '@jini-ai/core';
 import { pluginToolIdFor, type PluginContributionRegistry, type PluginContributionsSnapshot, type PluginSdk, type PluginToolContribution } from '@jini-ai/plugins/host';
-import { openCapabilitySession, type AgentPluginToolCapabilitiesPort } from './capabilities.js';
+import { openCapabilitySession, REVOKED_MESSAGE, type AgentPluginToolCapabilitiesPort } from './capabilities.js';
 import type { LoadedAgentPluginTool } from './definition.js';
 import type { AgentPluginToolEffect } from './manifest.js';
 
@@ -36,7 +36,12 @@ const INERT_SDK: PluginSdk = Object.freeze({
 
 /** Compiles the declared schema, or says why it cannot be used. @complexity O(s) schema size. */
 function compileSchema(schema: Readonly<Record<string, unknown>>): Validator | string {
-  try { return new Validator(schema as Schema, '2020-12', true); } catch (error) { return `its input schema is invalid (${error instanceof Error ? error.message : String(error)})`; }
+  try {
+    const validator = new Validator(schema as Schema, '2020-12', true);
+    // cfworker resolves references lazily; one probe surfaces a root-level unresolved $ref at load.
+    validator.validate({});
+    return validator;
+  } catch (error) { return `its input schema is invalid (${error instanceof Error ? error.message : String(error)})`; }
 }
 
 /** Why a loaded tool cannot be projected, or its admitted form. @complexity O(s) schema size. */
@@ -71,7 +76,11 @@ function admitAll(loaded: readonly LoadedAgentPluginTool[], refusals: string[]):
  * @complexity O(n) input size. */
 function validatedInput(tool: AdmittedTool, input: unknown): Readonly<Record<string, unknown>> {
   const record = requireInputRecord({ input });
-  const result = tool.validator.validate(record);
+  let result: ReturnType<Validator['validate']>;
+  // A schema fault reached only by some inputs (nested $ref, bad pattern) fails closed, not as bad input.
+  try { result = tool.validator.validate(record); } catch (error) {
+    throw new Error(`Plugin tool '${tool.toolId}' has an unusable input schema; report it to the plugin author.`, { cause: error });
+  }
   if (result.valid) return record;
   const where = [...new Set(result.errors.map(unit => `${unit.instanceLocation || '#'} (${unit.keyword})`))].slice(0, 3).join(', ');
   throw new ToolInputError({ message: `Input for '${tool.toolId}' does not match its schema at ${where}. Fix the input and retry.` });
@@ -115,6 +124,8 @@ export function createAgentPluginToolProjection(
     const contribution: PluginToolContribution & { readonly effect: AgentPluginToolEffect } = {
       name: descriptor.name, description: descriptor.description, inputSchema: descriptor.inputSchema, effect: descriptor.effect,
       handler: async ({ pluginId, auth, input, signal }) => {
+        // Defense in depth: the registry rechecks enablement, but a retained handler must not run either.
+        if (!isLive()) throw new Error(REVOKED_MESSAGE);
         const checked = validatedInput(tool, input);
         const host = required.capabilities({ pluginId, workspaceId: auth.workspaceId,
           ...(auth.principalId === undefined ? {} : { principalId: auth.principalId }), ...(signal === undefined ? {} : { signal }) });

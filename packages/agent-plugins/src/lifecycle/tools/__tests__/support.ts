@@ -99,15 +99,16 @@ export function createHarness() {
     for (const item of load.items) enabled.add(item.pluginId);
     return projection.sync({ loaded: load.items, refusals: load.refusals }).refusals;
   }
-  /** Authorizes and runs a call exactly as the executor does; rejects on deny. */
-  async function invoke(toolId: string, input: unknown): Promise<unknown> {
+  /** Authorizes a call exactly as the executor does (rejects on deny); the returned function runs it. */
+  async function authorize(toolId: string, input: unknown): Promise<() => Promise<unknown>> {
     const principal = { id: 'member-1' };
     const run = { id: 'run-1' };
     const authorized = await authorizeToolInvocation({ registry: tools, toolId, principal, run, input });
     if (!authorized || authorized.decision !== 'allow') throw new Error(`denied ${toolId}`);
-    return authorized.handler({ executionId: 'exec-1', principal, run, input: authorized.input, signal: new AbortController().signal });
+    return () => authorized.handler({ executionId: 'exec-1', principal, run, input: authorized.input, signal: new AbortController().signal });
   }
-  return { log, tools, contributions, projection, enabled, refresh, invoke };
+  const invoke = async (toolId: string, input: unknown) => (await authorize(toolId, input))();
+  return { log, tools, contributions, projection, enabled, refresh, authorize, invoke };
 }
 
 /** One tool declaration in the contribution file. */
