@@ -1,11 +1,16 @@
 import { defaultOAuthMessages, type OAuthMessages } from './messages.js';
-import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
+import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './args.js';
+import {
+    dynamicClientRegistrationRequest, processDynamicClientRegistrationResponse,
+    customFetch, allowInsecureRequests, type Client,
+} from 'oauth4webapi';
 /** One-attempt RFC 7591 registration. Public clients use PKCE; a volunteered secret is returned for the application to protect. */
 import { assertOAuthAppOptions } from "./options.js";
-import { MAX_OAUTH_RESPONSE_BYTES, readBoundedOAuthJson, readOptionalString } from "./bounded-json.js";
+import { MAX_OAUTH_RESPONSE_BYTES, parseOAuthJsonObject, readOptionalString } from "./bounded-json.js";
 import { assertSafeProviderEndpoint } from "./endpoint-safety.js";
 import { OAuthError } from "./errors.js";
 import type { OAuthClientAuthMethod, OAuthHttpPorts, OAuthAppOptions, RegisteredOAuthClient } from "./ports.js";
+import { createOAuthCustomFetch } from './guarded-transport.js';
 export type { RegisteredOAuthClient } from "./ports.js";
 const DEFAULT_REGISTRATION_TIMEOUT_MS = 15000;
 const REGISTRATION_MESSAGES = {
@@ -29,7 +34,7 @@ export interface DynamicClientRegistrationInput {
     readonly initialAccessToken?: string;
     readonly timeoutMs?: number;
 }
-function buildClientMetadata(input: DynamicClientRegistrationInput, options: OAuthAppOptions): Record<string, unknown> {
+function buildClientMetadata(input: DynamicClientRegistrationInput, options: OAuthAppOptions): Partial<Client> {
     const scope = input.scopes.join(" ");
     return {
         client_name: options.clientDisplayName,
@@ -70,37 +75,73 @@ function toRegistrationError(document: Record<string, unknown>, httpStatus: numb
         ...(providerErrorCode === null ? {} : { providerErrorCode })
     });
 }
+/** Sends endpoint-only RFC 7591 registration through the shared guarded transport.
+ * openid-client.dynamicClientRegistration always discovers an issuer first. This public facade
+ * has only a registration endpoint and promises one attempt, so use its engine's endpoint-only
+ * operation rather than inventing discovery or adding another network request.
+ * @returns A bounded response for facade error handling and upstream protocol processing.
+ * @throws {OAuthError} For unsafe endpoints, invalid input, transport failure or oversized bodies.
+ * @complexity O(n + b) time and space in client metadata and bounded response; one HTTP request.
+ */
+async function postClientRegistration({ deps, input, endpoint }: {
+    readonly deps: DynamicClientRegistrationDeps; readonly input: DynamicClientRegistrationInput; readonly endpoint: URL;
+}, _optionalArgs: OAuthEmptyArgs = {}): Promise<Response> {
+    const guardedFetch = createOAuthCustomFetch({
+        guard: deps.guard, timeoutMs: input.timeoutMs ?? DEFAULT_REGISTRATION_TIMEOUT_MS,
+        endpointLabel: 'registration endpoint', responseMessages: REGISTRATION_MESSAGES,
+        fetchFn: async (args, options) => {
+            try { return await deps.fetchFn(args, options); }
+            catch (cause) {
+                throw new OAuthError({
+                    code: 'OAUTH_PROVIDER_UNREACHABLE', message: `could not reach the client registration endpoint at ${endpoint.host}`,
+                    operatorAction: 'Check network access to this server, then try connecting again. Nothing was retried automatically.',
+                }, { cause });
+            }
+        },
+    });
+    let adapterFailure: { readonly error: unknown } | undefined;
+    try {
+        // This opaque issuer is transport-only metadata, not a trusted identity or a discovery URL.
+        return await dynamicClientRegistrationRequest({
+            issuer: 'urn:jini:oauth:transport-only', registration_endpoint: endpoint.href,
+        }, buildClientMetadata(input, deps.options), {
+            ...(input.initialAccessToken === undefined ? {} : { initialAccessToken: input.initialAccessToken }),
+            [allowInsecureRequests]: endpoint.protocol === 'http:',
+            [customFetch]: async (url, options) => {
+                try {
+                    // The engine omits a falsy initial token; preserve the facade's explicitly
+                    // supplied empty Bearer header instead of silently changing that input.
+                    const headers = input.initialAccessToken === ''
+                        ? { ...options.headers, authorization: 'Bearer ' } : options.headers;
+                    return await guardedFetch(url, { ...options, headers });
+                }
+                catch (error) { adapterFailure = { error }; throw error; }
+            },
+        });
+    } catch {
+        if (adapterFailure) throw adapterFailure.error;
+        // Do not expose upstream causes: they can include registration credentials/metadata.
+        throw new OAuthError({
+            code: 'OAUTH_INVALID_REQUEST', message: 'the OAuth client registration configuration is invalid',
+            operatorAction: 'Check this provider\'s registration endpoint and initial access token.',
+        });
+    }
+}
+
+/** Registers once and preserves facade normalization, auth-method policy and error copy.
+ * Public clients use PKCE; a volunteered secret is returned for the application to protect.
+ * @returns Registration values ready for the existing host-owned cache and secret storage.
+ * @throws {OAuthError} For unsafe endpoints, invalid configuration, provider refusal or malformed JSON.
+ * @complexity O(n + b) time and space in metadata and bounded response; exactly one HTTP request.
+ * @example registerOAuthClientDynamically({ fetchFn, guard, options, registrationEndpoint, scopes: [] })
+ */
 export async function registerOAuthClientDynamically(requiredArgs: OAuthRequiredArgs<DynamicClientRegistrationDeps & DynamicClientRegistrationInput>, optionalArgs: OAuthOptionalArgs<DynamicClientRegistrationDeps & DynamicClientRegistrationInput> = {}): Promise<RegisteredOAuthClient> {
     const deps = requiredArgs;
     const input = { ...optionalArgs, registrationEndpoint: requiredArgs.registrationEndpoint, scopes: requiredArgs.scopes };
     assertOAuthAppOptions(deps.options);
     const endpoint = assertSafeProviderEndpoint(input.registrationEndpoint, "registration endpoint", deps.guard);
-    const fetchFn = deps.fetchFn;
-    let response: Response;
-    try {
-        response = await fetchFn({
-            url: endpoint.toString()
-        }, {
-            method: "POST",
-            headers: {
-                accept: "application/json",
-                "content-type": "application/json",
-                ...(input.initialAccessToken === undefined ? {} : { authorization: `Bearer ${input.initialAccessToken}` }),
-            },
-            body: JSON.stringify(buildClientMetadata(input, deps.options)),
-            redirect: "error",
-            signal: AbortSignal.timeout(input.timeoutMs ?? DEFAULT_REGISTRATION_TIMEOUT_MS),
-        });
-    }
-    catch (cause) {
-        throw new OAuthError({
-            code: "OAUTH_PROVIDER_UNREACHABLE", message: `could not reach the client registration endpoint at ${endpoint.host}`,
-            operatorAction: "Check network access to this server, then try connecting again. Nothing was retried automatically."
-        }, {
-            cause
-        });
-    }
-    const document = await readBoundedOAuthJson(response, REGISTRATION_MESSAGES);
+    const response = await postClientRegistration({ deps, input, endpoint });
+    const document = parseOAuthJsonObject(await response.text(), REGISTRATION_MESSAGES);
     if (typeof document.error === "string" || !response.ok)
         throw toRegistrationError(document, response.status, optionalArgs.messages ?? defaultOAuthMessages);
     const clientId = readOptionalString(document.client_id);
@@ -110,9 +151,26 @@ export async function registerOAuthClientDynamically(requiredArgs: OAuthRequired
             operatorAction: "This server's dynamic client registration endpoint is not behaving like an RFC 7591 endpoint."
         });
     }
+    const clientSecret = readOptionalString(document.client_secret);
+    let registered: Awaited<ReturnType<typeof processDynamicClientRegistrationResponse>>;
+    try {
+        // Preserve successful 2xx, optional/trimmed secrets and nullable timestamp fields.
+        // Upstream requires 201 and an expiry for every secret; its 0 means no declared expiry.
+        // The original timestamps below remain authoritative, including negative (expired) values,
+        // so this compatibility projection can never turn an expired cached secret into a live one.
+        registered = await processDynamicClientRegistrationResponse(Response.json({
+            ...document, client_id: clientId, client_secret: clientSecret ?? undefined,
+            ...(clientSecret === null ? {} : { client_secret_expires_at: Math.max(readOptionalNumber(document.client_secret_expires_at) ?? 0, 0) }),
+        }, { status: 201 }));
+    } catch {
+        throw new OAuthError({
+            code: 'OAUTH_MALFORMED_RESPONSE', message: REGISTRATION_MESSAGES.notJsonMessage,
+            operatorAction: REGISTRATION_MESSAGES.notJsonOperatorAction,
+        });
+    }
     return {
-        clientId,
-        clientSecret: readOptionalString(document.client_secret),
+        clientId: registered.client_id,
+        clientSecret: readOptionalString(registered.client_secret),
         tokenEndpointAuthMethod: resolveAuthMethod({ document }, input),
         registrationClientUri: readOptionalString(document.registration_client_uri),
         clientIdIssuedAt: readOptionalNumber(document.client_id_issued_at),

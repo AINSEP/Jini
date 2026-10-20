@@ -54,3 +54,8 @@ export type { DnsPinnedOAuthTransport } from './dns-pinned-transport.js';
 export { startLoopbackAuthorizationReceiver, MAX_CALLBACK_FIELDS, MAX_CALLBACK_FIELD_LENGTH } from './loopback-receiver.js';
 export { isCallbackFieldName } from './loopback-callback.js';
 export type { LoopbackAuthorizationReceiver, LoopbackAuthorizationResult, LoopbackReceiverOptions, LoopbackReceiverTimers } from './loopback-receiver.js';
+export { revokeOAuthToken } from './revocation.js';
+export type { RevokeOAuthTokenInput } from './revocation.js';
+export { validateOidcIdToken } from './oidc.js';
+export type { ValidateOidcIdTokenInput } from './oidc.js';
+export type { OAuthTokenTypeHint, OidcTrustConfiguration, OidcIdTokenClaims, OidcSigningAlgorithm } from './ports.js';

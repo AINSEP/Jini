@@ -1,5 +1,6 @@
 import { defaultOAuthMessages, type OAuthMessages } from './messages.js';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
+import { buildAuthorizationUrl } from 'openid-client';
 /** Browser grant split across the redirect. Store or seal PKCE and resource binding before redirect; validate owner-bound state before exchanging the code once. */
 // A cloud-hosted client needs a stable, browser-reachable callback. A per-agent subprocess's
 // transient localhost listener is unreachable from a remote user's browser and can die between
@@ -12,7 +13,7 @@ import type { PendingAuthorization, PendingAuthorizationStore } from "./pending-
 import { invalidState } from './pending-authorizations.js';
 import { assertValidCodeVerifier, createPkcePair } from "./pkce.js";
 import type { OAuthClient, OAuthProviderDescriptor, OAuthRandomBytes, OAuthTokenSet, OAuthUrlGuard, OAuthAppOptions, OAuthResource } from "./ports.js";
-import { requestOAuthToken, type TokenRequestDeps } from "./token-endpoint.js";
+import { createOAuthClientConfiguration, requestOAuthToken, type TokenRequestDeps } from "./token-endpoint.js";
 import { MAX_AUTHORIZATION_STATE_LENGTH, type SealedAuthorizationState } from './sealed-state.js';
 /** Bound on an authorization code; the loopback receiver applies the same one at the edge. */
 export const MAX_CODE_LENGTH = 2048;
@@ -109,6 +110,32 @@ async function storeAuthorizationRequest({ deps, authorization }: {
     }
     return entry;
 }
+/** Formats an already assembled request through the upstream URL builder without duplicate fields.
+ * The facade uses set/replace semantics; upstream appends to the configured endpoint's query.
+ * Pass that query as parameters instead, retaining repeated resource and provider-owned fields.
+ * @returns A URL string synchronously; neither authenticates a client nor performs discovery/HTTP.
+ * @throws {OAuthError} For an invalid client identity or unsupported endpoint URL.
+ * @complexity O(n) time and space in the authorization URL.
+ */
+function formatAuthorizationUrl({ url, clientId }: { readonly url: URL; readonly clientId: string }, _optionalArgs: Record<string, never> = {}): string {
+    const endpoint = new URL(url);
+    endpoint.search = '';
+    try {
+        const config = createOAuthClientConfiguration({ client: { clientId, authMethod: 'none' },
+            endpoint, endpointName: 'authorization_endpoint' });
+        return buildAuthorizationUrl(config, url.searchParams).href;
+    } catch {
+        // Upstream errors may contain supplied metadata. Keep the public error copy secret-free.
+        throw new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message: 'the OAuth authorization request configuration is invalid',
+            operatorAction: "Check this provider's client id and authorization endpoint." });
+    }
+}
+/** Builds a browser redirect after persisting or sealing its owner-bound request.
+ * @returns The upstream-formatted URL and stored single-use state/expiry; no provider HTTP occurs.
+ * @throws {OAuthError} For unsupported grants, unsafe URLs, invalid identity, parameters or state.
+ * @complexity O(n) time and space in URL/scopes/resources plus one host state-store operation.
+ * @example beginAuthorizationCode({ ...ports, provider, pending, ownerKey, client, redirectUri })
+ */
 export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCodeArgs, optionalArgs: OAuthOptionalArgs<BeginAuthorizationCodeDeps & BeginAuthorizationCodeInput> = {}): Promise<BeginAuthorizationCodeResult> {
     const deps = requiredArgs;
     const input = { ...optionalArgs, ownerKey: requiredArgs.ownerKey, client: requiredArgs.client, redirectUri: requiredArgs.redirectUri };
@@ -127,18 +154,21 @@ export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCod
         redirectUri: redirectUri.toString(),
         scopes: [...scopes]
     };
-    const entry = await storeAuthorizationRequest({ deps, authorization }, input);
     authorizationUrl.searchParams.set("response_type", "code");
     authorizationUrl.searchParams.set("client_id", input.client.clientId);
     authorizationUrl.searchParams.set("redirect_uri", redirectUri.toString());
     if (scopes.length > 0)
         authorizationUrl.searchParams.set("scope", scopes.join(" "));
-    authorizationUrl.searchParams.set("state", entry.state);
     if (pkce) {
         authorizationUrl.searchParams.set("code_challenge", pkce.codeChallenge);
         authorizationUrl.searchParams.set("code_challenge_method", pkce.codeChallengeMethod);
     }
-    return { authorizationUrl: authorizationUrl.toString(), state: entry.state, expiresAt: entry.expiresAt };
+    // Validate/format before committing state so an upstream configuration refusal cannot leave
+    // a pending request behind. Only the host-issued state is attached after storage succeeds.
+    const formattedUrl = new URL(formatAuthorizationUrl({ url: authorizationUrl, clientId: input.client.clientId }));
+    const entry = await storeAuthorizationRequest({ deps, authorization }, input);
+    formattedUrl.searchParams.set('state', entry.state);
+    return { authorizationUrl: formattedUrl.href, state: entry.state, expiresAt: entry.expiresAt };
 }
 export interface CompleteAuthorizationCodeDeps extends TokenRequestDeps {
     readonly provider: OAuthProviderDescriptor;
@@ -197,6 +227,9 @@ export async function completeAuthorizationCode(requiredArgs: CompleteAuthorizat
         });
         params.code_verifier = entry.codeVerifier;
     }
+    // The shared token owner uses openid-client's one-request generic grant operation. Its
+    // authorizationCodeGrant API takes a complete callback URL and strips redirect query fields;
+    // this facade receives parsed fields and must exchange the exact stored redirect URI instead.
     return requestOAuthToken({
         ...deps,
         tokenEndpoint: deps.provider.tokenEndpoint,
@@ -240,6 +273,12 @@ export function toCallbackError(rawError: string): OAuthError {
     });
 }
 
+/** Synchronously formats fixed-issuer S256 parameters using the upstream authorization URL builder.
+ * @returns A browser URL retaining endpoint query fields unless the caller replaces them.
+ * @throws {OAuthError} For invalid client identity or an unsupported endpoint scheme.
+ * @complexity O(n) time and space in the URL and parameters; no HTTP or entropy is used.
+ * @example buildOAuthAuthorizationUrl({ authorizationEndpoint, clientId, redirectUri, state, codeChallenge })
+ */
 export function buildOAuthAuthorizationUrl(requiredArgs: {
   authorizationEndpoint: string; clientId: string; redirectUri: string; state: string; codeChallenge: string;
 }, optionalArgs: { scope?: string; resource?: string } = {}): string {
@@ -254,7 +293,7 @@ export function buildOAuthAuthorizationUrl(requiredArgs: {
   // RFC 8707 binds the issued token to the requested resource; servers that require audience
   // narrowing need this indicator, while servers that ignore it can still accept the request.
   if (optionalArgs.resource) url.searchParams.set('resource', optionalArgs.resource);
-  return url.toString();
+  return formatAuthorizationUrl({ url, clientId: requiredArgs.clientId });
 }
 
 /** Fixed-issuer code exchange; confidential clients use Basic, public PKCE clients omit it.

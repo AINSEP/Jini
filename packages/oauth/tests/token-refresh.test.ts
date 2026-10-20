@@ -1,10 +1,10 @@
-import { fixtureSleep } from "./fixtures.js";
+import { fixturePorts, fixtureSleep } from "./fixtures.js";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { OAuthError } from "../src/errors.js";
 import type { OAuthTokenSet } from "../src/ports.js";
-import { createTokenRefresher, isTokenDueForRefresh, type TokenRefreshPort } from "../src/index.js";
-import { assertOAuthRejects, createTestClock } from "./helpers.js";
+import { createTokenRefresher, isTokenDueForRefresh, refreshAccessToken, type TokenRefreshPort } from "../src/index.js";
+import { assertOAuthRejects, createFetchDouble, createTestClock, TEST_CLIENT } from "./helpers.js";
 /**
  * @file Single-flight, lease-guarded token refresh.
  *
@@ -498,4 +498,122 @@ test('a no-refresh token in the proactive skew window reports refresh due', asyn
     await assertOAuthRejects(() => refresher.getAccessToken({ key: KEY }), 'OAUTH_INVALID_GRANT');
     assert.deepEqual(double.needsReauth, [{ key: KEY, reason: 'the provider issued no refresh token and the access token is due for refresh' }]);
     assert.equal(double.refreshCalls, 0);
+});
+
+for (const rotatedRefresh of [undefined, '', 'fixture-rotated-refresh']) {
+    test(`the refresh wire path ${rotatedRefresh ? 'rotates' : rotatedRefresh === '' ? 'preserves an empty' : 'preserves an omitted'} refresh token`, async () => {
+        const http = createFetchDouble([{ json: {
+            access_token: 'fixture-access', token_type: 'Bearer', expires_in: 60, scope: 'read write',
+            ...(rotatedRefresh === undefined ? {} : { refresh_token: rotatedRefresh }),
+        } }]);
+        const resources = ['https://api.example.com/one', 'https://api.example.com/two'];
+        const refreshed = await refreshAccessToken({
+            ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
+            tokenEndpoint: 'https://auth.example.com/token', client: TEST_CLIENT,
+            refreshToken: 'fixture-current-refresh',
+        }, { scopes: ['read', 'write'], resource: resources });
+        assert.deepEqual(refreshed, {
+            accessToken: 'fixture-access', refreshToken: rotatedRefresh || 'fixture-current-refresh',
+            tokenType: 'Bearer', scopes: ['read', 'write'], expiresAt: '2026-08-25T12:01:00.000Z',
+        });
+        assert.equal(http.callCount(), 1);
+        const request = http.requests[0];
+        assert.ok(request);
+        assert.equal(request.body.get('grant_type'), 'refresh_token');
+        assert.equal(request.body.get('refresh_token'), 'fixture-current-refresh');
+        assert.equal(request.body.get('scope'), 'read write');
+        assert.deepEqual(request.body.getAll('resource'), resources);
+        assert.equal(request.body.get('client_id'), TEST_CLIENT.clientId);
+        assert.equal(request.redirect, 'error');
+    });
+}
+
+test('concurrent real wire refreshes redeem once and wait for rotation to be persisted', async () => {
+    const clock = createTestClock('2026-08-25T12:04:00.000Z');
+    const http = createFetchDouble([
+        { json: { access_token: 'fixture-access-one', refresh_token: 'fixture-refresh-one', expires_in: 3600 } },
+        { json: { access_token: 'fixture-access-two', refresh_token: 'fixture-refresh-two', expires_in: 3600 } },
+    ]);
+    const double = makePort({ withLease: false });
+    let signalPersist: () => void = () => { throw new Error('fixture not initialized'); };
+    const persistEntered = new Promise<void>(resolve => { signalPersist = resolve; });
+    let releasePersist: () => void = () => { throw new Error('fixture not initialized'); };
+    const persistGate = new Promise<void>(resolve => { releasePersist = resolve; });
+    const refresher = createTokenRefresher({
+        clock, sleep: fixtureSleep, port: {
+            ...double.port,
+            refresh: ({ refreshToken }) => refreshAccessToken({
+                ...fixturePorts, clock, fetchFn: http.fetchFn,
+                tokenEndpoint: 'https://auth.example.com/token', client: TEST_CLIENT, refreshToken,
+            }),
+            async persist(args) {
+                signalPersist();
+                await persistGate;
+                await double.port.persist(args);
+            },
+        },
+    });
+    let handedOut = false;
+    const inflight = Promise.all(Array.from({ length: 3 }, () => refresher.getAccessToken({ key: KEY })))
+        .then(values => { handedOut = true; return values; });
+    await persistEntered;
+    assert.equal(handedOut, false, 'no access token may escape before durable rotation');
+    assert.equal(http.callCount(), 1, 'a single-use refresh token may be redeemed only once');
+    assert.equal(refresher.inFlightCount({}), 1);
+    assert.deepEqual(double.persisted, []);
+    releasePersist();
+    assert.deepEqual(await inflight, Array(3).fill('fixture-access-one'));
+    assert.equal(double.stored?.refreshToken, 'fixture-refresh-one');
+    assert.equal(refresher.inFlightCount({}), 0);
+
+    clock.advance(3600 * 1000);
+    assert.equal(await refresher.getAccessToken({ key: KEY }), 'fixture-access-two');
+    assert.equal(http.callCount(), 2);
+    assert.equal(http.requests[1]?.body.get('refresh_token'), 'fixture-refresh-one');
+    assert.equal(double.stored?.refreshToken, 'fixture-refresh-two');
+});
+
+test('a real wire rotation is not returned when persistence fails', async () => {
+    const clock = createTestClock('2026-08-25T12:04:00.000Z');
+    const http = createFetchDouble([{ json: { access_token: 'fixture-access', refresh_token: 'fixture-refresh' } }]);
+    const double = makePort();
+    const failure = new Error('fixture-persistence-failure');
+    const refresher = createTokenRefresher({
+        clock, sleep: fixtureSleep, port: {
+            ...double.port,
+            refresh: ({ refreshToken }) => refreshAccessToken({
+                ...fixturePorts, clock, fetchFn: http.fetchFn,
+                tokenEndpoint: 'https://auth.example.com/token', client: TEST_CLIENT, refreshToken,
+            }),
+            async persist() { throw failure; },
+        },
+    });
+    await assert.rejects(() => refresher.getAccessToken({ key: KEY }), error => error === failure);
+    assert.equal(http.callCount(), 1);
+    assert.equal(double.stored?.refreshToken, 'rt-current');
+    assert.equal(refresher.inFlightCount({}), 0);
+    assert.deepEqual(double.leaseReleases, [KEY]);
+    assert.equal(double.leaseHeld, false);
+});
+
+test('a wire invalid_grant keeps the coordinator terminal signal and releases its lease', async () => {
+    const clock = createTestClock('2026-08-25T12:04:00.000Z');
+    const http = createFetchDouble([{ status: 200, json: { error: 'invalid_grant' } }]);
+    const double = makePort();
+    const refresher = createTokenRefresher({
+        clock, sleep: fixtureSleep, port: {
+            ...double.port,
+            refresh: ({ refreshToken }) => refreshAccessToken({
+                ...fixturePorts, clock, fetchFn: http.fetchFn,
+                tokenEndpoint: 'https://auth.example.com/token', client: TEST_CLIENT, refreshToken,
+            }),
+        },
+    });
+    const error = await assertOAuthRejects(() => refresher.getAccessToken({ key: KEY }), 'OAUTH_INVALID_GRANT');
+    assert.equal(error.message, 'this connection needs to be re-authorized (the provider rejected the stored refresh token)');
+    assert.equal(http.callCount(), 1);
+    assert.deepEqual(double.persisted, []);
+    assert.deepEqual(double.needsReauth, [{ key: KEY, reason: 'the provider rejected the stored refresh token' }]);
+    assert.deepEqual(double.leaseReleases, [KEY]);
+    assert.equal(refresher.inFlightCount({}), 0);
 });

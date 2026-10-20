@@ -1,10 +1,14 @@
 import { createIssuerBoundDiscoveryPolicy, type OAuthDiscoveryPolicy } from './discovery-policy.js';
-import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
+import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './args.js';
+import { discovery, None, allowInsecureRequests, customFetch, type CustomFetch } from 'openid-client';
+import { resourceDiscoveryRequest, customFetch as resourceCustomFetch, allowInsecureRequests as allowInsecureResourceRequests } from 'oauth4webapi';
 /** Authorization-server and protected-resource discovery. Missing candidates are skipped; unsafe endpoints and malformed fetched documents terminate discovery. */
-import { MAX_OAUTH_RESPONSE_BYTES, readBoundedOAuthJson, readOptionalString, readStringArray, } from "./bounded-json.js";
+import { MAX_OAUTH_RESPONSE_BYTES, parseOAuthJsonObject, readOptionalString, readStringArray, } from "./bounded-json.js";
 import { assertSafeProviderEndpoint } from "./endpoint-safety.js";
 import { OAuthError } from "./errors.js";
-import type { OAuthFetch, OAuthHttpPorts, OAuthUrlGuard } from "./ports.js";
+import type { OAuthHttpPorts, OAuthUrlGuard } from "./ports.js";
+import { createOAuthCustomFetch } from './guarded-transport.js';
+import { assertOAuthResponseNotRedirect } from './transport-response.js';
 const DISCOVERY_TIMEOUT_MS = 10000;
 const METADATA_MESSAGES = {
     overflowMessage: `the OAuth metadata document exceeded ${MAX_OAUTH_RESPONSE_BYTES} bytes`,
@@ -54,39 +58,98 @@ export function parseWwwAuthenticateScopes({ wwwAuthenticate }: {
     const scope = readAuthParam(wwwAuthenticate, "scope");
     return scope === null ? [] : scope.split(/[\s,]+/).filter((part) => part.length > 0);
 }
-async function fetchMetadataDocument(deps: OAuthDiscoveryDeps, url: URL, timeoutMs: number): Promise<Record<string, unknown>> {
-    url = deps.guard.assertSafeUrl({
-        raw: url.href,
-        label: "OAuth metadata endpoint"
+/** Shares the guarded transport and discovery-specific failure copy across both metadata flows.
+ * Missing candidates abandon their bodies before parsing; a redirect is always a safety failure.
+ * @returns An upstream customFetch hook with one guarded request and a bounded response body.
+ * @throws {OAuthError} For unsafe URLs, unavailable candidates, redirects or oversized bodies.
+ * @complexity O(b) time and space in the bounded response body; one HTTP call per invocation.
+ */
+function createMetadataFetch({ deps, timeoutMs }: {
+    readonly deps: OAuthDiscoveryDeps; readonly timeoutMs: number;
+}, _optionalArgs: OAuthEmptyArgs = {}): CustomFetch {
+    return createOAuthCustomFetch({
+        guard: deps.guard, timeoutMs, endpointLabel: 'OAuth metadata endpoint', responseMessages: METADATA_MESSAGES,
+        fetchFn: async (args, options) => {
+            let response: Response;
+            try { response = await deps.fetchFn(args, options); }
+            catch (cause) {
+                throw new OAuthError({
+                    code: 'OAUTH_PROVIDER_UNREACHABLE', message: `could not reach the OAuth metadata endpoint at ${new URL(String(args.url)).host}`,
+                    operatorAction: 'Check network access to this server, then try connecting again.',
+                }, { cause });
+            }
+            // Check before the missing-candidate branch so even a nonconforming port cannot
+            // turn an unvalidated redirect into a fallback to another issuer or metadata path.
+            await assertOAuthResponseNotRedirect({ response });
+            if (!response.ok) {
+                await response.body?.cancel().catch(() => undefined);
+                throw new OAuthError({
+                    code: 'OAUTH_PROVIDER_REJECTED', message: `the OAuth metadata endpoint answered HTTP ${response.status}`,
+                    operatorAction: 'This server publishes no OAuth metadata at that location.',
+                });
+            }
+            return response;
+        },
     });
-    const fetchFn = deps.fetchFn;
-    let response: Response;
+}
+
+/** Uses upstream discovery at the host-selected candidate without replacing the host trust policy.
+ * Direct-document discovery deliberately leaves issuer comparison to our exact/custom/none policy.
+ * @returns The original document, so policies see unmodified values before facade narrowing.
+ * @throws {OAuthError} For malformed upstream metadata; transport failures retain their identity.
+ * @complexity O(b) time and space in bounded metadata; exactly one guarded HTTP request.
+ */
+async function fetchAuthorizationServerDocument({ deps, candidate, timeoutMs, fallbackIssuer }: {
+    readonly deps: OAuthDiscoveryDeps; readonly candidate: URL; readonly timeoutMs: number; readonly fallbackIssuer: string;
+}, _optionalArgs: OAuthEmptyArgs = {}): Promise<Record<string, unknown>> {
+    const guardedFetch = createMetadataFetch({ deps, timeoutMs });
+    let adapterFailure: { readonly error: unknown } | undefined;
+    // Successful discovery must have invoked customFetch and parsed this document. Return the
+    // original, rather than the projection, to keep even custom metadata policies authoritative.
+    let document!: Record<string, unknown>;
     try {
-        response = await fetchFn({
-            url: url.toString()
-        }, {
-            method: "GET",
-            headers: { accept: "application/json" },
-            redirect: "error",
-            signal: AbortSignal.timeout(timeoutMs),
+        await discovery(candidate, 'jini-metadata-reader', {}, None(), {
+            // The guarded hook owns the exact millisecond deadline. Round the library's
+            // seconds upward to avoid fractional conversion shortening it or throwing.
+            timeout: Math.ceil(timeoutMs / 1000),
+            ...(candidate.protocol === 'http:' ? { execute: [allowInsecureRequests] } : {}),
+            [customFetch]: async (url, options) => {
+                try {
+                    const response = await guardedFetch(url, options);
+                    document = parseOAuthJsonObject(await response.text(), METADATA_MESSAGES);
+                    // The facade accepts any successful status and falls back when issuer is
+                    // omitted. Preserve those contracts; do not normalize before the trust policy.
+                    return Response.json({ ...document, issuer: readOptionalString(document.issuer) ?? fallbackIssuer });
+                } catch (error) { adapterFailure = { error }; throw error; }
+            },
         });
-    }
-    catch (cause) {
+        return document;
+    } catch {
+        if (adapterFailure) throw adapterFailure.error;
+        // Upstream errors may contain the full document. Keep them out of the public error cause.
         throw new OAuthError({
-            code: "OAUTH_PROVIDER_UNREACHABLE", message: `could not reach the OAuth metadata endpoint at ${url.host}`,
-            operatorAction: "Check network access to this server, then try connecting again."
-        }, {
-            cause
+            code: 'OAUTH_MALFORMED_RESPONSE', message: METADATA_MESSAGES.notJsonMessage,
+            operatorAction: METADATA_MESSAGES.notJsonOperatorAction,
         });
     }
-    if (!response.ok) {
-        await response.body?.cancel().catch(() => undefined);
-        throw new OAuthError({
-            code: "OAUTH_PROVIDER_REJECTED", message: `the OAuth metadata endpoint answered HTTP ${response.status}`,
-            operatorAction: "This server publishes no OAuth metadata at that location."
-        });
-    }
-    return readBoundedOAuthJson(response, METADATA_MESSAGES);
+}
+
+/** Requests protected-resource metadata with upstream's RFC 9728 request builder.
+ * openid-client has no resource-discovery operation. Our candidate/advertised URL overrides the
+ * standard candidate at customFetch; optional informational resource identifiers remain unbound.
+ * @returns Original JSON for the existing optional-field and string-array normalization.
+ * @throws {OAuthError} For unsafe URLs, unavailable candidates or malformed bounded JSON.
+ * @complexity O(b) time and space in bounded metadata; one guarded HTTP request.
+ */
+async function fetchResourceMetadataDocument({ deps, resource, candidate, timeoutMs }: {
+    readonly deps: OAuthDiscoveryDeps; readonly resource: URL; readonly candidate: URL; readonly timeoutMs: number;
+}, _optionalArgs: OAuthEmptyArgs = {}): Promise<Record<string, unknown>> {
+    const guardedFetch = createMetadataFetch({ deps, timeoutMs });
+    const response = await resourceDiscoveryRequest(resource, {
+        [allowInsecureResourceRequests]: resource.protocol === 'http:',
+        [resourceCustomFetch]: (_url, options) => guardedFetch(candidate.href, options),
+    });
+    return parseOAuthJsonObject(await response.text(), METADATA_MESSAGES);
 }
 function issuerPathSuffix(url: URL): string {
     return url.pathname.replace(/\/+$/, "");
@@ -171,7 +234,7 @@ export async function fetchAuthorizationServerMetadata(requiredArgs: OAuthDiscov
     for (const candidate of authorizationServerMetadataCandidates(issuer, input.allowOriginFallback === true)) {
         let document: Record<string, unknown>;
         try {
-            document = await fetchMetadataDocument(deps, candidate, timeoutMs);
+            document = await fetchAuthorizationServerDocument({ deps, candidate, timeoutMs, fallbackIssuer: input.issuer });
         }
         catch (error) {
             if (isTerminalDiscoveryFailure(error))
@@ -209,7 +272,7 @@ export async function discoverProtectedResourceMetadata(requiredArgs: OAuthDisco
     for (const candidate of candidates) {
         let document: Record<string, unknown>;
         try {
-            document = await fetchMetadataDocument(deps, candidate, timeoutMs);
+            document = await fetchResourceMetadataDocument({ deps, resource, candidate, timeoutMs });
         }
         catch (error) {
             if (isTerminalDiscoveryFailure(error))

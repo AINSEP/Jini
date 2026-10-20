@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildOAuthAuthorizationUrl } from '../src/index.js';
+import { buildOAuthAuthorizationUrl, exchangeOAuthAuthorizationCode } from '../src/index.js';
 import { fixturePorts, fixtureEntropy } from "./fixtures.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -7,7 +7,7 @@ import { test, vi } from "vitest";
 import { beginAuthorizationCode, completeAuthorizationCode } from "../src/index.js";
 import { createPendingAuthorizationStore } from "../src/testing/index.js";
 import type { OAuthProviderDescriptor } from "../src/ports.js";
-import { assertOAuthRejects, createFetchDouble, createTestClock, TEST_CLIENT, TEST_PROVIDER, } from "./helpers.js";
+import { assertOAuthRejects, assertOAuthThrows, createFetchDouble, createTestClock, TEST_CLIENT, TEST_PROVIDER, } from "./helpers.js";
 /**
  * @file The authorization-code + PKCE grant.
  *
@@ -529,5 +529,88 @@ describe('buildOAuthAuthorizationUrl', () => {
     expect(parsed.searchParams.get('scope')).toBe('a b');
     expect(parsed.searchParams.get('resource')).toBe('https://api.example.com');
   });
+
+  it('replaces reserved endpoint query fields while preserving unrelated and omitted optional fields synchronously', () => {
+    const result = buildOAuthAuthorizationUrl({
+      authorizationEndpoint: 'https://auth.example.com/authorize?client_id=old&client_id=older&response_type=token&state=old&scope=existing&resource=existing&tenant=a&tenant=b',
+      clientId: 'client-1', redirectUri: REDIRECT_URI, state: 'fresh', codeChallenge: 'challenge',
+    });
+    assert.equal(typeof result, 'string');
+    const params = new URL(result).searchParams;
+    assert.deepEqual(params.getAll('client_id'), ['client-1']);
+    assert.deepEqual(params.getAll('response_type'), ['code']);
+    assert.deepEqual(params.getAll('state'), ['fresh']);
+    assert.deepEqual(params.getAll('tenant'), ['a', 'b']);
+    assert.equal(params.get('scope'), 'existing');
+    assert.equal(params.get('resource'), 'existing');
+  });
+
+  it('reports upstream empty-client and non-HTTP endpoint refusals as synchronous facade errors', () => {
+    for (const invalid of [{ clientId: '' }, { authorizationEndpoint: 'custom:authorize' }]) {
+      const error = assertOAuthThrows(() => buildOAuthAuthorizationUrl({
+        authorizationEndpoint: authServer.authorization_endpoint, clientId: 'fixture-client',
+        redirectUri: REDIRECT_URI, state: 'fixture-state', codeChallenge: 'fixture-challenge', ...invalid,
+      }), 'OAUTH_INVALID_REQUEST');
+      assert.equal(error.message, 'the OAuth authorization request configuration is invalid');
+      assert.equal(error.cause, undefined);
+    }
+  });
 });
 
+test('begin replaces endpoint protocol fields and preserves repeated resources through the stored exchange', async () => {
+    const { pending, provider, clock } = makeFlow({ authorizationEndpoint:
+        'https://auth.example.com/authorize?client_id=old&state=old&state=older&scope=old&code_challenge=old&tenant=a&tenant=b' });
+    const resource = ['https://api.example.com/a', 'https://api.example.com/b'];
+    const started = await beginAuthorizationCode({ ...fixturePorts,
+        options: { ...fixturePorts.options, redirectUris: [REDIRECT_URI] }, provider, pending,
+        ownerKey: 'owner', client: TEST_CLIENT, redirectUri: REDIRECT_URI,
+    }, { resource });
+    const params = new URL(started.authorizationUrl).searchParams;
+    assert.deepEqual(params.getAll('client_id'), [TEST_CLIENT.clientId]);
+    assert.deepEqual(params.getAll('state'), [started.state]);
+    assert.deepEqual(params.getAll('scope'), [...provider.defaultScopes]);
+    assert.equal(params.getAll('code_challenge').length, 1);
+    assert.deepEqual(params.getAll('resource'), resource);
+    assert.deepEqual(params.getAll('tenant'), ['a', 'b']);
+    const http = createFetchDouble([{ json: { access_token: 'fixture-access' } }]);
+    await completeAuthorizationCode({ ...fixturePorts, clock, provider, pending, fetchFn: http.fetchFn,
+        ownerKey: 'owner', client: TEST_CLIENT, params: { state: started.state, code: 'fixture-code' } });
+    assert.deepEqual(http.requests[0]?.body.getAll('resource'), resource);
+    await assertOAuthRejects(() => completeAuthorizationCode({ ...fixturePorts, clock, provider, pending,
+        fetchFn: http.fetchFn, ownerKey: 'owner', client: TEST_CLIENT,
+        params: { state: started.state, code: 'fixture-code' } }), 'OAUTH_INVALID_STATE');
+    assert.equal(http.callCount(), 1);
+});
+
+test('an upstream client identity refusal occurs before storing pending state', async () => {
+    const { pending, provider } = makeFlow();
+    const error = await assertOAuthRejects(() => beginAuthorizationCode({ ...fixturePorts,
+        options: { ...fixturePorts.options, redirectUris: [REDIRECT_URI] }, provider, pending,
+        ownerKey: 'owner', client: { ...TEST_CLIENT, clientId: '' }, redirectUri: REDIRECT_URI,
+    }), 'OAUTH_INVALID_REQUEST');
+    assert.equal(error.cause, undefined);
+    assert.equal(await pending.size({}), 0);
+});
+
+test('both code exchange facades send the exact redirect query and exchange only once', async () => {
+    const { pending, provider, clock } = makeFlow();
+    const redirectUri = `${REDIRECT_URI}?route=one&route=two`;
+    const started = await beginAuthorizationCode({ ...fixturePorts,
+        options: { ...fixturePorts.options, redirectUris: [redirectUri] }, provider, pending,
+        ownerKey: 'owner', client: TEST_CLIENT, redirectUri,
+    });
+    const http = createFetchDouble([{ json: { access_token: 'fixture-access', scope: 'read,write',
+        expires_in: '60', id_token: 'fixture-unvalidated-id-token' } }]);
+    const result = await completeAuthorizationCode({ ...fixturePorts, clock, provider, pending, fetchFn: http.fetchFn,
+        ownerKey: 'owner', client: TEST_CLIENT, params: { state: started.state, code: 'fixture-code' } });
+    const direct = await exchangeOAuthAuthorizationCode({ ...fixturePorts, clock, fetchFn: http.fetchFn,
+        tokenEndpoint: provider.tokenEndpoint, client: TEST_CLIENT, redirectUri,
+        code: 'different-fixture-code', codeVerifier: 'v'.repeat(43) });
+    assert.deepEqual(result, { accessToken: 'fixture-access', idToken: 'fixture-unvalidated-id-token',
+        refreshToken: null, tokenType: 'Bearer',
+        scopes: ['read', 'write'], expiresAt: '2026-08-25T12:01:00.000Z' });
+    assert.deepEqual(direct, result);
+    assert.equal(http.requests[0]?.body.get('redirect_uri'), redirectUri);
+    assert.equal(http.requests[1]?.body.get('redirect_uri'), redirectUri);
+    assert.equal(http.callCount(), 2, 'one exchange per call and no discovery or JWKS fetches');
+});

@@ -62,7 +62,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "openid-client": "6.8.8",
+    "oauth4webapi": "3.8.8"
   },
   "peerDependencies": {},
   "peerDependenciesMeta": {},

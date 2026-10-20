@@ -1,14 +1,16 @@
 import { nowIso as readNowIso } from '@jini-ai/core/primitives';
 import type { Clock } from '@jini-ai/core/primitives';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
+import { customFetch, initiateDeviceAuthorization, type DeviceAuthorizationResponse } from 'openid-client';
 /** Device authorization and one-shot polling (RFC 8628). The application owns polling cadence and keeps the device code secret. */
 import { applyResourceIndicators } from "./resource.js";
 import type { ISODateTime } from '@jini-ai/core/primitives';
-import { readBoundedOAuthJson } from "./bounded-json.js";
+import { parseOAuthJsonObject } from "./bounded-json.js";
 import { assertSafeProviderEndpoint, assertSafeUserFacingUrl } from "./endpoint-safety.js";
 import { mapProviderErrorCode, OAuthError } from "./errors.js";
-import type { OAuthClient, OAuthFetch, OAuthProviderDescriptor, OAuthTokenSet, OAuthHttpPorts, OAuthUrlGuard, OAuthResource } from "./ports.js";
-import { DEFAULT_TOKEN_REQUEST_TIMEOUT_MS, requestOAuthToken, type TokenRequestDeps } from "./token-endpoint.js";
+import type { OAuthClient, OAuthProviderDescriptor, OAuthTokenSet, OAuthHttpPorts, OAuthUrlGuard, OAuthResource } from "./ports.js";
+import { createOAuthClientConfiguration, DEFAULT_TOKEN_REQUEST_TIMEOUT_MS, requestOAuthToken, type TokenRequestDeps } from "./token-endpoint.js";
+import { createOAuthCustomFetch } from './guarded-transport.js';
 const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 const MAX_POLL_INTERVAL_SECONDS = 60;
 const MAX_DEVICE_CODE_LIFETIME_SECONDS = 30 * 60;
@@ -31,7 +33,7 @@ export interface BeginDeviceAuthorizationInput {
     readonly scopes?: readonly string[];
     readonly timeoutMs?: number;
 }
-interface RawDeviceAuthorizationResponse {
+interface RawDeviceAuthorizationResponse extends Readonly<Record<string, unknown>> {
     device_code?: unknown;
     user_code?: unknown;
     verification_uri?: unknown;
@@ -65,34 +67,62 @@ function requireDeviceAuthorizationEndpoint(provider: OAuthProviderDescriptor): 
     }
     return provider.deviceAuthorizationEndpoint;
 }
-function buildDeviceAuthorizationParams(client: OAuthClient, scopes: readonly string[]): Record<string, string> {
-    const params: Record<string, string> = { client_id: client.clientId };
-    if (scopes.length > 0)
-        params.scope = scopes.join(" ");
-    if (client.authMethod === "client_secret_post" && client.clientSecret) {
-        params.client_secret = client.clientSecret;
-    }
-    return params;
-}
-async function postDeviceAuthorizationRequest(fetchFn: OAuthFetch, endpoint: URL, params: Record<string, string>, resource: OAuthResource | undefined, timeoutMs: number): Promise<Response> {
-    const body = deviceForm(params, resource);
+/** Performs one upstream device initiation through the guarded, bounded host transport.
+ * Client authentication/configuration belongs to the shared token owner; no native fetch is used.
+ * @returns The library-processed device response after facade compatibility projection.
+ * @throws {OAuthError} Preserves endpoint, transport, body and provider errors without leaking JSON.
+ * @complexity O(n) time and space in the form and response, capped at 16 KiB; exactly one HTTP call.
+ */
+async function postDeviceAuthorizationRequest({ deps, endpoint, client, params }: {
+    readonly deps: DeviceAuthorizationDeps;
+    readonly endpoint: URL;
+    readonly client: OAuthClient;
+    readonly params: URLSearchParams;
+}, { timeoutMs = DEFAULT_TOKEN_REQUEST_TIMEOUT_MS }: { readonly timeoutMs?: number } = {}): Promise<DeviceAuthorizationResponse> {
+    // openid-client wraps customFetch failures. Retain our error identity and copy, including
+    // streamed-body failures; upstream errors can carry response data containing the device code.
+    let adapterFailure: { readonly error: unknown } | undefined;
     try {
-        return await fetchFn({
-            url: endpoint.toString()
-        }, {
-            method: "POST",
-            headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
-            body,
-            redirect: "error",
-            signal: AbortSignal.timeout(timeoutMs),
-        });
-    }
-    catch (cause) {
+        const config = createOAuthClientConfiguration({ client, endpoint, endpointName: 'device_authorization_endpoint' });
+        const guardedFetch = createOAuthCustomFetch({ guard: deps.guard, timeoutMs,
+            endpointLabel: 'device authorization endpoint', responseMessages: DEVICE_RESPONSE_MESSAGES,
+            fetchFn: async (args, options) => {
+                try {
+                    return await deps.fetchFn(args, options);
+                } catch (cause) {
+                    throw new OAuthError({
+                        code: 'OAUTH_PROVIDER_UNREACHABLE', message: `could not reach the device authorization endpoint at ${endpoint.host}`,
+                        operatorAction: 'Check network access to this provider, then start the connection again. Nothing was retried automatically.',
+                    }, { cause });
+                }
+            },
+        }, { maxResponseBytes: MAX_RESPONSE_BYTES });
+        config[customFetch] = async (url, options) => {
+            try {
+                const response = await guardedFetch(url, options);
+                const body = parseOAuthJsonObject(await response.text(), DEVICE_RESPONSE_MESSAGES);
+                assertDeviceAuthorizationAccepted(response, body);
+                const projected = deviceResponseForLibrary({ body, guard: deps.guard });
+                // The facade accepts every successful 2xx and JSON object regardless of content
+                // type. Canonicalize only after the original status/body checks and safety bounds.
+                return new Response(JSON.stringify(projected), {
+                    status: 200, headers: { 'content-type': 'application/json' },
+                });
+            } catch (error) {
+                adapterFailure = { error };
+                throw error;
+            }
+        };
+        return await initiateDeviceAuthorization(config, params);
+    } catch (error) {
+        if (adapterFailure) throw adapterFailure.error;
+        const invalidInput = error instanceof TypeError;
         throw new OAuthError({
-            code: "OAUTH_PROVIDER_UNREACHABLE", message: `could not reach the device authorization endpoint at ${endpoint.host}`,
-            operatorAction: "Check network access to this provider, then start the connection again. Nothing was retried automatically."
-        }, {
-            cause
+            code: invalidInput ? 'OAUTH_INVALID_REQUEST' : 'OAUTH_MALFORMED_RESPONSE',
+            message: invalidInput ? 'the OAuth grant or client configuration is invalid'
+                : 'the device authorization endpoint did not return a JSON object',
+            operatorAction: invalidInput ? "Check this provider's client id, secret and grant parameters."
+                : 'Check that the device authorization endpoint URL is correct.',
         });
     }
 }
@@ -109,7 +139,12 @@ function assertDeviceAuthorizationAccepted(response: Response, body: RawDeviceAu
         ...(providerErrorCode === undefined ? {} : { providerErrorCode })
     });
 }
-function narrowDeviceAuthorization(body: RawDeviceAuthorizationResponse, nowIso: ISODateTime, guard: OAuthUrlGuard): DeviceAuthorization {
+/** Keeps the facade's legacy spelling/coercion/link policy ahead of upstream RFC 8628 processing.
+ * @returns Canonical wire fields; only protocol fields are forwarded, never arbitrary response data.
+ * @throws {OAuthError} For missing required strings or unsafe provider-supplied display links.
+ * @complexity O(n) time and space in link lengths, within the bounded 16 KiB response.
+ */
+function deviceResponseForLibrary({ body, guard }: { readonly body: RawDeviceAuthorizationResponse; readonly guard: OAuthUrlGuard }, _optionalArgs: Record<string, never> = {}): DeviceAuthorizationResponse {
     const verificationUri = assertSafeUserFacingUrl({
         raw: requiredString(body.verification_uri ?? body.verification_url, "verification_uri"),
         guard: guard
@@ -119,27 +154,38 @@ function narrowDeviceAuthorization(body: RawDeviceAuthorizationResponse, nowIso:
         raw: completeRaw,
         guard: guard
     }).toString() : null;
-    const lifetimeSeconds = clampSeconds(body.expires_in, MAX_DEVICE_CODE_LIFETIME_SECONDS, 30, MAX_DEVICE_CODE_LIFETIME_SECONDS);
     return {
-        deviceCode: requiredString(body.device_code, "device_code"),
-        userCode: requiredString(body.user_code, "user_code"),
-        verificationUri,
-        verificationUriComplete,
-        expiresAt: new Date(Date.parse(nowIso) + lifetimeSeconds * 1000).toISOString(),
-        intervalSeconds: clampSeconds(body.interval, DEFAULT_POLL_INTERVAL_SECONDS, 1, MAX_POLL_INTERVAL_SECONDS),
+        device_code: requiredString(body.device_code, "device_code"),
+        user_code: requiredString(body.user_code, "user_code"),
+        verification_uri: verificationUri,
+        ...(verificationUriComplete === null ? {} : { verification_uri_complete: verificationUriComplete }),
+        expires_in: clampSeconds(body.expires_in, MAX_DEVICE_CODE_LIFETIME_SECONDS, 30, MAX_DEVICE_CODE_LIFETIME_SECONDS),
+        interval: clampSeconds(body.interval, DEFAULT_POLL_INTERVAL_SECONDS, 1, MAX_POLL_INTERVAL_SECONDS),
     };
 }
+/** Initiates one device grant with upstream authentication and protocol processing.
+ * The facade retains display-link safety, compatibility coercions and its injected clock.
+ * @returns Normalized device authorization with bounded local expiry and polling interval.
+ * @throws {OAuthError} For unsupported grants, invalid inputs, unsafe URLs or provider failures.
+ * @complexity O(n) time and space in scopes/resources and the 16 KiB response; one HTTP request.
+ * @example beginDeviceAuthorization({ ...ports, provider, clock, client }, { scopes: ['read'] })
+ */
 export async function beginDeviceAuthorization(requiredArgs: OAuthRequiredArgs<DeviceAuthorizationDeps & BeginDeviceAuthorizationInput>, optionalArgs: OAuthOptionalArgs<DeviceAuthorizationDeps & BeginDeviceAuthorizationInput> = {}): Promise<DeviceAuthorization> {
     const deps = requiredArgs;
     const input = { ...optionalArgs, client: requiredArgs.client };
     const endpoint = assertSafeProviderEndpoint(requireDeviceAuthorizationEndpoint(deps.provider), "device authorization endpoint", deps.guard);
     const scopes = input.scopes ?? deps.provider.defaultScopes;
-    const params = buildDeviceAuthorizationParams(input.client, scopes);
-    const fetchFn = deps.fetchFn;
-    const response = await postDeviceAuthorizationRequest(fetchFn, endpoint, params, input.resource, input.timeoutMs ?? DEFAULT_TOKEN_REQUEST_TIMEOUT_MS);
-    const body = (await readBoundedOAuthJson(response, DEVICE_RESPONSE_MESSAGES, MAX_RESPONSE_BYTES)) as RawDeviceAuthorizationResponse;
-    assertDeviceAuthorizationAccepted(response, body);
-    return narrowDeviceAuthorization(body, readNowIso({ clock: deps.clock }), deps.guard);
+    const params = new URLSearchParams();
+    if (scopes.length > 0) params.set('scope', scopes.join(' '));
+    applyResourceIndicators(params, input.resource);
+    const body = await postDeviceAuthorizationRequest({ deps, endpoint, client: input.client, params },
+        { ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }) });
+    return {
+        deviceCode: body.device_code, userCode: body.user_code, verificationUri: body.verification_uri,
+        verificationUriComplete: body.verification_uri_complete ?? null,
+        expiresAt: new Date(Date.parse(readNowIso({ clock: deps.clock })) + body.expires_in * 1000).toISOString(),
+        intervalSeconds: body.interval ?? DEFAULT_POLL_INTERVAL_SECONDS,
+    };
 }
 export interface PollDeviceAuthorizationInput {
     readonly resource?: OAuthResource;
@@ -159,6 +205,8 @@ export async function pollDeviceAuthorizationOnce(requiredArgs: OAuthRequiredArg
             providerErrorCode: "expired_token"
         });
     }
+    // Upstream's pollDeviceAuthorizationGrant sleeps and retries. The shared token owner's
+    // generic grant operation makes one request so the host retains cadence and retry decisions.
     return requestOAuthToken({
         ...deps,
         tokenEndpoint: deps.provider.tokenEndpoint,
@@ -175,8 +223,3 @@ const DEVICE_RESPONSE_MESSAGES = {
     notJsonMessage: "the device authorization endpoint did not return a JSON object",
     notJsonOperatorAction: "Check that the device authorization endpoint URL is correct.",
 } as const;
-function deviceForm(params: Record<string, string>, resource: OAuthResource | undefined): string {
-    const form = new URLSearchParams(params);
-    applyResourceIndicators(form, resource);
-    return form.toString();
-}

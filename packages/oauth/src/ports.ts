@@ -24,12 +24,36 @@ export interface OAuthClient {
 /** Normalized token set. Expiry is absolute; null means the provider gave no lifetime. */
 export interface OAuthTokenSet {
     readonly accessToken: string;
+    /** Sensitive, unvalidated OIDC token. Validate with validateOidcIdToken before trusting identity. */
+    readonly idToken?: string;
     /** Secret; null means the provider did not issue one. */
     readonly refreshToken: string | null;
     readonly tokenType: string;
     readonly scopes: readonly string[];
     readonly expiresAt: ISODateTime | null;
 }
+/** Trusted OIDC configuration supplied by the host, never inferred from a token or token URL. */
+export interface OidcTrustConfiguration {
+    readonly issuer: string;
+    readonly jwksUri: string;
+    readonly clientId: string;
+}
+/** Claims returned only after issuer, audience, time, nonce and application signature validation. */
+export interface OidcIdTokenClaims {
+    readonly iss: string;
+    readonly sub: string;
+    readonly aud: string | readonly string[];
+    readonly iat: number;
+    readonly exp: number;
+    readonly nonce?: string;
+    readonly auth_time?: number;
+    readonly azp?: string;
+    readonly [claim: string]: unknown;
+}
+/** Digital signatures only; MACs and unsigned ID tokens cannot establish issuer identity here. */
+export type OidcSigningAlgorithm = 'RS256' | 'RS384' | 'RS512' | 'PS256' | 'PS384' | 'PS512'
+    | 'ES256' | 'ES384' | 'ES512' | 'EdDSA' | 'Ed25519';
+export type OAuthTokenTypeHint = 'access_token' | 'refresh_token';
 /** HTTP port. Must honor redirect refusal, abort signals and the application DNS/egress policy. */
 export type OAuthFetch = (requiredArgs: {
     readonly url: string | URL | Request;

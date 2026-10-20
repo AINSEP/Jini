@@ -167,3 +167,165 @@ test('path-scoped discovery exhausts only path candidates unless the host opts i
     assert.equal((await fetchBoundAuthorizationServerMetadata({ issuer, fetchFn, guard }, { allowOriginFallback: true })).issuer, issuer);
     assert.equal(requests.length, 4);
 });
+
+// Migration characterization: these are facade contracts, independent of the library's defaults.
+test('missing issuer, optional fields and mixed arrays retain discovery normalization', async () => {
+    const issuer = 'https://auth.example.com/tenant/';
+    const requests: string[] = [];
+    const discovered = await fetchBoundAuthorizationServerMetadata({
+        issuer, guard: fixturePorts.guard,
+        fetchFn: async ({ url }, options) => {
+            requests.push(String(url));
+            assert.equal(options?.method, 'GET');
+            assert.equal(options?.redirect, 'error');
+            assert.equal(new Headers(options?.headers).get('accept'), 'application/json');
+            return new Response(JSON.stringify({
+                token_endpoint: 'https://auth.example.com/token',
+                scopes_supported: ['read', '', null, 'write', 'read'],
+                grant_types_supported: 'authorization_code',
+            }), { status: 202 });
+        },
+    });
+    assert.deepEqual(discovered, {
+        issuer, tokenEndpoint: 'https://auth.example.com/token', authorizationEndpoint: null,
+        deviceAuthorizationEndpoint: null, registrationEndpoint: null,
+        scopesSupported: ['read', 'write', 'read'], grantTypesSupported: [],
+        codeChallengeMethodsSupported: [], tokenEndpointAuthMethodsSupported: [],
+    });
+    assert.deepEqual(requests, ['https://auth.example.com/.well-known/oauth-authorization-server/tenant']);
+});
+
+test('a host policy sees the original issuer and document before compatibility normalization', async () => {
+    const issuer = 'https://auth.example.com/tenant';
+    const document = { issuer: ` ${issuer} `, token_endpoint: 'https://auth.example.com/token', custom: true };
+    let policyCalls = 0;
+    const result = await fetchBoundAuthorizationServerMetadata({
+        issuer, guard: fixturePorts.guard, fetchFn: async () => Response.json(document),
+    }, {
+        metadataPolicy: {
+            assertMetadata(input) {
+                policyCalls += 1;
+                assert.equal(input.issuer, issuer);
+                assert.deepEqual(input.document, document);
+            },
+        },
+    });
+    assert.equal(result.issuer, issuer);
+    assert.equal(policyCalls, 1);
+});
+
+test('exact issuer policy rejects trailing-slash substitution and stops candidate fallback', async () => {
+    const issuer = 'https://auth.example.com/tenant';
+    let attempts = 0;
+    const error = await assertOAuthRejects(() => fetchBoundAuthorizationServerMetadata({
+        issuer, guard: fixturePorts.guard,
+        fetchFn: async () => {
+            attempts += 1;
+            return Response.json({ issuer: `${issuer}/`, token_endpoint: 'https://auth.example.com/token' });
+        },
+    }), 'OAUTH_UNSAFE_ENDPOINT');
+    assert.equal(error.message, 'OAuth metadata issuer does not equal the requested issuer');
+    assert.equal(attempts, 1);
+});
+
+test('explicit unbound discovery retains informational issuer values', async () => {
+    const discovered = await fetchBoundAuthorizationServerMetadata({
+        issuer: 'https://auth.example.com', guard: fixturePorts.guard,
+        fetchFn: async () => Response.json({ issuer: 'unbound-issuer', token_endpoint: 'https://tokens.example.com/token' }),
+    }, { metadataPolicy: 'none' });
+    assert.equal(discovered.issuer, 'unbound-issuer');
+    assert.equal(discovered.tokenEndpoint, 'https://tokens.example.com/token');
+});
+
+test('non-JSON success is terminal and does not try another metadata candidate', async () => {
+    let attempts = 0;
+    const error = await assertOAuthRejects(() => fetchBoundAuthorizationServerMetadata({
+        issuer: 'https://auth.example.com/tenant', guard: fixturePorts.guard,
+        fetchFn: async () => { attempts += 1; return new Response('<html>missing</html>'); },
+    }), 'OAUTH_MALFORMED_RESPONSE');
+    assert.equal(error.message, 'the OAuth metadata endpoint did not return a JSON object');
+    assert.equal(attempts, 1);
+});
+
+test('a returned metadata redirect is terminal even when an injected fetch port ignores redirect refusal', async () => {
+    let attempts = 0;
+    let cancelled = false;
+    const error = await assertOAuthRejects(() => fetchBoundAuthorizationServerMetadata({
+        issuer: 'https://auth.example.com/tenant', guard: fixturePorts.guard,
+        fetchFn: async () => {
+            attempts += 1;
+            return new Response(new ReadableStream({ cancel() { cancelled = true; } }), {
+                status: 302, headers: { location: 'https://other.example.com/metadata' },
+            });
+        },
+    }, { allowOriginFallback: true }), 'OAUTH_UNSAFE_ENDPOINT');
+    assert.equal(error.message, 'refusing to follow an OAuth endpoint redirect');
+    assert.equal(attempts, 1);
+    assert.equal(cancelled, true);
+});
+
+test('missing metadata candidates cancel without reading their body before falling back', async () => {
+    let attempts = 0;
+    let cancelled = false;
+    const result = await fetchBoundAuthorizationServerMetadata({
+        issuer: 'https://auth.example.com/tenant', guard: fixturePorts.guard,
+        fetchFn: async () => {
+            attempts += 1;
+            if (attempts === 1) {
+                return new Response(new ReadableStream({
+                    pull() { throw new Error('a missing candidate body must never be read'); },
+                    cancel() { cancelled = true; },
+                }, { highWaterMark: 0 }), { status: 404 });
+            }
+            return Response.json({ issuer: 'https://auth.example.com/tenant', token_endpoint: 'https://auth.example.com/token' });
+        },
+    });
+    assert.equal(result.tokenEndpoint, 'https://auth.example.com/token');
+    assert.equal(attempts, 2);
+    assert.equal(cancelled, true);
+});
+
+test('a custom metadata-policy failure keeps its identity and never falls back', async () => {
+    const refusal = new Error('host trust policy refused the document');
+    let attempts = 0;
+    await assert.rejects(() => fetchBoundAuthorizationServerMetadata({
+        issuer: 'https://auth.example.com', guard: fixturePorts.guard,
+        fetchFn: async () => { attempts += 1; return Response.json({ token_endpoint: 'https://auth.example.com/token' }); },
+    }, { metadataPolicy: { assertMetadata() { throw refusal; } } }), error => error === refusal);
+    assert.equal(attempts, 1);
+});
+
+for (const resource of [undefined, 'https://another.example.com/api']) {
+    test(`protected-resource metadata keeps its optional informational resource: ${resource}`, async () => {
+        const { discoverProtectedResourceMetadata } = await import('../src/index.js');
+        const requests: string[] = [];
+        const result = await discoverProtectedResourceMetadata({
+            resourceUrl: 'https://resource.example.com/api/', guard: fixturePorts.guard,
+            fetchFn: async ({ url }, options) => {
+                requests.push(String(url));
+                assert.equal(options?.method, 'GET');
+                assert.equal(options?.redirect, 'error');
+                return Response.json({
+                    resource, authorization_servers: [null, 'https://auth.example.com', ''], scopes_supported: ['read', 1, ''],
+                });
+            },
+        }, { wwwAuthenticate: 'Bearer resource_metadata="https://resource.example.com/custom?tenant=one"' });
+        assert.deepEqual(result, {
+            resource: resource ?? null, authorizationServers: ['https://auth.example.com'], scopesSupported: ['read'],
+        });
+        assert.deepEqual(requests, ['https://resource.example.com/custom?tenant=one']);
+    });
+}
+
+test('a returned protected-resource redirect stops discovery before root or issuer fallback', async () => {
+    const requests: string[] = [];
+    const error = await assertOAuthRejects(() => discoverBoundAuthorizationServer({
+        resourceUrl: 'https://resource.example.com/api', guard: fixturePorts.guard,
+        fetchFn: async ({ url }) => {
+            requests.push(String(url));
+            return new Response('', { status: 302, headers: { location: 'https://other.example.com/metadata' } });
+        },
+    }), 'OAUTH_UNSAFE_ENDPOINT');
+    assert.equal(error.message, 'refusing to follow an OAuth endpoint redirect');
+    assert.deepEqual(requests, ['https://resource.example.com/.well-known/oauth-protected-resource/api']);
+});

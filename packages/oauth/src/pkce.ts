@@ -27,6 +27,14 @@ export function assertValidCodeVerifier({ codeVerifier }: {
         });
     }
 }
+/** Synchronous S256 compatibility bridge for openid-client's async calculatePKCECodeChallenge.
+ * Keep Node's standard hash implementation: upstream hashing returns a Promise, while consumers
+ * synchronously build redirect URLs. Entropy remains injected rather than using upstream globals.
+ * @returns The unpadded base64url SHA-256 digest of a validated RFC 7636 verifier.
+ * @throws {OAuthError} OAUTH_INVALID_REQUEST for a verifier outside the RFC bounds/character set.
+ * @complexity O(n) time and O(1) auxiliary space, bounded to 128 verifier characters.
+ * @example deriveCodeChallenge({ codeVerifier })
+ */
 export function deriveCodeChallenge({ codeVerifier }: {
     readonly codeVerifier: string;
 }): string {

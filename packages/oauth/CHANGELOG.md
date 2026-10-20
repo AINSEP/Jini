@@ -15,6 +15,27 @@
 
 ## Unreleased
 
+### Changed — OAuth protocol library migration
+
+- Use pinned `openid-client` 6.8.8 for authorization URLs, token grants/client authentication, refresh, device initiation, authorization-server discovery and revocation, behind the unchanged `@jini-ai/oauth` facade. Use `oauth4webapi` 3.8.8 only for protected-resource discovery, endpoint-only registration and standalone validation of already received ID tokens, where the high-level API does not fit the facade's contract.
+- Route every upstream HTTP request, including discovery, registration, revocation and JWKS, through guarded `customFetch`. Preserve host endpoint/DNS policy, string-only form/JSON bodies, redirect refusal, byte caps and operation deadlines through response-body consumption.
+- Retain synchronous PKCE/state/URL/redaction helpers, required/optional argument objects, `OAuthError` codes and existing recovery copy, normalized OAuth fields, pending/sealed state, issuer policy, resource indicators, registration caching and host-owned one-shot device polling. Refresh single-flight, leases, rotation preservation and persist-before-return remain in Jini.
+
+### Intentional behavior changes
+
+- Refuse successful-looking token responses with a non-200 status or an unsupported token type as `OAUTH_MALFORMED_RESPONSE`. Preserve valid JSON responses with non-JSON media types, default `Bearer`, optional-field/lifetime normalization and provider token-type casing; device/registration compatibility still accepts successful 2xx JSON objects.
+- Refuse empty client ids, missing/empty confidential-client secrets, missing/empty grant types and empty refresh tokens as `OAUTH_INVALID_REQUEST` before dispatch. Synchronous authorization-URL formatting also refuses empty client ids and non-HTTP(S) authorization endpoints.
+- Encode HTTP Basic client credentials using RFC 6749 form encoding before Base64 (`+` for spaces replaces the old `%20` encoding).
+- Reject returned redirects even when an injected fetch port ignores redirect refusal; discovery treats these safety failures as terminal.
+- Map invalid dynamic-registration initial-access-token headers to `OAUTH_INVALID_REQUEST` before dispatch, without exposing their values.
+- Retain nonempty `id_token` as the optional, sensitive, unvalidated `OAuthTokenSet.idToken`. OAuth-only grants perform no implicit discovery, JWKS retrieval or identity validation; results without an ID token keep their existing shape.
+
+### Added — revocation and explicit OIDC
+
+- Add root `revokeOAuthToken` with `RevokeOAuthTokenInput` and `OAuthTokenTypeHint`: one RFC 7009 request using existing client authentication, optional hint/deadline, and HTTP 200 confirmation including unknown-token success. Other statuses are not confirmation; local disablement, credential deletion and retries remain host-owned.
+- Add root `validateOidcIdToken`, `ValidateOidcIdTokenInput`, `OidcTrustConfiguration`, `OidcIdTokenClaims` and `OidcSigningAlgorithm`. Require explicit trusted issuer/JWKS/client identity, clock, token set and nonce expectation; validate claims and the application signature before returning claims. Default to RS256 and zero time tolerance; support explicit max authentication age and configured digital signature algorithms. Never derive trust from token headers or redeem a grant twice.
+- Add migration characterization and guarded-transport contracts plus local HTTP/JWKS revocation/OIDC fixtures, covering wrong issuer/audience/nonce/signature/algorithm, time checks, redirects, bounds, deadlines, string-only host bodies, retained ID tokens and rotating-refresh persistence.
+
 ### Fixed
 
 - Match the DNS-pinned transport's required dispatcher to Node's native `RequestInit` dispatcher type and forward standard request options without an opaque dispatcher intersection. Update dispatcher test doubles to satisfy the native contract.

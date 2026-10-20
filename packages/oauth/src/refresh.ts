@@ -170,7 +170,9 @@ export function createTokenRefresher(deps: OAuthRequiredArgs<TokenRefresherDeps>
     };
 }
 /** RFC 6749 refresh grant, preserving a refresh token when the server does not rotate it.
- * Carry forward scope and resource binding so refresh cannot silently broaden authority or audience. */
+ * Carry forward scope and resource binding so refresh cannot silently broaden authority or audience.
+ * The shared token endpoint dispatches refresh_token through openid-client's refreshTokenGrant;
+ * single-flight, leases and persist-before-return remain exclusively in createTokenRefresher. */
 export interface RefreshAccessTokenInput {
     readonly tokenEndpoint: string;
     readonly client: OAuthClient;
