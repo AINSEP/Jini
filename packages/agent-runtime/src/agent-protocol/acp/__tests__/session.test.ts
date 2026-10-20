@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { attachAcpSession, type AttachAcpSessionOptions } from '../session.js';
+import { attachAcpSession, type AcpPermissionRequest, type AttachAcpSessionOptions } from '../session.js';
 import type { AccountFailureClassifier } from '../account-failure.js';
 
 class FakeStdin extends EventEmitter {
@@ -1557,4 +1557,51 @@ it('trusted bypass parity can approve a native tool offering only allow_always',
   await Promise.resolve();
   expect(lastWrite(child)).toMatchObject({ id: 101, result: { outcome: { outcome: 'selected', optionId: 'native-allow' } } });
   controller.abort();
+});
+
+function attachWith(options: AttachAcpSessionOptions) {
+  const { child, prompt, send, ...optionalArgs } = options;
+  return attachAcpSession({ child, prompt, send }, optionalArgs);
+}
+
+describe('attachAcpSession permission request edge cases', () => {
+  it('still answers the agent when the host send throws while logging the decision', async () => {
+    const child = new FakeAcpChild();
+    const send = vi.fn((event: { event: string; payload: unknown }) => {
+      if (JSON.stringify(event.payload).includes('"label":"acp_permission"')) throw new Error('telemetry sink down');
+    });
+    const controller = attachWith(baseOptions(child, { send, permissionMode: 'bypass' }));
+    handshakeToSessionNew(child);
+    emitPermissionRequest(child, 31, [{ optionId: 'allow', kind: 'allow_once' }]);
+    await Promise.resolve();
+    expect(lastWrite(child)).toEqual({ jsonrpc: '2.0', id: 31, result: { outcome: { outcome: 'selected', optionId: 'allow' } } });
+    expect(controller.hasFatalError()).toBe(false);
+  });
+
+  it('hands the injected handler a null toolCall when the request carries none', async () => {
+    const child = new FakeAcpChild();
+    const onPermissionRequest = vi.fn((_request: AcpPermissionRequest) => ({ outcome: 'cancelled' as const }));
+    attachWith(baseOptions(child, { onPermissionRequest }));
+    handshakeToSessionNew(child);
+    emitLine(child, { jsonrpc: '2.0', id: 32, method: 'session/request_permission', params: {
+      sessionId: 'sess-1', options: [{ optionId: 'allow', kind: 'allow_once' }],
+    } });
+    await Promise.resolve();
+    expect(onPermissionRequest.mock.calls[0]?.[0].toolCall).toBeNull();
+  });
+});
+
+describe('attachAcpSession null-id model-selection error', () => {
+  it('treats a null-id recoverable RPC error before the prompt as a model-selection failure and sends the prompt early (reported, not fixed)', () => {
+    // setModelRequestId starts null, so a JSON-RPC error with `id: null`
+    // matches it; with no model pinned the session "recovers" by prompting
+    // even though session/new was never acknowledged.
+    const child = new FakeAcpChild();
+    const send = vi.fn();
+    const controller = attachWith(baseOptions(child, { send }));
+    emitLine(child, { jsonrpc: '2.0', id: null, error: { code: -32602, message: 'bad params' } });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'model', model: 'default' } });
+    expect(writesOf(child).map((request) => request.method)).toEqual(['initialize', 'session/prompt']);
+    expect(controller.hasFatalError()).toBe(false);
+  });
 });
