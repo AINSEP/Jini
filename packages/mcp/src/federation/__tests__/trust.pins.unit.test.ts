@@ -156,6 +156,18 @@ describe("federatedCallConfirmationForAction truth table", () => {
   }
 });
 
+describe("name-heuristic gaps (reported, not fixed)", () => {
+  test("a read-prefixed name hiding a permanent-removal verb runs without a card when the remote omits hints (reported, not fixed)", () => {
+    expect(federatedCallConfirmationForAction({ remoteName: "list_and_drop_tables", annotations: undefined, args: {} })).toBe("none");
+  });
+
+  test("removal verbs outside the vocabulary (remove, erase, wipe) run without a card when the remote omits hints (reported, not fixed)", () => {
+    for (const remoteName of ["remove_user", "erase_bucket", "wipe_project"]) {
+      expect(federatedCallConfirmationForAction({ remoteName, annotations: undefined, args: {} })).toBe("none");
+    }
+  });
+});
+
 describe("SQL statement scan", () => {
   const run = (args: Record<string, unknown>, annotations?: Record<string, boolean> | undefined) =>
     federatedCallConfirmationForAction({ remoteName: "execute_sql", annotations, args });
@@ -190,6 +202,16 @@ describe("SQL statement scan", () => {
 
   test("a keyword embedded in a longer word is not a match", () => {
     expect(run({ query: "select dropped, deleted_at from t" })).toBe("none");
+  });
+
+  test("an E'' escaped quote hides a DROP from the literal stripper (reported, not fixed)", () => {
+    // Postgres reads E'\'' as one literal holding a quote, so `drop table t` below is live code;
+    // the stripper closes the literal early and swallows the DROP as literal text instead.
+    expect(run({ query: "select E'\\'', 1; drop table t; --'" })).toBe("none");
+  });
+
+  test("a mass UPDATE without WHERE needs no card (reported, not fixed)", () => {
+    expect(run({ query: "update accounts set balance = 0" })).toBe("none");
   });
 
   test("statements are scanned even when the hint says destructive", () => {
