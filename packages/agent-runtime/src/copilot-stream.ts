@@ -92,7 +92,7 @@ function emitDelta(type: 'thinking_delta' | 'text_delta'): CopilotEventHandler {
 }
 
 // Map (not an object literal) so a prototype-named `type` can never resolve to a handler.
-const COPILOT_EVENT_HANDLERS = new Map<string, CopilotEventHandler>([
+const COPILOT_EVENT_HANDLERS: ReadonlyMap<string, CopilotEventHandler> = new Map<string, CopilotEventHandler>([
   ['session.tools_updated', ({ data, onEvent }) => {
     if (data.model) {
       onEvent({ type: 'status', label: 'initializing', model: data.model });

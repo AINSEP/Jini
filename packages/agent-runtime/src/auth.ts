@@ -178,7 +178,7 @@ type TailoredAuthClassifier = {
 // Agents that ship a bespoke auth-failure classifier + tailored sign-in hint.
 // Map (not an object literal) so an arbitrary agent id can never hit a
 // prototype key.
-const TAILORED_AUTH_CLASSIFIERS = new Map<string, TailoredAuthClassifier>([
+const TAILORED_AUTH_CLASSIFIERS: ReadonlyMap<string, TailoredAuthClassifier> = new Map<string, TailoredAuthClassifier>([
   ['claude', { isFailure: isClaudeAuthFailureText, guidance: ({ hostName }) => claudeAuthGuidance({}, { hostName }) }],
   ['cursor-agent', { isFailure: isCursorAuthFailureText, guidance: ({ hostName }) => cursorAuthGuidance({}, { hostName }) }],
   ['deepseek', { isFailure: isDeepSeekAuthFailureText, guidance: ({ hostName }) => deepseekAuthGuidance({}, { hostName }) }],
