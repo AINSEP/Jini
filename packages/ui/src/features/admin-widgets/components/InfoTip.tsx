@@ -2,7 +2,7 @@ import { useId, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
 
-import { useInfoTip } from "./InfoTip.hooks.js";
+import { useInfoTip, type InfoTipController } from "./InfoTip.hooks.js";
 import { infoTipBubbleStyle, infoTipLines } from "./InfoTip.rules.js";
 
 /**
@@ -45,16 +45,13 @@ export interface InfoTipProps {
 
 /** Focus/hover tooltip that portals outside clipping ancestors; Escape dismisses in place. */
 export function InfoTip({ label, triggerLabel, descriptionId, placement: preferredPlacement, useTip = useInfoTip, agentHandle: handle, icon }: InfoTipProps) {
-  const { open, placement, coords, iconRef, bubbleRef, show, hide, leave, toggle, handleIconKeyDown } = useTip({}, { placement: preferredPlacement === "inline" ? undefined : preferredPlacement });
+  const inline = preferredPlacement === "inline";
+  const { open, placement, coords, iconRef, bubbleRef, show, hide, leave, toggle, handleIconKeyDown } = useTip({}, { placement: inline ? undefined : preferredPlacement });
   const autoId = useId();
-  const name = triggerLabel ?? label;
-  // With no short name the icon is already named by the full text; describing it again would
-  // make a screen reader read it twice.
-  const textId = descriptionId ?? (triggerLabel ? autoId : undefined);
-  const describedBy = triggerLabel ? textId : undefined;
+  const { name, textId, describedBy } = infoTipNaming({ label, autoId }, { triggerLabel, descriptionId });
 
   return (
-    <span className={preferredPlacement === "inline" ? "info-tip info-tip--inline" : "info-tip"}>
+    <span className={inline ? "info-tip info-tip--inline" : "info-tip"}>
       <span
         ref={iconRef}
         className={icon ? "info-tip-icon info-tip-icon--custom" : "info-tip-icon"}
@@ -69,29 +66,60 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
         onBlur={hide}
         onClick={toggle}
         onKeyDown={handleIconKeyDown}
-        {...(handle ? agentHandle({ handle: handle }, { role: "button", label: name }) : {})}
+        {...(handle ? agentHandle({ handle }, { role: "button", label: name }) : {})}
       >
         {icon ?? "ⓘ"}
       </span>
       {textId ? <span id={textId} hidden>{label}</span> : null}
-      {open && preferredPlacement === "inline" ? <span className="info-tip-inline-copy" aria-hidden="true">{label}</span> : open
-        ? createPortal(
-            <span
-              ref={bubbleRef}
-              className={placement === "below" ? "info-tip-bubble info-tip-bubble-below" : "info-tip-bubble"}
-              role="presentation"
-              aria-hidden="true"
-              style={{ ...infoTipBubbleStyle(coords), whiteSpace: "pre-line" }}
-            >
-              {/* Keep the label's text separators; flex layout alone loses them from textContent. */}
-              {infoTipLines(label)?.map((line, index, lines) => line.bullet
-                ? <span key={index} className="info-tip-bullet"><span aria-hidden="true">•</span>{" "}<span>{line.text}</span>{index < lines.length - 1 ? "\n" : null}</span>
-                : <span key={index} className="info-tip-line">{line.text}{index < lines.length - 1 ? "\n" : null}</span>) ?? label}
-            </span>,
-            // A modal <dialog> sits in the browser's top layer, above anything portaled to body.
-            iconRef.current?.closest("dialog") ?? document.body
-          )
-        : null}
+      {open ? <InfoTipOpenCopy label={label} inline={inline} placement={placement} coords={coords} iconRef={iconRef} bubbleRef={bubbleRef} /> : null}
     </span>
   );
+}
+
+/**
+ * The icon's accessible name and the id of the hidden copy of `label` (if any).
+ * @returns `name` for `aria-label`, `textId` for the hidden copy, `describedBy` for `aria-describedby`.
+ * @complexity O(1).
+ */
+function infoTipNaming(
+  { label, autoId }: { label: string; autoId: string },
+  { triggerLabel, descriptionId }: { triggerLabel?: string | undefined; descriptionId?: string | undefined },
+): { name: string; textId: string | undefined; describedBy: string | undefined } {
+  // With no short name the icon is already named by the full text; describing it again would
+  // make a screen reader read it twice.
+  const textId = descriptionId ?? (triggerLabel ? autoId : undefined);
+  return { name: triggerLabel ?? label, textId, describedBy: triggerLabel ? textId : undefined };
+}
+
+type InfoTipOpenCopyProps = { label: string; inline: boolean; bubbleRef: InfoTipController["bubbleRef"] | undefined } & Pick<InfoTipController, "placement" | "coords" | "iconRef">;
+
+/** The open tip: inline copy beside the icon, or the bubble portaled out of clipping ancestors. */
+function InfoTipOpenCopy({ label, inline, placement, coords, iconRef, bubbleRef }: InfoTipOpenCopyProps) {
+  if (inline) return <span className="info-tip-inline-copy" aria-hidden="true">{label}</span>;
+  return createPortal(
+    <span
+      ref={bubbleRef}
+      className={placement === "below" ? "info-tip-bubble info-tip-bubble-below" : "info-tip-bubble"}
+      role="presentation"
+      aria-hidden="true"
+      style={{ ...infoTipBubbleStyle(coords), whiteSpace: "pre-line" }}
+    >
+      <InfoTipBubbleText label={label} />
+    </span>,
+    // A modal <dialog> sits in the browser's top layer, above anything portaled to body.
+    iconRef.current?.closest("dialog") ?? document.body
+  );
+}
+
+/** The bubble's text: a hanging list when any line is a "• " bullet, else the label as-is. */
+function InfoTipBubbleText({ label }: { label: string }) {
+  const lines = infoTipLines(label);
+  if (!lines) return label;
+  // Keep the label's text separators; flex layout alone loses them from textContent.
+  return lines.map((line, index) => {
+    const separator = index < lines.length - 1 ? "\n" : null;
+    return line.bullet
+      ? <span key={index} className="info-tip-bullet"><span aria-hidden="true">•</span>{" "}<span>{line.text}</span>{separator}</span>
+      : <span key={index} className="info-tip-line">{line.text}{separator}</span>;
+  });
 }
