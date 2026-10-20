@@ -47,22 +47,24 @@ export async function startAcmeProvider(): Promise<AcmeProvider> {
   const provider: AcmeProvider = {
     origin: '', revoked: [], tokenRequests: [], failRevocation: false,
     approve({ authorizationUrl, account, grantScopes, omitRefreshToken = false }) {
-      const url = new URL(authorizationUrl);
+      const param = (name: string) => new URL(authorizationUrl).searchParams.get(name) ?? '';
       const code = `acme-code-${codes.size + 1}`;
-      codes.set(code, { challenge: url.searchParams.get('code_challenge') ?? '', redirectUri: url.searchParams.get('redirect_uri') ?? '',
-        account, scopes: grantScopes ?? (url.searchParams.get('scope') ?? '').split(' '), omitRefreshToken });
-      return { state: url.searchParams.get('state') ?? '', code };
+      codes.set(code, { challenge: param('code_challenge'), redirectUri: param('redirect_uri'),
+        account, scopes: grantScopes ?? param('scope').split(' '), omitRefreshToken });
+      return { state: param('state'), code };
     },
     close: () => new Promise(resolve => server.close(() => resolve())),
   };
+  const refresh = (form: URLSearchParams, response: ServerResponse) => {
+    const grant = refreshTokens.get(form.get('refresh_token') ?? '');
+    return grant ? send(response, 200, issue(grant, false)) : send(response, 400, { error: 'invalid_grant' });
+  };
   const token = (form: URLSearchParams, response: ServerResponse) => {
     provider.tokenRequests.push(form);
-    if (form.get('grant_type') === 'refresh_token') {
-      const grant = refreshTokens.get(form.get('refresh_token') ?? '');
-      return grant ? send(response, 200, issue(grant, false)) : send(response, 400, { error: 'invalid_grant' });
-    }
-    const issued = codes.get(form.get('code') ?? '');
-    codes.delete(form.get('code') ?? '');
+    if (form.get('grant_type') === 'refresh_token') return refresh(form, response);
+    const code = form.get('code') ?? '';
+    const issued = codes.get(code);
+    codes.delete(code);
     const verifier = createHash('sha256').update(form.get('code_verifier') ?? '').digest('base64url');
     if (!issued || issued.challenge !== verifier || issued.redirectUri !== form.get('redirect_uri')) {
       return send(response, 400, { error: 'invalid_grant' });
