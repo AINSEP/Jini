@@ -139,3 +139,29 @@ describe('buildTranscript', () => {
     expect(withResolver).not.toContain('<artifact');
   });
 });
+
+describe('buildTranscript context-warning boundaries', () => {
+  const usage = (inputTokens: number): ChatMessage => ({ id: `u${inputTokens}`, role: 'assistant', content: 'a', events: [{ kind: 'usage', inputTokens }] });
+  const result = (chars: number): ChatMessage => ({ id: `r${chars}`, role: 'assistant', content: 'b', events: [{ kind: 'tool_result', toolUseId: 't', content: 'x'.repeat(chars), isError: false }] });
+
+  it('fires at exactly the input-token threshold, reporting the highest count seen', () => {
+    expect(buildTranscript({ history: [usage(300), usage(100)] }, { highInputTokenWarningThreshold: 300 })).toBe(
+      '## context warning\nDetected a previous run reported 300 input tokens.\nKeep this turn compact: summarize prior tool output, read large references from temp files, and quote only task-relevant lines.\n\n## assistant\na\n\n## assistant\na',
+    );
+  });
+
+  it('adds no warning just below the threshold and for a tool result exactly at the size limit', () => {
+    expect(buildTranscript({ history: [usage(299), result(10)] }, { highInputTokenWarningThreshold: 300, largeToolResultChars: 10 })).toBe('## assistant\na\n\n## assistant\nb');
+  });
+
+  it('joins both notes in one sentence when both signals fire', () => {
+    expect(buildTranscript({ history: [usage(500), result(11)] }, { highInputTokenWarningThreshold: 300, largeToolResultChars: 10 })).toContain(
+      'Detected a previous run reported 500 input tokens, 1 large prior tool result exist only in persisted event history.',
+    );
+  });
+
+  it('with a threshold of 0 warns about "0 input tokens" even when no run reported any (reported, not fixed)', () => {
+    const history: ChatMessage[] = [{ id: '1', role: 'assistant', content: 'a', events: [{ kind: 'usage', outputTokens: 900 }] }];
+    expect(buildTranscript({ history }, { highInputTokenWarningThreshold: 0 })).toBe('## context warning\nDetected a previous run reported 0 input tokens.\nKeep this turn compact: summarize prior tool output, read large references from temp files, and quote only task-relevant lines.\n\n## assistant\na');
+  });
+});
