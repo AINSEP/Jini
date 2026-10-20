@@ -24,11 +24,12 @@ Branch: cloud/w3-integrations (base origin/general-work 6bdca722). Brief: origin
 | L052a | dispatched (run 3) | | | | | |
 | L052b | dispatched (run 3) | | | | | |
 | L048 | dispatched (run 3) | | | | | |
-| L129a | dispatched (run 3) | | | | | |
+| L129a | MERGED 959bdb48 | run3 agent (~136k tok, 41 calls) | c221d962 ea3b7421 41eda400 446a8626 5c00e6dd b3a3f431 87da92e5 4ca5dd77 | aihubmix 15/14→≤10, imagerouter-video-async 11/11→≤10, imagerouter 10/13→≤10, nanobanana 12/16→≤10 | coord re-run: all 4 files 100/100/100/100, 11 files 196 tests, no Errors line | eslint 0, tsc = base 8, guard 26 = base, diff review OK (moved test dispatch/__tests__/imagerouter-video-async → providers/__tests__) |
 | L129b | MERGED 097c22fc | run3 agent (~137k tok, 41 calls) | 00c8c17c fd5a4583 bec1250d a366ad28 680f1f99 511e340e | openai 13/11→8/9, openrouter 16/9→8/5, senseaudio 13/11→9/6 | coord re-run: openai/openrouter/senseaudio 100/100/100/100, 14 files 287 tests, no Errors line | eslint 0, tsc = base 8, guard: 26 violations = same as base (none in integrations), diff review OK |
 | L235 | queued (starts when a slot frees) | | | | | |
 
 ## Findings (bugs / security) pinned
+- L129a (reported, not fixed): aihubmix gemini non-JSON 200 → raw SyntaxError; empty `inlineData` masks same part's `inline_data`; aihubmix openai providerNote prints "undefined" with no aspect; imagerouter video poll `completed` with no data stays pending forever. Security: none seen.
 - L129b (reported, not fixed): openai.ts + senseaudio.ts throw raw TypeError on JSON `null` body; openai speech drops instructions for non-gpt-4o-mini-tts but still notes "styled"; senseaudio `base_resp: {}` → "api error undefined: unknown". Security note (outside scope): adapters do not SSRF-check caller-set `credentials.baseUrl` (main request) — unverified whether engine/guarded client does.
 
 ## Problems
