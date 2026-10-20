@@ -1,7 +1,8 @@
 /**
- * @file Parses the two capability declarations a surface with a `handlerModule` may make: which of
- * the plugin's own connections its handlers administer (with the per-start parameters and callback
- * fields each may use), and which public configuration values the host may hand its handlers.
+ * @file Parses the capability declarations a surface with a `handlerModule` may make: which of the
+ * plugin's own connections its handlers administer (with the per-start parameters and callback
+ * fields each may use), which public configuration values the host may hand its handlers, and which
+ * of the plugin's delivery adapters' form-delivery bindings they manage (`./delivery-bindings.ts`).
  *
  * Why they are declared, not requested at run time: the surfaces file is part of the shipped,
  * digest-checked package, so these lists are the trusted allowlists the admin-surface capability
@@ -22,6 +23,9 @@ export interface AdminSurfaceConnectionDeclaration {
 export interface AdminSurfaceCapabilityDeclarations {
   readonly connections?: readonly AdminSurfaceConnectionDeclaration[];
   readonly publicConfig?: readonly string[];
+  /** Delivery adapter ids whose bindings the handlers manage. Jini checks only the shape; the host
+   *  checks that each is an adapter this same plugin contributes. */
+  readonly deliveryAdapters?: readonly string[];
 }
 
 type Entry = Readonly<Record<string, unknown>>;
@@ -39,7 +43,10 @@ const CALLBACK_FIELD_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
 const CONFIG_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/;
 /** Name parts that mark a credential. A plugin's public values never need one of them. */
 const SECRET_NAME_PATTERN = /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE|CREDENTIAL|COOKIE|SESSION|SIGNING/;
+/** The host's destination-id shape (lowercase hyphenated, at most 64), so a declared id can match one. */
+const ADAPTER_ID_PATTERN = /^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_CONNECTIONS = 4;
+const MAX_DELIVERY_ADAPTERS = 8;
 const MAX_FIELDS = 8;
 const MAX_CONFIG_NAMES = 16;
 
@@ -81,16 +88,28 @@ function parsePublicConfig(value: unknown, at: string): readonly string[] | stri
   return secret === -1 ? names : `${at}[${secret}] names a secret; public config may only hold values that are safe to show`;
 }
 
+function parseDeliveryAdapters(value: unknown, at: string): readonly string[] | string {
+  return parseNames(value, { pattern: ADAPTER_ID_PATTERN, max: MAX_DELIVERY_ADAPTERS, at });
+}
+
+/** Each declaration's parser, in the order refusals are reported. */
+const DECLARATION_PARSERS = [
+  ['connections', parseConnections], ['publicConfig', parsePublicConfig], ['deliveryAdapters', parseDeliveryAdapters],
+] as const satisfies readonly (readonly [keyof AdminSurfaceCapabilityDeclarations, (value: unknown, at: string) => unknown])[];
+
 /**
  * The surface's capability declarations, with keys present only when declared (an undeclared list
  * adds no key, so existing descriptors parse unchanged), or why the file is refused.
- * @complexity O(c * f + n) connections with their fields plus config names; every list is capped.
+ * @complexity O(c * f + n + d) connections with their fields, config names and delivery adapters; every list is capped.
  */
 export function parseAdminSurfaceCapabilityDeclarations(required: { readonly entry: Entry; readonly at: string }, _optional: Record<string, never> = {}): AdminSurfaceCapabilityDeclarations | string {
   const { entry, at } = required;
-  const connections = entry.connections === undefined ? undefined : parseConnections(entry.connections, `${at}.connections`);
-  if (typeof connections === 'string') return connections;
-  const publicConfig = entry.publicConfig === undefined ? undefined : parsePublicConfig(entry.publicConfig, `${at}.publicConfig`);
-  if (typeof publicConfig === 'string') return publicConfig;
-  return { ...(connections && { connections }), ...(publicConfig && { publicConfig }) };
+  const declarations: Record<string, unknown> = {};
+  for (const [name, parse] of DECLARATION_PARSERS) {
+    if (entry[name] === undefined) continue;
+    const parsed = parse(entry[name], `${at}.${name}`);
+    if (typeof parsed === 'string') return parsed;
+    declarations[name] = parsed;
+  }
+  return declarations as AdminSurfaceCapabilityDeclarations;
 }

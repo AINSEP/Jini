@@ -29,5 +29,6 @@ export {
   type AdminSurfaceAuthorizationStart, type AdminSurfaceConnections, type AdminSurfaceStateValue, type AdminSurfaceState,
   type AdminSurfacePublicConfig, type AdminSurfaceCapabilities, type AdminSurfaceCapabilitiesPort,
 } from './surface-capabilities.js';
+export type { AdminSurfaceDeliveryBinding, AdminSurfaceDeliveryBindingDraft, AdminSurfaceDeliveryBindings } from './delivery-bindings.js';
 export { openAdminSurfaceLink, type AdminSurfaceOpenLinkPort, type AdminSurfaceLinkVerdict } from './external-links.js';
 export { createAdminSurfaceCallbackInbox, type AdminSurfaceCallbackFieldKey } from './callback-field-inbox.js';

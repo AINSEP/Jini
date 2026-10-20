@@ -65,6 +65,7 @@ Rules (any violation refuses the whole file, reported in the loader's `refusals`
 | `handlerModule` | optional; same path rule ending in `.mjs`; must not also be listed in `files` (it is server code, never served); requires every action to declare `result` |
 | `bootstrap` | optional schema (same subset) the handler module's bootstrap data must match; only with `handlerModule` |
 | `connections` | optional, only with `handlerModule`; at most 4 `{ id, startParams?, callbackFields? }`: the plugin's own connection ids (`[A-Za-z0-9][A-Za-z0-9._-]{0,63}`, unique) its handlers administer, the per-sign-in parameters they may set and the callback fields they may take (names `[A-Za-z0-9_.-]{1,64}`, at most 8 each) |
+| `deliveryAdapters` | optional, only with `handlerModule`; at most 8 unique lowercase hyphenated ids (≤ 64) of the delivery adapters whose form-delivery bindings the handlers manage (see `deliveryBindings` below). Jini checks only the shape; the host refuses an id this same plugin does not contribute |
 | `publicConfig` | optional, only with `handlerModule`; at most 16 environment-style names (`[A-Z][A-Z0-9_]{0,63}`) the host may hand the handlers; a name containing `SECRET`, `TOKEN`, `PASSWORD`, `PASSWD`, `PRIVATE`, `CREDENTIAL`, `COOKIE`, `SESSION` or `SIGNING` is refused |
 | `linkOrigins` | optional, any surface; at most 8 unique bare `https://host[:port]` origins (the `csp` source rule) the host may open links to for this surface |
 | `csp` | keys only `script-src`, `style-src`, `img-src`, `font-src`, `connect-src`, `frame-src`; values only bare `https://host[:port]` origins with a DNS name (no wildcard, path, IP, keyword, `data:`/`blob:`) |
@@ -247,6 +248,7 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 | | `takeCallbackFields({ connectionId, attemptId })` → declared fields or `null` | declared connection, opaque attempt id, undeclared fields dropped |
 | `state` | `get({ key })`, `set({ key, value })`, `delete({ key })` | key `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}`; value plain JSON (depth ≤ 16, ≤ 16 KiB serialized); a value mentioning a token the call obtained is refused; the host stores a checked copy |
 | `publicConfig` | `get({ name })` → string or `null` | declared name only |
+| `deliveryBindings` | `list()` → bindings; `save({ bindingId?, adapterId, connectionId, enabled, formIds?, config })` → binding; `remove({ bindingId })`. A binding is `{ bindingId, adapterId, connectionId, enabled, formIds?, config }` (`formIds` absent = every form, `[]` = none) | present only when the surface declares `deliveryAdapters` and the host provides the port; a signed-in admin; `adapterId` declared; `connectionId` one of the surface's declared connections; `formIds` ≤ 64 unique short ids; `config` a plain JSON object under the `state` value rules (≤ 16 KiB, never a token the plugin obtained), stored as a checked copy; a `bindingId` given to `save` or `remove` must be one the host lists for a declared adapter (another adapter's binding is never overwritten or removed); `list` keeps only declared adapters' bindings, cut to the shape above (no connection ref), and is withheld when one mentions an obtained token |
 
 Host duties: key `state` by the scope's plugin and workspace (never shared across plugins), and back
 the plugin's agent tools' read-only `state.get` (`../lifecycle/tools/README.md`) with this same store
@@ -256,6 +258,13 @@ confirmed (`revocation` uses the API-connection values `confirmed | pending | no
 `status` its four lifecycle values, so the host passes both through); fill `lastSignInAttempt` with
 your OWN codes for a sign-in that did not complete (for example `access-denied` + `reconnect`), never
 the provider's error text; never return a refresh token or secret from any port; give `publicConfig` only public values.
+For `deliveryBindings`, scope every call to the scope's plugin and workspace and to the adapters this
+plugin contributes (refuse a declared adapter id the plugin does not own), map the plugin's
+`connectionId` to the plugin's own connection (the binding stores the host's connection ref; the
+plugin never sees it), assign `bindingId` on create, and refuse `save`/`remove` of a binding whose
+current adapter is not the plugin's even though the session already checked it (the check and the
+write are two calls). Bindings it saves are ordinary form-delivery bindings: a disabled product or
+plugin must still stop delivery through them at delivery time.
 
 Callback fields: when a sign-in started by `begin` completes successfully, the host's callback route
 deposits the provider's extra fields into `createAdminSurfaceCallbackInbox({ now })` (in-process,
@@ -274,3 +283,6 @@ The plugin must still verify the fields through the provider's API before saving
   never run, even with a handler.
 - A provider plugin answers its own actions by shipping a `handlerModule`; a second provider uses the
   same seam with its own module, its own declared connection ids and config names, and needs no Jini change.
+- A provider plugin that also contributes a form-delivery adapter declares its id in `deliveryAdapters`
+  and saves bindings from its destination screen through `capabilities.deliveryBindings`; a second
+  provider does the same with its own adapter ids, and needs no Jini change.

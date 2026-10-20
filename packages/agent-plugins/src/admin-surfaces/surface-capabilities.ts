@@ -16,11 +16,16 @@
  * such a token in plugin state.
  */
 import {
-  checkedStateKey, guardSharedCapabilities, guardStateReader, openCapabilityGate, PLUGIN_STATE_MAX_KEY_LENGTH,
+  checkedStateKey, guardSharedCapabilities, guardStateReader, openCapabilityGate,
   type AgentPluginCapabilityGate, type AgentPluginStateReader, type AgentPluginStateValue, type AgentPluginToolCapabilities, type AgentPluginToolCapabilityScope,
   type IssuedTokenMemory,
 } from '../lifecycle/tools/capabilities.js';
 import type { AdminSurfaceCapabilityDeclarations, AdminSurfaceConnectionDeclaration } from './capability-declarations.js';
+import { guardDeliveryBindings, type AdminSurfaceDeliveryBindings } from './delivery-bindings.js';
+import { storedStateValue } from './settings-value.js';
+
+// Moved to `./settings-value.ts` so delivery-binding config shares the exact checks; re-exported so callers keep importing them here.
+export { ADMIN_SURFACE_STATE_LIMITS, STATE_CREDENTIAL_MESSAGE } from './settings-value.js';
 
 /** Mirrors the API-connection lifecycle (`ApiConnectionStatus`); only `connected` serves access tokens. */
 export type AdminSurfaceConnectionState = 'connected' | 'reconnect-required' | 'revocation-pending' | 'disconnected';
@@ -105,13 +110,14 @@ export type AdminSurfaceCapabilities = Pick<AgentPluginToolCapabilities, 'http' 
   readonly connections: AdminSurfaceConnections;
   readonly state: AdminSurfaceState;
   readonly publicConfig: AdminSurfacePublicConfig;
+  /** The workspace's form-delivery bindings (`./delivery-bindings.ts`). Optional for the host; a handler
+   *  gets it only when its surface declares `deliveryAdapters` and the host provides it. */
+  readonly deliveryBindings?: AdminSurfaceDeliveryBindings;
 };
 
 /** Host port: builds one call's capabilities for the loaded plugin, workspace and admin principal. */
 export type AdminSurfaceCapabilitiesPort = (required: AgentPluginToolCapabilityScope, optional?: Record<string, never>) => AdminSurfaceCapabilities;
 
-export const ADMIN_SURFACE_STATE_LIMITS = Object.freeze({ maxKeyLength: PLUGIN_STATE_MAX_KEY_LENGTH, maxValueBytes: 16 * 1024, maxDepth: 16 });
-export const STATE_CREDENTIAL_MESSAGE = 'The plugin tried to save a connection credential in its settings; nothing was saved.';
 const ACTIONS: readonly string[] = Object.keys(ADMIN_SURFACE_ACTION_INTENTS);
 const SCOPE_SET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const ATTEMPT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
@@ -226,36 +232,10 @@ function actConnections({ gate, host, declared, actorId }: ConnectionsInput): Om
   };
 }
 
-function isStateScalar(value: unknown): boolean {
-  return value === null || typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value));
-}
-
-/** True for plain JSON data only: no undefined, functions, NaN, class instances or deep nesting. @complexity O(n) nodes. */
-function isStateValue(value: unknown, depth: number): boolean {
-  if (isStateScalar(value)) return true;
-  if (typeof value !== 'object' || depth >= ADMIN_SURFACE_STATE_LIMITS.maxDepth) return false;
-  if (Array.isArray(value)) return value.every((item) => isStateValue(item, depth + 1));
-  const prototype = Object.getPrototypeOf(value);
-  return (prototype === Object.prototype || prototype === null) && Object.values(value as object).every((item) => isStateValue(item, depth + 1));
-}
-
-/**
- * The value the host stores: serialized once, scanned and size-checked on that text, then parsed
- * back, so what is stored is exactly what was checked (the plugin cannot change it afterwards).
- * @complexity O(n) in the serialized size.
- */
-function storedStateValue(gate: AgentPluginCapabilityGate, value: unknown): AdminSurfaceStateValue {
-  if (!isStateValue(value, 0)) throw new Error('A settings value must be plain JSON data (no undefined, functions, NaN or class instances).');
-  const text = JSON.stringify(value);
-  if (new TextEncoder().encode(text).byteLength > ADMIN_SURFACE_STATE_LIMITS.maxValueBytes) throw new Error(`A settings value may be at most ${ADMIN_SURFACE_STATE_LIMITS.maxValueBytes} bytes of JSON.`);
-  if (gate.mentionsToken({ value: text })) throw new Error(STATE_CREDENTIAL_MESSAGE);
-  return JSON.parse(text) as AdminSurfaceStateValue;
-}
-
 function guardState(gate: AgentPluginCapabilityGate, host: AdminSurfaceState): AdminSurfaceState {
   return Object.freeze({
     ...guardStateReader({ gate, state: host }),
-    set: gate.guard(async ({ key, value }: { readonly key: string; readonly value: AdminSurfaceStateValue }) => host.set({ key: checkedStateKey({ key }), value: storedStateValue(gate, value) })),
+    set: gate.guard(async ({ key, value }: { readonly key: string; readonly value: AdminSurfaceStateValue }) => host.set({ key: checkedStateKey({ key }), value: storedStateValue({ gate, value }) })),
     delete: gate.guard(({ key }: { readonly key: string }) => host.delete({ key: checkedStateKey({ key }) })),
   });
 }
@@ -289,11 +269,15 @@ export function openAdminSurfaceCapabilitySession(
   const { capabilities: host, isLive, declared, issued } = required;
   const gate = openCapabilityGate({ isLive, issued });
   const input: ConnectionsInput = { gate, host: host.connections, declared: declared.connections ?? [], actorId: optional.actorId };
+  const { deliveryAdapters } = declared;
+  const deliveryBindings = deliveryAdapters === undefined || host.deliveryBindings === undefined ? undefined
+    : guardDeliveryBindings({ gate, host: host.deliveryBindings, adapterIds: deliveryAdapters, connectionIds: input.declared.map((connection) => connection.id) }, { actorId: optional.actorId });
   const capabilities: AdminSurfaceCapabilities = Object.freeze({
     ...guardSharedCapabilities({ gate, host }),
     connections: Object.freeze({ ...readConnections(input), ...actConnections(input) }),
     state: guardState(gate, host.state),
     publicConfig: guardPublicConfig(gate, host.publicConfig, declared.publicConfig ?? []),
+    ...(deliveryBindings && { deliveryBindings }),
   });
   return { capabilities, release: gate.release, sanitize: gate.sanitize };
 }

@@ -36,3 +36,16 @@ test('a surface with a handler module but no capability declarations parses to e
     descriptors: [{ id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'], actions: [{ name: 'save', input, result: input }], csp: {}, handlerModule: 'server/handlers.mjs' }],
   });
 });
+
+// Pinned green before `deliveryAdapters` was added: a handled surface that declares connections and
+// public config keeps parsing to exactly those keys, so existing descriptors gain no new key.
+test('a handled surface with connections and publicConfig parses to exactly its declared fields', () => {
+  const handled = { ...base, actions: [{ name: 'save', input, result: input }], handlerModule: 'server/handlers.mjs', connections: [{ id: 'account' }], publicConfig: ['ACME_APP_ID'] };
+  expect(parseAdminSurfacesFile({ raw: raw(handled) })).toStrictEqual({
+    ok: true,
+    descriptors: [{
+      id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'], actions: [{ name: 'save', input, result: input }], csp: {},
+      handlerModule: 'server/handlers.mjs', connections: [{ id: 'account', startParams: [], callbackFields: [] }], publicConfig: ['ACME_APP_ID'],
+    }],
+  });
+});
