@@ -15,7 +15,7 @@ Temp eslint config (untracked, git-excluded): `.eslint-cx.tmp.mjs` (complexity 1
 | L066 | utils | merged | sse 11/13, polygon 12/-, auto-open-file 27/43, md-scroll-sync 17/16 → all ≤10 | 100/100/100 | 51c765be 9d2f5683 4cdea228 94545b89 0937898d | eslint 0, tsc ok, 123 tests (85→123), new tests pass on OLD source |
 | L067 | renderers | merged | build 11/-→8/5, ArtifactView 12/-→6/3, PreviewModalShell 23/20→10/8, AnnotationCanvas 27/42→8/7 | 100/100/100 | 587c844b 53281a6c e7b4e0df 58a5c270 | eslint 0, tsc ok, srcdoc byte snapshots pass on OLD source; diff read: escaping/CSP/sandbox order unchanged |
 | L075 | features/media-providers | merged | Tab 60/17, hook -/13, rules 13/- → all ≤10 | 100/100/100 | 0287fe56 aaa574fe 2412bd5b | eslint 0 (incl. new MediaProviderCard.tsx), tsc ok, 118 tests pass on OLD source too |
-| L080 | features/resource-dashboard | running | | | | |
+| L080 | features/resource-dashboard | merged | rules 12/11, RowListItem 12/16, RowList 13/-, RowListView 14/13, Card 15/20, BoardView 16/20, Board 21/15 → all ≤10 | 100/100/100 | feaf9b67 1f205d6f 005560d4 0e47d37c ad8554d2 4aab2dab a9442309 | eslint 0 (whole folder), tsc ok, 167 tests pass on OLD source too |
 | L085 | features/lexical-rich-text-editor | merged | mention-parser 16/18, serialize 7/11, keyboard 11/-, rules 20/42 → all ≤10 | 100/100/100 | 894db7e1 81040c02 6320cc1b 02e94345 | eslint 0, tsc ok, 149 tests pass on OLD source too |
 
 ## Timings
@@ -29,5 +29,10 @@ Temp eslint config (untracked, git-excluded): `.eslint-cx.tmp.mjs` (complexity 1
 
 ## Problems
 - Some commit messages (L037 TestControl, L067 build/ArtifactView/PreviewModalShell) state slightly wrong after-numbers; table above has measured values. Not amended (no force-push).
+
+## Flagged, not changed
+- L080: `useWiredResourceBoard` public prop only passed by tests; old ResourceBoard tests use `customHook as any` (pre-existing); ResourceBoardView test 'bubbles select-mode/bulk-delete toolbar interactions' asserts nothing on callbacks.
+- L085: `selectBeforeMention`/`selectAfterMention` near-duplicates (exported, under limit).
+- L049/L075: lot files not prettier-clean before the wave; left as is.
 
 ## Next
