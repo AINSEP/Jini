@@ -205,7 +205,8 @@ function assertCallbackShape(params: AuthorizationCallbackParams): void {
         });
     }
 }
-function toCallbackError(rawError: string): OAuthError {
+/** Maps a callback `error` parameter to a typed failure; the raw value is kept only when it is a plain protocol code. */
+export function toCallbackError(rawError: string): OAuthError {
     const providerErrorCode = PROVIDER_ERROR_PATTERN.test(rawError) ? rawError : undefined;
     if (providerErrorCode === "access_denied") {
         return new OAuthError({

@@ -16,7 +16,8 @@
       ".": "node",
       "./testing": "node",
       "./discovery-policy": "node",
-      "./dns-pinned-transport": "node"
+      "./dns-pinned-transport": "node",
+      "./loopback-receiver": "node"
     }
   },
   "type": "module",
@@ -41,6 +42,11 @@
       "types": "./dist/dns-pinned-transport.d.ts",
       "import": "./dist/dns-pinned-transport.js",
       "default": "./dist/dns-pinned-transport.js"
+    },
+    "./loopback-receiver": {
+      "types": "./dist/loopback-receiver.d.ts",
+      "import": "./dist/loopback-receiver.js",
+      "default": "./dist/loopback-receiver.js"
     }
   },
   "files": [
