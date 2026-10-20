@@ -38,7 +38,8 @@ describe('createApiConnectionService wiring', () => {
 describe('status', () => {
   it('reads a never-created connection as disconnected', async () => {
     const status = await createApiConnectionService(unitDeps()).getStatus({ connectionRef: KEY, workspaceId: 'ws-1' });
-    expect(status).toEqual({ connectionRef: KEY, status: 'disconnected', account: null, grantedScopes: [], pendingSwitch: null });
+    expect(status).toEqual({ connectionRef: KEY, status: 'disconnected', account: null, grantedScopes: [], pendingSwitch: null,
+      revocationFailure: null });
   });
 
   it('shows the staged account as the pending switch', async () => {

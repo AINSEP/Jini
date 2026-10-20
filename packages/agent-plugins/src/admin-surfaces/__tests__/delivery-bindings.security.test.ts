@@ -16,9 +16,10 @@ import { createFakeSurfaceHost } from './surface-support.js';
 
 const PLUGIN = 'acme-office';
 const DECLARED: AdminSurfaceCapabilityDeclarations = { connections: [{ id: 'account', startParams: [], callbackFields: [] }], deliveryAdapters: ['acme-rows'] };
-const OURS: AdminSurfaceDeliveryBinding = { bindingId: 'ours-1', adapterId: 'acme-rows', connectionId: 'account', enabled: true, config: { tab: 7 } };
-const FOREIGN: AdminSurfaceDeliveryBinding = { bindingId: 'foreign-1', adapterId: 'other-adapter', connectionId: 'account', enabled: true, config: { list: 'x' } };
-const DRAFT = { adapterId: 'acme-rows', connectionId: 'account', enabled: true, config: { tab: 1 } } as const;
+const OURS: AdminSurfaceDeliveryBinding = { bindingId: 'ours-1', adapterId: 'acme-rows', connectionId: 'account', enabled: true, allForms: true, config: { tab: 7 } };
+const FOREIGN: AdminSurfaceDeliveryBinding = { bindingId: 'foreign-1', adapterId: 'other-adapter', connectionId: 'account', enabled: true, formIds: ['contact'], config: { list: 'x' } };
+const DRAFT = { adapterId: 'acme-rows', connectionId: 'account', enabled: true, formIds: ['contact'], config: { tab: 1 } } as const;
+const NO_FORMS = 'A delivery binding must name its forms: formIds (a list; [] for none) or allForms: true for every current and future form, not both.';
 const NO_ACTOR = 'Delivery settings need a signed-in admin. Open the surface from an authenticated admin page and retry.';
 const NOT_OURS = (id: string) => `No delivery binding '${id}' belongs to this surface's delivery adapters; list the bindings and retry.`;
 
@@ -126,6 +127,33 @@ describe('list and remove never reach another adapter\'s bindings', () => {
     await expect(session.bindingsPort.remove({ bindingId: 'foreign-1' })).rejects.toThrow(NOT_OURS('foreign-1'));
     expect(session.bindings.get('foreign-1')).toStrictEqual(FOREIGN);
     expect(session.log.calls).not.toContain(`${PLUGIN}:bindings.remove:{"bindingId":"foreign-1"}`);
+  });
+});
+
+describe('which forms a binding delivers is always stated (never an implicit "every form")', () => {
+  const { formIds: _formIds, ...noForms } = DRAFT;
+  test.each([
+    ['neither formIds nor allForms', noForms],
+    ['allForms: false', { ...noForms, allForms: false }],
+    ['allForms as a string', { ...noForms, allForms: 'true' }],
+    ['both formIds and allForms', { ...DRAFT, allForms: true }],
+  ])('a draft with %s is refused before the host sees it', async (_label, draft) => {
+    const session = open();
+    // Malformed on purpose: a plugin is JavaScript and may send any of these.
+    await expect(session.bindingsPort.save(draft as unknown as Parameters<typeof session.bindingsPort.save>[0])).rejects.toThrow(NO_FORMS);
+    expect(session.log.calls).toEqual([]);
+  });
+  test('allForms: true reaches the host as stated, without a formIds key', async () => {
+    const session = open();
+    await expect(session.bindingsPort.save({ ...noForms, allForms: true })).resolves.toMatchObject({ allForms: true });
+    expect(session.log.calls.at(-1)).toBe('acme-office:bindings.save:{"adapterId":"acme-rows","connectionId":"account","enabled":true,"allForms":true,"config":{"tab":1}}');
+  });
+  test('a binding the host lists without stating its forms is refused, never read as every form', async () => {
+    const session = open();
+    const { allForms: _allForms, ...unstated } = OURS as AdminSurfaceDeliveryBinding & { allForms: true };
+    // Malformed on purpose: a host that still stores "absent = every form" must map it to allForms: true.
+    session.bindings.set('ours-1', unstated as unknown as AdminSurfaceDeliveryBinding);
+    await expect(session.bindingsPort.list()).rejects.toThrow("The host listed delivery binding 'ours-1' without formIds or allForms; fix the host's binding store.");
   });
 });
 

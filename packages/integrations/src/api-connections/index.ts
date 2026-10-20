@@ -15,7 +15,7 @@ export type { ApiConnectionDisconnectResult, ApiConnectionRemoteRevocation, ApiC
 export type { ApiConnectionAccessTokens } from './access-token.js';
 export type {
   ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionBoundedField, ApiConnectionDescriptor,
-  ApiConnectionIntent, ApiConnectionRecord, ApiConnectionStagedSwitch, ApiConnectionStatus,
+  ApiConnectionIntent, ApiConnectionRecord, ApiConnectionRevocationFailure, ApiConnectionStagedSwitch, ApiConnectionStatus,
 } from './types.js';
 export {
   createVaultOAuthTokenStore, parseOAuthTokenVaultMeta,

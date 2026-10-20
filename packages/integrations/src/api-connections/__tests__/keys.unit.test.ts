@@ -10,7 +10,7 @@ import { memoryRecordStore } from './fixtures/harness.js';
 
 function record(key: string, generation: number): ApiConnectionRecord {
   return { key, workspaceId: 'ws-1', pluginId: 'acme-office', connectionId: 'account', status: 'connected', revision: 0,
-    generation, account: null, grantedScopes: [], staged: null, updatedAt: '2026-10-20T10:00:00.000Z' };
+    generation, account: null, grantedScopes: [], staged: null, revocationFailure: null, updatedAt: '2026-10-20T10:00:00.000Z' };
 }
 
 describe('deriveApiConnectionKey', () => {

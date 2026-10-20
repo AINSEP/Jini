@@ -176,6 +176,37 @@ test('an invalid affected-resources answer blocks confirmation', async () => {
     .rejects.toThrow("Plugin tool 'p_p__look' returned an invalid affected-resources list; the call cannot be confirmed.");
 });
 
+/** A write tool whose module keeps the token from its last call in module scope, as M5 assumes a plugin may. */
+async function disclosureAfterACall(describe: (remembered: string) => unknown) {
+  const { registry, projection } = projectionFor();
+  let remembered = '';
+  projection.sync({ loaded: [loaded('p', { effect: 'write' }, {
+    invoke: async ({ capabilities }) => { remembered = await capabilities.connections.getAccessToken({ connectionRef: 'c1' }); return 'ok'; },
+    describeAffectedResources: () => describe(remembered),
+  })], refusals: [] });
+  const snapshot = registry.list({})[0]!;
+  await snapshot.tools[0]!.handler({ pluginId: 'p', sdk: snapshot.sdk, auth: { access: 'member', workspaceId: 'w' }, input: { ref: 'c1' } });
+  return projection.describeAffectedResources({ toolId: 'p_p__look', input: { ref: 'x' } });
+}
+
+test('an affected-resources answer that mentions a token the plugin obtained is refused', async () => {
+  await expect(disclosureAfterACall(remembered => [`sheet ${remembered}`]))
+    .rejects.toThrow("Plugin tool 'p_p__look' returned an invalid affected-resources list; the call cannot be confirmed.");
+});
+
+test('an affected-resources hook error that mentions a token the plugin obtained is withheld', async () => {
+  await expect(disclosureAfterACall(remembered => { throw new Error(`cannot describe ${remembered}`); })).rejects.toThrow(WITHHELD_ERROR_MESSAGE);
+});
+
+test('a clean affected-resources hook error passes through as the same error', async () => {
+  const clean = new Error('sheet not found');
+  await expect(disclosureAfterACall(() => { throw clean; })).rejects.toBe(clean);
+});
+
+test('a clean affected-resources answer after a call is disclosed', async () => {
+  expect(await disclosureAfterACall(() => ['sheet Leads'])).toEqual({ effect: 'write', resources: ['sheet Leads'] });
+});
+
 test('disabling the plugin removes its tools, refuses authorized and direct calls and revokes retained capabilities', async () => {
   await withWorkspace(async (workspaceRoot) => {
     await installPlugin({ workspaceRoot, pluginId: 'fixture-tools', files: {

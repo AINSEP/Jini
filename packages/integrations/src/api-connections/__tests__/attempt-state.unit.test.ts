@@ -5,9 +5,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { OAuthError } from '@jini-ai/oauth';
-import { ATTEMPT_TTL_MS, attemptOpener, attemptSealer } from '../attempt-state.js';
+import { ATTEMPT_TTL_MS, attemptOpener, attemptSealer, hashBrowserBinding } from '../attempt-state.js';
 import type { ApiConnectionAttempt } from '../types.js';
-import { attempt, unitDeps } from './fixtures/unit-deps.js';
+import { attempt, BROWSER_BINDING, unitDeps } from './fixtures/unit-deps.js';
 
 const PROVIDER_ID = 'acme-office/account';
 const ENTRY = { ownerKey: 'owner-1', providerId: PROVIDER_ID, codeVerifier: 'verifier-1', redirectUri: 'http://127.0.0.1:47011/callback',
@@ -22,9 +22,11 @@ async function caught(promise: Promise<unknown>): Promise<unknown> {
   return promise.then(() => { throw new Error('expected a refusal'); }, (error: unknown) => error);
 }
 
-function opener(deps = unitDeps()) {
+function opener(deps = unitDeps(), browserBinding: unknown = BROWSER_BINDING) {
   const opened: ApiConnectionAttempt[] = [];
-  return { deps, opened, adapter: attemptOpener(deps, { onOpen: ({ attempt: value }) => { opened.push(value); } }) };
+  // Malformed input on purpose when a test passes a non-string: hosts read it from an untyped cookie jar.
+  return { deps, opened, adapter: attemptOpener(deps, { browserBinding: browserBinding as string,
+    onOpen: ({ attempt: value }) => { opened.push(value); } }) };
 }
 
 describe('attemptSealer', () => {
@@ -51,6 +53,15 @@ describe('attemptSealer', () => {
     const error = await caught(attemptSealer(unitDeps(), { draft: draft() }).open({ state: 's', ownerKey: 'o', providerId: PROVIDER_ID,
       redirectUri: ENTRY.redirectUri }));
     expect(error instanceof OAuthError && error.code).toBe('OAUTH_INVALID_STATE');
+  });
+});
+
+describe('hashBrowserBinding', () => {
+  it('is the base64url SHA-256 of the binding', () => {
+    expect(hashBrowserBinding('abc')).toBe('ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0');
+  });
+  it('hashes a non-string as the empty string', () => {
+    expect(hashBrowserBinding(undefined)).toBe(hashBrowserBinding(''));
   });
 });
 
@@ -82,6 +93,20 @@ describe('attemptOpener', () => {
     const { deps, adapter } = opener();
     await deps.records.putAttempt({ attempt: stored });
     const error = await caught(adapter.open({ ...request, ownerKey: 'owner-2' }));
+    expect(error instanceof OAuthError && error.code).toBe('OAUTH_INVALID_STATE');
+  });
+
+  it('refuses another browser binding and burns the attempt', async () => {
+    const { deps, opened, adapter } = opener(unitDeps(), 'browser-binding-2');
+    await deps.records.putAttempt({ attempt: stored });
+    const error = await caught(adapter.open(request));
+    expect([error instanceof OAuthError && error.code, opened, deps.records.attempts.size]).toEqual(['OAUTH_INVALID_STATE', [], 0]);
+  });
+
+  it('refuses a browser binding that is not a string', async () => {
+    const { deps, adapter } = opener(unitDeps(), 42);
+    await deps.records.putAttempt({ attempt: stored });
+    const error = await caught(adapter.open(request));
     expect(error instanceof OAuthError && error.code).toBe('OAUTH_INVALID_STATE');
   });
 

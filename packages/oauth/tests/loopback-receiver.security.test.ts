@@ -1,6 +1,7 @@
 /**
  * @file Security pins for the installed-app loopback receiver: it binds 127.0.0.1 only, checks
- * state in constant time, accepts exactly one callback, bounds what it reads, returns only
+ * state in constant time, accepts exactly one callback (a wrong-state request does not use it up,
+ * up to a bound), bounds what it reads, returns only
  * declared callback fields, never reflects input into its close page, closes on every terminal
  * outcome, and lets stray requests (wrong path, wrong Host, wrong method) through without
  * consuming the single slot. Every listener a test opens is closed in `afterEach`.
@@ -75,10 +76,33 @@ describe('state and single use', () => {
     expect(timingSafeEqual).toHaveBeenCalledTimes(1);
   });
 
-  test('a mismatched state rejects as invalid state and consumes the single slot', async () => {
+  test('a mismatched state does not consume the slot: the real callback still succeeds', async () => {
     const receiver = await start();
     const result = receiver.receive({ expectedState: STATE });
-    await send({ url: callbackUrl(receiver, { state: `${STATE.slice(0, -1)}x`, code: 'one-time' }) });
+    await send({ url: callbackUrl(receiver, { state: `${STATE.slice(0, -1)}x`, code: 'forged' }) });
+    await send({ url: callbackUrl(receiver, { state: STATE, code: 'one-time' }) });
+    await expect(result).resolves.toEqual({ code: 'one-time', fields: {} });
+  });
+
+  test('a wrong-state request is answered 400 with the static failure page', async () => {
+    const receiver = await start();
+    receiver.receive({ expectedState: STATE }).catch(() => undefined);
+    const reply = await send({ url: callbackUrl(receiver, { state: 'forged', code: 'one-time' }) });
+    expect([reply.status, reply.body.includes('<h1>Sign-in did not finish</h1>')]).toEqual([400, true]);
+  });
+
+  test('fifteen wrong-state requests leave the slot armed', async () => {
+    const receiver = await start();
+    const result = receiver.receive({ expectedState: STATE });
+    for (let attempt = 0; attempt < 15; attempt += 1) await send({ url: callbackUrl(receiver, { state: `forged-${attempt}`, code: 'x' }) });
+    await send({ url: callbackUrl(receiver, { state: STATE, code: 'one-time' }) });
+    await expect(result).resolves.toEqual({ code: 'one-time', fields: {} });
+  });
+
+  test('the sixteenth wrong-state request ends the sign-in as invalid state and closes the listener', async () => {
+    const receiver = await start();
+    const result = receiver.receive({ expectedState: STATE });
+    for (let attempt = 0; attempt < 16; attempt += 1) await send({ url: callbackUrl(receiver, { state: `forged-${attempt}`, code: 'x' }) });
     await expect(result).rejects.toMatchObject({ code: 'OAUTH_INVALID_STATE' });
     await expectClosed(receiver);
   });
@@ -86,7 +110,7 @@ describe('state and single use', () => {
   test('a refused callback is answered 400 with the static failure page', async () => {
     const receiver = await start();
     const result = receiver.receive({ expectedState: STATE });
-    const reply = await send({ url: callbackUrl(receiver, { state: 'forged', code: 'one-time' }) });
+    const reply = await send({ url: callbackUrl(receiver, { state: STATE, error: 'access_denied' }) });
     await result.catch(() => undefined);
     expect(reply.status).toBe(400);
     expect(reply.body).toContain('<h1>Sign-in did not finish</h1>');
@@ -116,11 +140,12 @@ describe('state and single use', () => {
     await expect(result).rejects.toMatchObject({ code: 'OAUTH_ACCESS_DENIED', providerErrorCode: 'access_denied' });
   });
 
-  test('a provider error with a wrong state fails the state check first', async () => {
+  test('a provider error with a wrong state fails the state check first and does not end the sign-in', async () => {
     const receiver = await start();
     const result = receiver.receive({ expectedState: STATE });
-    await send({ url: callbackUrl(receiver, { state: 'forged', error: 'access_denied' }) });
-    await expect(result).rejects.toMatchObject({ code: 'OAUTH_INVALID_STATE' });
+    const forged = await send({ url: callbackUrl(receiver, { state: 'forged', error: 'access_denied' }) });
+    await send({ url: callbackUrl(receiver, { state: STATE, code: 'one-time' }) });
+    expect([forged.status, await result]).toEqual([400, { code: 'one-time', fields: {} }]);
   });
 });
 

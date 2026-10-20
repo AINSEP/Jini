@@ -27,6 +27,6 @@ export async function installCredential(
   // Fenced on the new generation: a disconnect, switch or newer attempt that moves it first wins.
   await deps.tokens.install({ key: fenced.key, tokens: requiredArgs.tokens, generation: fenced.generation });
   return writeRecord(deps, fenced, {
-    status: 'connected', account: requiredArgs.account, grantedScopes: [...requiredArgs.grantedScopes],
+    status: 'connected', account: requiredArgs.account, grantedScopes: [...requiredArgs.grantedScopes], revocationFailure: null,
   });
 }

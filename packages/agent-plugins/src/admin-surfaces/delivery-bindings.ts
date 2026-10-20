@@ -15,20 +15,28 @@
 import type { AgentPluginCapabilityGate, AgentPluginStateValue } from '../lifecycle/tools/capabilities.js';
 import { storedStateValue } from './settings-value.js';
 
-/** One binding as a surface sees it: plugin-owned config, the plugin's own connection id (never a ref). */
-export interface AdminSurfaceDeliveryBinding {
-  readonly bindingId: string;
+/**
+ * Which forms a binding delivers, always stated: the listed form ids (`[]` = none), or `allForms: true`
+ * for every current and future form. There is no implicit "every form": submissions carry personal
+ * data, so a plugin bug that forgets the field must fail, not widen the routing.
+ */
+export type AdminSurfaceDeliveryBindingForms =
+  | { readonly formIds: readonly string[]; readonly allForms?: never }
+  | { readonly allForms: true; readonly formIds?: never };
+
+interface DeliveryBindingFields {
   readonly adapterId: string;
   readonly connectionId: string;
   readonly enabled: boolean;
-  /** Absent = every form; [] = no form (the form-delivery binding rule). */
-  readonly formIds?: readonly string[];
   /** Adapter-owned, non-secret configuration. */
   readonly config: Readonly<Record<string, AgentPluginStateValue>>;
 }
 
+/** One binding as a surface sees it: plugin-owned config, the plugin's own connection id (never a ref). */
+export type AdminSurfaceDeliveryBinding = DeliveryBindingFields & AdminSurfaceDeliveryBindingForms & { readonly bindingId: string };
+
 /** What `save` takes: a new binding (the host assigns its id) or, with `bindingId`, one of the surface's own. */
-export type AdminSurfaceDeliveryBindingDraft = Omit<AdminSurfaceDeliveryBinding, 'bindingId'> & { readonly bindingId?: string };
+export type AdminSurfaceDeliveryBindingDraft = DeliveryBindingFields & AdminSurfaceDeliveryBindingForms & { readonly bindingId?: string };
 
 /**
  * The port. The host implements it scoped to the call's plugin and workspace, listing only the plugin's
@@ -57,6 +65,20 @@ function checkedFormIds(formIds: unknown): readonly string[] {
   return [...(formIds as string[])];
 }
 
+/** Exactly one of a valid `formIds` list or `allForms: true`. @complexity O(f) form ids. */
+function checkedForms(formIds: unknown, allForms: unknown): AdminSurfaceDeliveryBindingForms {
+  if (allForms === undefined && formIds !== undefined) return { formIds: checkedFormIds(formIds) };
+  if (allForms === true && formIds === undefined) return { allForms: true };
+  throw new Error('A delivery binding must name its forms: formIds (a list; [] for none) or allForms: true for every current and future form, not both.');
+}
+
+/** The forms a host-listed binding states; a binding stating neither is a host bug, never "every form". */
+function listedForms(binding: AdminSurfaceDeliveryBinding): AdminSurfaceDeliveryBindingForms {
+  if (Array.isArray(binding.formIds)) return { formIds: [...binding.formIds] };
+  if (binding.allForms === true) return { allForms: true };
+  throw new Error(`The host listed delivery binding '${named(binding.bindingId)}' without formIds or allForms; fix the host's binding store.`);
+}
+
 function checkedConfig(gate: AgentPluginCapabilityGate, config: unknown): AdminSurfaceDeliveryBinding['config'] {
   if (!isRecord(config)) throw new Error("A delivery binding's config must be a JSON object.");
   return storedStateValue({ gate, value: config }) as AdminSurfaceDeliveryBinding['config'];
@@ -65,22 +87,22 @@ function checkedConfig(gate: AgentPluginCapabilityGate, config: unknown): AdminS
 /** The draft the host receives: only the known fields, each checked, the config a stored copy. @complexity O(f + n) form ids plus config size. */
 function checkedDraft(gate: AgentPluginCapabilityGate, allow: Allowlists, draft: unknown): AdminSurfaceDeliveryBindingDraft {
   if (!isRecord(draft)) throw new Error('A delivery binding must be an object.');
-  const { bindingId, adapterId, connectionId, enabled, formIds, config } = draft;
+  const { bindingId, adapterId, connectionId, enabled, formIds, allForms, config } = draft;
   if (!allow.adapterIds.includes(adapterId as string)) throw new Error(`This admin surface does not declare delivery adapter '${named(adapterId)}', so its handlers cannot manage its bindings. Declare it in the surface's deliveryAdapters.`);
   if (!allow.connectionIds.includes(connectionId as string)) throw new Error(`Delivery bindings may only use this surface's declared connections; '${named(connectionId)}' is not one of them.`);
   if (typeof enabled !== 'boolean') throw new Error('A delivery binding needs enabled: true or false.');
   return {
     ...(bindingId !== undefined && { bindingId: bindingId as string }),
     adapterId: adapterId as string, connectionId: connectionId as string, enabled,
-    ...(formIds !== undefined && { formIds: checkedFormIds(formIds) }),
+    ...checkedForms(formIds, allForms),
     config: checkedConfig(gate, config),
   };
 }
 
 /** The port shape, whatever else the host's object carried (a connection ref), refused when it mentions an obtained token. */
 function toBinding(gate: AgentPluginCapabilityGate, binding: AdminSurfaceDeliveryBinding): AdminSurfaceDeliveryBinding {
-  const { bindingId, adapterId, connectionId, enabled, formIds, config } = binding;
-  const shaped = { bindingId, adapterId, connectionId, enabled, ...(formIds !== undefined && { formIds: [...formIds] }), config };
+  const { bindingId, adapterId, connectionId, enabled, config } = binding;
+  const shaped: AdminSurfaceDeliveryBinding = { bindingId, adapterId, connectionId, enabled, ...listedForms(binding), config };
   if (gate.mentionsToken({ value: shaped })) throw new Error(DELIVERY_BINDING_WITHHELD_MESSAGE);
   return shaped;
 }

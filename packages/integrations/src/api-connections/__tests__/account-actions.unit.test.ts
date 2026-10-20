@@ -7,7 +7,8 @@ import { describe, expect, it } from 'vitest';
 import { cancelSwitchAccount, confirmSwitchAccount, disconnectApiConnection } from '../account-actions.js';
 import { stagedTokenKey } from '../keys.js';
 import { OAuthTokenStoreError } from '../token-store/errors.js';
-import type { ApiConnectionStagedSwitch } from '../types.js';
+import { getApiConnectionStatus } from '../status.js';
+import type { ApiConnectionRecord, ApiConnectionStagedSwitch } from '../types.js';
 import { memoryTokenStore } from './fixtures/harness.js';
 import { KEY, connectedRecord, fixedHooks, seedRecord, tokens, unitDeps } from './fixtures/unit-deps.js';
 
@@ -96,6 +97,16 @@ describe('disconnectApiConnection', () => {
     expect([result.status, result.account, result.grantedScopes, result.remoteRevocation]).toEqual(['disconnected', null, [], 'not-needed']);
   });
 
+  it('revokes with the access token when the stored credential has no refresh token', async () => {
+    const store = memoryTokenStore();
+    store.entries.set(KEY, tokens('alice', { refreshToken: null }));
+    const { hooks, revoked } = fixedHooks();
+    const deps = unitDeps({ tokens: store, hooks });
+    await seedRecord(deps, connectedRecord());
+    const result = await disconnectApiConnection(deps, owned);
+    expect([result.remoteRevocation, revoked]).toEqual(['confirmed', ['access-alice']]);
+  });
+
   it('moves the credential generation before revoking, so no token is served during the network call', async () => {
     const generations: number[] = [];
     const deps = unitDeps({ tokens: { ...memoryTokenStore(), loadForRevocation: async () => {
@@ -133,5 +144,79 @@ describe('disconnectApiConnection', () => {
     await seedRecord(deps, connectedRecord({ pluginId: 'other-plugin' }));
     expect(await caught(disconnectApiConnection(deps, owned))).toMatchObject({ code: 'connection-not-found' });
     expect((await deps.records.read({ key: KEY }))?.revision).toBe(1);
+  });
+});
+
+describe('revocation failure diagnostics (a fixed code, never the hook or provider text)', () => {
+  /** A connected record with live tokens whose revoke hook throws `error`. */
+  async function failingRevoke(error: unknown, record = connectedRecord()) {
+    const store = memoryTokenStore();
+    store.entries.set(KEY, tokens('alice'));
+    store.entries.set(STAGED_KEY, tokens('bob'));
+    let failure: unknown = error;
+    const deps = unitDeps({ tokens: store, hooks: { ...fixedHooks().hooks, revoke: async () => { if (failure !== null) throw failure; } } });
+    await seedRecord(deps, record);
+    return { deps, succeedNext: () => { failure = null; } };
+  }
+  const providerError = (code: string) => Object.assign(new Error(`provider said ${'x'.repeat(8)}`), { code });
+
+  it('records the hook classification provider-unreachable on the record and the status view', async () => {
+    const { deps } = await failingRevoke(providerError('provider-unreachable'));
+    const result = await disconnectApiConnection(deps, owned);
+    expect([result.revocationFailure, (await deps.records.read({ key: KEY }))?.revocationFailure])
+      .toEqual(['provider-unreachable', 'provider-unreachable']);
+  });
+
+  it('records provider-refused when the hook classifies the failure so', async () => {
+    const { deps } = await failingRevoke(providerError('provider-refused'));
+    expect((await disconnectApiConnection(deps, owned)).revocationFailure).toBe('provider-refused');
+  });
+
+  it('records unclassified for any other code and keeps the hook message out of the record', async () => {
+    const { deps } = await failingRevoke(providerError('E_SOMETHING'));
+    const result = await disconnectApiConnection(deps, owned);
+    const stored = JSON.stringify(await deps.records.read({ key: KEY }));
+    expect([result.revocationFailure, stored.includes('provider said'), stored.includes('E_SOMETHING')]).toEqual(['unclassified', false, false]);
+  });
+
+  it('records unclassified when the hook throws undefined', async () => {
+    const { deps } = await failingRevoke(undefined);
+    expect((await disconnectApiConnection(deps, owned)).revocationFailure).toBe('unclassified');
+  });
+
+  it('clears the diagnostic once a retried disconnect is confirmed', async () => {
+    const { deps, succeedNext } = await failingRevoke(providerError('provider-unreachable'));
+    await disconnectApiConnection(deps, owned);
+    succeedNext();
+    const result = await disconnectApiConnection(deps, owned);
+    expect([result.status, result.remoteRevocation, result.revocationFailure]).toEqual(['disconnected', 'confirmed', null]);
+  });
+
+  it('records credential-unreadable when the stored credential could not be read and was removed locally', async () => {
+    const store = memoryTokenStore();
+    const deps = unitDeps({ tokens: { ...store, loadForRevocation: async () => { throw new OAuthTokenStoreError({ code: 'invalid-record' }); } } });
+    await seedRecord(deps, connectedRecord());
+    const result = await disconnectApiConnection(deps, owned);
+    expect([result.status, result.remoteRevocation, result.revocationFailure]).toEqual(['disconnected', 'pending', 'credential-unreadable']);
+  });
+
+  it('records the failure of a cancelled switch and keeps the switch staged', async () => {
+    const { deps } = await failingRevoke(providerError('provider-refused'), connectedRecord({ staged: staged() }));
+    const result = await cancelSwitchAccount(deps, owned);
+    expect([result.remoteRevocation, result.pendingSwitch?.accountId, result.revocationFailure]).toEqual(['pending', 'bob', 'provider-refused']);
+  });
+
+  it('clears a cancelled switch failure when the switch is then confirmed', async () => {
+    const { deps } = await failingRevoke(providerError('provider-refused'), connectedRecord({ staged: staged() }));
+    await cancelSwitchAccount(deps, owned);
+    expect((await confirmSwitchAccount(deps, { ...owned, actorId: 'actor-1' })).revocationFailure).toBeNull();
+  });
+
+  it('reads a record stored before the diagnostic existed as having none', async () => {
+    const deps = unitDeps();
+    const { revocationFailure: _dropped, ...legacy } = connectedRecord();
+    // Malformed on purpose: a row written by an older engine has no revocationFailure field.
+    await seedRecord(deps, legacy as ApiConnectionRecord);
+    expect((await getApiConnectionStatus(deps, owned)).revocationFailure).toBeNull();
   });
 });

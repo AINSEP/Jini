@@ -151,7 +151,11 @@ config) is issued by a host server route with `createAdminSurfaceBootstrap({ sur
 (a fixed one-minute lifetime) and served with `adminSurfaceBootstrapHeaders()`
 (`Cache-Control: no-store`, `Pragma: no-cache`, `nosniff`). The host page passes it inside `init`;
 the client's `bootstrap()` returns `data` only until `expiresAt`. Never put a refresh token or any
-long-lived secret in bootstrap data.
+long-lived secret in bootstrap data. `getAccessToken` is refused unless the context carries a
+signed-in admin (`principalId`), so a route without one never mints a token for a frame. The
+one-minute lifetime is enforced only by the frame's client: the access token itself stays valid at
+the provider until its own expiry (often an hour). Disabling the plugin or a product does not recall
+a token already handed to an open frame; disconnecting does, through the provider's revocation.
 
 ## Surface side
 
@@ -242,13 +246,13 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 | port | methods | Jini checks |
 |---|---|---|
 | `http`, `limiter`, `artifacts` | as for executable tools | revocation |
-| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, status, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel, lastSignInAttempt }` (`lastSignInAttempt`: `{ code, nextAction }` or `null`) | declared connection; token noted for the result/error scans; `lastSignInAttempt` keeps only `code` and `nextAction`, and becomes `null` unless both are lowercase hyphenated codes (≤ 64) |
+| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, status, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel, lastSignInAttempt }` (`lastSignInAttempt`: `{ code, nextAction }` or `null`) | declared connection; `getAccessToken` only for a signed-in admin; token noted for the result/error scans; `lastSignInAttempt` keeps only `code` and `nextAction`, and becomes `null` unless both are lowercase hyphenated codes (≤ 64) |
 | | `begin({ connectionId, action: 'connect' \| 'reconnect' \| 'switch' \| 'add-scopes' }, { scopeSetIds?, startParams? })` → `{ authorizationUrl, attemptId, expiresAt }`; the host starts the API connection with intent `ADMIN_SURFACE_ACTION_INTENTS[action]` | declared connection and start parameters, string values ≤ 2048, ≤ 16 scope-set ids, a signed-in admin (`principalId`) |
 | | `confirmSwitch`, `cancelSwitch` → status; `disconnect` → status + `revocation: 'confirmed' \| 'pending' \| 'not-needed'` | declared connection, a signed-in admin |
 | | `takeCallbackFields({ connectionId, attemptId })` → declared fields or `null` | declared connection, opaque attempt id, undeclared fields dropped |
 | `state` | `get({ key })`, `set({ key, value })`, `delete({ key })` | key `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}`; value plain JSON (depth ≤ 16, ≤ 16 KiB serialized); a value mentioning a token the call obtained is refused; the host stores a checked copy |
 | `publicConfig` | `get({ name })` → string or `null` | declared name only |
-| `deliveryBindings` | `list()` → bindings; `save({ bindingId?, adapterId, connectionId, enabled, formIds?, config })` → binding; `remove({ bindingId })`. A binding is `{ bindingId, adapterId, connectionId, enabled, formIds?, config }` (`formIds` absent = every form, `[]` = none) | present only when the surface declares `deliveryAdapters` and the host provides the port; a signed-in admin; `adapterId` declared; `connectionId` one of the surface's declared connections; `formIds` ≤ 64 unique short ids; `config` a plain JSON object under the `state` value rules (≤ 16 KiB, never a token the plugin obtained), stored as a checked copy; a `bindingId` given to `save` or `remove` must be one the host lists for a declared adapter (another adapter's binding is never overwritten or removed); `list` keeps only declared adapters' bindings, cut to the shape above (no connection ref), and is withheld when one mentions an obtained token |
+| `deliveryBindings` | `list()` → bindings; `save({ bindingId?, adapterId, connectionId, enabled, formIds | allForms: true, config })` → binding; `remove({ bindingId })`. A binding is `{ bindingId, adapterId, connectionId, enabled, formIds | allForms: true, config }`: exactly one of `formIds` (`[]` = none) or `allForms: true` (every current and future form). There is no implicit "every form": a draft stating neither, both, or `allForms` other than `true` is refused, and a host binding listed without either is refused too (a host whose store keeps "absent = every form" maps it to `allForms: true`) | present only when the surface declares `deliveryAdapters` and the host provides the port; a signed-in admin; `adapterId` declared; `connectionId` one of the surface's declared connections; `formIds` ≤ 64 unique short ids; `config` a plain JSON object under the `state` value rules (≤ 16 KiB, never a token the plugin obtained), stored as a checked copy; a `bindingId` given to `save` or `remove` must be one the host lists for a declared adapter (another adapter's binding is never overwritten or removed); `list` keeps only declared adapters' bindings, cut to the shape above (no connection ref), and is withheld when one mentions an obtained token |
 
 Host duties: key `state` by the scope's plugin and workspace (never shared across plugins), and back
 the plugin's agent tools' read-only `state.get` (`../lifecycle/tools/README.md`) with this same store

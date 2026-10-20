@@ -241,6 +241,14 @@ describe('bootstrap data', () => {
     const host = withBootstrap(async ({ capabilities }) => { throw new Error(`denied ${await capabilities.connections.getAccessToken({ connectionId: 'c1' })}`); });
     await expect(host.bootstrapData({ context: CONTEXT })).rejects.toThrow(/^The plugin tool failed and its error was withheld because it contained a connection credential\.$/);
   });
+  test('bootstrap data without a signed-in admin gets no access token and the host port is never asked', async () => {
+    const { host, log } = hostFor([loaded({ actions: {}, bootstrap: async ({ capabilities }) => ({ accessToken: await capabilities.connections.getAccessToken({ connectionId: 'c1' }) }) },
+      { actions: [], bootstrap })]);
+    const { principalId: _signedIn, ...anonymous } = CONTEXT;
+    await expect(host.bootstrapData({ context: anonymous }))
+      .rejects.toThrow('Connection access needs a signed-in admin. Open the surface from an authenticated admin page and retry.');
+    expect(log.tokenRequests).toEqual([]);
+  });
   test('a surface without a bootstrap provider starts with null', async () => {
     expect(await withBootstrap(undefined).bootstrapData({ context: CONTEXT })).toBeNull();
   });

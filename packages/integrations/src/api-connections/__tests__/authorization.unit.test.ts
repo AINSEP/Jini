@@ -17,8 +17,8 @@ const start = (deps: UnitDeps, over: Partial<{ intent: ApiConnectionIntent; work
   startApiConnectionAuthorization(deps, { workspaceId: 'ws-1', actorId: 'actor-1', intent: 'connect', scopeSetIds: ['files'],
     redirectUri: CALLBACK, ...over }, optional);
 
-const complete = (deps: UnitDeps, callbackParams: Record<string, string>, redirectUri = CALLBACK) =>
-  completeApiConnectionAuthorization(deps, { workspaceId: 'ws-1', actorId: 'actor-1', redirectUri, callbackParams });
+const complete = (deps: UnitDeps, callbackParams: Record<string, string>, { redirectUri = CALLBACK, browserBinding = '' } = {}) =>
+  completeApiConnectionAuthorization(deps, { workspaceId: 'ws-1', actorId: 'actor-1', redirectUri, callbackParams, browserBinding });
 
 async function caught(promise: Promise<unknown>): Promise<unknown> {
   return promise.then(() => { throw new Error('expected a refusal'); }, (error: unknown) => error);
@@ -100,20 +100,20 @@ describe('start: the authorization request', () => {
 
 describe('complete', () => {
   it('refuses a callback URL that does not parse', async () => {
-    expect(await refusalCode(complete(unitDeps(), { state: 's', code: 'c' }, 'not a url'))).toBe('request-invalid');
+    expect(await refusalCode(complete(unitDeps(), { state: 's', code: 'c' }, { redirectUri: 'not a url' }))).toBe('request-invalid');
   });
 
   it('maps a declined consent to access-denied and burns the attempt', async () => {
     const deps = unitDeps();
     const started = await start(deps);
-    expect(await refusalCode(complete(deps, { state: started.state, error: 'access_denied' }))).toBe('access-denied');
+    expect(await refusalCode(complete(deps, { state: started.state, error: 'access_denied' }, { browserBinding: started.browserBinding }))).toBe('access-denied');
     expect(deps.records.attempts.size).toBe(0);
   });
 
   it('maps any other provider error to authorization-failed with the core operator action', async () => {
     const deps = unitDeps();
     const started = await start(deps);
-    const error = await caught(complete(deps, { state: started.state, error: 'server_error' }));
+    const error = await caught(complete(deps, { state: started.state, error: 'server_error' }, { browserBinding: started.browserBinding }));
     expect(error instanceof ApiConnectionError && [error.code, error.message.includes('try connecting again')])
       .toEqual(['authorization-failed', true]);
   });

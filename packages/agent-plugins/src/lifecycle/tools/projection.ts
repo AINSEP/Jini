@@ -13,7 +13,8 @@
  */
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { requireInputRecord, ToolInputError } from '@jini-ai/core';
-import { openCapabilitySession, REVOKED_MESSAGE, type AgentPluginToolCapabilitiesPort, type IssuedTokenMemories, type IssuedTokenMemory } from './capabilities.js';
+import { openCapabilitySession, openCredentialScan, REVOKED_MESSAGE, type AgentPluginCredentialScan, type AgentPluginToolCapabilitiesPort,
+  type IssuedTokenMemories, type IssuedTokenMemory } from './capabilities.js';
 import type { LoadedAgentPluginTool } from './definition.js';
 import type { AgentPluginToolEffect } from './manifest.js';
 
@@ -131,10 +132,15 @@ function sameTools(previous: ProjectedPlugin | undefined, next: readonly Admitte
     && JSON.stringify(tool.loaded.descriptor) === JSON.stringify(next[index]!.loaded.descriptor));
 }
 
-/** Checks a disclosure hook's answer. @complexity O(r) resources. */
-function checkedResources(toolId: string, value: unknown): readonly string[] {
+/**
+ * Checks a disclosure hook's answer. Its text reaches the confirmation prompt and the transcript,
+ * and module scope may still hold a token from an earlier call, so a list that mentions one is
+ * refused like a malformed one. @complexity O(r) resources plus the token scan.
+ */
+function checkedResources(toolId: string, value: unknown, scan: AgentPluginCredentialScan): readonly string[] {
   const valid = Array.isArray(value) && value.length <= MAX_RESOURCES
-    && value.every(item => typeof item === 'string' && item.length > 0 && item.length <= MAX_RESOURCE_LENGTH);
+    && value.every(item => typeof item === 'string' && item.length > 0 && item.length <= MAX_RESOURCE_LENGTH)
+    && !scan.mentionsToken({ value });
   if (!valid) throw new Error(`Plugin tool '${toolId}' returned an invalid affected-resources list; the call cannot be confirmed. Report it to the plugin author.`);
   return Object.freeze([...value]);
 }
@@ -223,8 +229,12 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
       const { tool } = entry;
       const checked = validatedInput(tool, input.input);
       const describe = tool.loaded.module.describeAffectedResources;
-      const resources = describe ? checkedResources(tool.toolId, await describe({ input: checked })) : [];
-      return { effect: tool.loaded.descriptor.effect, resources };
+      if (!describe) return { effect: tool.loaded.descriptor.effect, resources: [] };
+      // The same per-plugin token memory the plugin's calls feed: its answers and errors are scanned alike.
+      const scan = openCredentialScan({ issued: required.issuedTokens.forPlugin({ pluginId: tool.loaded.pluginId }) });
+      let answer: unknown;
+      try { answer = await describe({ input: checked }); } catch (error) { throw scan.sanitize({ error }); }
+      return { effect: tool.loaded.descriptor.effect, resources: checkedResources(tool.toolId, answer, scan) };
     },
   };
 }

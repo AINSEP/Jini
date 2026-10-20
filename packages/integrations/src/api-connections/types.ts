@@ -36,11 +36,25 @@ export interface ApiConnectionDescriptor {
     readonly public: Readonly<Record<string, string>>;
     readonly confidential: Readonly<Record<string, string>>;
   };
+  /**
+   * Extra authorization parameters a hosted (`confidential`) start adds only when nothing renewable
+   * is stored for the account it signs in (first connect, switch, reconnect after a lost or rejected
+   * refresh token), so the provider issues a refresh token again, e.g. a forced consent prompt.
+   */
+  readonly forceConsentParams: Readonly<Record<string, string>>;
   /** Parameters a caller may set per start, e.g. a one-off selection flow. */
   readonly startParams: readonly ApiConnectionBoundedField[];
   /** Extra provider callback fields passed back to the plugin after the exchange succeeds. */
   readonly callbackFields: readonly ApiConnectionBoundedField[];
 }
+
+/**
+ * Why the last remote revocation was not confirmed: a fixed code, never hook or provider text.
+ * `provider-unreachable` / `provider-refused` are the revoke hook's own classification (an error
+ * whose `code` is one of them); `unclassified` is any other hook failure; `credential-unreadable`
+ * means the stored credential could not be read, so it was removed locally without revoking.
+ */
+export type ApiConnectionRevocationFailure = 'provider-unreachable' | 'provider-refused' | 'unclassified' | 'credential-unreadable';
 
 /** A switch-account result held aside until the person confirms it. */
 export interface ApiConnectionStagedSwitch {
@@ -64,6 +78,8 @@ export interface ApiConnectionRecord {
   readonly account: ApiConnectionAccount | null;
   readonly grantedScopes: readonly string[];
   readonly staged: ApiConnectionStagedSwitch | null;
+  /** Set by a disconnect or cancel whose revocation was not confirmed; cleared by the next confirmed one or sign-in. */
+  readonly revocationFailure: ApiConnectionRevocationFailure | null;
   readonly updatedAt: string;
 }
 
@@ -77,6 +93,8 @@ export interface ApiConnectionAttempt {
   readonly attemptId: string;
   readonly key: string;
   readonly ownerKey: string;
+  /** SHA-256 (base64url) of the host-only binding the starting browser carries; never the binding itself. */
+  readonly browserBindingHash: string;
   readonly workspaceId: string;
   readonly actorId: string;
   readonly pluginId: string;

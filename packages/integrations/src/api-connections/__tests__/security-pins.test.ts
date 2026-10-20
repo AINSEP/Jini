@@ -9,15 +9,17 @@ import type { OAuthClient } from '@jini-ai/oauth';
 import { createApiConnectionService, parseApiConnectionDescriptor, type ApiConnectionServiceDeps, type VaultOAuthTokenStore } from '../index.js';
 import { startAcmeProvider, type AcmeProvider } from './fixtures/acme-provider.js';
 import { buildRecordMeta } from '../token-store/record.js';
-import { buildHarness, buildVaultHarness, CALLBACK, signIn, VAULT_SCOPE, type Harness } from './fixtures/harness.js';
+import { browserBindingOf, buildHarness, buildVaultHarness, CALLBACK, signIn, VAULT_SCOPE, type Harness } from './fixtures/harness.js';
 
 let provider: AcmeProvider;
 let h: Harness;
 beforeEach(async () => { provider = await startAcmeProvider(); h = buildHarness(provider); });
 afterEach(async () => { await provider.close(); });
 
-const complete = (callbackParams: Record<string, string>, over: Partial<{ workspaceId: string; actorId: string; redirectUri: string }> = {}) =>
-  h.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, ...over });
+const complete = (callbackParams: Record<string, string>,
+  over: Partial<{ workspaceId: string; actorId: string; redirectUri: string; browserBinding: string }> = {}) =>
+  h.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams,
+    browserBinding: browserBindingOf(h, callbackParams), ...over });
 
 async function connect(account = 'alice') {
   const { started, callbackParams } = await signIn(h, provider, { account });
@@ -61,6 +63,31 @@ describe('attempt binding and lifetime', () => {
   });
 });
 
+describe('browser binding (a hosted callback carries no session, so the starting browser must prove itself)', () => {
+  it('refuses a callback from a browser that carries no binding, burns the attempt and installs nothing', async () => {
+    const { callbackParams } = await signIn(h, provider);
+    await expect(complete(callbackParams, { browserBinding: '' })).rejects.toMatchObject({ code: 'invalid-attempt' });
+    expect([h.records.attempts.size, h.tokens.entries.size, provider.tokenRequests.length]).toEqual([0, 0, 0]);
+  });
+  it("refuses a callback from a browser that carries another sign-in's binding", async () => {
+    const victim = await signIn(h, provider);
+    const own = await signIn(h, provider);
+    await expect(complete(victim.callbackParams, { browserBinding: own.started.browserBinding }))
+      .rejects.toMatchObject({ code: 'invalid-attempt' });
+  });
+  it('returns a 32-byte random binding separate from state and attempt id', async () => {
+    const { started } = await signIn(h, provider);
+    const { browserBinding, state, attemptId } = started;
+    expect([/^[A-Za-z0-9_-]{43}$/.test(browserBinding), browserBinding !== state, browserBinding !== attemptId]).toEqual([true, true, true]);
+  });
+  it('stores only a hash of the binding in the attempt', async () => {
+    const { started } = await signIn(h, provider);
+    const stored = h.records.attempts.get(started.state);
+    expect([JSON.stringify(stored).includes(started.browserBinding),
+      stored?.browserBindingHash === createHash('sha256').update(started.browserBinding).digest('base64url')]).toEqual([false, true]);
+  });
+});
+
 describe('attempt ids (host-only state vs the id plugin code may hold)', () => {
   it('returns the authorization URL\'s state to the host and a separate random attempt id', async () => {
     const { started } = await signIn(h, provider);
@@ -87,12 +114,59 @@ describe('PKCE', () => {
   });
 });
 
+const HOSTED_CLIENT: OAuthClient = { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' };
+const forcedConsent = (started: { authorizationUrl: string }) => new URL(started.authorizationUrl).searchParams.get('force_consent');
+
 describe('client kind', () => {
   it('sends the hosted extra parameters, not the installed-app ones, for a hosted client', async () => {
-    h = buildHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' }, clientKind: 'confidential' });
+    h = buildHarness(provider, { client: HOSTED_CLIENT, clientKind: 'confidential' });
     const { started } = await signIn(h, provider);
     const params = new URL(started.authorizationUrl).searchParams;
     expect([params.get('include_granted'), params.get('prompt')]).toEqual(['true', null]);
+  });
+});
+
+describe('hosted sign-ins always end renewable (a repeat consent may omit the refresh token)', () => {
+  beforeEach(() => { h = buildHarness(provider, { client: HOSTED_CLIENT, clientKind: 'confidential' }); });
+
+  it('refuses a hosted first connect that grants no refresh token and writes nothing', async () => {
+    const { started, callbackParams } = await signIn(h, provider, { omitRefreshToken: true });
+    await expect(complete(callbackParams)).rejects.toMatchObject({ code: 'offline-access-required' });
+    expect([h.tokens.entries.size, (await h.service.getStatus({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).status])
+      .toEqual([0, 'disconnected']);
+  });
+  it('refuses to stage a hosted switch whose new account granted no refresh token', async () => {
+    const ref = await connect('alice');
+    const { callbackParams } = await signIn(h, provider, { account: 'bob', intent: 'switch-account', omitRefreshToken: true });
+    await expect(complete(callbackParams)).rejects.toMatchObject({ code: 'offline-access-required' });
+    expect(h.tokens.entries.has(`${ref}#staged`)).toBe(false);
+  });
+  it('forces consent on a hosted first connect, when nothing renewable is stored', async () => {
+    expect(forcedConsent((await signIn(h, provider)).started)).toBe('true');
+  });
+  it('does not force consent on a hosted reconnect while a renewable credential is stored', async () => {
+    await connect('alice');
+    expect(forcedConsent((await signIn(h, provider)).started)).toBeNull();
+  });
+  it('forces consent on a hosted reconnect once the connection needs reconnecting', async () => {
+    const ref = await connect('alice');
+    const record = (await h.records.read({ key: ref }))!;
+    await h.records.compareAndSet({ key: ref, expectedRevision: record.revision,
+      record: { ...record, status: 'reconnect-required', revision: record.revision + 1 } });
+    expect(forcedConsent((await signIn(h, provider)).started)).toBe('true');
+  });
+  it('forces consent on a hosted reconnect when the stored credential has no refresh token', async () => {
+    const ref = await connect('alice');
+    h.tokens.entries.set(ref, { ...h.tokens.entries.get(ref)!, refreshToken: null });
+    expect(forcedConsent((await signIn(h, provider)).started)).toBe('true');
+  });
+  it('forces consent on a hosted switch: the new account holds nothing renewable here', async () => {
+    await connect('alice');
+    expect(forcedConsent((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).started)).toBe('true');
+  });
+  it('never adds the force-consent parameters for an installed app (its own parameters re-consent every time)', async () => {
+    h = buildHarness(provider);
+    expect(forcedConsent((await signIn(h, provider)).started)).toBeNull();
   });
 });
 
@@ -155,13 +229,13 @@ describe('credential install into the vault token store (no host-held lease)', (
   it('connects and serves the new token', async () => {
     const v = buildVaultHarness(provider);
     const { started, callbackParams } = await signIn(v, provider);
-    await v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+    await v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, browserBinding: browserBindingOf(v, callbackParams) });
     expect(await v.service.getAccessToken({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).toBe('acme-at-1');
   });
   it('stages and confirms an account switch', async () => {
     const v = buildVaultHarness(provider);
     const finish = (callbackParams: Record<string, string>) =>
-      v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+      v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, browserBinding: browserBindingOf(v, callbackParams) });
     const { started, callbackParams } = await signIn(v, provider, { account: 'alice' });
     await finish(callbackParams);
     await finish((await signIn(v, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
@@ -172,7 +246,7 @@ describe('credential install into the vault token store (no host-held lease)', (
     const v = buildVaultHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' },
       clientKind: 'confidential' });
     const finish = (callbackParams: Record<string, string>) =>
-      v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+      v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, browserBinding: browserBindingOf(v, callbackParams) });
     const { started, callbackParams } = await signIn(v, provider, { account: 'alice' });
     await finish(callbackParams);
     expect(await v.service.getAccessToken({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).toBe('acme-at-1');
@@ -362,7 +436,7 @@ describe('characterization: account actions that must keep their behaviour (pinn
 describe('revocation honesty against the real vault token store', () => {
   let v: ReturnType<typeof buildVaultHarness>;
   const finish = (callbackParams: Record<string, string>) =>
-    v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+    v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, browserBinding: browserBindingOf(v, callbackParams) });
   async function vaultConnect(account = 'alice') {
     const { started, callbackParams } = await signIn(v, provider, { account });
     await finish(callbackParams);
@@ -409,14 +483,6 @@ describe('revocation honesty against the real vault token store', () => {
     await finish((await signIn(v, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
     const result = await v.service.disconnect({ connectionRef: ref, workspaceId: 'ws-1' });
     expect([result.remoteRevocation, [...provider.revoked].sort()]).toEqual(['confirmed', ['acme-rt-1', 'acme-rt-2']]);
-  });
-  it('revokes with the access token when the stored credential has no refresh token', async () => {
-    // Hosted: an installed app is refused without a refresh token (offline-access-required).
-    v = buildVaultHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' }, clientKind: 'confidential' });
-    const { started, callbackParams } = await signIn(v, provider, { omitRefreshToken: true });
-    await finish(callbackParams);
-    const result = await v.service.disconnect({ connectionRef: started.connectionRef, workspaceId: 'ws-1' });
-    expect([result.remoteRevocation, provider.revoked]).toEqual(['confirmed', ['acme-at-1']]);
   });
   it('refuses a new sign-in while a revocation is pending, so the kept credential is not orphaned', async () => {
     const ref = await vaultConnect();
@@ -496,7 +562,7 @@ describe('a changed OAuth client or an unreadable stored credential never locks 
   let after: ReturnType<typeof buildVaultHarness>;
   let ref: string;
   const finishOn = (x: Harness<VaultOAuthTokenStore>, callbackParams: Record<string, string>) =>
-    x.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+    x.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams, browserBinding: browserBindingOf(x, callbackParams) });
   const storedRow = () => before.vault.get({ ...VAULT_SCOPE, id: ref });
   beforeEach(async () => {
     before = buildVaultHarness(provider);
@@ -512,10 +578,13 @@ describe('a changed OAuth client or an unreadable stored credential never locks 
     expect(await after.service.getAccessToken({ connectionRef: ref, workspaceId: 'ws-1' })).toBe('acme-at-2');
   });
   it('a hosted same-account reconnect under the new client installs instead of failing on the old row', async () => {
-    const hosted = buildVaultHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' },
-      clientKind: 'confidential', records: before.records }, before.vault);
-    await finishOn(hosted, (await signIn(hosted, provider, { account: 'alice', omitRefreshToken: true })).callbackParams);
+    const hosted = buildVaultHarness(provider, { client: HOSTED_CLIENT, clientKind: 'confidential', records: before.records }, before.vault);
+    await finishOn(hosted, (await signIn(hosted, provider, { account: 'alice' })).callbackParams);
     expect((await hosted.service.getStatus({ connectionRef: ref, workspaceId: 'ws-1' })).status).toBe('connected');
+  });
+  it('a hosted reconnect under the new client forces consent: the old row cannot renew', async () => {
+    const hosted = buildVaultHarness(provider, { client: HOSTED_CLIENT, clientKind: 'confidential', records: before.records }, before.vault);
+    expect(forcedConsent((await signIn(hosted, provider, { account: 'alice' })).started)).toBe('true');
   });
   it('disconnect removes the unreadable credential locally and reports pending, never confirmed', async () => {
     const result = await after.service.disconnect({ connectionRef: ref, workspaceId: 'ws-1' });

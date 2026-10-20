@@ -8,11 +8,14 @@
 import { randomBytes } from 'node:crypto';
 import { createOAuthUrlGuard, type OAuthTokenSet } from '@jini-ai/oauth';
 import { parseApiConnectionDescriptor, type ApiConnectionHooks, type ApiConnectionServiceDeps } from '../../index.js';
+import { hashBrowserBinding } from '../../attempt-state.js';
 import type { ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionRecord } from '../../types.js';
 import { memoryRecordStore, memoryTokenStore } from './harness.js';
 
 export const KEY = 'api-connection:v1:ws-1:acme-office:account';
 export const NOW = Date.parse('2026-10-20T10:00:00.000Z');
+/** The binding the fixture attempt's starting browser carries. */
+export const BROWSER_BINDING = 'browser-binding-1';
 
 export type UnitDeps = ApiConnectionServiceDeps & {
   readonly records: ReturnType<typeof memoryRecordStore>;
@@ -56,6 +59,7 @@ export function tokens(label: string, over: Partial<OAuthTokenSet> = {}): OAuthT
 
 export function attempt(over: Partial<ApiConnectionAttempt> = {}): ApiConnectionAttempt {
   return { state: 'state-1', attemptId: 'attempt-1', key: KEY, ownerKey: '["ws-1","actor-1","acme-office","account"]',
+    browserBindingHash: hashBrowserBinding(BROWSER_BINDING),
     workspaceId: 'ws-1', actorId: 'actor-1', pluginId: 'acme-office', connectionId: 'account', intent: 'connect',
     requestedScopes: ['acme.files'], redirectUri: 'http://127.0.0.1:47011/callback', generation: 0, codeVerifier: 'verifier-1',
     createdAt: '2026-10-20T10:00:00.000Z', expiresAt: '2026-10-20T10:10:00.000Z', ...over };
@@ -63,7 +67,7 @@ export function attempt(over: Partial<ApiConnectionAttempt> = {}): ApiConnection
 
 export function connectedRecord(over: Partial<ApiConnectionRecord> = {}): ApiConnectionRecord {
   return { key: KEY, workspaceId: 'ws-1', pluginId: 'acme-office', connectionId: 'account', status: 'connected', revision: 1,
-    generation: 1, account: { accountId: 'alice', displayName: 'Alice' }, grantedScopes: ['acme.files'], staged: null,
+    generation: 1, account: { accountId: 'alice', displayName: 'Alice' }, grantedScopes: ['acme.files'], staged: null, revocationFailure: null,
     updatedAt: '2026-10-20T10:00:00.000Z', ...over };
 }
 

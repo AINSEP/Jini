@@ -3,9 +3,11 @@
  *
  * Exists so `beginAuthorizationCode`/`completeAuthorizationCode` keep owning PKCE, redirect
  * allowlisting, callback errors and the token exchange, while the attempt itself is a stored,
- * expiring, single-use record bound to workspace, actor, plugin connection, callback URI and
- * credential generation. Every redemption failure is the core's indistinguishable invalid-state.
+ * expiring, single-use record bound to workspace, actor, plugin connection, callback URI,
+ * credential generation and the browser that started it. Every redemption failure is the core's
+ * indistinguishable invalid-state.
  */
+import { createHash } from 'node:crypto';
 import { invalidPendingAuthorizationState, PENDING_AUTHORIZATION_STATE_BYTES, generateOAuthState,
   secureEqualsForOwnerBinding, type PendingAuthorization, type SealedAuthorizationState } from '@jini-ai/oauth';
 import { nowIso } from '@jini-ai/core/primitives';
@@ -14,6 +16,17 @@ import type { ApiConnectionAttempt } from './types.js';
 
 /** Long enough for consent and multi-factor prompts; abandoned attempts die quickly. */
 export const ATTEMPT_TTL_MS = 10 * 60 * 1000;
+
+/** Same strength as `state`: the binding is what a forwarded authorization URL cannot carry along. */
+export const BROWSER_BINDING_BYTES = 32;
+
+/**
+ * The stored form of a browser binding, so a leaked attempt row cannot be replayed as a cookie.
+ * A host bug passing a non-string hashes as '', which no 32-byte binding ever matches.
+ */
+export function hashBrowserBinding(value: unknown): string {
+  return createHash('sha256').update(typeof value === 'string' ? value : '').digest('base64url');
+}
 
 type AttemptDraft = Omit<ApiConnectionAttempt, 'state' | 'codeVerifier' | 'redirectUri' | 'createdAt' | 'expiresAt'>;
 type AttemptDeps = Pick<ApiConnectionServiceDeps, 'records' | 'clock' | 'randomBytesFn'>;
@@ -47,22 +60,32 @@ export function attemptSealer(deps: AttemptDeps, requiredArgs: { readonly draft:
   };
 }
 
-function matchesBinding(attempt: ApiConnectionAttempt, expected: { ownerKey: string; redirectUri: string }, nowMs: number): boolean {
+interface ExpectedBinding { readonly ownerKey: string; readonly redirectUri: string; readonly browserBinding: string }
+
+function matchesBinding(attempt: ApiConnectionAttempt, expected: ExpectedBinding, nowMs: number): boolean {
   return Date.parse(attempt.expiresAt) > nowMs
     && secureEqualsForOwnerBinding({ a: attempt.ownerKey, b: expected.ownerKey })
+    // The owner key alone cannot bind a hosted callback: a cookie-less callback route can only learn
+    // the identities from the attempt itself. The browser binding is what the redirected browser carries.
+    && secureEqualsForOwnerBinding({ a: attempt.browserBindingHash, b: hashBrowserBinding(expected.browserBinding) })
     && attempt.redirectUri === expected.redirectUri;
 }
 
 /** Open side: consume first, then check binding, so a probe burns the state it guessed. */
 export function attemptOpener(
   deps: AttemptDeps,
-  requiredArgs: { readonly onOpen: (requiredArgs: { readonly attempt: ApiConnectionAttempt }) => void },
+  requiredArgs: {
+    /** The binding the callback's browser carried; the core's `open` arguments have no slot for it. */
+    readonly browserBinding: string;
+    readonly onOpen: (requiredArgs: { readonly attempt: ApiConnectionAttempt }) => void;
+  },
 ): SealedAuthorizationState {
+  const { browserBinding } = requiredArgs;
   return {
     seal: refuseUnexpected,
     async open({ state, ownerKey, providerId, redirectUri }) {
       const attempt = await deps.records.takeAttempt({ state });
-      if (attempt === null || !matchesBinding(attempt, { ownerKey, redirectUri }, deps.clock.nowMs())) {
+      if (attempt === null || !matchesBinding(attempt, { ownerKey, redirectUri, browserBinding }, deps.clock.nowMs())) {
         throw invalidPendingAuthorizationState({});
       }
       requiredArgs.onOpen({ attempt });
