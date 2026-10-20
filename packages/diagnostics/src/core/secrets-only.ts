@@ -1,5 +1,5 @@
 import { SECRET_SHAPE_PATTERNS } from "@jini-ai/core";
-import jsTokens from "js-tokens";
+import jsTokens, { type JSXToken, type Token } from "js-tokens";
 
 // Paths and network addresses are useful failure diagnostics and are not credential values.
 // Share the vendor credential catalog so adding a vendor cannot leave a second redaction list stale.
@@ -190,6 +190,32 @@ const CODE_VENDOR_RULES: readonly RedactionRule[] = [
   { kind: "sendgrid_key", pattern: /SG\.[\w-]{16,}\.[\w-]{16,}/g, replacement: () => "[REDACTED:sendgrid_key]" },
 ];
 
+function applyRedactionRules(
+  { text, rules }: { text: string; rules: readonly RedactionRule[] },
+  _options = {},
+): SecretRedaction {
+  let redactions = 0;
+  let result = text;
+  for (const rule of rules) {
+    result = result.replace(new RegExp(rule.pattern.source, withGlobalFlag(rule.pattern.flags)), (...args: unknown[]) => {
+      redactions += 1;
+      return rule.replacement({ match: args as readonly (string | undefined)[] });
+    });
+  }
+  return { text: result, redactions };
+}
+
+function hasCredentialEntropy({ content }: { content: string }, _options = {}): boolean {
+  const frequencies = new Map<string, number>();
+  for (const char of content) frequencies.set(char, (frequencies.get(char) ?? 0) + 1);
+  let entropy = 0;
+  for (const count of frequencies.values()) {
+    const probability = count / content.length;
+    entropy -= probability * Math.log2(probability);
+  }
+  return entropy >= 3.5;
+}
+
 /** Detect unlabeled pasted keys without treating a nearby identifier as secret context. */
 function isCredentialLiteral({ content }: { content: string }, _options = {}): boolean {
   if (content.length < 20 || /\s/.test(content) || !/[a-z]/i.test(content) || !/\d/.test(content)) return false;
@@ -201,14 +227,25 @@ function isCredentialLiteral({ content }: { content: string }, _options = {}): b
   if (/^[a-f0-9]{20,40}$/i.test(content)) return false;
   // URL/path and dotted i18n names are common static code data, not opaque credentials.
   if (content.includes("/") || /^[\w$-]+(?:\.[\w$-]+)+$/.test(content)) return false;
-  const frequencies = new Map<string, number>();
-  for (const char of content) frequencies.set(char, (frequencies.get(char) ?? 0) + 1);
-  let entropy = 0;
-  for (const count of frequencies.values()) {
-    const probability = count / content.length;
-    entropy -= probability * Math.log2(probability);
-  }
-  return entropy >= 3.5;
+  return hasCredentialEntropy({ content });
+}
+
+type CodeToken = Token | JSXToken;
+
+function isFirstNamedCallArgument(
+  { previous, separator, name }: {
+    previous: readonly { type: string; value: string }[];
+    separator: string | undefined;
+    name: { type: string };
+  },
+  _options = {},
+): boolean {
+  // A comma in a grouping expression or a later call argument is not a named value pair.
+  if (separator !== "," || name.type !== "StringLiteral" || previous.at(-3)?.value !== "(") return false;
+  const callee = previous.at(-4);
+  if (!callee) return false;
+  return (callee.type === "IdentifierName" && !/^(if|while|for|switch|catch|with|function)$/.test(callee.value)) ||
+    callee.value === ")" || callee.value === "]";
 }
 
 /** Check significant-token adjacency for assignments/properties or a call's first string key.
@@ -223,11 +260,55 @@ function hasSecretLiteralContext(
   const label = name.type === "StringLiteral" ? name.value.slice(1, -1) : name.value;
   if (!/(pass(word|wd)?|secret|token|api[-_]?key|access[-_]?key|private[-_]?key|client[-_]?secret|auth(orization)?|bearer|cookie|credential)s?$/i.test(label)) return false;
   if (separator === ":" || separator === "=") return true;
-  const callee = previous.at(-4);
-  // A comma in a grouping expression or a later call argument is not a named value pair.
-  return separator === "," && name.type === "StringLiteral" && previous.at(-3)?.value === "(" &&
-    !!callee && ((callee.type === "IdentifierName" && !/^(if|while|for|switch|catch|with|function)$/.test(callee.value)) ||
-      callee.value === ")" || callee.value === "]");
+  return isFirstNamedCallArgument({ previous, separator, name });
+}
+
+function codeTokenSpan(
+  { token }: { token: CodeToken },
+  _options = {},
+): { start: number; end: number; literal: boolean } | undefined {
+  switch (token.type) {
+    case "StringLiteral":
+    case "JSXString":
+    case "NoSubstitutionTemplate":
+    case "TemplateTail":
+      return { start: 1, end: token.value.length - (token.closed ? 1 : 0), literal: true };
+    case "TemplateHead":
+    case "TemplateMiddle":
+      return { start: 1, end: token.value.length - 2, literal: true };
+  }
+  if (/^(SingleLineComment|MultiLineComment|HashbangComment)$/.test(token.type)) {
+    return { start: 0, end: token.value.length, literal: false };
+  }
+  return undefined;
+}
+
+function redactUnclassifiedLiteral(
+  { content, adjacentSecret }: { content: string; adjacentSecret: boolean },
+  _options = {},
+): SecretRedaction {
+  const value = content.replace(/^(Bearer|Basic|Token) /i, "");
+  // Joined plain words (upload-token, auth.token.label) are names/keys, not credential values.
+  if (adjacentSecret && content.length >= 8 && !/\s/.test(value) && !/^[A-Za-z]+(?:[-_.][A-Za-z]+)+$/.test(value)) {
+    return { text: "[REDACTED:labeled_secret]", redactions: 1 };
+  }
+  if (isCredentialLiteral({ content })) return { text: "[REDACTED:high_entropy]", redactions: 1 };
+  return { text: content, redactions: 0 };
+}
+
+function redactCodeTokenContent(
+  { content, literal, adjacentSecret, policy }: {
+    content: string; literal: boolean; adjacentSecret: boolean; policy: RedactionPolicy;
+  },
+  _options = {},
+): SecretRedaction {
+  const strict = redactSecretShapes({ text: content, policy: { ...policy, codeAware: false } });
+  const vendor = applyRedactionRules({ text: strict.text, rules: CODE_VENDOR_RULES });
+  // Do not reclassify an existing replacement marker or count its bytes as another key.
+  if (literal && strict.redactions === 0 && vendor.text === content && !content.includes("[REDACTED:")) {
+    return redactUnclassifiedLiteral({ content, adjacentSecret });
+  }
+  return { text: vendor.text, redactions: strict.redactions + vendor.redactions };
 }
 
 /** Only tokenizer-delimited static literal text and comments reach the existing strict policy.
@@ -242,61 +323,21 @@ function redactCodeLiterals(
   const tokens = jsx ? jsTokens(source, { jsx: true }) : jsTokens(source);
   const previous: { type: string; value: string }[] = [];
   for (const token of tokens) {
-    const adjacentSecret = (token.type === "StringLiteral" || token.type === "NoSubstitutionTemplate" || token.type === "TemplateHead") &&
+    const adjacentSecret = /^(StringLiteral|NoSubstitutionTemplate|TemplateHead)$/.test(token.type) &&
       hasSecretLiteralContext({ previous });
     if (!/^(WhiteSpace|LineTerminatorSequence|SingleLineComment|MultiLineComment|HashbangComment)$/.test(token.type)) {
       previous.push(token);
       if (previous.length > 4) previous.shift();
     }
-    let start = 0;
-    let end = token.value.length;
-    let literal = false;
-    switch (token.type) {
-      case "StringLiteral":
-      case "JSXString":
-      case "NoSubstitutionTemplate":
-      case "TemplateTail":
-        start = 1;
-        end -= token.closed ? 1 : 0;
-        literal = true;
-        break;
-      case "TemplateHead":
-      case "TemplateMiddle":
-        start = 1;
-        end -= 2;
-        literal = true;
-        break;
-      case "SingleLineComment":
-      case "MultiLineComment":
-      case "HashbangComment":
-        break;
-      default:
-        parts.push(token.value);
-        continue;
+    const span = codeTokenSpan({ token });
+    if (!span) {
+      parts.push(token.value);
+      continue;
     }
-    const content = token.value.slice(start, end);
-    const strict = redactSecretShapes({ text: content, policy: { ...policy, codeAware: false } });
-    let text = strict.text;
-    redactions += strict.redactions;
-    for (const rule of CODE_VENDOR_RULES) {
-      text = text.replace(new RegExp(rule.pattern.source, rule.pattern.flags), (...match: string[]) => {
-        redactions += 1;
-        return rule.replacement({ match });
-      });
-    }
-    // Do not reclassify an existing replacement marker or count its bytes as another key.
-    if (literal && strict.redactions === 0 && text === content && !content.includes("[REDACTED:")) {
-      const value = content.replace(/^(Bearer|Basic|Token) /i, "");
-      // Joined plain words (upload-token, auth.token.label) are names/keys, not credential values.
-      if (adjacentSecret && content.length >= 8 && !/\s/.test(value) && !/^[A-Za-z]+(?:[-_.][A-Za-z]+)+$/.test(value)) {
-        text = "[REDACTED:labeled_secret]";
-        redactions += 1;
-      } else if (isCredentialLiteral({ content })) {
-        text = "[REDACTED:high_entropy]";
-        redactions += 1;
-      }
-    }
-    parts.push(token.value.slice(0, start), text, token.value.slice(end));
+    const { start, end, literal } = span;
+    const result = redactCodeTokenContent({ content: token.value.slice(start, end), literal, adjacentSecret, policy });
+    redactions += result.redactions;
+    parts.push(token.value.slice(0, start), result.text, token.value.slice(end));
   }
   return { text: parts.join(""), redactions };
 }
@@ -337,16 +378,8 @@ export function redactSecretShapes({ text, policy }: { text: string; policy: Red
   if (text.length === 0) return { text, redactions: 0 };
 
   if (policy.vendorOnly) {
-    let redactions = 0;
-    let result = text;
     const vendorRules = REDACTION_RULES.filter(rule => !CONTEXT_RULE_KINDS.has(rule.kind));
-    for (const rule of [...vendorRules, ...CODE_VENDOR_RULES, ...(policy.additionalRules ?? [])]) {
-      result = result.replace(new RegExp(rule.pattern.source, withGlobalFlag(rule.pattern.flags)), (...args: unknown[]) => {
-        redactions += 1;
-        return rule.replacement({ match: args as readonly (string | undefined)[] });
-      });
-    }
-    return { text: result, redactions };
+    return applyRedactionRules({ text, rules: [...vendorRules, ...CODE_VENDOR_RULES, ...(policy.additionalRules ?? [])] });
   }
 
   if (policy.codeAware) {
@@ -358,8 +391,6 @@ export function redactSecretShapes({ text, policy }: { text: string; policy: Red
     return { text: plain.text, redactions: jsx.redactions + plain.redactions };
   }
 
-  let redactions = 0;
-  let result = text;
   // Preserve the original policy slot: vendor/JWT matches take precedence over host formats.
   const applicationRuleSlot = REDACTION_RULES.findIndex(rule => rule.kind === "bearer_token");
   const rules = [
@@ -367,13 +398,7 @@ export function redactSecretShapes({ text, policy }: { text: string; policy: Red
     ...(policy.additionalRules ?? []),
     ...REDACTION_RULES.slice(applicationRuleSlot),
   ];
-  for (const rule of rules) {
-    result = result.replace(new RegExp(rule.pattern.source, withGlobalFlag(rule.pattern.flags)), (...args: unknown[]) => {
-      redactions += 1;
-      return rule.replacement({ match: args as readonly (string | undefined)[] });
-    });
-  }
-  return { text: result, redactions };
+  return applyRedactionRules({ text, rules });
 }
 
 // Preserve the public scanner vocabulary while core owns the single pattern catalog.
