@@ -17,8 +17,8 @@ export const MAX_SKILL_FILES = 256;
 export const MAX_SKILL_FILE_BYTES = 1024 * 1024;
 const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".svg", ".sh", ".py", ".js", ".ts", ".mjs"]);
 const ASSET_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
-const ROOT_FILES = new Set(["SKILL.md", "README.md", "LICENSE"]);
-const SKILL_FOLDERS = new Set(["references", "scripts", "assets"]);
+const ROOT_FILES: ReadonlySet<string> = new Set(["SKILL.md", "README.md", "LICENSE"]);
+const SKILL_FOLDERS: ReadonlySet<string> = new Set(["references", "scripts", "assets"]);
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const MISSING_FRONTMATTER = "SKILL.md must have YAML frontmatter with a name and description.";
 
