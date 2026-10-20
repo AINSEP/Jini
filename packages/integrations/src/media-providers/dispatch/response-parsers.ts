@@ -110,34 +110,53 @@ export interface HexEnvelopeAudioParserOptions {
 export function createHexEnvelopeAudioParser<Meta extends HexEnvelopeAudioMeta>(
   options: HexEnvelopeAudioParserOptions,
 ): VendorResponseParser<Meta> {
+  const { errorTag } = options;
   return async ({ resp, request }) => {
     const respText = await resp.text();
     if (!resp.ok) {
-      throw new Error(`${options.errorTag} ${resp.status}: ${truncate(respText, 240)}`);
+      throw new Error(`${errorTag} ${resp.status}: ${truncate(respText, 240)}`);
     }
-    let data: HexEnvelopeAudioResponse;
-    try {
-      data = JSON.parse(respText);
-    } catch {
-      throw new Error(`${options.errorTag} non-JSON: ${truncate(respText, 200)}`);
-    }
-    if (data.base_resp && data.base_resp.status_code !== 0) {
-      throw new Error(`${options.errorTag} api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || 'unknown'}`);
-    }
-    const hex = data.data?.audio;
-    if (typeof hex !== 'string' || !hex) {
-      throw new Error(`${options.errorTag} response missing data.audio`);
-    }
-    const bytes = Buffer.from(hex, 'hex');
-    if (bytes.length === 0) {
-      throw new Error(`${options.errorTag} decoded zero bytes`);
-    }
-    const audioLength = data.extra_info?.audio_length;
-    const seconds = audioLength ? Math.round(audioLength / 100) / 10 : '?';
+    const data = parseHexEnvelopeBody({ respText, errorTag });
+    const bytes = decodeHexEnvelopeAudio({ data, errorTag });
+    const seconds = formatAudioSeconds(data.extra_info?.audio_length);
     return {
       bytes,
       providerNote: `${options.providerId}/${request.meta.wireModel} · ${request.meta.voiceId} · ${seconds}s · ${bytes.length} bytes`,
       suggestedExt: '.mp3',
     };
   };
+}
+
+/** Parses an OK hex-envelope body and rejects a non-JSON body or a logical (`base_resp.status_code !== 0`) failure. */
+function parseHexEnvelopeBody(required: { respText: string; errorTag: string }): HexEnvelopeAudioResponse {
+  const { respText, errorTag } = required;
+  let data: HexEnvelopeAudioResponse;
+  try {
+    data = JSON.parse(respText);
+  } catch {
+    throw new Error(`${errorTag} non-JSON: ${truncate(respText, 200)}`);
+  }
+  if (data.base_resp && data.base_resp.status_code !== 0) {
+    throw new Error(`${errorTag} api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || 'unknown'}`);
+  }
+  return data;
+}
+
+/** Decodes `data.audio` hex into bytes, refusing a missing/non-string/empty payload or one that decodes to zero bytes. */
+function decodeHexEnvelopeAudio(required: { data: HexEnvelopeAudioResponse; errorTag: string }): Buffer {
+  const { data, errorTag } = required;
+  const hex = data.data?.audio;
+  if (typeof hex !== 'string' || !hex) {
+    throw new Error(`${errorTag} response missing data.audio`);
+  }
+  const bytes = Buffer.from(hex, 'hex');
+  if (bytes.length === 0) {
+    throw new Error(`${errorTag} decoded zero bytes`);
+  }
+  return bytes;
+}
+
+/** `audio_length` milliseconds rounded to tenths of a second; `'?'` when absent (or 0), matching both vendors' own formatting. */
+function formatAudioSeconds(audioLength: number | undefined): number | '?' {
+  return audioLength ? Math.round(audioLength / 100) / 10 : '?';
 }
