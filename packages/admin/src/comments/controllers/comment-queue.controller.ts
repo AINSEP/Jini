@@ -91,6 +91,13 @@ export function createCommentQueueController(
     firstError = error;
     publishPages();
   }
+  /** A cursor read may only publish while it is still the newest one and the store is live. */
+  function isCurrentRead({ generation }: { generation: number }, _optional: Record<string, never> = {}) {
+    return generation === pageGeneration && !store.signal.aborted;
+  }
+  function readMorePage({ status, cursor }: { status: CommentStatus; cursor: string }, _optional: Record<string, never> = {}) {
+    return loadPage ? loadPage({ status, cursor }) : api.listCommentsQueue({}, { status, cursor });
+  }
   async function loadMore(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
     const { nextCursor, status } = store.getSnapshot();
     if (store.signal.aborted || !nextCursor || loadingMore) return;
@@ -100,18 +107,18 @@ export function createCommentQueueController(
     store.set({ patch: { loadingMore: true } });
     publishPages();
     try {
-      const page = await (loadPage ? loadPage({ status, cursor: nextCursor }) : api.listCommentsQueue({}, { status, cursor: nextCursor }));
-      if (generation !== pageGeneration || store.signal.aborted) return;
+      const page = await readMorePage({ status, cursor: nextCursor });
+      if (!isCurrentRead({ generation })) return;
       morePages = [...morePages, ...page.items];
       store.set({ patch: { nextCursor: page.nextCursor } });
       publishPages();
     } catch (e) {
-      if (generation !== pageGeneration || store.signal.aborted) return;
+      if (!isCurrentRead({ generation })) return;
       moreError = describeApiError({ e, fallback: t('failed to load the moderation queue') });
       publishPages();
     } finally {
       // The reset already released a superseded call's lock; it must not unlock a newer call.
-      if (generation === pageGeneration && !store.signal.aborted) {
+      if (isCurrentRead({ generation })) {
         loadingMore = false;
         store.set({ patch: { loadingMore: false } });
       }
