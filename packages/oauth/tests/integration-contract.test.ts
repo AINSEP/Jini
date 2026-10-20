@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as oauth from '../src/index.js';
 import * as policy from '../src/discovery-policy.js';
 import * as transport from '../src/dns-pinned-transport.js';
+import * as loopback from '../src/loopback-receiver.js';
 import * as pkce from '../src/pkce.js';
 import * as authorization from '../src/authorization-code.js';
 import * as pending from '../src/pending-authorizations.js';
@@ -14,6 +15,7 @@ const entries = {
   './testing': 'testing/index',
   './discovery-policy': 'discovery-policy',
   './dns-pinned-transport': 'dns-pinned-transport',
+  './loopback-receiver': 'loopback-receiver',
 } as const;
 
 describe('merged package entries', () => {
@@ -36,6 +38,7 @@ describe('merged package entries', () => {
   it('shares implementations between the root barrel and the new direct entries', () => {
     expect(oauth.createIssuerBoundDiscoveryPolicy).toBe(policy.createIssuerBoundDiscoveryPolicy);
     expect(oauth.createDnsPinnedOAuthTransport).toBe(transport.createDnsPinnedOAuthTransport);
+    expect(oauth.startLoopbackAuthorizationReceiver).toBe(loopback.startLoopbackAuthorizationReceiver);
     expect(oauth.createPkcePair).toBe(pkce.createPkcePair);
     expect(oauth.generateOAuthState).toBe(pkce.generateOAuthState);
     expect(oauth.buildOAuthAuthorizationUrl).toBe(authorization.buildOAuthAuthorizationUrl);
