@@ -9,7 +9,8 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 |---|---|---|---|---|---|---|---|
 | L010 | forms descriptor-rules, field-registry, html-render | merged | done (47 tool calls) | 36b96063, 5375e7b7, 9a8bc1ec | 53/52 → ≤10/≤10 | 100/100/100 | eslint 0, tsc 0, forms 490 ✓; 99 new tests also green on old code |
 | L017 | forms/html authoring-adapter, html-authoring | merged | done (15 tool calls) | f59b2cd8, 2c038dab | 10/8 → 10/8 (already ≤10) | 100/100/100 | eslint 0, tsc 0, 86 tests ✓ |
-| L073 | widgets config-validation, embed-service, gallery-resolver, resolver-service | running | | | 32/36 → | | |
+| L073 | widgets config-validation, embed-service, gallery-resolver, resolver-service | merged (partial cov) | stopped at ~185k (94 tool calls) | dcef1137, 43e72e7a, cd470eeb, dbb0b44c | 32/36 → ≤10/≤10 | 100 ×3; resolver-service 76.2/93.3/74.4 (whole widgets suite) | eslint 0, tsc 0; 121 new tests green on old code |
+| L073b | resolver-service.ts coverage to 100 (tests only) | running | fresh | | — | | |
 | L108 | widgets/html gallery-render, html-embeds, legacy-widget-markers, server-fragment | merged | done (46 tool calls) | 2f92117a, 0ef5b201, c94e6ba3, 232e610d | 20/22 → ≤10/≤10 | 100/100/100 | eslint 0, tsc 0, widgets 379 ✓ |
 | L109 | widgets/markers gallery, html-attributes | merged | done (23 tool calls) | bcd89622, fbd539cd | 26/20 → ≤10/≤10 | 100/100/100 (was 78.7/77.9) | eslint 0, tsc 0, widgets 336 ✓ |
 | L123 | redirects host-config, redirects | merged | done (52 tool calls) | 8778aace, d15f1058 | 18/29 → 8/9 | 100/100/100 (was 93.3–96.5) | eslint 0, tsc 0, 322 ✓ |
@@ -27,4 +28,6 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 - Cross-package (http-kit): `checkSiteRelativeTarget` returns ok for raw backslash (`/a\b`) despite refusal wording; redirects.ts refuses it separately, so no behaviour impact.
 - L010 bugs pinned: file field — filename with no dot passes when whole name is a safe extension (e.g. `png`); renderHtmlFormBody — hidden input still points aria-describedby at unrendered help/error ids. Quirk: `<select>` gets a placeholder attribute.
 - L169 flagged (outside lot): `validateHierarchyAssignment` (taxonomy/validation-chain.ts) never reads its required `termId`, so importTerm’s existing?id:"__new__" argument is inert.
+- L073 bug pinned: embed-service reorder can leave a slot with undefined widgetEntryId (count check counts only string-id embeds, rewrite touches all).
+- L073 flagged: `collectWidgetConfigStrings` has no callers but is publicly re-exported via widgets/index.ts.
 ## Next
