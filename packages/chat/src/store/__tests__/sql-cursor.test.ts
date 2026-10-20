@@ -77,6 +77,11 @@ describe('decodeCursor', () => {
     expectInvalid(() => decodeCursor({ cursor: 42 as unknown as string, kind: 'messages', scope, conversation: 'c' }));
   });
 
+  it('rejects an 8193-character cursor at the up-front shape check, so no decode cause is attached', () => {
+    const error = expectInvalid(() => decodeCursor({ cursor: 'A'.repeat(8193), kind: 'messages', scope, conversation: 'c' }));
+    expect(error.cause).toBeUndefined();
+  });
+
   it('accepts a cursor of exactly 8192 characters as far as the length check goes', () => {
     // 8192 chars of 'A' decode to zero bytes -> JSON.parse('\0...') fails -> invalid, but via the
     // decode path with a cause, not the up-front shape check (which carries no cause).
