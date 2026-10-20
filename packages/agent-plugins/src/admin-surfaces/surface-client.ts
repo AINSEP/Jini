@@ -78,7 +78,8 @@ export function createAdminSurfaceClient(
   const pending = new Map<string, Pending>();
   let init: Init | undefined;
   let nextRequest = 0;
-  let resolveReady: () => void = () => {};
+  // The Promise executor runs synchronously, so `resolveReady` is assigned before anything can call it.
+  let resolveReady!: () => void;
   const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
 
   function onInit(event: AdminSurfaceIncomingMessage, data: Message): void {

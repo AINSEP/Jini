@@ -118,7 +118,9 @@ function validatedInput(tool: AdmittedTool, input: unknown): Readonly<Record<str
     throw new Error(`Plugin tool '${tool.toolId}' has an unusable input schema; report it to the plugin author.`, { cause: error });
   }
   if (result.valid) return record;
-  const where = [...new Set(result.errors.map(unit => `${unit.instanceLocation || '#'} (${unit.keyword})`))].slice(0, 3).join(', ');
+  // cfworker roots every instanceLocation at '#' (validate()'s default, children append '/key'), so it
+  // is never empty; pinned by "input failing at the schema root is located at #" in projection.unit.test.ts.
+  const where = [...new Set(result.errors.map(unit => `${unit.instanceLocation} (${unit.keyword})`))].slice(0, 3).join(', ');
   throw new ToolInputError({ message: `Input for '${tool.toolId}' does not match its schema at ${where}. Fix the input and retry.` });
 }
 
