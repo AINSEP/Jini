@@ -13,6 +13,15 @@ export function resolveDirectoryHome(
   const paths = platform === "win32" ? path.win32 : path;
   const selected = env[envName] ?? setting ?? paths.join(homeDir, defaultFolder);
   if (!selected.trim()) throw new Error(`${envName} must name a directory`);
+  return resolveSelected({ selected, homeDir, cwd, paths });
+}
+
+/** Expand a leading `~`, `~/` or `~\\` against the supplied home; anything else resolves from cwd.
+ * `~user` forms are deliberately not expanded (no shell, no user database lookup).
+ */
+function resolveSelected({ selected, homeDir, cwd, paths }: {
+  selected: string; homeDir: string; cwd: string; paths: path.PlatformPath;
+}): string {
   if (selected === "~") return paths.resolve(homeDir);
   if (selected.startsWith("~/") || selected.startsWith("~\\")) return paths.resolve(homeDir, selected.slice(2));
   return paths.resolve(cwd, selected);
