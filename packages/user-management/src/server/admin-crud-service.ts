@@ -7,6 +7,7 @@ import { normalizeUsername } from "./username.js";
 import { isKnownPermission } from "../core/permissions.js";
 import { principalKindMayExercisePermission } from "../core/principal-kind-policy.js";
 import type { AuthServiceDeps } from "./auth-service.js";
+import type { UsernameChangePort } from "../core/runtime-ports.js";
 import {
   IdentityConflictError,
   IdentityNotFoundError,
@@ -235,17 +236,17 @@ export async function updateUser(required: {
 
 /** Validate and reserve a normalized name inside the caller's identity transaction.
  * Permission/owner gates run first, so conflicts never disclose accounts to unauthorized callers.
+ * Check order (pinned in `__tests__/admin-crud-service.pins.test.ts`): type, blank, port wiring,
+ * the target's Trash state, host support (actual changes only), then uniqueness.
  * @complexity O(n) normalization for n username characters; one indexed lookup and up to two Trash reads.
  * Throws validation or conflict errors; performs no writes.
  */
 async function resolveUpdatedUsername(required: {
   deps: AuthServiceDeps; target: UserRecord;
   input: { workspaceId: string; principalId: string; username?: string | undefined };
-}, _optional: Record<string, never> = {}): Promise<string> {
+}): Promise<string> {
   const { deps, input, target } = required;
-  if (typeof input.username !== "string") throw new IdentityValidationError({ message: "username must be a string" });
-  const username = normalizeUsername({ raw: input.username });
-  if (!username) throw new IdentityValidationError({ message: "username must not be blank" });
+  const username = normalizeRequestedUsername({ raw: input.username });
   // Missing host ports are internal wiring faults, not user input errors (HTTP 500, not 400).
   if (!deps.usernameChanges) throw new Error("username changes are not configured");
   if (await deps.usernameChanges.isInTrash({ workspaceId: input.workspaceId, principalId: input.principalId })) {
@@ -254,15 +255,30 @@ async function resolveUpdatedUsername(required: {
   if (username !== target.username) {
     await deps.usernameChanges.assertSupported?.({ workspaceId: input.workspaceId, principalId: input.principalId });
   }
-  // Trash keeps credential rows until purge, so the unfiltered lookup reserves those names too.
-  const existing = await deps.repos.users.findByUsername({ workspaceId: input.workspaceId, username });
-  if (existing && existing.principalId !== target.principalId) {
-    if (await deps.usernameChanges.isInTrash({ workspaceId: input.workspaceId, principalId: existing.principalId })) {
-      throw new IdentityConflictError({ message: "a user with this username is in the Trash; restore or delete them permanently first", code: "USERNAME_IN_TRASH" });
-    }
-    throw new IdentityConflictError({ message: `username '${username}' is already in use`, code: "RESOURCE_CONFLICT" });
-  }
+  await assertUsernameAvailable({ deps, usernameChanges: deps.usernameChanges, workspaceId: input.workspaceId, target, username });
   return username;
+}
+
+/** A requested username must be a string that is not blank once normalized. */
+function normalizeRequestedUsername(required: { raw: unknown }): string {
+  if (typeof required.raw !== "string") throw new IdentityValidationError({ message: "username must be a string" });
+  const username = normalizeUsername({ raw: required.raw });
+  if (!username) throw new IdentityValidationError({ message: "username must not be blank" });
+  return username;
+}
+
+/** Refuses a normalized name held by ANY other user, naming Trash as the reason when the holder is there. */
+async function assertUsernameAvailable(required: {
+  deps: AuthServiceDeps; usernameChanges: UsernameChangePort; workspaceId: string; target: UserRecord; username: string;
+}): Promise<void> {
+  const { deps, usernameChanges, workspaceId, target, username } = required;
+  // Trash keeps credential rows until purge, so the unfiltered lookup reserves those names too.
+  const existing = await deps.repos.users.findByUsername({ workspaceId, username });
+  if (!existing || existing.principalId === target.principalId) return;
+  if (await usernameChanges.isInTrash({ workspaceId, principalId: existing.principalId })) {
+    throw new IdentityConflictError({ message: "a user with this username is in the Trash; restore or delete them permanently first", code: "USERNAME_IN_TRASH" });
+  }
+  throw new IdentityConflictError({ message: `username '${username}' is already in use`, code: "RESOURCE_CONFLICT" });
 }
 
 /**
