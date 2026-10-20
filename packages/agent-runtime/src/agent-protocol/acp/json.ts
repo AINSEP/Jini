@@ -93,10 +93,10 @@ export function objectKeys(value: unknown): string[] {
 export function extractAcpTextValue(value: unknown, depth = 0): string | null {
   if (depth > 4) return null;
   if (typeof value === 'string') return value.length > 0 ? value : null;
-  if (Array.isArray(value)) return joinAcpArrayText(value, depth);
+  if (Array.isArray(value)) return joinAcpArrayText({ items: value, depth });
   const obj = asObject(value);
   if (!obj) return null;
-  return firstAcpKeyText(obj, NESTED_TEXT_KEYS, depth + 1);
+  return firstAcpKeyText({ obj, keys: NESTED_TEXT_KEYS, depth: depth + 1 });
 }
 /** Key order `extractAcpTextValue` probes on nested objects. */
 const NESTED_TEXT_KEYS = [
@@ -127,7 +127,7 @@ const UPDATE_TEXT_KEYS = [
 ] as const;
 /** Concatenates the non-empty text of every array item (one level deeper),
  * or `null` when the joined text is empty. */
-function joinAcpArrayText(items: unknown[], depth: number): string | null {
+function joinAcpArrayText({ items, depth }: { items: unknown[]; depth: number }): string | null {
   const text = items
     .map((item) => extractAcpTextValue(item, depth + 1))
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
@@ -136,11 +136,15 @@ function joinAcpArrayText(items: unknown[], depth: number): string | null {
 }
 /** Returns the first non-empty text found under `keys` of `obj`, traversing
  * each value at `depth`. */
-function firstAcpKeyText(
-  obj: UnknownRecord,
-  keys: readonly string[],
-  depth: number,
-): string | null {
+function firstAcpKeyText({
+  obj,
+  keys,
+  depth,
+}: {
+  obj: UnknownRecord;
+  keys: readonly string[];
+  depth: number;
+}): string | null {
   for (const key of keys) {
     const text = extractAcpTextValue(obj[key], depth);
     if (text) return text;
@@ -157,5 +161,5 @@ function firstAcpKeyText(
  * @returns The first non-empty text string, or `null` when none is present.
  */
 export function extractAcpUpdateText(update: UnknownRecord): string | null {
-  return firstAcpKeyText(update, UPDATE_TEXT_KEYS, 0);
+  return firstAcpKeyText({ obj: update, keys: UPDATE_TEXT_KEYS, depth: 0 });
 }

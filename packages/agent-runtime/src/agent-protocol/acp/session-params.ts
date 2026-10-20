@@ -52,26 +52,32 @@ export function buildAcpSessionNewParams({ cwd }: { cwd: string }, options: AcpS
     // agents can run through the skill + CLI path without MCP support. Do not
     // auto-install or mutate user/global MCP config; callers must pass an
     // explicit per-session MCP descriptor when a compatible agent supports it.
-    mcpServers: servers.map((s) => normalizeMcpServer(s, wantsMap)),
+    mcpServers: servers.map((server) => normalizeMcpServer({ server, wantsMap })),
   };
 }
 /** Returns `value` when it is a string, else `fallback`. */
-function stringOr(value: unknown, fallback: string): string {
+function stringOr({ value, fallback }: { value: unknown; fallback: string }): string {
   return typeof value === 'string' ? value : fallback;
 }
 /** Normalises one caller-supplied MCP server descriptor into the wire shape
  * (`type`/`name`/`command`/`args`/`env`, in that key order). */
-function normalizeMcpServer(s: AcpMcpServerInput | null | undefined, wantsMap: boolean) {
+function normalizeMcpServer({
+  server: s,
+  wantsMap,
+}: {
+  server: AcpMcpServerInput | null | undefined;
+  wantsMap: boolean;
+}) {
   return {
-    type: stringOr(s?.type, 'stdio'),
-    name: stringOr(s?.name, ''),
-    command: stringOr(s?.command, ''),
+    type: stringOr({ value: s?.type, fallback: 'stdio' }),
+    name: stringOr({ value: s?.name, fallback: '' }),
+    command: stringOr({ value: s?.command, fallback: '' }),
     args: Array.isArray(s?.args) ? s.args : [],
-    env: normalizeMcpEnv(s?.env, wantsMap),
+    env: normalizeMcpEnv({ rawEnv: s?.env, wantsMap }),
   };
 }
 /** Converts an MCP server `env` value to the requested wire format. */
-function normalizeMcpEnv(rawEnv: unknown, wantsMap: boolean): unknown {
+function normalizeMcpEnv({ rawEnv, wantsMap }: { rawEnv: unknown; wantsMap: boolean }): unknown {
   // Already a plain object — pass through in map mode, convert to
   // array in array mode (e.g. live-artifacts MCP from
   // buildLiveArtifactsMcpServersForAgent which already respects

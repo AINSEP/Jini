@@ -10,6 +10,7 @@ import { asObject, acpValueKind, objectKeys, extractAcpUpdateText } from './json
 import {
   accountFailureDetails,
   noopAccountFailureClassifier,
+  type AccountFailure,
   type AccountFailureClassifier,
 } from './account-failure.js';
 
@@ -102,22 +103,27 @@ export function acpUpdateDiagnosticText(value: unknown, depth = 0): string[] {
     return value.flatMap((item) => acpUpdateDiagnosticText(item, depth + 1));
   }
   const obj = asObject(value);
-  if (!obj) return [];
+  return obj ? objectDiagnosticText({ obj, depth }) : [];
+}
+/** Keys `acpUpdateDiagnosticText` descends into on an object, in order. */
+const DIAGNOSTIC_TEXT_KEYS = [
+  'type',
+  'status',
+  'code',
+  'message',
+  'detail',
+  'details',
+  'error',
+  'recovery',
+  'pauseReason',
+  'content',
+  'text',
+  'rawInput',
+] as const;
+/** Collects diagnostic text from each present `DIAGNOSTIC_TEXT_KEYS` entry of `obj`. */
+function objectDiagnosticText({ obj, depth }: { obj: UnknownRecord; depth: number }): string[] {
   const parts: string[] = [];
-  for (const key of [
-    'type',
-    'status',
-    'code',
-    'message',
-    'detail',
-    'details',
-    'error',
-    'recovery',
-    'pauseReason',
-    'content',
-    'text',
-    'rawInput',
-  ]) {
+  for (const key of DIAGNOSTIC_TEXT_KEYS) {
     if (key in obj) {
       parts.push(...acpUpdateDiagnosticText(obj[key], depth + 1));
     }
@@ -143,18 +149,7 @@ export function promotedAmrRetryStatusPayload(
   const diagnosticText = acpUpdateDiagnosticText(update).join('\n');
   const failure = classifier.classify({ text: diagnosticText });
   if (!failure) return null;
-  return {
-    message: failure.message,
-    error: {
-      code: failure.code,
-      message: failure.message,
-      retryable: false,
-      details: {
-        ...accountFailureDetails(failure),
-        promoted_by: 'agent_runtime_acp_retry_status',
-      },
-    },
-  };
+  return promotedFailurePayload({ failure, promotedBy: 'agent_runtime_acp_retry_status' });
 }
 /**
  * Scans a rolling tail of AMR stderr output for known retry/session-failure
@@ -175,6 +170,11 @@ export function promotedAmrStderrPayload(
   if (!/\bretry\b/i.test(chunk)) return null;
   const failure = classifier.classify({ text: chunk });
   if (!failure) return null;
+  return promotedFailurePayload({ failure, promotedBy: 'agent_runtime_acp_stderr_retry_status' });
+}
+/** Shapes a classified account failure into the non-retryable error payload
+ * both AMR promoters emit, tagged with which promoter produced it. */
+function promotedFailurePayload({ failure, promotedBy }: { failure: AccountFailure; promotedBy: string }) {
   return {
     message: failure.message,
     error: {
@@ -183,7 +183,7 @@ export function promotedAmrStderrPayload(
       retryable: false,
       details: {
         ...accountFailureDetails(failure),
-        promoted_by: 'agent_runtime_acp_stderr_retry_status',
+        promoted_by: promotedBy,
       },
     },
   };
@@ -248,20 +248,36 @@ export function isAcpArtifactWriteUpdate(update: UnknownRecord, writeToolCallIds
  * @returns An absolute or relative file path string, or `null` when absent.
  */
 export function acpArtifactWritePath(update: UnknownRecord): string | null {
+  return entryArrayPath(update) ?? rawInputPath(update) ?? titlePath(update);
+}
+/** Returns the trimmed string when `value` is a non-blank string, else `null`. */
+function trimmedNonEmpty(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+/** Source 1 of `acpArtifactWritePath`. */
+function entryArrayPath(update: UnknownRecord): string | null {
   // 1. ACP `locations: [{ path }]` and `content: [{ path }]` (diff entries).
   for (const field of [update.locations, update.content]) {
     if (!Array.isArray(field)) continue;
     for (const entry of field) {
-      const path = asObject(entry)?.path;
-      if (typeof path === 'string' && path.trim()) return path.trim();
+      const path = trimmedNonEmpty(asObject(entry)?.path);
+      if (path) return path;
     }
   }
+  return null;
+}
+/** Source 2 of `acpArtifactWritePath`. */
+function rawInputPath(update: UnknownRecord): string | null {
   // 2. Tool input echoed by some agents as `rawInput.{path,file_path,filename}`.
   const rawInput = asObject(update.rawInput);
   for (const key of ['path', 'file_path', 'filename']) {
-    const value = rawInput?.[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
+    const value = trimmedNonEmpty(rawInput?.[key]);
+    if (value) return value;
   }
+  return null;
+}
+/** Source 3 of `acpArtifactWritePath`. */
+function titlePath(update: UnknownRecord): string | null {
   // 3. A filename token embedded in the human title, e.g. "Write index.html".
   // Keeping the real extension lets `isArtifactPath` correctly EXCLUDE
   // non-artifact writes (e.g. "edit config.json"), matching the claude path.
