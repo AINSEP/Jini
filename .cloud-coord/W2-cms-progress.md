@@ -29,7 +29,7 @@
 | L200 core/commands | MERGED | cloud/w2-cms-L200 | 768f99e9 | executeCommand cyc18/cog16→5/3 (file worst 6/3) | 83/67/100→100/100/100 | eslint 0, tsc 0, 8 command-related files 103/103 |
 | L227 navigation | MERGED | cloud/w2-cms-L227 | 7003a710 | validateTarget cyc14/cog12, updateMenuTree cyc11 → all ≤10 | 95/90/100→100/100/100 | eslint 0, tsc 0 (see L193 row) |
 | L258 listing | MERGED | cloud/w2-cms-L258 | 4d7243a3, 683b7935 | batch cyc8/cog11→7/6; paths cyc13/cog7→10/4 | 100/100/100 both | eslint 0, tsc 0, listing tests 36/36 |
-| L285 comments | dispatched | cloud/w2-cms-L285 | | | | |
+| L285 comments | MERGED | cloud/w2-cms-L285 | 6ba3c5c5 | createCommentSubmitHandler cyc12/cog5→7/3 | 100/100/100 | eslint 0, tsc 0, 2 files 11/11 |
 
 ## Problems / notes
 - L258 bugs pinned (reported, not fixed): readListingBatch NaN `after` → next NaN; parseListingBatchPath accepts zero-padded cursor `/_more/1/012` → 12 (two URLs, one batch). Test count 12→32 (listing.test.ts unchanged). Unused-by-callers options (limitKey/fallback/isVisible) kept: public exports.
@@ -38,5 +38,7 @@
 
 - L193: tests 10→34. Commit messages carry wrong before/after numbers (contact-form says 6/4; gallery says 6->6, real 10→6) — not amended (no force-push). Quirk pinned: empty-string formDefinitionId still sent to findById before slug fallback. Kept: `_optional = {}` typed `{}` on createContactFormResolver (public sig).
 - L227: enqueueEvent (6 copies), findMenuOrThrow (3), assertMenuLive (2), assertSlugAvailable (2) extracted; 3 needless casts dropped. Tests 85→107. BUG pinned (reported, not fixed): non-string item id (e.g. 5) → validateAndCloneTree throws raw TypeError from .trim() → host 500 instead of 400.
+
+- L285: hashClientIp folded into buildIngressContext (comment moved); test git-mv'd to comments/express/__tests__/, refusals now pin exact messages; tests 3→11. BUG pinned: request without parsed body → 500 instead of 4xx.
 
 ## Next
