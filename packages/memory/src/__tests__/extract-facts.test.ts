@@ -19,7 +19,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 function anthropicConfig(overrides: Partial<LlmProviderConfig> = {}): LlmProviderConfig {
-  return { provider: 'anthropic', apiKey: 'sk-ant-test', model: 'claude-test', ...overrides };
+  return { provider: 'anthropic', apiKey: 'sk-ant-test', model: 'claude-test', baseUrl: 'https://api.anthropic.com', ...overrides };
 }
 
 /** Mocks a single Anthropic-shaped response whose text content is `JSON.stringify(payload)`. */

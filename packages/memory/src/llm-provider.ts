@@ -1,4 +1,3 @@
-import { VENDOR_API_BASE_URLS } from '@jini-ai/integrations/media-providers/catalog';
 /**
  * @module llm-provider
  *
@@ -30,8 +29,9 @@ import { VENDOR_API_BASE_URLS } from '@jini-ai/integrations/media-providers/cata
 export type LlmProviderId = 'anthropic' | 'openai' | 'azure' | 'google';
 
 /**
- * Required vendor, credential and model configuration. Transport and endpoint
- * overrides are supplied separately through {@link LlmProviderOptions}.
+ * Required vendor, credential, model and endpoint configuration. The host owns
+ * endpoint defaults (for example, from integrations' vendor catalog); this
+ * primitive only owns each vendor's wire format.
  */
 export interface LlmProviderConfig {
   /** Which vendor HTTP wire shape to speak. */
@@ -40,19 +40,19 @@ export interface LlmProviderConfig {
   apiKey: string;
   /** The model name (for `azure`, the deployment name) to request. This module has no default-model opinion; the caller always supplies one. */
   model: string;
+  /** Vendor API base URL, including any gateway prefix. Required for every provider; Azure uses the tenant's resource URL. */
+  baseUrl: string;
 }
 
-/** Optional transport, endpoint and timeout settings for one LLM call. */
+/** Optional transport and timeout settings for one LLM call. */
 export interface LlmProviderOptions {
   /** Injectable HTTP transport; uses the native fetch implementation when omitted. */
   fetchFn?: typeof fetch;
   /** Injectable deadline signal for deterministic transport tests. */
   timeoutSignal?: (required: { timeoutMs: number }) => AbortSignal;
   /**
-   * The vendor API host. Defaults to that vendor's public API host for
-   * `anthropic`/`openai`/`google`. `azure` has no public host — a tenant's
-   * own `https://<resource>.openai.azure.com` must always be supplied, or
-   * {@link callLlmProvider} throws before making a request.
+   * @deprecated Supply the endpoint in {@link LlmProviderConfig.baseUrl}.
+   * Retained for explicit-endpoint callers during migration; config wins.
    */
   baseUrl?: string;
   /** Azure API version query param. Only meaningful for `provider: 'azure'`; defaults to {@link AZURE_DEFAULT_API_VERSION} when omitted. Ignored by every other provider. */
@@ -86,12 +86,6 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
  */
 const ANTHROPIC_MAX_TOKENS = 1024;
 
-const DEFAULT_BASE_URLS: Record<Exclude<LlmProviderId, 'azure'>, string> = {
-  anthropic: VENDOR_API_BASE_URLS.anthropic,
-  openai: VENDOR_API_BASE_URLS.openai,
-  google: VENDOR_API_BASE_URLS.google,
-};
-
 interface ResolvedLlmCall {
   fetchFn: typeof fetch;
   timeoutSignal: (required: { timeoutMs: number }) => AbortSignal;
@@ -105,18 +99,11 @@ interface ResolvedLlmCall {
   timeoutMs: number;
 }
 
-function resolveBaseUrl(
-  { provider }: { provider: LlmProviderId },
-  { baseUrl: configuredBaseUrl }: { baseUrl?: string | undefined } = {},
-): string {
-  let baseUrl = (configuredBaseUrl ?? '').trim().replace(/\/+$/, '');
+/** Normalize the host's endpoint; reject missing configuration before any I/O. */
+function resolveBaseUrl({ provider, baseUrl: configuredBaseUrl }: { provider: LlmProviderId; baseUrl: string | undefined }): string {
+  const baseUrl = (configuredBaseUrl ?? '').trim().replace(/\/+$/, '');
   if (!baseUrl) {
-    if (provider === 'azure') {
-      throw new Error(
-        'llm-provider: baseUrl is required for the "azure" provider (no public default host exists — supply your resource\'s own https://<resource>.openai.azure.com)',
-      );
-    }
-    baseUrl = DEFAULT_BASE_URLS[provider];
+    throw new Error(`llm-provider: baseUrl is required for the "${provider}" provider (the host must supply an endpoint)`);
   }
 
   return baseUrl;
@@ -126,13 +113,13 @@ function resolveTimeout({ timeoutMs }: { timeoutMs: number | undefined }): numbe
   return typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
 }
 
-function resolveConfig(config: LlmProviderConfig & LlmProviderOptions): ResolvedLlmCall {
+function resolveConfig(config: Omit<LlmProviderConfig, 'baseUrl'> & LlmProviderOptions): ResolvedLlmCall {
   const apiKey = config.apiKey.trim();
   if (!apiKey) throw new Error('llm-provider: apiKey is required');
   const model = config.model.trim();
   if (!model) throw new Error('llm-provider: model is required');
 
-  const baseUrl = resolveBaseUrl({ provider: config.provider }, { baseUrl: config.baseUrl });
+  const baseUrl = resolveBaseUrl({ provider: config.provider, baseUrl: config.baseUrl });
 
   return {
     fetchFn: config.fetchFn ?? globalThis.fetch,
@@ -376,20 +363,33 @@ async function callGoogle(resolved: ResolvedLlmCall, system: string, user: strin
   return parts.map((p) => stringField(p, 'text')).join('');
 }
 
+interface LlmProviderInput {
+  config: LlmProviderConfig;
+  systemPrompt: string;
+  userPrompt: string;
+}
+
+type LegacyLlmProviderInput = Omit<LlmProviderInput, 'config'> & {
+  config: Omit<LlmProviderConfig, 'baseUrl'> & { baseUrl?: string };
+};
+
 /**
  * Call the given LLM vendor's HTTP API with a system+user prompt and
  * return the raw text the model produced. Throws on a network failure, a
  * non-2xx HTTP status, or a non-JSON response body — every vendor here
- * responds with a JSON envelope even for a text-generation call.
+ * responds with a JSON envelope even for a text-generation call. Missing or
+ * blank endpoints throw before transport or deadline ports are invoked.
  *
- * @param config - Which vendor to call and its credentials/model/host.
- * @param systemPrompt - The system/instructions prompt.
- * @param userPrompt - The user-turn prompt.
+ * @param required - Vendor credentials/model/endpoint and system/user prompts.
+ * @param optional - Injectable transport/deadline ports and request settings.
  * @returns The model's raw text output (untouched — see
  *   {@link callLlmProviderForJson} to also parse it as JSON).
  */
+export function callLlmProvider(required: LlmProviderInput, optional?: LlmProviderOptions): Promise<string>;
+/** @deprecated Move the explicit options.baseUrl into config.baseUrl. */
+export function callLlmProvider(required: LegacyLlmProviderInput, optional: LlmProviderOptions & { baseUrl: string }): Promise<string>;
 export async function callLlmProvider(
-  { config, systemPrompt, userPrompt }: { config: LlmProviderConfig; systemPrompt: string; userPrompt: string },
+  { config, systemPrompt, userPrompt }: LegacyLlmProviderInput,
   optional: LlmProviderOptions = {},
 ): Promise<string> {
   const resolved = resolveConfig({ ...optional, ...config });
@@ -465,15 +465,19 @@ export function parseStrictJson<T = unknown>({ rawText }: { rawText: string }): 
  * the result in one call — the common case for a caller that just wants
  * structured JSON back and will validate its own shape.
  *
- * @param config - Which vendor to call and its credentials/model/host.
- * @param systemPrompt - The system/instructions prompt.
- * @param userPrompt - The user-turn prompt.
+ * @param required - Vendor credentials/model/endpoint and system/user prompts.
+ * @param optional - Injectable transport/deadline ports and request settings.
  * @returns The model's output parsed as JSON, typed as `T` (unchecked).
+ * @throws The errors from {@link callLlmProvider} or {@link parseStrictJson}.
  */
+export function callLlmProviderForJson<T = unknown>(required: LlmProviderInput, optional?: LlmProviderOptions): Promise<T>;
+/** @deprecated Move the explicit options.baseUrl into config.baseUrl. */
+export function callLlmProviderForJson<T = unknown>(required: LegacyLlmProviderInput, optional: LlmProviderOptions & { baseUrl: string }): Promise<T>;
 export async function callLlmProviderForJson<T = unknown>(
-  required: { config: LlmProviderConfig; systemPrompt: string; userPrompt: string },
+  required: LegacyLlmProviderInput,
   optional: LlmProviderOptions = {},
 ): Promise<T> {
-  const raw = await callLlmProvider(required, optional);
+  const config = { ...required.config, baseUrl: required.config.baseUrl ?? optional.baseUrl ?? '' };
+  const raw = await callLlmProvider({ ...required, config }, optional);
   return parseStrictJson<T>({ rawText: raw });
 }

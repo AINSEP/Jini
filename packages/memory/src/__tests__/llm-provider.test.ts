@@ -22,20 +22,20 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 function anthropicConfig(overrides: Partial<LlmProviderConfig> & LlmProviderOptions = {}): { config: LlmProviderConfig; options: LlmProviderOptions } {
-  const { provider, apiKey, model, ...options } = { provider: 'anthropic', apiKey: 'sk-ant-test', model: 'claude-test', ...overrides };
-  return { config: { provider: provider as LlmProviderConfig['provider'], apiKey, model }, options };
+  const { provider, apiKey, model, baseUrl, ...options } = { provider: 'anthropic', apiKey: 'sk-ant-test', model: 'claude-test', baseUrl: 'https://api.anthropic.com', ...overrides };
+  return { config: { provider: provider as LlmProviderConfig['provider'], apiKey, model, baseUrl }, options };
 }
 function openaiConfig(overrides: Partial<LlmProviderConfig> & LlmProviderOptions = {}): { config: LlmProviderConfig; options: LlmProviderOptions } {
-  const { provider, apiKey, model, ...options } = { provider: 'openai', apiKey: 'sk-openai-test', model: 'gpt-test', ...overrides };
-  return { config: { provider: provider as LlmProviderConfig['provider'], apiKey, model }, options };
+  const { provider, apiKey, model, baseUrl, ...options } = { provider: 'openai', apiKey: 'sk-openai-test', model: 'gpt-test', baseUrl: 'https://api.openai.com/v1', ...overrides };
+  return { config: { provider: provider as LlmProviderConfig['provider'], apiKey, model, baseUrl }, options };
 }
 function azureConfig(overrides: Partial<LlmProviderConfig> & LlmProviderOptions = {}): { config: LlmProviderConfig; options: LlmProviderOptions } {
-  const { provider, apiKey, model, ...options } = { provider: 'azure', apiKey: 'azure-key', model: 'my-deployment', baseUrl: 'https://my-resource.openai.azure.com', ...overrides };
-  return { config: { provider: provider as LlmProviderConfig['provider'], apiKey, model }, options };
+  const { provider, apiKey, model, baseUrl, ...options } = { provider: 'azure', apiKey: 'azure-key', model: 'my-deployment', baseUrl: 'https://my-resource.openai.azure.com', ...overrides };
+  return { config: { provider: provider as LlmProviderConfig['provider'], apiKey, model, baseUrl }, options };
 }
 function googleConfig(overrides: Partial<LlmProviderConfig> & LlmProviderOptions = {}): { config: LlmProviderConfig; options: LlmProviderOptions } {
-  const { provider, apiKey, model, ...options } = { provider: 'google', apiKey: 'google-key', model: 'gemini-test', ...overrides };
-  return { config: { provider: provider as LlmProviderConfig['provider'], apiKey, model }, options };
+  const { provider, apiKey, model, baseUrl, ...options } = { provider: 'google', apiKey: 'google-key', model: 'gemini-test', baseUrl: 'https://generativelanguage.googleapis.com', ...overrides };
+  return { config: { provider: provider as LlmProviderConfig['provider'], apiKey, model, baseUrl }, options };
 }
 
 describe('appendVersionedApiPath', () => {
@@ -171,6 +171,42 @@ describe('parseStrictJson', () => {
 });
 
 describe('callLlmProvider — config validation', () => {
+  it.each(['anthropic', 'openai', 'azure', 'google'] as const)(
+    'rejects missing or blank %s endpoints before invoking transport or deadlines', async provider => {
+      const fetchFn = vi.fn<typeof fetch>(async () => jsonResponse({}));
+      const timeoutSignal = vi.fn(() => new AbortController().signal);
+      for (const baseUrl of [undefined, '', '   ', ' /// ']) {
+        // Exercise invalid JavaScript input as well as explicitly blank configuration.
+        const config = { provider, apiKey: 'key', model: 'model', baseUrl } as unknown as LlmProviderConfig;
+        await expect(callLlmProvider({ config, systemPrompt: 's', userPrompt: 'u' }, { fetchFn, timeoutSignal }))
+          .rejects.toThrow(`baseUrl is required for the "${provider}" provider`);
+      }
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(timeoutSignal).not.toHaveBeenCalled();
+    },
+  );
+
+  it('uses the required config endpoint ahead of the deprecated option without mutating either input', async () => {
+    const config = Object.freeze({ provider: 'openai' as const, apiKey: 'key', model: 'model', baseUrl: ' https://config.example/v1/// ' });
+    const fetchFn = vi.fn<typeof fetch>(async () => jsonResponse({ choices: [{ message: { content: 'ok' } }] }));
+    const options = Object.freeze({ fetchFn, baseUrl: 'https://option.example/v1' });
+    expect(await callLlmProvider({ config, systemPrompt: 's', userPrompt: 'u' }, options)).toBe('ok');
+    expect(fetchFn.mock.calls[0]?.[0]).toBe('https://config.example/v1/chat/completions');
+    expect(config.baseUrl).toBe(' https://config.example/v1/// ');
+    expect(options.baseUrl).toBe('https://option.example/v1');
+  });
+
+  it.each([
+    { name: 'text', call: callLlmProvider },
+    { name: 'JSON', call: callLlmProviderForJson },
+  ])('does not replace a blank config endpoint with the deprecated option for $name calls', async ({ call }) => {
+    const fetchFn = vi.fn<typeof fetch>(async () => jsonResponse({}));
+    await expect(call({ config: openaiConfig({ baseUrl: ' ' }).config, systemPrompt: 's', userPrompt: 'u' }, {
+      baseUrl: 'https://option.example/v1', fetchFn,
+    })).rejects.toThrow('baseUrl is required');
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   it('throws when apiKey is empty (including whitespace-only)', async () => {
     await expect(callLlmProvider({ config: anthropicConfig({ apiKey: '   ' }).config, systemPrompt: 's', userPrompt: 'u' }, anthropicConfig({ apiKey: '   ' }).options)).rejects.toThrow(/apiKey is required/);
   });
@@ -180,7 +216,7 @@ describe('callLlmProvider — config validation', () => {
   });
 
   it('throws when the azure provider has no baseUrl', async () => {
-    await expect(callLlmProvider({ config: { provider: 'azure', apiKey: 'k', model: 'deployment' }, systemPrompt: 's', userPrompt: 'u' }, {})).rejects.toThrow(
+    await expect(callLlmProvider({ config: { provider: 'azure', apiKey: 'k', model: 'deployment', baseUrl: '' }, systemPrompt: 's', userPrompt: 'u' }, {})).rejects.toThrow(
       /baseUrl is required for the "azure" provider/,
     );
   });
@@ -192,7 +228,7 @@ describe('callLlmProvider — config validation', () => {
 });
 
 describe('callLlmProvider — anthropic', () => {
-  it('posts to the default host with the correct headers and body, and extracts the text block', async () => {
+  it('posts to the configured Anthropic host with the correct headers and body, and extracts the text block', async () => {
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
       expect(url).toBe('https://api.anthropic.com/v1/messages');
       expect(init.method).toBe('POST');
@@ -311,7 +347,7 @@ describe('callLlmProvider — anthropic', () => {
 });
 
 describe('callLlmProvider — openai', () => {
-  it('posts to the default host and extracts choices[0].message.content', async () => {
+  it('posts to the configured OpenAI host and extracts choices[0].message.content', async () => {
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
       expect(url).toBe('https://api.openai.com/v1/chat/completions');
       const headers = init.headers as Record<string, string>;
@@ -370,7 +406,7 @@ describe('callLlmProvider — azure', () => {
 });
 
 describe('callLlmProvider — google', () => {
-  it('posts to the default host with the key as a query param and joins response parts', async () => {
+  it('posts to the configured Google host with the key as a query param and joins response parts', async () => {
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
       expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent?key=google-key');
       const body = JSON.parse(init.body as string);
@@ -402,6 +438,15 @@ describe('callLlmProvider — google', () => {
 });
 
 describe('callLlmProviderForJson', () => {
+  it('accepts an explicit config endpoint with the optional object omitted', async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => jsonResponse({ content: [{ type: 'text', text: '{"ok":true}' }] }));
+    vi.stubGlobal('fetch', fetchFn);
+    expect(await callLlmProviderForJson<{ ok: boolean }>({
+      config: anthropicConfig({ baseUrl: 'https://host.example/v1' }).config, systemPrompt: 's', userPrompt: 'u',
+    })).toEqual({ ok: true });
+    expect(fetchFn.mock.calls[0]?.[0]).toBe('https://host.example/v1/messages');
+  });
+
   it('parses the raw model text as JSON', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ content: [{ type: 'text', text: '{"ok":true}' }] })));
     const result = await callLlmProviderForJson<{ ok: boolean }>({ config: anthropicConfig().config, systemPrompt: 's', userPrompt: 'u' }, anthropicConfig().options);

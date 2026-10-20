@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { callLlmProvider, DEFAULT_TIMEOUT_MS, describeFetchError, type LlmProviderConfig, type LlmProviderOptions } from '../llm-provider.js';
 
-const config: LlmProviderConfig = { provider: 'openai', apiKey: ' key ', model: ' model ' };
+const config: LlmProviderConfig = { provider: 'openai', apiKey: ' key ', model: ' model ', baseUrl: 'https://api.openai.com/v1' };
 
 function transport(_required: Record<string, never>) {
   const signal = new AbortController().signal;
@@ -14,7 +14,7 @@ describe('llm-provider L088 characterization', () => {
   it.each([
     [{ apiKey: ' ', model: ' ' }, 'llm-provider: apiKey is required'],
     [{ apiKey: 'key', model: ' ' }, 'llm-provider: model is required'],
-    [{ provider: 'azure' as const }, 'llm-provider: baseUrl is required for the "azure" provider'],
+    [{ provider: 'azure' as const, baseUrl: '' }, 'llm-provider: baseUrl is required for the "azure" provider'],
   ] as const)('validates credentials/model before transport: %j', async (overrides, error) => {
     const f = transport({});
     await expect(callLlmProvider({ config: { ...config, ...overrides }, systemPrompt: '', userPrompt: '' }, f)).rejects.toThrow(error);
@@ -22,13 +22,12 @@ describe('llm-provider L088 characterization', () => {
     expect(f.timeoutSignal).not.toHaveBeenCalled();
   });
 
-  it.each(['anthropic', 'openai', 'google'] as const)('uses the public default for %s with a blank endpoint', async (provider) => {
+  it.each(['anthropic', 'openai', 'google'] as const)('rejects a blank %s endpoint instead of selecting a public host', async (provider) => {
     const f = transport({});
-    await callLlmProvider({ config: { ...config, provider }, systemPrompt: '', userPrompt: '' }, { ...f, baseUrl: ' /// ' });
-    const url = String(f.fetchFn.mock.calls[0]![0]);
-    const hosts = { anthropic: 'api.anthropic.com', openai: 'api.openai.com', google: 'generativelanguage.googleapis.com' };
-    expect(new URL(url).hostname).toBe(hosts[provider]);
-    expect(f.timeoutSignal).toHaveBeenCalledWith({ timeoutMs: DEFAULT_TIMEOUT_MS });
+    await expect(callLlmProvider({ config: { ...config, provider, baseUrl: ' /// ' }, systemPrompt: '', userPrompt: '' }, f))
+      .rejects.toThrow(`baseUrl is required for the "${provider}" provider`);
+    expect(f.fetchFn).not.toHaveBeenCalled();
+    expect(f.timeoutSignal).not.toHaveBeenCalled();
   });
 
   it.each([undefined, 0, -1, NaN, Infinity, 1.5])('keeps timeout fallback versus positive finite values: %s', async (timeoutMs) => {
@@ -40,11 +39,11 @@ describe('llm-provider L088 characterization', () => {
   it('normalizes a custom Azure endpoint, credentials, deployment and API version, retaining transport overrides', async () => {
     const f = transport({});
     const options: LlmProviderOptions = {
-      ...f, baseUrl: ' https://tenant.example/// ', apiVersion: ' custom ', timeoutMs: 12,
+      ...f, apiVersion: ' custom ', timeoutMs: 12,
       extraHeaders: { 'api-key': 'wrong', 'x-extra': 'yes' },
       requestInit: { method: 'DELETE', body: 'wrong', headers: { wrong: 'yes' }, cache: 'no-store' },
     };
-    await callLlmProvider({ config: { ...config, provider: 'azure' }, systemPrompt: 'system', userPrompt: 'user' }, options);
+    await callLlmProvider({ config: { ...config, provider: 'azure', baseUrl: ' https://tenant.example/// ' }, systemPrompt: 'system', userPrompt: 'user' }, options);
     const [url, init] = f.fetchFn.mock.calls[0]!;
     expect(url).toBe('https://tenant.example/openai/deployments/model/chat/completions?api-version=custom');
     expect(init).toEqual({ method: 'POST', body: JSON.stringify({ response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'system' }, { role: 'user', content: 'user' }] }), headers: { 'api-key': 'key', 'x-extra': 'yes', 'content-type': 'application/json' }, cache: 'no-store', signal: f.signal });

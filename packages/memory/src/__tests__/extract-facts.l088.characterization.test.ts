@@ -3,7 +3,7 @@ import { extractFacts } from '../extract-facts.js';
 import { createExtractionLog } from '../extraction-log.js';
 import type { LlmProviderConfig } from '../llm-provider.js';
 
-const llmConfig: LlmProviderConfig = { provider: 'openai', apiKey: 'key', model: 'model' };
+const llmConfig: LlmProviderConfig = { provider: 'openai', apiKey: 'key', model: 'model', baseUrl: 'https://api.openai.com/v1' };
 
 function fixture({ raw, error }: { raw?: string; error?: Error }) {
   const log = createExtractionLog({}, { ids: () => '', now: () => 42, defer: ({ callback }) => callback() });

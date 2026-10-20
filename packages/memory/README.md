@@ -77,16 +77,25 @@ grow it without limit.
 ## Argument convention (2026-10-01)
 
 The converted APIs accept a required object and a separate optional settings object.
-For example, callLlmProvider({ config: { provider, apiKey, model }, systemPrompt, userPrompt },
-{ fetchFn, baseUrl, timeoutMs }). Logs are created with createExtractionLog({}, { now, ids, defer })
+For example, callLlmProvider({ config: { provider, apiKey, model, baseUrl }, systemPrompt, userPrompt },
+{ fetchFn, timeoutMs }). Logs are created with createExtractionLog({}, { now, ids, defer })
 or createVerifyLog({}, { now, ids, defer }). See API-CONVERSION.md for the complete inventory.
 The note-store and frontmatter conversion is deferred because its source file was already
 modified by another job; those examples below retain the existing note-store shape.
+
+Every LLM provider requires an explicit `config.baseUrl`; memory has no vendor endpoint defaults
+and does not depend on integrations. Host composition may supply defaults from
+`@jini-ai/integrations/media-providers/catalog` or its own configuration. Explicit
+`options.baseUrl` calls remain supported through a deprecated overload; `config.baseUrl` wins
+when both are present. Missing or blank endpoints fail before making a request. This also
+applies to `extractFacts`'s `llmConfig`.
 
 ## Usage
 
 ```ts
 import { createNoteStore, enforceVerify, extractFacts, factToNoteDraft } from '@jini-ai/memory';
+// This catalog dependency belongs to the host, not memory.
+import { VENDOR_API_BASE_URLS } from '@jini-ai/integrations/media-providers/catalog';
 
 const store = createNoteStore({
   validTypes: ['preference', 'fact', 'decision'],
@@ -111,7 +120,7 @@ store.events.on('change', (e) => console.log(e.kind, e.id));
 
 // Pull candidate notes out of a transcript, then persist the ones you want.
 const result = await extractFacts(
-  { llmConfig: { provider: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-4o-mini' }, content: 'We decided to freeze merges after Thursday.' },
+  { llmConfig: { provider: 'openai', apiKey: process.env.OPENAI_API_KEY!, model: 'gpt-4o-mini', baseUrl: VENDOR_API_BASE_URLS.openai }, content: 'We decided to freeze merges after Thursday.' },
   { sourceLabel: 'standup 2026-07-29', prompt: { suggestedCategories: ['decision', 'preference'], maxFacts: 5 } },
 );
 for (const fact of result.facts) {
