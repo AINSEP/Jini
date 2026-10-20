@@ -1532,3 +1532,13 @@ describe('model-proxy pins — catch-block fallbacks once headers are already co
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('model-proxy pins — azure required fields', () => {
+  it.each(['fixed', 'catch-all'] as const)('forwards the caller-supplied apiVersion into the deployment URL (%s route)', async (shape) => {
+    injectedFetch.mockResolvedValue(okResponse(sseBody(azureChunk('ok'))));
+    const body = { ...validAzureBody, apiVersion: '2025-01-01-preview' };
+    if (shape === 'fixed') await callFixed('azure', body);
+    else await callCatchAll('azure', body);
+    expect(injectedFetch.mock.calls[0]![0].url).toBe('http://127.0.0.1:8443/openai/deployments/my-deployment/chat/completions?api-version=2025-01-01-preview');
+  });
+});

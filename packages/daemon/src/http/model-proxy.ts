@@ -122,13 +122,24 @@ import {
   type DnsLookupFn,
   type PinnedFetch,
 } from '@jini-ai/agent-runtime';
-import { createApiError } from '@jini-ai/protocol';
+import { createApiError, type ApiError } from '@jini-ai/protocol';
 import type { AdapterContext } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
 import { sendApiError } from '@jini-ai/http-kit';
 import { guardSameOrigin } from '@jini-ai/http-kit';
 import { createSseChannel, type SseChannel, type SseEvent } from '@jini-ai/http-kit';
 import { err, ok, type Result } from '@jini-ai/http-kit';
+import {
+  firstOptionalFieldError,
+  isArray,
+  isNumber,
+  isRecord,
+  isString,
+  nonEmptyString,
+  pickDefined,
+  requiredFieldError,
+  type OptionalFieldCheck,
+} from './model-proxy-fields.js';
 
 /** The union of every recognized provider's `run{Provider}ToolTurn` event type — what the `/api/proxy/:provider/stream` catch-all's registry (and, transitively, every fixed-path route) can emit. */
 type AnyProxyTurnEvent = AnthropicTurnEvent | OpenAiTurnEvent | AzureTurnEvent | GoogleTurnEvent | OllamaTurnEvent;
@@ -179,13 +190,17 @@ export interface ModelProxyHttpDeps {
   readonly dnsLookup?: DnsLookupFn;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+const TOOLS_CHECK: OptionalFieldCheck = ['tools', isArray, 'tools must be an array when provided'];
+const SYSTEM_CHECK: OptionalFieldCheck = ['system', isString, 'system must be a string when provided'];
 
-function nonEmptyString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value : null;
-}
+/** The shared optional fields, in the order `parseCommon` reports them. */
+const COMMON_OPTIONAL_CHECKS: readonly OptionalFieldCheck[] = [
+  ['baseUrl', isString, 'baseUrl must be a string when provided'],
+  ['temperature', isNumber, 'temperature must be a number when provided'],
+  ['maxTokens', isNumber, 'maxTokens must be a number when provided'],
+  ['maxToolTurns', isNumber, 'maxToolTurns must be a number when provided'],
+  ['extraHeaders', isRecord, 'extraHeaders must be an object when provided'],
+];
 
 interface ParsedProxyCommon {
   readonly apiKey: string;
@@ -197,6 +212,16 @@ interface ParsedProxyCommon {
   readonly maxTokens?: number;
   readonly maxToolTurns?: number;
   readonly extraHeaders?: Record<string, string>;
+}
+
+/** The required shared fields, in the order `parseCommon` reports them. */
+function firstRequiredFieldError(body: Record<string, unknown>): ApiError | undefined {
+  if (!nonEmptyString(body.apiKey)) return requiredFieldError('apiKey', 'apiKey must be a non-empty string', 'required non-empty string');
+  if (!nonEmptyString(body.model)) return requiredFieldError('model', 'model must be a non-empty string', 'required non-empty string');
+  if (!Array.isArray(body.messages) || body.messages.length === 0) {
+    return requiredFieldError('messages', 'messages must be a non-empty array', 'required non-empty array');
+  }
+  return undefined;
 }
 
 /**
@@ -222,46 +247,27 @@ interface ParsedProxyCommon {
  */
 function parseCommon(body: unknown): Result<ParsedProxyCommon> {
   if (!isRecord(body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-
-  const apiKey = nonEmptyString(body.apiKey);
-  if (!apiKey) {
-    return err({ error: validationError({ message: 'apiKey must be a non-empty string' }, { issues: [{ path: 'apiKey', message: 'required non-empty string' }] }) });
-  }
-  const model = nonEmptyString(body.model);
-  if (!model) {
-    return err({ error: validationError({ message: 'model must be a non-empty string' }, { issues: [{ path: 'model', message: 'required non-empty string' }] }) });
-  }
-  if (!Array.isArray(body.messages) || body.messages.length === 0) {
-    return err({ error: validationError({ message: 'messages must be a non-empty array' }, { issues: [{ path: 'messages', message: 'required non-empty array' }] }) });
-  }
-  if (body.baseUrl !== undefined && typeof body.baseUrl !== 'string') {
-    return err({ error: validationError({ message: 'baseUrl must be a string when provided' }) });
-  }
-  if (body.temperature !== undefined && typeof body.temperature !== 'number') {
-    return err({ error: validationError({ message: 'temperature must be a number when provided' }) });
-  }
-  if (body.maxTokens !== undefined && typeof body.maxTokens !== 'number') {
-    return err({ error: validationError({ message: 'maxTokens must be a number when provided' }) });
-  }
-  if (body.maxToolTurns !== undefined && typeof body.maxToolTurns !== 'number') {
-    return err({ error: validationError({ message: 'maxToolTurns must be a number when provided' }) });
-  }
-  if (body.extraHeaders !== undefined && !isRecord(body.extraHeaders)) {
-    return err({ error: validationError({ message: 'extraHeaders must be an object when provided' }) });
-  }
-
+  const error = firstRequiredFieldError(body) ?? firstOptionalFieldError(body, COMMON_OPTIONAL_CHECKS);
+  if (error) return err({ error });
   return ok({
     value: {
-      apiKey,
-      model,
-      messages: body.messages,
-      ...(body.baseUrl !== undefined ? { baseUrl: body.baseUrl as string } : {}),
-      ...(body.temperature !== undefined ? { temperature: body.temperature as number } : {}),
-      ...(body.maxTokens !== undefined ? { maxTokens: body.maxTokens as number } : {}),
-      ...(body.maxToolTurns !== undefined ? { maxToolTurns: body.maxToolTurns as number } : {}),
-      ...(body.extraHeaders !== undefined ? { extraHeaders: body.extraHeaders as Record<string, string> } : {}),
-    }
+      apiKey: body.apiKey as string,
+      model: body.model as string,
+      messages: body.messages as unknown[],
+      ...(pickDefined(body, COMMON_OPTIONAL_CHECKS.map(([field]) => field)) as Partial<ParsedProxyCommon>),
+    },
   });
+}
+
+/** Shared tail of every provider parser: rejects the first badly-typed provider-specific optional field, otherwise returns `base` plus `required` plus whichever of those optional fields are present. */
+function extendParsed<Parsed extends ParsedProxyCommon>(
+  { base, record, checks }: { readonly base: ParsedProxyCommon; readonly record: Record<string, unknown>; readonly checks: readonly OptionalFieldCheck[] },
+  { required = {} }: { readonly required?: Partial<Parsed> } = {},
+): Result<Parsed> {
+  const error = firstOptionalFieldError(record, checks);
+  if (error) return err({ error });
+  const optional = pickDefined(record, checks.map(([field]) => field)) as Partial<Parsed>;
+  return ok({ value: { ...base, ...required, ...optional } as Parsed });
 }
 
 interface ParsedAnthropicProxyRequest extends ParsedProxyCommon {
@@ -271,54 +277,45 @@ interface ParsedAnthropicProxyRequest extends ParsedProxyCommon {
   readonly maxTokens: number;
 }
 
+const ANTHROPIC_OPTIONAL_CHECKS: readonly OptionalFieldCheck[] = [
+  ['apiVersion', isString, 'apiVersion must be a string when provided'],
+  SYSTEM_CHECK,
+  TOOLS_CHECK,
+];
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
 function parseAnthropicProxyRequest(body: unknown): Result<ParsedAnthropicProxyRequest> {
   const common = parseCommon(body);
   if (!common.ok) return common;
   const record = body as Record<string, unknown>;
-
-  if (typeof record.maxTokens !== 'number' || !Number.isFinite(record.maxTokens) || record.maxTokens <= 0) {
-    return err({ error: validationError({ message: 'maxTokens must be a positive number' }, { issues: [{ path: 'maxTokens', message: 'required positive number' }] }) });
+  if (!isPositiveFiniteNumber(record.maxTokens)) {
+    return err({ error: requiredFieldError('maxTokens', 'maxTokens must be a positive number', 'required positive number') });
   }
-  if (record.apiVersion !== undefined && typeof record.apiVersion !== 'string') {
-    return err({ error: validationError({ message: 'apiVersion must be a string when provided' }) });
-  }
-  if (record.system !== undefined && typeof record.system !== 'string') {
-    return err({ error: validationError({ message: 'system must be a string when provided' }) });
-  }
-  if (record.tools !== undefined && !Array.isArray(record.tools)) {
-    return err({ error: validationError({ message: 'tools must be an array when provided' }) });
-  }
-
-  return ok({
-    value: {
-      ...common.value,
-      maxTokens: record.maxTokens,
-      ...(record.apiVersion !== undefined ? { apiVersion: record.apiVersion as string } : {}),
-      ...(record.system !== undefined ? { system: record.system as string } : {}),
-      ...(record.tools !== undefined ? { tools: record.tools as unknown[] } : {}),
-    }
-  });
+  return extendParsed<ParsedAnthropicProxyRequest>({ base: common.value, record, checks: ANTHROPIC_OPTIONAL_CHECKS }, { required: { maxTokens: record.maxTokens } });
 }
 
-interface ParsedOpenAiProxyRequest extends ParsedProxyCommon {
+/**
+ * OpenAI and Ollama accept the identical request shape: the shared fields plus optional `tools`.
+ *
+ * Ollama is built on `parseCommon` like every other provider — `apiKey` is required, matching Open
+ * Design's real `/api/proxy/ollama/stream` handler (`apps/daemon/src/routes/chat.ts:1298`'s
+ * `if (!apiKey || !model)`), confirmed by a live side-by-side comparison against a running OD
+ * daemon. An earlier version of this function made `apiKey` optional for a "local Ollama needs no
+ * auth" rationale that turned out not to match OD's actual behavior — OD's default target is
+ * Ollama Cloud (`https://ollama.com`), which does require a key; see `ollama-chat.ts`'s module doc
+ * for the full corrected design.
+ */
+interface ParsedToolsProxyRequest extends ParsedProxyCommon {
   readonly tools?: unknown[];
 }
 
-function parseOpenAiProxyRequest(body: unknown): Result<ParsedOpenAiProxyRequest> {
+function parseToolsProxyRequest(body: unknown): Result<ParsedToolsProxyRequest> {
   const common = parseCommon(body);
   if (!common.ok) return common;
-  const record = body as Record<string, unknown>;
-
-  if (record.tools !== undefined && !Array.isArray(record.tools)) {
-    return err({ error: validationError({ message: 'tools must be an array when provided' }) });
-  }
-
-  return ok({
-    value: {
-      ...common.value,
-      ...(record.tools !== undefined ? { tools: record.tools as unknown[] } : {}),
-    }
-  });
+  return extendParsed<ParsedToolsProxyRequest>({ base: common.value, record: body as Record<string, unknown>, checks: [TOOLS_CHECK] });
 }
 
 interface ParsedAzureProxyRequest extends ParsedProxyCommon {
@@ -333,25 +330,17 @@ function parseAzureProxyRequest(body: unknown): Result<ParsedAzureProxyRequest> 
   const common = parseCommon(body);
   if (!common.ok) return common;
   const record = body as Record<string, unknown>;
-
-  if (!common.value.baseUrl) {
-    return err({ error: validationError({ message: 'baseUrl must be a non-empty string' }, { issues: [{ path: 'baseUrl', message: 'required non-empty string' }] }) });
+  const { baseUrl } = common.value;
+  // Truthiness only, unlike `apiVersion`'s trim check: a whitespace-only baseUrl passes here and
+  // fails inside the turn-runner instead (pinned as "reported, not fixed").
+  if (!baseUrl) {
+    return err({ error: requiredFieldError('baseUrl', 'baseUrl must be a non-empty string', 'required non-empty string') });
   }
-  if (typeof record.apiVersion !== 'string' || record.apiVersion.trim().length === 0) {
-    return err({ error: validationError({ message: 'apiVersion must be a non-empty string' }, { issues: [{ path: 'apiVersion', message: 'required non-empty string' }] }) });
+  const apiVersion = nonEmptyString(record.apiVersion);
+  if (!apiVersion) {
+    return err({ error: requiredFieldError('apiVersion', 'apiVersion must be a non-empty string', 'required non-empty string') });
   }
-  if (record.tools !== undefined && !Array.isArray(record.tools)) {
-    return err({ error: validationError({ message: 'tools must be an array when provided' }) });
-  }
-
-  return ok({
-    value: {
-      ...common.value,
-      baseUrl: common.value.baseUrl,
-      apiVersion: record.apiVersion,
-      ...(record.tools !== undefined ? { tools: record.tools as unknown[] } : {}),
-    }
-  });
+  return extendParsed<ParsedAzureProxyRequest>({ base: common.value, record, checks: [TOOLS_CHECK] }, { required: { baseUrl, apiVersion } });
 }
 
 interface ParsedGoogleProxyRequest extends ParsedProxyCommon {
@@ -360,60 +349,17 @@ interface ParsedGoogleProxyRequest extends ParsedProxyCommon {
   readonly maxOutputTokens?: number;
 }
 
+const GOOGLE_OPTIONAL_CHECKS: readonly OptionalFieldCheck[] = [
+  SYSTEM_CHECK,
+  TOOLS_CHECK,
+  ['maxOutputTokens', isNumber, 'maxOutputTokens must be a number when provided'],
+];
+
 /** `parsed.messages` carries Gemini's own `contents: [{role, parts}]` shape at the call site below (cast, same convention as `parsed.messages as unknown as readonly AnthropicMessageParam[]`) — the HTTP JSON body schema stays uniform across all five providers; only each turn-runner's own field name differs. */
 function parseGoogleProxyRequest(body: unknown): Result<ParsedGoogleProxyRequest> {
   const common = parseCommon(body);
   if (!common.ok) return common;
-  const record = body as Record<string, unknown>;
-
-  if (record.system !== undefined && typeof record.system !== 'string') {
-    return err({ error: validationError({ message: 'system must be a string when provided' }) });
-  }
-  if (record.tools !== undefined && !Array.isArray(record.tools)) {
-    return err({ error: validationError({ message: 'tools must be an array when provided' }) });
-  }
-  if (record.maxOutputTokens !== undefined && typeof record.maxOutputTokens !== 'number') {
-    return err({ error: validationError({ message: 'maxOutputTokens must be a number when provided' }) });
-  }
-
-  return ok({
-    value: {
-      ...common.value,
-      ...(record.system !== undefined ? { system: record.system as string } : {}),
-      ...(record.tools !== undefined ? { tools: record.tools as unknown[] } : {}),
-      ...(record.maxOutputTokens !== undefined ? { maxOutputTokens: record.maxOutputTokens as number } : {}),
-    }
-  });
-}
-
-/**
- * Now built on `parseCommon` like every other provider — `apiKey` is required, matching Open
- * Design's real `/api/proxy/ollama/stream` handler (`apps/daemon/src/routes/chat.ts:1298`'s
- * `if (!apiKey || !model)`), confirmed by a live side-by-side comparison against a running OD
- * daemon. An earlier version of this function made `apiKey` optional for a "local Ollama needs no
- * auth" rationale that turned out not to match OD's actual behavior — OD's default target is
- * Ollama Cloud (`https://ollama.com`), which does require a key; see `ollama-chat.ts`'s module doc
- * for the full corrected design.
- */
-interface ParsedOllamaProxyRequest extends ParsedProxyCommon {
-  readonly tools?: unknown[];
-}
-
-function parseOllamaProxyRequest(body: unknown): Result<ParsedOllamaProxyRequest> {
-  const common = parseCommon(body);
-  if (!common.ok) return common;
-  const record = body as Record<string, unknown>;
-
-  if (record.tools !== undefined && !Array.isArray(record.tools)) {
-    return err({ error: validationError({ message: 'tools must be an array when provided' }) });
-  }
-
-  return ok({
-    value: {
-      ...common.value,
-      ...(record.tools !== undefined ? { tools: record.tools as unknown[] } : {}),
-    }
-  });
+  return extendParsed<ParsedGoogleProxyRequest>({ base: common.value, record: body as Record<string, unknown>, checks: GOOGLE_OPTIONAL_CHECKS });
 }
 
 interface ModelProxyStreamEvent extends SseEvent {
@@ -425,25 +371,40 @@ function toStreamEvent(seq: number, event: AnyProxyTurnEvent): ModelProxyStreamE
   return { opaqueCursor: String(seq), kind: event.type, data: event };
 }
 
+/** Answers a failure that happened before any SSE stream existed: a redacted JSON 500 if nothing was sent yet, otherwise just end the response (matching `mountJsonRoute`'s own SEC-005 catch). */
+function respondInternalError(res: Response, correlationId: string): void {
+  if (!res.headersSent) {
+    sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+  } else if (!res.writableEnded) {
+    res.end();
+  }
+}
+
+type ProxyProvider = ModelProxyInternalErrorContext['provider'];
+type InternalErrorSink = (context: ModelProxyInternalErrorContext) => void;
+
+/** Type-erased registry entry: one provider's request parser plus its turn-runner call. See {@link buildProxyProviderRegistry}. */
+interface ProxyProviderRegistryEntry {
+  readonly parse: (body: unknown) => Result<unknown>;
+  readonly run: (parsed: unknown, onEvent: (event: { type: string }) => void) => Promise<unknown>;
+}
+
 /**
  * The actual request handler body, shared by every fixed-path route and the `:provider`
  * catch-all: same-origin guard, request parsing, SSE channel lifecycle, and the SEC-005 catch-all
  * for a turn-runner promise that rejects outright (see module doc). Provider-specific pieces
- * (`provider`, `parse`, `run`) are injected — extracted into its own function (rather than living
- * inline inside `registerProxyStreamRoute`'s `app.post` callback, as it did before this pass) so
- * the generic catch-all route below can invoke the identical logic with a `provider` value read
- * from `req.params` instead of a fixed string, without duplicating the SSE-wiring/error-handling
- * code a second time.
+ * (`provider`, `entry.parse`, `entry.run`) are injected, so the generic catch-all route below can
+ * invoke the identical logic with a `provider` value read from `req.params` instead of a fixed
+ * string, without duplicating the SSE-wiring/error-handling code a second time.
  */
-async function runProxyStream<ParsedRequest, TurnEvent extends { type: string }>(
-  req: Request,
-  res: Response,
-  adapter: AdapterContext,
-  provider: ModelProxyInternalErrorContext['provider'],
-  onInternalError: (context: ModelProxyInternalErrorContext) => void,
-  parse: (body: unknown) => Result<ParsedRequest>,
-  run: (parsed: ParsedRequest, onEvent: (event: TurnEvent) => void) => Promise<unknown>,
-): Promise<void> {
+async function runProxyStream({ req, res, adapter, provider, onInternalError, entry }: {
+  readonly req: Request;
+  readonly res: Response;
+  readonly adapter: AdapterContext;
+  readonly provider: ProxyProvider;
+  readonly onInternalError: InternalErrorSink;
+  readonly entry: ProxyProviderRegistryEntry;
+}): Promise<void> {
   // Both `channel` and `seq` are declared ahead of the try so the catch block below can still
   // reach them however far execution got — including a throw from `guardSameOrigin`/`parse`,
   // before either exists yet.
@@ -455,16 +416,17 @@ async function runProxyStream<ParsedRequest, TurnEvent extends { type: string }>
       sendApiError({ res, status: 403, error: origin.error });
       return;
     }
-    const parsed = parse(req.body);
+    const parsed = entry.parse(req.body);
     if (!parsed.ok) {
       sendApiError({ res, status: 400, error: parsed.error });
       return;
     }
 
-    channel = createSseChannel<ModelProxyStreamEvent>({ res }, { isEndEvent: ({ event }) => event.kind === 'end' });
-    channel.open();
+    const openChannel = createSseChannel<ModelProxyStreamEvent>({ res }, { isEndEvent: ({ event }) => event.kind === 'end' });
+    channel = openChannel;
+    openChannel.open();
 
-    await run(parsed.value, (event) => channel!.enqueue({ event: toStreamEvent(seq++, event as unknown as AnyProxyTurnEvent) }));
+    await entry.run(parsed.value, (event) => openChannel.enqueue({ event: toStreamEvent(seq++, event as AnyProxyTurnEvent) }));
     // No `channel.end()` call here: every reachable exit path inside every turn-runner emits
     // exactly one `'end'`-kind event before its promise resolves (the duplicate-end-event fix —
     // see each provider module's own `turn-end-guard.ts` usage, and each function's own
@@ -472,192 +434,154 @@ async function runProxyStream<ParsedRequest, TurnEvent extends { type: string }>
     // above already auto-closed the channel the instant that event was enqueued.
   } catch (error) {
     // This catch now covers the whole handler, not just `run(...)`: neither caller of this
-    // function (`registerProxyStreamRoute`'s fixed routes, `registerGenericProxyStreamRoute`'s
-    // catch-all) awaits or `.catch()`s the promise this function returns — exactly how Express
-    // itself invokes every handler. `guardSameOrigin`/`parse` are Result-returning by contract and
-    // don't throw today, but nothing enforces that; if either ever did, the throw used to become
-    // an unhandled rejection with no process-level guard anywhere in this package's path, which is
-    // Node's documented crash-the-process default. See the paired regression test in
+    // function (the fixed routes, `registerGenericProxyStreamRoute`'s catch-all) awaits or
+    // `.catch()`s the promise this function returns — exactly how Express itself invokes every
+    // handler. `guardSameOrigin`/`parse` are Result-returning by contract and don't throw today,
+    // but nothing enforces that; if either ever did, the throw used to become an unhandled
+    // rejection with no process-level guard anywhere in this package's path, which is Node's
+    // documented crash-the-process default. See the paired regression test in
     // `__tests__/model-proxy.test.ts`.
     const correlationId = randomUUID();
     onInternalError({ provider, correlationId, error });
-    if (channel) {
-      // `enqueue` is a documented no-op once the channel is already closed (`sse.ts`), so these
-      // two synthetic events are safe to send unconditionally: normally the channel is still open
-      // here (an exception escaping `run` — e.g. a caller-supplied `executeTool` throwing — means
-      // no `'end'` event was ever emitted for this connection), and the synthetic `'end'`-kind
-      // event's own `isEndEvent` match closes the channel via the same path as a real one.
-      channel.enqueue({
-        event: toStreamEvent(seq++, {
-          type: 'error',
-          message: 'an internal error occurred',
-          code: correlationId,
-        } as unknown as AnyProxyTurnEvent)
-      }
-      );
-      channel.enqueue({ event: toStreamEvent(seq++, { type: 'end', reason: 'error' } as unknown as AnyProxyTurnEvent) });
-    } else if (!res.headersSent) {
+    if (!channel) {
       // The SSE channel was never opened (the throw happened before it), so no stream headers
       // were ever committed — a normal JSON error response is still possible here, matching how
       // `mountJsonRoute`'s own SEC-005 catch responds to a pre-response failure.
-      sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
-    } else if (!res.writableEnded) {
-      res.end();
+      respondInternalError(res, correlationId);
+      return;
     }
+    // `enqueue` is a documented no-op once the channel is already closed (`sse.ts`), so these
+    // two synthetic events are safe to send unconditionally: normally the channel is still open
+    // here (an exception escaping `run` — e.g. a caller-supplied `executeTool` throwing — means
+    // no `'end'` event was ever emitted for this connection), and the synthetic `'end'`-kind
+    // event's own `isEndEvent` match closes the channel via the same path as a real one.
+    channel.enqueue({ event: toStreamEvent(seq++, { type: 'error', message: 'an internal error occurred', code: correlationId } as AnyProxyTurnEvent) });
+    channel.enqueue({ event: toStreamEvent(seq++, { type: 'end', reason: 'error' } as AnyProxyTurnEvent) });
   }
 }
 
-/** Registers one fixed-path provider route (`registerModelProxyRoutes`'s five calls below). Thin wrapper over {@link runProxyStream} — `provider` is a fixed string, not read from `req.params`. */
-function registerProxyStreamRoute<ParsedRequest, TurnEvent extends { type: string }>(
-  app: Express,
-  path: string,
-  adapter: AdapterContext,
-  provider: ModelProxyInternalErrorContext['provider'],
-  onInternalError: (context: ModelProxyInternalErrorContext) => void,
-  parse: (body: unknown) => Result<ParsedRequest>,
-  run: (parsed: ParsedRequest, onEvent: (event: TurnEvent) => void) => Promise<unknown>,
-): void {
-  app.post(path, (req: Request, res: Response) =>
-    runProxyStream(req, res, adapter, provider, onInternalError, parse, run),
-  );
+/** Erases one provider's concrete parse/run types into the registry's shared entry shape — the single cast every entry needs. */
+function defineProvider<Parsed, TurnEvent extends { type: string }>(entry: {
+  readonly parse: (body: unknown) => Result<Parsed>;
+  readonly run: (parsed: Parsed, onEvent: (event: TurnEvent) => void) => Promise<unknown>;
+}): ProxyProviderRegistryEntry {
+  return entry as unknown as ProxyProviderRegistryEntry;
 }
 
-/** Type-erased registry entry for the `:provider` catch-all — see {@link buildProxyProviderRegistry}. */
-interface ProxyProviderRegistryEntry {
-  readonly parse: (body: unknown) => Result<unknown>;
-  readonly run: (parsed: unknown, onEvent: (event: { type: string }) => void) => Promise<unknown>;
-}
-
-/** Builds the `provider name -> {parse, run}` table the generic catch-all dispatches through. Each entry's `run` closure captures `deps` for the same optional `executeTool` wiring the five fixed routes use. */
-function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, ProxyProviderRegistryEntry> {
+/** The test-seam transport options every turn-runner accepts; each is forwarded only when the host supplied it (see `ModelProxyHttpDeps.fetchImpl`). */
+function transportOptions(deps: ModelProxyHttpDeps): { fetchImpl?: PinnedFetch; dnsLookup?: DnsLookupFn } {
   return {
-    anthropic: {
-      parse: parseAnthropicProxyRequest as (body: unknown) => Result<unknown>,
-      run: ((parsed: ParsedAnthropicProxyRequest, onEvent: (event: AnthropicTurnEvent) => void) =>
-        runAnthropicToolTurn({
-apiKey: parsed.apiKey,
-model: parsed.model,
-maxTokens: parsed.maxTokens,
-messages: parsed.messages as unknown as readonly AnthropicMessageParam[],
-onEvent
-}, {
-...(parsed.baseUrl !== undefined ? { baseUrl: parsed.baseUrl } : {}),
-...(parsed.apiVersion !== undefined ? { apiVersion: parsed.apiVersion } : {}),
-...(parsed.system !== undefined ? { system: parsed.system } : {}),
-...(parsed.tools !== undefined ? { tools: parsed.tools as unknown as readonly AnthropicToolDef[] } : {}),
-...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
-...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
-...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
-...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
-...(deps.anthropicExecuteTool
-            ? { executeTool: (call: AnthropicToolCall): Promise<AnthropicToolResult> => deps.anthropicExecuteTool!(call) }
-            : {})
-})) as unknown as ProxyProviderRegistryEntry['run'],
-    },
-    openai: {
-      parse: parseOpenAiProxyRequest as (body: unknown) => Result<unknown>,
-      run: ((parsed: ParsedOpenAiProxyRequest, onEvent: (event: OpenAiTurnEvent) => void) =>
-        runOpenAiToolTurn({
-apiKey: parsed.apiKey,
-model: parsed.model,
-messages: parsed.messages as unknown as readonly OpenAiMessageParam[],
-onEvent
-}, {
-...(parsed.baseUrl !== undefined ? { baseUrl: parsed.baseUrl } : {}),
-...(parsed.tools !== undefined ? { tools: parsed.tools as unknown as readonly OpenAiFunctionToolDef[] } : {}),
-...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
-...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
-...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
-...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
-...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
-...(deps.openaiExecuteTool
-            ? { executeTool: (call: OpenAiToolCall): Promise<OpenAiToolResult> => deps.openaiExecuteTool!(call) }
-            : {})
-})) as unknown as ProxyProviderRegistryEntry['run'],
-    },
-    azure: {
-      parse: parseAzureProxyRequest as (body: unknown) => Result<unknown>,
-      run: ((parsed: ParsedAzureProxyRequest, onEvent: (event: AzureTurnEvent) => void) =>
-        runAzureToolTurn({
-apiKey: parsed.apiKey,
-baseUrl: parsed.baseUrl,
-model: parsed.model,
-messages: parsed.messages as unknown as readonly AzureMessageParam[],
-onEvent
-}, {
-apiVersion: parsed.apiVersion,
-...(parsed.tools !== undefined ? { tools: parsed.tools as unknown as readonly AzureFunctionToolDef[] } : {}),
-...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
-...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
-...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
-...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
-...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
-...(deps.azureExecuteTool
-            ? { executeTool: (call: AzureToolCall): Promise<AzureToolResult> => deps.azureExecuteTool!(call) }
-            : {})
-})) as unknown as ProxyProviderRegistryEntry['run'],
-    },
-    google: {
-      parse: parseGoogleProxyRequest as (body: unknown) => Result<unknown>,
-      run: ((parsed: ParsedGoogleProxyRequest, onEvent: (event: GoogleTurnEvent) => void) =>
-        runGoogleToolTurn({
-apiKey: parsed.apiKey,
-model: parsed.model,
-contents: parsed.messages as unknown as readonly GoogleContent[],
-onEvent
-}, {
-...(parsed.baseUrl !== undefined ? { baseUrl: parsed.baseUrl } : {}),
-...(parsed.system !== undefined ? { system: parsed.system } : {}),
-...(parsed.tools !== undefined ? { tools: parsed.tools as unknown as readonly GoogleToolDef[] } : {}),
-...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
-...(parsed.maxOutputTokens !== undefined ? { maxOutputTokens: parsed.maxOutputTokens } : {}),
-...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
-...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
-...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
-...(deps.googleExecuteTool
-            ? { executeTool: (call: GoogleToolCall): Promise<GoogleToolResult> => deps.googleExecuteTool!(call) }
-            : {})
-})) as unknown as ProxyProviderRegistryEntry['run'],
-    },
-    ollama: {
-      parse: parseOllamaProxyRequest as (body: unknown) => Result<unknown>,
-      run: ((parsed: ParsedOllamaProxyRequest, onEvent: (event: OllamaTurnEvent) => void) =>
-        runOllamaToolTurn({
-apiKey: parsed.apiKey,
-model: parsed.model,
-messages: parsed.messages as unknown as readonly OllamaMessageParam[],
-onEvent
-}, {
-...(parsed.baseUrl !== undefined ? { baseUrl: parsed.baseUrl } : {}),
-...(parsed.tools !== undefined ? { tools: parsed.tools as unknown as readonly OllamaFunctionToolDef[] } : {}),
-...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
-...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
-...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
-...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
-...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
-...(deps.ollamaExecuteTool
-            ? { executeTool: (call: OllamaToolCall): Promise<OllamaToolResult> => deps.ollamaExecuteTool!(call) }
-            : {})
-})) as unknown as ProxyProviderRegistryEntry['run'],
-    },
+    ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+    ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
   };
 }
 
-const RECOGNIZED_PROVIDERS: ReadonlySet<ModelProxyInternalErrorContext['provider']> = new Set([
-  'anthropic',
-  'openai',
-  'azure',
-  'google',
-  'ollama',
-]);
+/** `tools` cast to the turn-runner's own tool-definition type, forwarded only when present (the parser never inspects tool contents — see `parseCommon`). */
+function toolsOption<ToolDef>(tools: unknown[] | undefined): { tools?: readonly ToolDef[] } {
+  return tools !== undefined ? { tools: tools as unknown as readonly ToolDef[] } : {};
+}
 
-function isRecognizedProvider(value: string): value is ModelProxyInternalErrorContext['provider'] {
-  return RECOGNIZED_PROVIDERS.has(value as ModelProxyInternalErrorContext['provider']);
+/**
+ * Builds the `provider name -> {parse, run}` table that both the five fixed routes and the generic
+ * catch-all dispatch through. Each entry's `run` closure captures `deps` for the optional
+ * `executeTool` wiring and the transport test seams. `executeTool` is a fresh wrapper that calls
+ * `deps.<provider>ExecuteTool` as a method at call time, so the host function sees exactly one
+ * argument.
+ */
+function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, ProxyProviderRegistryEntry> {
+  return {
+    anthropic: defineProvider({
+      parse: parseAnthropicProxyRequest,
+      run: (parsed, onEvent: (event: AnthropicTurnEvent) => void) =>
+        runAnthropicToolTurn(
+          { apiKey: parsed.apiKey, model: parsed.model, maxTokens: parsed.maxTokens, messages: parsed.messages as unknown as readonly AnthropicMessageParam[], onEvent },
+          {
+            ...pickDefined(parsed, ['baseUrl', 'apiVersion', 'system', 'temperature', 'maxToolTurns', 'extraHeaders']),
+            ...toolsOption<AnthropicToolDef>(parsed.tools),
+            ...transportOptions(deps),
+            ...(deps.anthropicExecuteTool ? { executeTool: (call: AnthropicToolCall): Promise<AnthropicToolResult> => deps.anthropicExecuteTool!(call) } : {}),
+          },
+        ),
+    }),
+    openai: defineProvider({
+      parse: parseToolsProxyRequest,
+      run: (parsed, onEvent: (event: OpenAiTurnEvent) => void) =>
+        runOpenAiToolTurn(
+          { apiKey: parsed.apiKey, model: parsed.model, messages: parsed.messages as unknown as readonly OpenAiMessageParam[], onEvent },
+          {
+            ...pickDefined(parsed, ['baseUrl', 'temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders']),
+            ...toolsOption<OpenAiFunctionToolDef>(parsed.tools),
+            ...transportOptions(deps),
+            ...(deps.openaiExecuteTool ? { executeTool: (call: OpenAiToolCall): Promise<OpenAiToolResult> => deps.openaiExecuteTool!(call) } : {}),
+          },
+        ),
+    }),
+    azure: defineProvider({
+      parse: parseAzureProxyRequest,
+      run: (parsed, onEvent: (event: AzureTurnEvent) => void) =>
+        runAzureToolTurn(
+          { apiKey: parsed.apiKey, baseUrl: parsed.baseUrl, model: parsed.model, messages: parsed.messages as unknown as readonly AzureMessageParam[], onEvent },
+          {
+            apiVersion: parsed.apiVersion,
+            ...pickDefined(parsed, ['temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders']),
+            ...toolsOption<AzureFunctionToolDef>(parsed.tools),
+            ...transportOptions(deps),
+            ...(deps.azureExecuteTool ? { executeTool: (call: AzureToolCall): Promise<AzureToolResult> => deps.azureExecuteTool!(call) } : {}),
+          },
+        ),
+    }),
+    google: defineProvider({
+      parse: parseGoogleProxyRequest,
+      run: (parsed, onEvent: (event: GoogleTurnEvent) => void) =>
+        runGoogleToolTurn(
+          { apiKey: parsed.apiKey, model: parsed.model, contents: parsed.messages as unknown as readonly GoogleContent[], onEvent },
+          {
+            ...pickDefined(parsed, ['baseUrl', 'system', 'temperature', 'maxOutputTokens', 'maxToolTurns', 'extraHeaders']),
+            ...toolsOption<GoogleToolDef>(parsed.tools),
+            ...transportOptions(deps),
+            ...(deps.googleExecuteTool ? { executeTool: (call: GoogleToolCall): Promise<GoogleToolResult> => deps.googleExecuteTool!(call) } : {}),
+          },
+        ),
+    }),
+    ollama: defineProvider({
+      parse: parseToolsProxyRequest,
+      run: (parsed, onEvent: (event: OllamaTurnEvent) => void) =>
+        runOllamaToolTurn(
+          { apiKey: parsed.apiKey, model: parsed.model, messages: parsed.messages as unknown as readonly OllamaMessageParam[], onEvent },
+          {
+            ...pickDefined(parsed, ['baseUrl', 'temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders']),
+            ...toolsOption<OllamaFunctionToolDef>(parsed.tools),
+            ...transportOptions(deps),
+            ...(deps.ollamaExecuteTool ? { executeTool: (call: OllamaToolCall): Promise<OllamaToolResult> => deps.ollamaExecuteTool!(call) } : {}),
+          },
+        ),
+    }),
+  };
+}
+
+/** Fixed-route registration order; load-bearing, since Express matches in registration order and the catch-all must come after all five. */
+const PROXY_PROVIDERS: readonly ProxyProvider[] = ['anthropic', 'openai', 'azure', 'google', 'ollama'];
+
+const RECOGNIZED_PROVIDERS: ReadonlySet<ProxyProvider> = new Set(PROXY_PROVIDERS);
+
+function isRecognizedProvider(value: string): value is ProxyProvider {
+  return RECOGNIZED_PROVIDERS.has(value as ProxyProvider);
+}
+
+/** Reports a throw from the catch-all before `runProxyStream` took over. */
+function reportCatchAllError(providerParam: string, onInternalError: InternalErrorSink, error: unknown): string {
+  const correlationId = randomUUID();
+  // `onInternalError`'s contract only accepts the 5 recognized provider literals; a throw
+  // this early (e.g. `guardSameOrigin`) may have happened before the provider name was even
+  // validated, so an unrecognized/empty `providerParam` logs directly instead of lying to
+  // that typed contract with a provider that was never actually confirmed.
+  if (isRecognizedProvider(providerParam)) {
+    onInternalError({ provider: providerParam, correlationId, error });
+  } else {
+    // eslint-disable-next-line no-console
+    console.error(`[@jini-ai/http-kit] internal error (model-proxy/${providerParam || 'unknown'}, correlationId=${correlationId})`, error);
+  }
+  return correlationId;
 }
 
 /**
@@ -666,12 +590,12 @@ function isRecognizedProvider(value: string): value is ModelProxyInternalErrorCo
  * provider name is the only branch of this handler real HTTP traffic can reach for the five known
  * provider ids.
  */
-function registerGenericProxyStreamRoute(
-  app: Express,
-  adapter: AdapterContext,
-  onInternalError: (context: ModelProxyInternalErrorContext) => void,
-  registry: Record<string, ProxyProviderRegistryEntry>,
-): void {
+function registerGenericProxyStreamRoute({ app, adapter, onInternalError, registry }: {
+  readonly app: Express;
+  readonly adapter: AdapterContext;
+  readonly onInternalError: InternalErrorSink;
+  readonly registry: Record<string, ProxyProviderRegistryEntry>;
+}): void {
   app.post('/api/proxy/:provider/stream', async (req: Request, res: Response) => {
     // Unlike the five fixed routes, this catch-all's own `guardSameOrigin` call sits ahead of
     // `runProxyStream` (the registry lookup below has to happen first, to even know which
@@ -692,35 +616,19 @@ function registerGenericProxyStreamRoute(
         sendApiError({ res, status: 403, error: origin.error });
         return;
       }
+      // Both checks are needed: `registry` is a plain object, so an inherited key such as
+      // `constructor` yields a truthy `entry` that only the recognized-provider set rejects.
       const entry = registry[providerParam];
       if (!entry || !isRecognizedProvider(providerParam)) {
         sendApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: `unknown provider: ${providerParam}` }) });
         return;
       }
-      await runProxyStream(req, res, adapter, providerParam, onInternalError, entry.parse, entry.run);
+      await runProxyStream({ req, res, adapter, provider: providerParam, onInternalError, entry });
     } catch (error) {
       // No SSE channel can exist yet at this point — `runProxyStream` owns opening one, and this
       // catch only reaches errors thrown before that call. A plain JSON error response is always
       // still possible, matching `runProxyStream`'s own "channel never opened" branch.
-      const correlationId = randomUUID();
-      // `onInternalError`'s contract only accepts the 5 recognized provider literals; a throw
-      // this early (e.g. `guardSameOrigin`) may have happened before the provider name was even
-      // validated, so an unrecognized/empty `providerParam` logs directly instead of lying to
-      // that typed contract with a provider that was never actually confirmed.
-      if (isRecognizedProvider(providerParam)) {
-        onInternalError({ provider: providerParam, correlationId, error });
-      } else {
-        // eslint-disable-next-line no-console
-        console.error(
-          `[@jini-ai/http-kit] internal error (model-proxy/${providerParam || 'unknown'}, correlationId=${correlationId})`,
-          error,
-        );
-      }
-      if (!res.headersSent) {
-        sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
-      } else if (!res.writableEnded) {
-        res.end();
-      }
+      respondInternalError(res, reportCatchAllError(providerParam, onInternalError, error));
     }
   });
 }
@@ -728,160 +636,16 @@ function registerGenericProxyStreamRoute(
 /** Mounts `POST /api/proxy/{anthropic,openai,azure,google,ollama}/stream` and the generic `POST /api/proxy/:provider/stream` catch-all. */
 export function registerModelProxyRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ModelProxyHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
   const onInternalError = deps.onInternalError ?? defaultInternalErrorSink;
+  const registry = buildProxyProviderRegistry(deps);
 
-  registerProxyStreamRoute<ParsedAnthropicProxyRequest, AnthropicTurnEvent>(
-    app,
-    '/api/proxy/anthropic/stream',
-    adapter,
-    'anthropic',
-    onInternalError,
-    parseAnthropicProxyRequest,
-    (parsed, onEvent) =>
-      runAnthropicToolTurn({
-apiKey: parsed.apiKey,
-model: parsed.model,
-maxTokens: parsed.maxTokens,
-messages: parsed.messages as unknown as readonly AnthropicMessageParam[],
-onEvent
-}, {
-...(parsed.baseUrl !== undefined ? { baseUrl: parsed.baseUrl } : {}),
-...(parsed.apiVersion !== undefined ? { apiVersion: parsed.apiVersion } : {}),
-...(parsed.system !== undefined ? { system: parsed.system } : {}),
-...(parsed.tools !== undefined ? { tools: parsed.tools as unknown as readonly AnthropicToolDef[] } : {}),
-...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
-...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
-...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
-...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
-...(deps.anthropicExecuteTool
-          ? {
-            executeTool: (call: AnthropicToolCall): Promise<AnthropicToolResult> => deps.anthropicExecuteTool!(call),
-          }
-          : {})
-}),
-  );
+  // Each fixed route is a thin wrapper over `runProxyStream` with `provider` fixed, not read from
+  // `req.params`.
+  for (const provider of PROXY_PROVIDERS) {
+    const entry = registry[provider]!;
+    app.post(`/api/proxy/${provider}/stream`, (req: Request, res: Response) =>
+      runProxyStream({ req, res, adapter, provider, onInternalError, entry }),
+    );
+  }
 
-  registerProxyStreamRoute<ParsedOpenAiProxyRequest, OpenAiTurnEvent>(
-    app,
-    '/api/proxy/openai/stream',
-    adapter,
-    'openai',
-    onInternalError,
-    parseOpenAiProxyRequest,
-    (parsed, onEvent) =>
-      runOpenAiToolTurn({
-apiKey: parsed.apiKey,
-model: parsed.model,
-messages: parsed.messages as unknown as readonly OpenAiMessageParam[],
-onEvent
-}, {
-...(parsed.baseUrl !== undefined ? { baseUrl: parsed.baseUrl } : {}),
-...(parsed.tools !== undefined ? { tools: parsed.tools as unknown as readonly OpenAiFunctionToolDef[] } : {}),
-...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
-...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
-...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
-...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
-...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
-...(deps.openaiExecuteTool
-          ? {
-            executeTool: (call: OpenAiToolCall): Promise<OpenAiToolResult> => deps.openaiExecuteTool!(call),
-          }
-          : {})
-}),
-  );
-
-  registerProxyStreamRoute<ParsedAzureProxyRequest, AzureTurnEvent>(
-    app,
-    '/api/proxy/azure/stream',
-    adapter,
-    'azure',
-    onInternalError,
-    parseAzureProxyRequest,
-    (parsed, onEvent) =>
-      runAzureToolTurn({
-apiKey: parsed.apiKey,
-baseUrl: parsed.baseUrl,
-model: parsed.model,
-messages: parsed.messages as unknown as readonly AzureMessageParam[],
-onEvent
-}, {
-apiVersion: parsed.apiVersion,
-...(parsed.tools !== undefined ? { tools: parsed.tools as unknown as readonly AzureFunctionToolDef[] } : {}),
-...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
-...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
-...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
-...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
-...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
-...(deps.azureExecuteTool
-          ? {
-            executeTool: (call: AzureToolCall): Promise<AzureToolResult> => deps.azureExecuteTool!(call),
-          }
-          : {})
-}),
-  );
-
-  registerProxyStreamRoute<ParsedGoogleProxyRequest, GoogleTurnEvent>(
-    app,
-    '/api/proxy/google/stream',
-    adapter,
-    'google',
-    onInternalError,
-    parseGoogleProxyRequest,
-    (parsed, onEvent) =>
-      runGoogleToolTurn({
-apiKey: parsed.apiKey,
-model: parsed.model,
-contents: parsed.messages as unknown as readonly GoogleContent[],
-onEvent
-}, {
-...(parsed.baseUrl !== undefined ? { baseUrl: parsed.baseUrl } : {}),
-...(parsed.system !== undefined ? { system: parsed.system } : {}),
-...(parsed.tools !== undefined ? { tools: parsed.tools as unknown as readonly GoogleToolDef[] } : {}),
-...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
-...(parsed.maxOutputTokens !== undefined ? { maxOutputTokens: parsed.maxOutputTokens } : {}),
-...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
-...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
-...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
-...(deps.googleExecuteTool
-          ? {
-            executeTool: (call: GoogleToolCall): Promise<GoogleToolResult> => deps.googleExecuteTool!(call),
-          }
-          : {})
-}),
-  );
-
-  registerProxyStreamRoute<ParsedOllamaProxyRequest, OllamaTurnEvent>(
-    app,
-    '/api/proxy/ollama/stream',
-    adapter,
-    'ollama',
-    onInternalError,
-    parseOllamaProxyRequest,
-    (parsed, onEvent) =>
-      runOllamaToolTurn({
-apiKey: parsed.apiKey,
-model: parsed.model,
-messages: parsed.messages as unknown as readonly OllamaMessageParam[],
-onEvent
-}, {
-...(parsed.baseUrl !== undefined ? { baseUrl: parsed.baseUrl } : {}),
-...(parsed.tools !== undefined ? { tools: parsed.tools as unknown as readonly OllamaFunctionToolDef[] } : {}),
-...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
-...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
-...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
-...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
-...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
-...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
-...(deps.ollamaExecuteTool
-          ? {
-            executeTool: (call: OllamaToolCall): Promise<OllamaToolResult> => deps.ollamaExecuteTool!(call),
-          }
-          : {})
-}),
-  );
-
-  registerGenericProxyStreamRoute(app, adapter, onInternalError, buildProxyProviderRegistry(deps));
+  registerGenericProxyStreamRoute({ app, adapter, onInternalError, registry });
 }
