@@ -1,7 +1,7 @@
 import { useState, type DragEvent as ReactDragEvent } from 'react';
 import { COMMENT_SIDE_DRAG_MIME } from '../../constants.js';
 import { dropEdgeForClientY, reorderCommentIds } from '../../rules.js';
-import type { CommentSideDragState } from '../../types.js';
+import type { CommentSideDragState, CommentSideDropEdge } from '../../types.js';
 
 export interface UseCommentReorderResult {
   dragState: CommentSideDragState | null;
@@ -40,33 +40,21 @@ export function useCommentReorder(
     if (!draggingId) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
-    if (draggingId === targetId) {
-      if (dragState?.overId !== targetId || dragState.edge !== null) {
-        setDragState({ draggingId, overId: targetId, edge: null });
-      }
-      return;
-    }
-    const edge = dropEdgeForClientY(event.clientY, event.currentTarget.getBoundingClientRect());
-    if (dragState?.draggingId !== draggingId || dragState.overId !== targetId || dragState.edge !== edge) {
-      setDragState({ draggingId, overId: targetId, edge });
-    }
+    // Hovering back over the dragged item itself shows no drop edge.
+    const edge = draggingId === targetId ? null : pointerDropEdge(event);
+    const next = { draggingId, overId: targetId, edge };
+    if (!isSameDragState(dragState, next)) setDragState(next);
   }
 
   function onDrop(event: ReactDragEvent<HTMLElement>, targetId: string) {
     if (!canReorder) return;
     event.preventDefault();
-    const draggingId =
-      dragState?.draggingId ||
-      event.dataTransfer.getData(COMMENT_SIDE_DRAG_MIME) ||
-      event.dataTransfer.getData('text/plain');
+    const draggingId = dragState?.draggingId || draggingIdFromTransfer(event.dataTransfer);
     if (!draggingId || draggingId === targetId) {
       setDragState(null);
       return;
     }
-    const edge =
-      dragState?.overId === targetId && dragState.edge
-        ? dragState.edge
-        : dropEdgeForClientY(event.clientY, event.currentTarget.getBoundingClientRect());
+    const edge = cachedDropEdge(dragState, targetId) ?? pointerDropEdge(event);
     const nextIds = reorderCommentIds(orderedIds, draggingId, targetId, edge);
     if (nextIds.join('\0') !== orderedIds.join('\0')) {
       onReorder?.(nextIds);
@@ -85,4 +73,23 @@ export function useCommentReorder(
   }
 
   return { dragState, canReorder, onDragStart, onDragOver, onDrop, onDragLeaveContainer, clear };
+}
+
+function pointerDropEdge(event: ReactDragEvent<HTMLElement>): CommentSideDropEdge {
+  return dropEdgeForClientY(event.clientY, event.currentTarget.getBoundingClientRect());
+}
+
+/** Dragging id carried by the DOM payload: the comment mime type, then the
+ *  `text/plain` copy `onDragStart` also writes. */
+function draggingIdFromTransfer(dataTransfer: DataTransfer): string {
+  return dataTransfer.getData(COMMENT_SIDE_DRAG_MIME) || dataTransfer.getData('text/plain');
+}
+
+/** The edge already shown while hovering `targetId`, if any. */
+function cachedDropEdge(dragState: CommentSideDragState | null, targetId: string): CommentSideDropEdge | null {
+  return dragState?.overId === targetId ? dragState.edge : null;
+}
+
+function isSameDragState(current: CommentSideDragState | null, next: CommentSideDragState): boolean {
+  return current?.draggingId === next.draggingId && current.overId === next.overId && current.edge === next.edge;
 }
