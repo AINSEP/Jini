@@ -1,4 +1,4 @@
-import { sign } from 'node:crypto';
+import { X509Certificate, sign } from 'node:crypto';
 import type { RegistryEntry, RegistrySignature } from '@jini-ai/protocol';
 import { describe, expect, it } from 'vitest';
 import {
@@ -441,5 +441,128 @@ describe('verifyRegistryEntrySignatures', () => {
     const second = githubOidcSignature({ signedAt: undefined });
     const result = verifyRegistryEntrySignatures({ entry: { ...entry, signatures: [first, second] } }, { trustRoot: trustedRoot });
     expect(result).toMatchObject({ verified: false, reason: 'github-oidc signature is missing signedAt' });
+  });
+});
+
+describe('verifyRegistrySignature characterization pins (precedence, boundaries, odd inputs)', () => {
+  const leaf = new X509Certificate(LEAF_CERT_PEM);
+
+  it('reports the first failing check when several fail at once (certificate before issuer before signedAt)', () => {
+    const signature = githubOidcSignature({ certificate: undefined, issuer: undefined, signedAt: undefined });
+    expect(verifyRegistrySignature({ entry, signature }, { trustRoot: trustedRoot })).toEqual({
+      verified: false,
+      kind: 'github-oidc',
+      reason: 'github-oidc signature is missing a certificate',
+    });
+  });
+
+  it('checks the issuer allowlist before signedAt', () => {
+    const signature = githubOidcSignature({ issuer: 'https://x.example', signedAt: undefined });
+    expect(verifyRegistrySignature({ entry, signature }, { trustRoot: trustedRoot })).toEqual({
+      verified: false,
+      kind: 'github-oidc',
+      reason: 'issuer "https://x.example" is not in the configured allowlist',
+    });
+  });
+
+  it('checks the trust root before the signature fields', () => {
+    const signature = githubOidcSignature({ certificate: undefined });
+    expect(verifyRegistrySignature({ entry, signature })).toEqual({
+      verified: false,
+      kind: 'github-oidc',
+      reason: 'no github-oidc trust root configured',
+    });
+  });
+
+  it('accepts signedAt exactly at the certificate notBefore boundary', () => {
+    const signature = githubOidcSignature({ signedAt: leaf.validFromDate.toISOString() });
+    expect(verifyRegistrySignature({ entry, signature }, { trustRoot: trustedRoot })).toMatchObject({ verified: true });
+  });
+
+  it('accepts signedAt exactly at the certificate notAfter boundary', () => {
+    const signature = githubOidcSignature({ signedAt: leaf.validToDate.toISOString() });
+    expect(verifyRegistrySignature({ entry, signature }, { trustRoot: trustedRoot })).toMatchObject({ verified: true });
+  });
+
+  it('rejects signedAt one millisecond before notBefore', () => {
+    const signature = githubOidcSignature({ signedAt: new Date(leaf.validFromDate.getTime() - 1).toISOString() });
+    expect(verifyRegistrySignature({ entry, signature }, { trustRoot: trustedRoot })).toEqual({
+      verified: false,
+      kind: 'github-oidc',
+      reason: 'signedAt falls outside the certificate validity window',
+    });
+  });
+
+  it('treats an empty allowedIdentities list as no identity allowlist', () => {
+    const root: RegistryTrustRoot = { githubOidc: { caCertificates: [CA_CERT_PEM], allowedIdentities: [] } };
+    expect(verifyRegistrySignature({ entry, signature: githubOidcSignature() }, { trustRoot: root })).toMatchObject({ verified: true });
+  });
+
+  it('accepts an identity when any one of several allowlist patterns matches', () => {
+    const root: RegistryTrustRoot = { githubOidc: { caCertificates: [CA_CERT_PEM], allowedIdentities: ['https://nope', /^https:\/\/github\.com\/acme\//] } };
+    expect(verifyRegistrySignature({ entry, signature: githubOidcSignature() }, { trustRoot: root })).toMatchObject({ verified: true });
+  });
+
+  it('fails to chain when a leaf is presented without its bundled intermediate', () => {
+    const signature = githubOidcSignature({
+      certificate: LEAF_VIA_INTERMEDIATE_CERT_PEM,
+      signature: signBase64(canonicalRegistrySigningPayload({ entry }), LEAF_VIA_INTERMEDIATE_KEY_PEM),
+    });
+    expect(verifyRegistrySignature({ entry, signature }, { trustRoot: trustedRoot })).toEqual({
+      verified: false,
+      kind: 'github-oidc',
+      reason: 'certificate does not chain to a configured trust root',
+    });
+  });
+
+  it('accepts a configured intermediate as the trust anchor directly', () => {
+    const root: RegistryTrustRoot = { githubOidc: { caCertificates: [INTERMEDIATE_CERT_PEM] } };
+    const signature = githubOidcSignature({
+      certificate: LEAF_VIA_INTERMEDIATE_CERT_PEM,
+      signature: signBase64(canonicalRegistrySigningPayload({ entry }), LEAF_VIA_INTERMEDIATE_KEY_PEM),
+    });
+    expect(verifyRegistrySignature({ entry, signature }, { trustRoot: root })).toMatchObject({ verified: true });
+  });
+
+  it('terminates on a bundle that repeats a self-issued certificate not in the trust root', () => {
+    const root: RegistryTrustRoot = { githubOidc: { caCertificates: [INTERMEDIATE_CERT_PEM] } };
+    const signature = githubOidcSignature({
+      certificate: `${CA_CERT_PEM}\n${CA_CERT_PEM}\n${CA_CERT_PEM}`,
+      signature: signBase64(canonicalRegistrySigningPayload({ entry }), CA_KEY_PEM),
+    });
+    expect(verifyRegistrySignature({ entry, signature }, { trustRoot: root })).toMatchObject({
+      verified: false,
+      reason: 'certificate does not chain to a configured trust root',
+    });
+  });
+
+  it('keeps an empty-string self-reported subject rather than falling back to the SAN', () => {
+    const result = verifyRegistrySignature({ entry, signature: githubOidcSignature({ subject: '' }) }, { trustRoot: trustedRoot });
+    expect(result).toEqual({ verified: true, kind: 'github-oidc', issuer: GITHUB_ACTIONS_OIDC_ISSUER, subject: '' });
+  });
+
+  it('returns the self-reported subject as the verified subject even when it disagrees with the certificate SAN (reported, not fixed)', () => {
+    // `subject` is signer-chosen metadata, but backends surface it as
+    // `verifiedSubject`; only the SAN is cert-bound.
+    const root: RegistryTrustRoot = { githubOidc: { caCertificates: [CA_CERT_PEM], allowedIdentities: [WORKFLOW_IDENTITY] } };
+    const result = verifyRegistrySignature({ entry, signature: githubOidcSignature({ subject: 'repo:someone-else/other' }) }, { trustRoot: root });
+    expect(result).toEqual({ verified: true, kind: 'github-oidc', issuer: GITHUB_ACTIONS_OIDC_ISSUER, subject: 'repo:someone-else/other' });
+  });
+
+  it('gives alternating results for a host-supplied global RegExp identity pattern (reported, not fixed)', () => {
+    // RegExp#test with the `g` flag is stateful via lastIndex, so the same
+    // valid signature verifies, then fails, then verifies again (fail-closed).
+    const root: RegistryTrustRoot = { githubOidc: { caCertificates: [CA_CERT_PEM], allowedIdentities: [/github\.com/g] } };
+    const signature = githubOidcSignature();
+    const outcomes = [1, 2, 3].map(() => verifyRegistrySignature({ entry, signature }, { trustRoot: root }).verified);
+    expect(outcomes).toEqual([true, false, true]);
+  });
+
+  it('rejects a whitespace-only signature as empty after base64 decoding', () => {
+    expect(verifyRegistrySignature({ entry, signature: githubOidcSignature({ signature: '   ' }) }, { trustRoot: trustedRoot })).toEqual({
+      verified: false,
+      kind: 'github-oidc',
+      reason: 'signature is empty after base64 decoding',
+    });
   });
 });
