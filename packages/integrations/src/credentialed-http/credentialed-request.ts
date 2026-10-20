@@ -7,9 +7,10 @@
  * does not introduce a second approval ceremony or expose decrypted credentials to the caller.
  */
 import { IntegrationError } from "../argument-error.js";
-import { nowIso, type Clock, type HttpClientPort, type UUID } from "@jini-ai/core/primitives";
+import { nowIso, type Clock, type HttpClientPort, type HttpResponse, type UUID } from "@jini-ai/core/primitives";
 import type { CredentialConnection, CredentialTarget, CredentialResolverPort, CredentialSchemeRegistryPort, CredentialedRequestErrorPolicyPort } from "./ports.js";
 import { detectSelfDescribingAuthScheme, type CredentialSchemeRule } from "./auth-schemes.js";
+import { redactResponseHeaders, resolveRedactedResponseBody } from "./response-redaction.js";
 export class CredentialNotFoundError extends IntegrationError {}
 // Multiple saved origins support providers with separate API hosts. A single absolute URL keeps
 // host/path fields from drifting; compare parsed origins exactly, never prefixes or substrings.
@@ -33,68 +34,6 @@ const MAX_REQUEST_BODY_BYTES = 1_000_000;
 // Caller headers cannot replace credentials or override the bound host. User-Agent is allowed:
 // it carries no secret and does not widen origin binding; the transport's default need not override it.
 const FORBIDDEN_REQUEST_HEADER_NAMES: ReadonlySet<string> = new Set(["authorization", "cookie", "host", "proxy-authorization"]);
-
-// Echo endpoints and provider cookies must not return credential-bearing headers to the model,
-// even when a value is too short to identify safely by substring matching.
-const FORBIDDEN_RESPONSE_HEADER_NAMES: ReadonlySet<string> = new Set(["authorization", "proxy-authorization", "set-cookie", "cookie"]);
-
-// A visible marker explains removal; silently splicing bytes out could alter the response's meaning.
-const REDACTED_MARKER = "[REDACTED]";
-
-// Very short tokens can match ordinary words ("ab" inside "abacus"); scrubbing would silently
-// mangle unrelated content. The eight-character floor retains normal long API-token responses
-// while withholding pathological ones. Dropping a whole response header needs no such floor.
-const MIN_SAFE_BODY_REDACTION_TOKEN_LENGTH = 8;
-
-// Withhold the body rather than leak the secret or make unrelated content look like provider output;
-// the request still ran, and the marker lets a caller distinguish display limits from auth failure.
-const BODY_WITHHELD_SHORT_TOKEN_MARKER = "[body withheld: credential too short to redact safely]";
-
-// Match secrets embedded in diagnostic header values too, not just values equal to a full secret.
-// Whole-header removal has no partial-mangling failure mode and therefore applies at any length.
-function redactResponseHeaders(headers: Readonly<Record<string, string>>, secrets: readonly string[]): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(headers)) {
-    if (FORBIDDEN_RESPONSE_HEADER_NAMES.has(key.trim().toLowerCase())) continue;
-    if (secrets.some((secret) => secret !== "" && value.includes(secret))) continue;
-    result[key] = value;
-  }
-  return result;
-}
-
-// Reflecting responses must not send injected credentials back through the model; retain all other
-// provider text instead of replacing the provider's answer with an authentication diagnosis.
-function redactSecretSubstrings(text: string, secrets: readonly string[]): string {
-  return secrets.reduce((acc, secret) => (secret === "" ? acc : acc.split(secret).join(REDACTED_MARKER)), text);
-}
-
-// One-to-three-character suffix matches are too ambiguous to identify a cut-off secret. This
-// four-character partial-tail floor gates a different risk from the full-token length floor above.
-const MIN_SAFE_TRUNCATED_TAIL_PREFIX_LENGTH = 4;
-
-// A size cap can cut a reflected secret mid-token, so whole-secret replacement alone leaks its
-// prefix. Use the longest matching suffix across all secrets to remove the whole fragment; only
-// truncated bodies qualify, since matching complete bodies could remove innocent trailing text.
-function redactTruncatedTail(body: string, secrets: readonly string[]): string {
-  let longestMatch = 0;
-  for (const secret of secrets) {
-    for (let len = Math.min(secret.length, body.length); len >= MIN_SAFE_TRUNCATED_TAIL_PREFIX_LENGTH; len--) {
-      if (body.endsWith(secret.slice(0, len))) {
-        longestMatch = Math.max(longestMatch, len);
-        break;
-      }
-    }
-  }
-  return longestMatch === 0 ? body : body.slice(0, body.length - longestMatch) + REDACTED_MARKER;
-}
-
-// Gate on the raw token: a scheme-prefixed header is longer and cannot make a short token safe.
-// The second pass is conditional because a complete response has no cap-cut fragment to repair.
-function resolveRedactedResponseBody(bodyText: string, token: string, secrets: readonly string[], bodyTruncated: boolean): string {
-  if (token.length < MIN_SAFE_BODY_REDACTION_TOKEN_LENGTH) return BODY_WITHHELD_SHORT_TOKEN_MARKER;
-  const redacted = redactSecretSubstrings(bodyText, secrets);
-  return bodyTruncated ? redactTruncatedTail(redacted, secrets) : redacted;
-}
 
 // Match the HTTP port's verb vocabulary so every validated method is one the transport can send.
 const SUPPORTED_METHODS: ReadonlySet<string> = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
@@ -272,6 +211,14 @@ export interface CredentialedRequestAuditPort {
   record(required: { entry: CredentialedRequestAuditEntry }): void;
 }
 
+// Per-request audit fields fixed before the send; the status (and any refusal) is added per outcome.
+type AuditBase = Omit<CredentialedRequestAuditEntry, "status" | "egressRefusal">;
+
+// Keep the entry's field order identical for every outcome so serialized audit lines stay stable.
+function auditEntry(base: AuditBase, status: number): CredentialedRequestAuditEntry {
+  return { label: base.label, host: base.host, method: base.method, status, bodyBytes: base.bodyBytes, at: base.at };
+}
+
 // A structured line gives deployments an inspectable trail without requiring a database audit sink.
 export class ConsoleCredentialedRequestAuditLog implements CredentialedRequestAuditPort {
   constructor(private readonly required: { log: (required: { line: string }) => void; prefix: string }) {}
@@ -336,8 +283,14 @@ export type CustomCredentialCheckStatus = "valid" | "invalid" | "unreachable";
 // nothing about validity. Keep this local rather than coupling independent provider features.
 function classifyCustomCredentialStatus(status: number): CustomCredentialCheckStatus {
   if (status >= 200 && status < 300) return "valid";
-  if (status === 401 || status === 403) return "invalid";
+  if (isAuthRejectionStatus(status)) return "invalid";
   return "unreachable";
+}
+
+// 401 and 403 are the only affirmative authentication rejections; both classification and
+// diagnostics key off this one predicate so they cannot disagree.
+function isAuthRejectionStatus(status: number): status is 401 | 403 {
+  return status === 401 || status === 403;
 }
 
 // Wording may change without changing the three-way classification contract.
@@ -366,7 +319,7 @@ export async function verifyCustomCredential(required: { deps: CredentialedReque
   const checkedAt = nowIso({ clock: deps.clock });
   const { baseUrl, connection } = await resolveCredentialOrThrow(deps, { workspaceId: input.workspaceId, label });
   const url = new URL(`${new URL(baseUrl).origin}/`);
-  const audit = deps.audit;
+  const auditBase: AuditBase = { label, host: url.hostname, method: "GET", bodyBytes: 0, at: checkedAt };
   const schemes = await deps.schemeRegistry.load({ workspaceId: input.workspaceId });
 
   let status: number;
@@ -379,13 +332,13 @@ export async function verifyCustomCredential(required: { deps: CredentialedReque
     } });
     status = response.status;
   } catch {
-    audit.record({ entry: { label, host: url.hostname, method: "GET", status: 0, bodyBytes: 0, at: checkedAt } });
+    deps.audit.record({ entry: auditEntry(auditBase, 0) });
     return { status: "unreachable", message: `Could not reach '${label}' to verify this credential — this does not necessarily mean the credential is bad.`, checkedAt };
   }
 
-  audit.record({ entry: { label, host: url.hostname, method: "GET", status, bodyBytes: 0, at: checkedAt } });
+  deps.audit.record({ entry: auditEntry(auditBase, status) });
   const outcome = classifyCustomCredentialStatus(status);
-  const authDiagnostic = outcome === "invalid" ? mapAuthDiagnostic(connection, status as 401 | 403, schemes, optional) : undefined;
+  const authDiagnostic = isAuthRejectionStatus(status) ? mapAuthDiagnostic(connection, status, schemes, optional) : undefined;
   return { status: outcome, message: buildVerificationMessage(label, status, outcome), checkedAt, ...(authDiagnostic ? { authDiagnostic } : {}) };
 }
 
@@ -427,7 +380,7 @@ function buildResponseSecrets(connection: CredentialConnection, authorizationHea
   return [authorizationHeader, connection.token];
 }
 
-function mapAuthDiagnostic(connection: CredentialConnection, status: 401 | 403, schemes: readonly CredentialSchemeRule[], optional: CredentialedRequestOptions): AuthFailureDiagnostic {
+function mapAuthDiagnostic(connection: CredentialConnection, status: 401 | 403, schemes: readonly CredentialSchemeRule[], optional: Pick<CredentialedRequestOptions, "diagnosticMapper">): AuthFailureDiagnostic {
   const diagnostic = buildAuthFailureDiagnostic(connection, status, schemes);
   return optional.diagnosticMapper ? optional.diagnosticMapper({ diagnostic, status }) : diagnostic;
 }
@@ -443,15 +396,14 @@ export async function makeCredentialedRequest(required: { deps: CredentialedRequ
   const body = validateOptionalBody(optional.body);
   const at = nowIso({ clock: deps.clock });
 
-  const { additionalHosts, baseUrl, connection } = await resolveCredentialOrThrow(deps, { workspaceId: input.workspaceId, label });
-  const url = resolveAllowedRequestUrl(input.url, allowedOriginsFor({ baseUrl, additionalHosts }));
-  const audit = deps.audit;
-  const bodyBytes = body !== undefined ? Buffer.byteLength(body, "utf8") : 0;
+  const credential = await resolveCredentialOrThrow(deps, { workspaceId: input.workspaceId, label });
+  const url = resolveAllowedRequestUrl(input.url, allowedOriginsFor(credential));
+  const auditBase: AuditBase = { label, host: url.hostname, method, bodyBytes: body !== undefined ? Buffer.byteLength(body, "utf8") : 0, at };
   const schemes = await deps.schemeRegistry.load({ workspaceId: input.workspaceId });
-  const authorizationHeader = buildAuthorizationHeader({ connection, schemes });
-  const responseSecrets = buildResponseSecrets(connection, authorizationHeader, schemes);
+  const authorizationHeader = buildAuthorizationHeader({ connection: credential.connection, schemes });
+  const redaction: ResponseRedaction = { connection: credential.connection, schemes, secrets: buildResponseSecrets(credential.connection, authorizationHeader, schemes) };
 
-  let response;
+  let response: HttpResponse;
   try {
     response = await deps.httpClient.send({ request: {
       method,
@@ -461,21 +413,53 @@ export async function makeCredentialedRequest(required: { deps: CredentialedRequ
       ...(body !== undefined ? { body } : {}),
     } });
   } catch (err) {
-    audit.record({ entry: { label, host: url.hostname, method, status: 0, bodyBytes, at, ...(optional.errorPolicy?.isEgressRefusal({ error: err }) ? { egressRefusal: optional.errorPolicy.describeEgressRefusal({ error: err }) } : {}) } });
-    // Preserve the host refusal class: wrapping it would make a recoverable target-policy problem
-    // indistinguishable from a redacted internal failure at the tool boundary. Audit status stays zero.
-    if (optional.errorPolicy?.isEgressRefusal({ error: err })) throw err;
-    throw new CredentialedRequestTransportError({ message: `request to '${label}' failed: ${resolveRedactedResponseBody(err instanceof Error ? err.message : String(err), connection.token, responseSecrets, false)}` });
+    return failTransport({ err, audit: deps.audit, auditBase, redaction }, optional);
   }
 
-  audit.record({ entry: { label, host: url.hostname, method, status: response.status, bodyBytes, at } });
-  const authDiagnostic =
-    response.status === 401 || response.status === 403 ? mapAuthDiagnostic(connection, response.status, schemes, optional) : undefined;
+  deps.audit.record({ entry: auditEntry(auditBase, response.status) });
+  return buildExecutedResult({ response, redaction }, optional);
+}
+
+// What redaction and diagnostics need from the resolved credential; never leaves this module.
+interface ResponseRedaction {
+  readonly connection: CredentialConnection;
+  readonly schemes: readonly CredentialSchemeRule[];
+  readonly secrets: readonly string[];
+}
+
+// Audit every transport failure with status zero, then rethrow. Preserve the host refusal class:
+// wrapping it would make a recoverable target-policy problem indistinguishable from a redacted
+// internal failure at the tool boundary. Audit status stays zero.
+function failTransport(
+  required: { err: unknown; audit: CredentialedRequestAuditPort; auditBase: AuditBase; redaction: ResponseRedaction },
+  optional: Pick<CredentialedRequestOptions, "errorPolicy">,
+): never {
+  const { err, audit, auditBase, redaction } = required;
+  const egressRefusal = describeEgressRefusal(err, optional.errorPolicy);
+  audit.record({ entry: { ...auditEntry(auditBase, 0), ...(egressRefusal !== undefined ? { egressRefusal } : {}) } });
+  if (egressRefusal !== undefined) throw err;
+  const detail = err instanceof Error ? err.message : String(err);
+  throw new CredentialedRequestTransportError({ message: `request to '${auditBase.label}' failed: ${resolveRedactedResponseBody(detail, redaction.connection.token, redaction.secrets, false)}` });
+}
+
+// Only a host-recognized refusal yields audit detail; any other failure, or no policy, yields none.
+function describeEgressRefusal(err: unknown, policy: CredentialedRequestErrorPolicyPort | undefined): string | undefined {
+  return policy?.isEgressRefusal({ error: err }) ? policy.describeEgressRefusal({ error: err }) : undefined;
+}
+
+// Redact before returning: headers and body may reflect the injected secrets. A 401/403 adds the
+// auth diagnostic alongside the provider's own answer, never in place of it.
+function buildExecutedResult(
+  required: { response: HttpResponse; redaction: ResponseRedaction },
+  optional: Pick<CredentialedRequestOptions, "diagnosticMapper">,
+): CredentialedRequestExecutedResult {
+  const { response, redaction } = required;
+  const authDiagnostic = isAuthRejectionStatus(response.status) ? mapAuthDiagnostic(redaction.connection, response.status, redaction.schemes, optional) : undefined;
   return {
     executed: true,
     status: response.status,
-    headers: redactResponseHeaders(response.headers, responseSecrets),
-    bodyText: resolveRedactedResponseBody(response.bodyText, connection.token, responseSecrets, response.bodyTruncated === true),
+    headers: redactResponseHeaders(response.headers, redaction.secrets),
+    bodyText: resolveRedactedResponseBody(response.bodyText, redaction.connection.token, redaction.secrets, response.bodyTruncated === true),
     ...(authDiagnostic ? { authDiagnostic } : {}),
   };
 }
