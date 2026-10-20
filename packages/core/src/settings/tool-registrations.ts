@@ -10,8 +10,8 @@ import type { Clock } from "../primitives/index.js";
  * and the service repeats authorization at mutation time. No host HTTP/runtime imports.
  */
 import type { LegacyToolAuthorizeFn as AuthorizeFn } from "../tool-permissions.js";
-import { buildSettingsValueWriteHandler, type SettingsWriteConfirmation } from "./agent-value-write-tools.js";
-import { AGENT_WRITE_CONFIRMATION_SETTINGS, AGENT_WRITE_DENIED_SETTINGS, findAgentWriteRule, type AgentSettingWriteRule } from "./agent-write-denylist.js";
+import { agentWriteRules, buildSettingsValueWriteHandler, toWriteDeps, type SettingsWriteConfirmation } from "./agent-value-write-tools.js";
+import { findAgentWriteRule, type AgentSettingWriteRule } from "./agent-write-denylist.js";
 import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, requireString, withSchemaOnRejection, type DerivedRiskByToolId } from "../registration-kit.js";
 import type { AgentToolSideEffect } from "../agent-tools.js";
 import { ToolInputError, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "../tool-registry.js";
@@ -33,7 +33,7 @@ import {
 import type { SettingsRepoPort } from "./ports.js";
 import { getEffective, resolveDefinition, resolveDefinitionRaw } from "./settings.js";
 import { SCOPE_BIT, type SettingValueRecord } from "./types.js";
-import { set as setSettingValue, type SettingsWriteServiceDeps } from "./write-service.js";
+import { set as setSettingValue } from "./write-service.js";
 
 const CATALOG_BY_ID = indexCatalogById({ catalog: getSettingsAgentToolCatalog() });
 
@@ -104,26 +104,6 @@ function layerValueOf(record: SettingValueRecord | null): JsonValue | null {
 }
 
 /**
- * Builds `write-service.ts`'s own five-field dep shape from `RouteDeps`.
- *
- * Deliberately duplicates a host's own HTTP admin layer's equivalent field-mapping helper rather
- * than importing it, for the reason this file's header already gives about
- * `resolveOwnOrOtherPrincipalRead`: this is domain-owned wiring, and importing from a host's HTTP
- * admin layer would invert the ports/adapters direction. It is a field mapping, not logic, so the
- * two copies carry no behavioral drift risk — and `write-service.ts` is the single chokepoint
- * either way, so a divergence here could only produce a missing dependency, which fails loudly.
- */
-function toWriteDeps(routeDeps: SettingsToolDeps): SettingsWriteServiceDeps {
-  return {
-    repo: routeDeps.settingsRepo,
-    clock: routeDeps.clock,
-    ids: routeDeps.idGen,
-    authorize: routeDeps.authorize,
-    principals: routeDeps.principalRepo,
-  };
-}
-
-/**
  * Errors a DIFFERENT input would fix, for `withSchemaOnRejection`'s decoration.
  *
  * `ValueValidationFailedError` is the common one — the model sent a value of the wrong shape for
@@ -191,8 +171,7 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
         routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: routeDeps.workspaceId }),
       ]);
 
-      const deniedRules = [...AGENT_WRITE_DENIED_SETTINGS, ...(routeDeps.extraDeniedSettings ?? [])];
-      const confirmationRules = [...(routeDeps.confirmationSettings ?? AGENT_WRITE_CONFIRMATION_SETTINGS), ...(routeDeps.extraConfirmationSettings ?? [])];
+      const { denied: deniedRules, confirmation: confirmationRules } = agentWriteRules(routeDeps);
       // Only aliases need an extra lookup. Their target's schema/scope and BOTH coordinates'
       // key policies must agree with the write handler; dangling/tombstoned targets fail closed.
       const data = (await Promise.all([...platformDefs, ...siteDefs].map(async (def) => {

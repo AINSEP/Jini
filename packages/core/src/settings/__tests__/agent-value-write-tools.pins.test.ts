@@ -122,3 +122,27 @@ test("a host setValue wrapper performs the write", async () => {
   assert.deepEqual(await f.call("settings_set_value", { ...target, value: "x" }), { key: "core.presentation.timezone", scope: "workspace", previous: null, value: "wrapped", revisionSeq: 42 });
   assert.equal(setValue.mock.calls.length, 1);
 });
+
+test("an empty-string extra input key slips past the unexpected-input check (reported, not fixed)", async () => {
+  // The strict boundary tests `if (extra)`, so a key named "" is falsy and never refused.
+  // It is ignored downstream, so nothing reads it, but the check is not as strict as its message says.
+  const f = fixture();
+  assert.deepEqual(await f.call("settings_set_value", { ...target, value: "x", "": "ignored" }), { key: "core.presentation.timezone", scope: "workspace", previous: null, value: "x", revisionSeq: 1 });
+});
+
+test("an invalid JSON refusal keeps the serialization failure as its cause", async () => {
+  const f = fixture();
+  await assert.rejects(() => f.call("settings_set_value", { ...target, value: NaN }), (error: Error) => error.message === "settings_set_value: value must be valid JSON." && error.cause instanceof Error);
+});
+
+test("a cleared override reports previous as null even if the row still carries a value", async () => {
+  const f = fixture();
+  await f.settingsRepo.saveWorkspaceValue({ settingId: "setting-1", scope: "workspace", workspaceId: "ws-1", principalId: null, valueJson: "stale", state: "cleared", defVersion: 1, seq: 1, updatedBy: "x", updatedAt: "2026-10-01T00:00:00.000Z", originPluginId: null });
+  assert.equal((await f.call("settings_set_value", { ...target, value: "new" }) as { previous: unknown }).previous, null);
+});
+
+test("a truthy non-true confirmation answer is treated as declined", async () => {
+  const f = fixture([definition(protectedTarget)], { confirmWrite: (async () => "yes") as unknown as () => Promise<boolean> }); // malformed host answer on purpose
+  await assert.rejects(() => f.call("settings_set_value", { ...protectedTarget, value: "x" }), { name: "ToolInputError", message: "settings_set_value: the human did not confirm the change. Nothing was changed." });
+  assert.deepEqual(await f.settingsRepo.listRevisions({ settingId: "setting-1" }), []);
+});
