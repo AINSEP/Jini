@@ -36,6 +36,36 @@ export class SqliteBackendConfigError extends Error {
   }
 }
 
+function resolvePostgresSslMode(
+  required: { env: Record<string, string | undefined> },
+  _optional: Record<string, never> = {},
+): 'disable' | 'require' | 'verify-full' {
+  const e = required.env;
+  return e.JINI_PG_SSL_MODE === 'disable' || e.JINI_PG_SSL_MODE === 'verify-full' ? e.JINI_PG_SSL_MODE : 'require';
+}
+
+function resolvePostgresConfig(
+  required: { env: Record<string, string | undefined> },
+  _optional: Record<string, never> = {},
+): SqliteBackendConfig {
+  const e = required.env;
+  const host = e.JINI_PG_HOST ?? '';
+  const portStr = e.JINI_PG_PORT ?? '5432';
+  const database = e.JINI_PG_DATABASE ?? '';
+  const user = e.JINI_PG_USER ?? '';
+  const sslMode = resolvePostgresSslMode({ env: e });
+  if (!host || !database || !user) {
+    throw new SqliteBackendConfigError({ message:
+      'JINI_SQLITE_BACKEND=postgres requires JINI_PG_HOST, JINI_PG_DATABASE, JINI_PG_USER. ' +
+        'JINI_PG_PORT defaults to 5432; JINI_PG_SSL_MODE defaults to "require".',
+    });
+  }
+  return {
+    kind: 'postgres',
+    postgres: { host, port: Number.parseInt(portStr, 10) || 5432, database, user, sslMode },
+  };
+}
+
 /**
  * Reads `JINI_SQLITE_BACKEND` (`'sqlite'` default, or `'postgres'`) and, for
  * `postgres`, `JINI_PG_HOST`/`JINI_PG_PORT`/`JINI_PG_DATABASE`/`JINI_PG_USER`/
@@ -55,28 +85,7 @@ export function resolveSqliteBackendConfig(
   const e = optional.env ?? process.env;
   const kind = (e.JINI_SQLITE_BACKEND ?? 'sqlite').trim().toLowerCase();
   if (kind === 'postgres') {
-    const host = e.JINI_PG_HOST ?? '';
-    const portStr = e.JINI_PG_PORT ?? '5432';
-    const database = e.JINI_PG_DATABASE ?? '';
-    const user = e.JINI_PG_USER ?? '';
-    const sslMode =
-      e.JINI_PG_SSL_MODE === 'disable' || e.JINI_PG_SSL_MODE === 'verify-full' ? e.JINI_PG_SSL_MODE : 'require';
-    if (!host || !database || !user) {
-      throw new SqliteBackendConfigError({ message:
-        'JINI_SQLITE_BACKEND=postgres requires JINI_PG_HOST, JINI_PG_DATABASE, JINI_PG_USER. ' +
-          'JINI_PG_PORT defaults to 5432; JINI_PG_SSL_MODE defaults to "require".',
-      });
-    }
-    return {
-      kind: 'postgres',
-      postgres: {
-        host,
-        port: Number.parseInt(portStr, 10) || 5432,
-        database,
-        user,
-        sslMode,
-      },
-    };
+    return resolvePostgresConfig({ env: e });
   }
   if (kind !== 'sqlite' && kind !== '') {
     throw new SqliteBackendConfigError({ message: `unknown JINI_SQLITE_BACKEND value '${kind}'. Accepted: 'sqlite' (default), 'postgres'.` });

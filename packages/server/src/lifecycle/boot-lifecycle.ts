@@ -35,6 +35,49 @@ async function stopInReverse(modules: readonly BootModule[]): Promise<void> {
   }
 }
 
+function bootModuleFailure(
+  required: { module: BootModule; error: unknown },
+  _optional: Record<string, never> = {},
+): BootModuleResult {
+  const { module, error } = required;
+  return {
+    name: module.name, owner: module.owner, criticality: module.criticality,
+    lifecycle: {
+      status: 'failed', reasonCode: error instanceof Error ? error.message : String(error),
+      remediationHint: 'check the boot log for the underlying error and retry after fixing it',
+    },
+  };
+}
+
+async function runBootStage(
+  required: {
+    stage: 'prepare' | 'start';
+    modules: readonly BootModule[];
+    results: Map<string, BootModuleResult>;
+  },
+  _optional: Record<string, never> = {},
+): Promise<{ completed: BootModule[]; aborted: boolean }> {
+  const { stage, modules, results } = required;
+  const completed: BootModule[] = [];
+  for (const module of modules) {
+    try {
+      await module[stage]();
+      completed.push(module);
+      if (stage === 'start') results.set(module.name, {
+        name: module.name, owner: module.owner, criticality: module.criticality,
+        lifecycle: { status: 'ready' },
+      });
+    } catch (error) {
+      results.set(module.name, bootModuleFailure({ module, error }));
+      if (module.criticality === 'critical') {
+        await stopInReverse(completed);
+        return { completed, aborted: true };
+      }
+    }
+  }
+  return { completed, aborted: false };
+}
+
 /**
  * Preserve source rollback semantics: prepare failure unwinds completed preparations;
  * start failure unwinds completed starts only. Failing modules own their partial cleanup.
@@ -54,35 +97,9 @@ export async function runBootLifecycle(
     throw new Error('boot module names must be unique');
   }
   const results = new Map<string, BootModuleResult>();
-  const prepared: BootModule[] = [];
-  const ready: BootModule[] = [];
-  let aborted = false;
-  for (const stage of ['prepare', 'start'] as const) {
-    const completed = stage === 'prepare' ? prepared : ready;
-    for (const module of stage === 'prepare' ? modules : prepared) {
-      try {
-        await module[stage]();
-        completed.push(module);
-        if (stage === 'start') results.set(module.name, {
-          name: module.name, owner: module.owner, criticality: module.criticality,
-          lifecycle: { status: 'ready' },
-        });
-      } catch (error) {
-        results.set(module.name, {
-          name: module.name, owner: module.owner, criticality: module.criticality,
-          lifecycle: {
-            status: 'failed', reasonCode: error instanceof Error ? error.message : String(error),
-            remediationHint: 'check the boot log for the underlying error and retry after fixing it',
-          },
-        });
-        if (module.criticality === 'critical') {
-          await stopInReverse(completed);
-          aborted = true;
-          break;
-        }
-      }
-    }
-    if (aborted) break;
+  const prepared = await runBootStage({ stage: 'prepare', modules, results });
+  if (!prepared.aborted) {
+    await runBootStage({ stage: 'start', modules: prepared.completed, results });
   }
   const ordered = modules.flatMap(module => {
     const result = results.get(module.name);
