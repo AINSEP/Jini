@@ -36,7 +36,7 @@ import type {
   AsyncOperationRecord,
   AsyncOperationStore,
 } from './async-operation-store.js';
-import type { AnyPollingVendorAdapter, PollingVendorAdapter, RequestSigner, SubmitOutcome, UnsignedVendorRequest } from './polling-adapter.js';
+import type { AnyPollingVendorAdapter, PollingVendorAdapter, PollOutcome, RequestSigner, SubmitOutcome, UnsignedVendorRequest } from './polling-adapter.js';
 import type { RenderContext, RenderResult } from './types.js';
 
 /** Interactive budget for the inline attempt. Deliberately NOT `FETCH_TIMEOUT_MS.GENERATE` (10min) — that is the backstop for the *request*, this is the ceiling on making a human wait. */
@@ -267,96 +267,136 @@ export async function pollDueOperations(required: RequiredArgs<OperationRuntimeD
     ...(params.limit !== undefined ? { limit: params.limit } : {}),
 }, ["now", "leaseOwner", "leaseMs"]));
 
-  let completed = 0;
-  let failed = 0;
-  let pending = 0;
-  let unknown = 0;
-
+  const tally: Record<PollBucket, number> = { completed: 0, failed: 0, pending: 0, unknown: 0 };
   for (const row of claimed) {
-    try {
-      const at = now();
+    tally[await advanceClaimedRow({ row, deps, params, now })] += 1;
+  }
+  return { claimed: claimed.length, ...tally };
+}
 
-      if (row.deadlineAt <= at) {
-        await deps.store.update({ id: row.id, patch: {
-        status: 'unknown',
-        error: {
-            message: 'async operation passed its absolute deadline — vendor-side effect is undetermined',
-            code: 'DEADLINE_EXPIRED',
-        },
-    } }, { options: { leaseOwner: params.leaseOwner } });
-        unknown += 1;
-        continue;
-      }
+/** The `PollDueStats` counter a single claimed row lands in. */
+type PollBucket = 'completed' | 'failed' | 'pending' | 'unknown';
 
-      if (row.attempts >= row.maxAttempts) {
-        await deps.store.update({ id: row.id, patch: {
-        status: 'failed',
-        error: {
-            message: `async operation exhausted its ${row.maxAttempts} poll attempts without a terminal answer`,
-            code: 'ATTEMPTS_EXHAUSTED',
-        },
-    } }, { options: { leaseOwner: params.leaseOwner } });
-        failed += 1;
-        continue;
-      }
+/** What one tick decided for one row: the patch to write and the counter it lands in. */
+interface RowVerdict {
+  readonly bucket: PollBucket;
+  readonly patch: AsyncOperationPatch;
+}
 
-      const adapter = params.adapters({ providerId: row.providerId, routeKey: row.routeKey });
-      if (!adapter) {
-        await deps.store.update({ id: row.id, patch: {
+interface ClaimedRowArgs {
+  readonly row: AsyncOperationRecord;
+  readonly deps: OperationRuntimeDeps;
+  readonly params: PollDueParams;
+}
+
+/**
+ * Advances one claimed row by one tick, writes the verdict, and always releases the lease.
+ * Any throw — vendor transport, adapter, or the verdict write itself — becomes a pollable retry.
+ */
+async function advanceClaimedRow(required: ClaimedRowArgs & { now: () => number }): Promise<PollBucket> {
+  const { row, deps, params, now } = required;
+  // Every write below is fenced on the lease this tick claimed: if it expired and another
+  // worker has since reclaimed (or finished) the row, this write must not clobber that newer
+  // outcome — see `AsyncOperationUpdateOptions`.
+  const fence = { options: { leaseOwner: params.leaseOwner } };
+  let bucket: PollBucket;
+  try {
+    const verdict = await decideRow({ row, deps, params, at: now() });
+    await deps.store.update({ id: row.id, patch: verdict.patch }, fence);
+    bucket = verdict.bucket;
+  } catch (error) {
+    // A transport failure is not a vendor verdict: keep the row pollable and let the attempt cap
+    // or the deadline end it, rather than reporting a definitive failure we cannot support.
+    await deps.store.update({ id: row.id, patch: {
+      status: 'polling',
+      attempts: row.attempts + 1,
+      nextPollAt: now() + DEFAULT_POLL_INTERVAL_MS,
+      error: toOperationError(error),
+    } }, fence);
+    bucket = 'pending';
+  } finally {
+    await deps.store.releaseLease({ id: row.id, leaseOwner: params.leaseOwner });
+  }
+  return bucket;
+}
+
+/**
+ * Both bounds are checked before any vendor call, and in this order: the absolute deadline (a
+ * blown deadline must not cost another request), then the attempt cap, then the adapter lookup.
+ */
+async function decideRow(required: ClaimedRowArgs & { at: number }): Promise<RowVerdict> {
+  const { row, deps, params, at } = required;
+  const bound = boundsVerdict({ row, at });
+  if (bound) return bound;
+
+  const adapter = params.adapters({ providerId: row.providerId, routeKey: row.routeKey });
+  if (!adapter) {
+    return {
+      bucket: 'failed',
+      patch: {
         status: 'failed',
         error: { message: `no polling adapter registered for "${row.providerId}" / "${row.routeKey}"`, code: 'NO_ADAPTER' },
-    } }, { options: { leaseOwner: params.leaseOwner } });
-        failed += 1;
-        continue;
-      }
-
-      const ctx = params.resolveContext(row);
-      const request = adapter.buildPollRequest({ state: row.state ?? {}, ctx: ctx });
-      // Credentials are resolved here, on this tick — never read from the row.
-      const resp = await performSigned(deps, request as UnsignedVendorRequest<unknown>, FETCH_TIMEOUT_MS.QUICK);
-      const outcome = await adapter.parsePollResponse({ resp: resp, ctx: withRuntimeOutbound({ ctx, deps }), state: row.state ?? {} });
-
-      // Every write below is fenced on the lease this tick claimed: if it expired and another
-      // worker has since reclaimed (or finished) the row, this write must not clobber that newer
-      // outcome — see `AsyncOperationUpdateOptions`.
-      if (outcome.kind === 'complete') {
-        await deps.store.update({ id: row.id, patch: {
-        status: 'succeeded',
-        attempts: row.attempts + 1,
-        result: resultToPayload(outcome.result),
-    } }, { options: { leaseOwner: params.leaseOwner } });
-        completed += 1;
-      } else if (outcome.kind === 'failed') {
-        await deps.store.update({ id: row.id, patch: {
-        status: 'failed',
-        attempts: row.attempts + 1,
-        error: { message: outcome.message, ...(outcome.code !== undefined ? { code: outcome.code } : {}) },
-    } }, { options: { leaseOwner: params.leaseOwner } });
-        failed += 1;
-      } else {
-        await deps.store.update({ id: row.id, patch: {
-        status: 'polling',
-        attempts: row.attempts + 1,
-        nextPollAt: at + (outcome.retryAfterMs ?? DEFAULT_POLL_INTERVAL_MS),
-    } }, { options: { leaseOwner: params.leaseOwner } });
-        pending += 1;
-      }
-    } catch (error) {
-      // A transport failure is not a vendor verdict: keep the row pollable and let the attempt cap
-      // or the deadline end it, rather than reporting a definitive failure we cannot support.
-      await deps.store.update({ id: row.id, patch: {
-        status: 'polling',
-        attempts: row.attempts + 1,
-        nextPollAt: now() + DEFAULT_POLL_INTERVAL_MS,
-        error: toOperationError(error),
-    } }, { options: { leaseOwner: params.leaseOwner } });
-      pending += 1;
-    } finally {
-      await deps.store.releaseLease({ id: row.id, leaseOwner: params.leaseOwner });
-    }
+      },
+    };
   }
 
-  return { claimed: claimed.length, completed, failed, pending, unknown };
+  const ctx = params.resolveContext(row);
+  const state = row.state ?? {};
+  const request = adapter.buildPollRequest({ state, ctx });
+  // Credentials are resolved here, on this tick — never read from the row.
+  const resp = await performSigned(deps, request as UnsignedVendorRequest<unknown>, FETCH_TIMEOUT_MS.QUICK);
+  const outcome = await adapter.parsePollResponse({ resp, ctx: withRuntimeOutbound({ ctx, deps }), state });
+  return pollOutcomeVerdict({ outcome, attempts: row.attempts + 1, at });
+}
+
+/** The deadline / attempt-cap verdict for a row, or `undefined` when it is still within both bounds. */
+function boundsVerdict({ row, at }: { row: AsyncOperationRecord; at: number }): RowVerdict | undefined {
+  if (row.deadlineAt <= at) {
+    return {
+      bucket: 'unknown',
+      patch: {
+        status: 'unknown',
+        error: {
+          message: 'async operation passed its absolute deadline — vendor-side effect is undetermined',
+          code: 'DEADLINE_EXPIRED',
+        },
+      },
+    };
+  }
+  if (row.attempts >= row.maxAttempts) {
+    return {
+      bucket: 'failed',
+      patch: {
+        status: 'failed',
+        error: {
+          message: `async operation exhausted its ${row.maxAttempts} poll attempts without a terminal answer`,
+          code: 'ATTEMPTS_EXHAUSTED',
+        },
+      },
+    };
+  }
+  return undefined;
+}
+
+/** Maps a vendor poll answer to the row patch, counting this poll as attempt number `attempts`. */
+function pollOutcomeVerdict({ outcome, attempts, at }: { outcome: PollOutcome; attempts: number; at: number }): RowVerdict {
+  if (outcome.kind === 'complete') {
+    return { bucket: 'completed', patch: { status: 'succeeded', attempts, result: resultToPayload(outcome.result) } };
+  }
+  if (outcome.kind === 'failed') {
+    return {
+      bucket: 'failed',
+      patch: {
+        status: 'failed',
+        attempts,
+        error: { message: outcome.message, ...(outcome.code !== undefined ? { code: outcome.code } : {}) },
+      },
+    };
+  }
+  return {
+    bucket: 'pending',
+    patch: { status: 'polling', attempts, nextPollAt: at + (outcome.retryAfterMs ?? DEFAULT_POLL_INTERVAL_MS) },
+  };
 }
 
 export interface RecoverParams {

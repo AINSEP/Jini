@@ -1,6 +1,6 @@
 import { testHttpClient } from './outbound-fixtures.js';
 import { partitionArgs } from '../../../args.js';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createInMemoryAsyncOperationStore } from '../async-operation-store.js';
 import type { AsyncOperationPatch, AsyncOperationStore } from '../async-operation-store.js';
@@ -12,6 +12,18 @@ import {
   startOperation,
 } from '../operation-runtime.js';
 import type { RenderContext } from '../types.js';
+
+// Routes the default guarded client (used when no `httpClient` is injected) through the
+// deterministic fixture transport, so a test can exercise the httpClient-absent path offline.
+vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
+  const { testNodeGuardedHttpPorts } = await import('./outbound-fixtures.js');
+  return { ...original, createNodeGuardedHttpPorts: testNodeGuardedHttpPorts };
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const CTX: RenderContext = {
   surface: 'video',
@@ -576,5 +588,113 @@ describe('pollDueOperations — per-row verdicts and bookkeeping', () => {
             },
         };
         await expect(poll(store, vi.fn(async () => json({ status: 'pending' })))).rejects.toThrow('release failed');
+    });
+});
+
+describe('operation runtime — defaults and outbound threading', () => {
+    const T0 = 1_000_000;
+    async function seedOne(store: AsyncOperationStore) {
+        await store.create(...partitionArgs({
+            id: 'op-1', providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1',
+            maxAttempts: 3, deadlineAt: T0 + 60_000, nextPollAt: 0, state: { jobId: 'j' },
+        }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.update({ id: 'op-1', patch: { status: 'polling' } });
+    }
+    function capturingAdapter(seen: RenderContext[]): PollingVendorAdapter {
+        return fastAdapter({
+            parsePollResponse: async ({ ctx }) => {
+                seen.push(ctx);
+                return { kind: 'pending' };
+            },
+        });
+    }
+
+    it('threads allowPrivateNetwork and outboundMessages into the poll parser context', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seedOne(store);
+        const seen: RenderContext[] = [];
+        const outboundMessages = { dispatcherRefused: 'custom dispatcher refusal' };
+        await pollDueOperations(...partitionArgs({
+            store, signer, httpClient: testHttpClient(vi.fn(async () => json({}))), allowPrivateNetwork: false, outboundMessages,
+            adapters: () => capturingAdapter(seen), resolveContext: () => CTX, leaseOwner: 'w1', leaseMs: 1000, clock: () => T0,
+        }, ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"]));
+        expect(seen[0]?.allowPrivateNetwork).toBe(false);
+        expect(seen[0]?.outboundMessages).toBe(outboundMessages);
+        expect(seen[0]?.httpClient).toBeDefined();
+    });
+
+    it('omits httpClient / allowPrivateNetwork / outboundMessages from the parser context when none are given', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => json({ status: 'pending' })));
+        const store = createInMemoryAsyncOperationStore();
+        await seedOne(store);
+        const seen: RenderContext[] = [];
+        await pollDueOperations(...partitionArgs({
+            store, signer, adapters: () => capturingAdapter(seen), resolveContext: () => CTX, leaseOwner: 'w1', leaseMs: 1000, clock: () => T0,
+        }, ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"]));
+        expect(seen).toHaveLength(1);
+        expect(Object.keys(seen[0]!)).not.toContain('httpClient');
+        expect(Object.keys(seen[0]!)).not.toContain('allowPrivateNetwork');
+        expect(Object.keys(seen[0]!)).not.toContain('outboundMessages');
+    });
+
+    it('waits on a fast vendor with the default grace window when graceMs is omitted', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        const fetchImpl = vi.fn(async () => {
+            await new Promise((r) => setTimeout(r, 30));
+            return json({ b64: Buffer.from('OK').toString('base64') });
+        });
+        const outcome = await startOperation(...partitionArgs({
+            store, signer, httpClient: testHttpClient(fetchImpl),
+            adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1',
+        }, ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"]));
+        expect(outcome.done).toBe(true);
+    });
+
+    it('recoverAfterRestart reads the injected clock when no explicit now is given', async () => {
+        const base = createInMemoryAsyncOperationStore();
+        const boots: number[] = [];
+        const store: AsyncOperationStore = {
+            ...base,
+            reconcileOnBoot: async ({ now }) => {
+                boots.push(now);
+                return base.reconcileOnBoot({ now });
+            },
+        };
+        await recoverAfterRestart(...partitionArgs({ store, signer, adapters: () => fastAdapter(), clock: () => T0 }, ["store", "signer", "adapters"]));
+        expect(boots).toEqual([T0]);
+    });
+
+    it('recoverAfterRestart falls back to Date.now when neither now nor a clock is given', async () => {
+        const base = createInMemoryAsyncOperationStore();
+        const boots: number[] = [];
+        const store: AsyncOperationStore = {
+            ...base,
+            reconcileOnBoot: async ({ now }) => {
+                boots.push(now);
+                return base.reconcileOnBoot({ now });
+            },
+        };
+        const before = Date.now();
+        await recoverAfterRestart(...partitionArgs({ store, signer, adapters: () => fastAdapter() }, ["store", "signer", "adapters"]));
+        expect(boots[0]).toBeGreaterThanOrEqual(before);
+        expect(boots[0]).toBeLessThanOrEqual(Date.now());
+    });
+
+    it('still releases the lease when even the retry write fails, then surfaces that write error', async () => {
+        const base = createInMemoryAsyncOperationStore();
+        await seedOne(base);
+        const releases: string[] = [];
+        const store: AsyncOperationStore = {
+            ...withFlakyUpdate(base, Infinity),
+            releaseLease: async (args) => {
+                releases.push(args.id);
+                return base.releaseLease(args);
+            },
+        };
+        await expect(pollDueOperations(...partitionArgs({
+            store, signer, httpClient: testHttpClient(vi.fn(async () => json({ status: 'pending' }))),
+            adapters: () => fastAdapter(), resolveContext: () => CTX, leaseOwner: 'w1', leaseMs: 1000, clock: () => T0,
+        }, ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"]))).rejects.toThrow('transient store outage');
+        expect(releases).toEqual(['op-1']);
     });
 });
