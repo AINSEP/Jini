@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { SourceConfigTestControl } from './SourceConfigTestControl.js';
+import { SourceConfigTestControl } from '../react/components/SourceConfigTestControl.js';
 
 describe('SourceConfigTestControl', () => {
   it('renders idle with a Test button and no status when there is no result yet', () => {

@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n/index.js';
-import { SourceConfigField } from './SourceConfigField.js';
-import type { SourceFieldSpec } from '../../types.js';
+import { I18nProvider } from '../../i18n/index.js';
+import { SourceConfigField } from '../react/components/SourceConfigField.js';
+import type { SourceFieldSpec } from '../types.js';
 
 describe('SourceConfigField', () => {
   it('renders a text field and forwards changes', async () => {
@@ -56,6 +56,14 @@ describe('SourceConfigField', () => {
     expect(input).toHaveAttribute('type', 'text');
     await userEvent.click(screen.getByRole('button', { name: 'Hide' }));
     expect(input).toHaveAttribute('type', 'password');
+  });
+
+  it('forwards typing in a password field to onChange', async () => {
+    const onChange = vi.fn();
+    const spec: SourceFieldSpec = { key: 'apiKey', label: 'API Key', kind: 'password' };
+    render(<SourceConfigField spec={spec} value="" onChange={onChange} />);
+    await userEvent.type(screen.getByLabelText('API Key', { exact: false }), 's');
+    expect(onChange).toHaveBeenCalledWith('s');
   });
 
   it('marks a password field autoComplete="new-password", so Chrome never fills the saved site login into a source credential', () => {
@@ -218,6 +226,16 @@ describe('SourceConfigField', () => {
       const boxAfterMore = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
       expect(boxAfterMore).not.toHaveAttribute('readonly');
       expect(boxAfterMore.value).toBe('GITHUB_TOKEN=ghp_newSecret');
+    });
+
+    it('never re-engages the reveal gate after a stored secret is cleared and a new one typed', () => {
+      const spec: SourceFieldSpec = { key: 'env', label: 'Env', kind: 'secret-textarea' };
+      const { rerender } = render(<SourceConfigField spec={spec} value="GITHUB_TOKEN=ghp_old" onChange={vi.fn()} />);
+      rerender(<SourceConfigField spec={spec} value="" onChange={vi.fn()} />);
+      rerender(<SourceConfigField spec={spec} value="GITHUB_TOKEN=ghp_new" onChange={vi.fn()} />);
+      const box = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
+      expect(box).not.toHaveAttribute('readonly');
+      expect(box.value).toBe('GITHUB_TOKEN=ghp_new');
     });
 
     it('leaves a plain textarea unmasked and editable', async () => {

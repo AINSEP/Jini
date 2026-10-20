@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { validateSourceDraft } from '../../rules.js';
-import type { SourceFieldSpec, SourceTrustOption } from '../../types.js';
-import { SourceConfigAddForm } from './SourceConfigAddForm.js';
+import { validateSourceDraft } from '../rules.js';
+import type { SourceFieldSpec, SourceTrustOption } from '../types.js';
+import { SourceConfigAddForm } from '../react/components/SourceConfigAddForm.js';
 import type { ComponentProps } from 'react';
 
 const URL_FIELD: SourceFieldSpec = { key: 'url', label: 'URL', kind: 'url', required: true };
@@ -75,6 +75,27 @@ describe('SourceConfigAddForm', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it('does not render a trust select when trustOptions is an empty list', () => {
+    render(<SourceConfigAddForm {...baseProps({ trustOptions: [] })} />);
+    expect(screen.queryByLabelText('Trust level')).toBeNull();
+  });
+
+  it('shows a hidden "Select…" placeholder option while no trust is chosen', () => {
+    render(<SourceConfigAddForm {...baseProps({ trustOptions: TRUST_OPTIONS })} />);
+    expect(screen.getByText('Select…')).toHaveValue('');
+  });
+
+  it('omits the "Select…" placeholder once a trust value is chosen', () => {
+    render(<SourceConfigAddForm {...baseProps({ trustOptions: TRUST_OPTIONS, trust: 'trusted' })} />);
+    expect(screen.queryByText('Select…')).toBeNull();
+    expect(screen.getByLabelText('Trust level')).toHaveValue('trusted');
+  });
+
+  it('renders a custom cancelLabel on the Cancel button', () => {
+    render(<SourceConfigAddForm {...baseProps({ onCancel: vi.fn(), cancelLabel: 'Close' })} />);
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  });
+
   it('renders no Cancel button when onCancel is omitted', () => {
     render(<SourceConfigAddForm {...baseProps()} />);
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
@@ -117,6 +138,16 @@ describe('SourceConfigAddForm', () => {
   });
 
   describe('test-before-save (BYOK "test before save" regression)', () => {
+    it('publishes the test control under <agentHandle>-test when an agentHandle is given', () => {
+      const values = { url: 'https://mcp.example' };
+      render(
+        <SourceConfigAddForm
+          {...baseProps({ values, validation: validateSourceDraft([URL_FIELD], values), canTest: true, onTest: vi.fn(), agentHandle: 'mcp-add' })}
+        />,
+      );
+      expect(screen.getByRole('button', { name: 'Test' })).toHaveAttribute('data-agent-element', 'mcp-add-test');
+    });
+
     it('does not render a test control when canTest is false or onTest is omitted', () => {
       const { rerender } = render(<SourceConfigAddForm {...baseProps({ canTest: false, onTest: vi.fn() })} />);
       expect(screen.queryByRole('button', { name: /Test/ })).toBeNull();
