@@ -12,6 +12,7 @@ import {
 } from '../../../../utils/notifications.js';
 import { type TestStatus, testStatusLabel } from '../../rules.js';
 import type { NotificationsPreferences } from '../../types.js';
+import type { SoundOption } from '../../notifications-catalog.js';
 
 export interface NotificationsTabLabels {
   completionSoundTitle?: string;
@@ -71,28 +72,25 @@ export function NotificationsTab({
   agentHandle,
 }: NotificationsTabProps) {
   const t = useT();
-  const successSoundHandles = agentHandle
-    ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'success-sound' }), ids: SUCCESS_SOUNDS.map((s) => s.id) })
-    : undefined;
-  const failureSoundHandles = agentHandle
-    ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'failure-sound' }), ids: FAILURE_SOUNDS.map((s) => s.id) })
-    : undefined;
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(() => notificationPermission());
   const [testStatus, setTestStatus] = useState<TestStatus | null>(null);
 
-  const completionSoundTitle = labels?.completionSoundTitle ?? t('Completion sound');
-  const completionSoundHint = labels?.completionSoundHint ?? t('Play a sound when a task finishes.');
-  const successSoundLabel = labels?.successSoundLabel ?? t('Success sound');
-  const failureSoundLabel = labels?.failureSoundLabel ?? t('Failure sound');
-  const desktopTitle = labels?.desktopTitle ?? t('Desktop notifications');
-  const desktopHint = labels?.desktopHint ?? t('Show a system notification when a task finishes.');
-  const desktopUnsupported = labels?.desktopUnsupported ?? t('Desktop notifications are not supported in this browser.');
-  const desktopBlocked = labels?.desktopBlocked ?? t('Desktop notifications are blocked. Enable them in your browser settings.');
-  const sendTestLabel = labels?.sendTestLabel ?? t('Send test notification');
-  const testSentLabel = labels?.testSentLabel ?? t('Test notification sent.');
-  const testFailedLabel = labels?.testFailedLabel ?? t('Could not send a test notification.');
-  const activeLabel = labels?.activeLabel ?? t('On');
-  const offLabel = labels?.offLabel ?? t('Off');
+  const label = ({ key, fallback }: { key: keyof NotificationsTabLabels; fallback: string }, _options: Record<string, never> = {}) =>
+    labels?.[key] ?? t(fallback);
+
+  const completionSoundTitle = label({ key: 'completionSoundTitle', fallback: 'Completion sound' });
+  const completionSoundHint = label({ key: 'completionSoundHint', fallback: 'Play a sound when a task finishes.' });
+  const successSoundLabel = label({ key: 'successSoundLabel', fallback: 'Success sound' });
+  const failureSoundLabel = label({ key: 'failureSoundLabel', fallback: 'Failure sound' });
+  const desktopTitle = label({ key: 'desktopTitle', fallback: 'Desktop notifications' });
+  const desktopHint = label({ key: 'desktopHint', fallback: 'Show a system notification when a task finishes.' });
+  const desktopUnsupported = label({ key: 'desktopUnsupported', fallback: 'Desktop notifications are not supported in this browser.' });
+  const desktopBlocked = label({ key: 'desktopBlocked', fallback: 'Desktop notifications are blocked. Enable them in your browser settings.' });
+  const sendTestLabel = label({ key: 'sendTestLabel', fallback: 'Send test notification' });
+  const testSentLabel = label({ key: 'testSentLabel', fallback: 'Test notification sent.' });
+  const testFailedLabel = label({ key: 'testFailedLabel', fallback: 'Could not send a test notification.' });
+  const activeLabel = label({ key: 'activeLabel', fallback: 'On' });
+  const offLabel = label({ key: 'offLabel', fallback: 'Off' });
 
   const toggleSound = () => {
     const next = !preferences.soundEnabled;
@@ -130,80 +128,41 @@ export function NotificationsTab({
         <div className="jini-settings-notify-card">
           <div className="jini-settings-notify-card-header">
             <h4>{completionSoundTitle}</h4>
-            <div
-              className="jini-seg-control"
-              role="group"
-              aria-label={completionSoundTitle}
-              style={{ '--seg-cols': 1 } as CSSProperties}
-            >
-              <button
-                type="button"
-                className={'jini-seg-btn' + (preferences.soundEnabled ? ' active' : '')}
-                aria-pressed={preferences.soundEnabled}
-                aria-label={completionSoundTitle}
-                onClick={toggleSound}
-                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'sound-toggle', role: 'button', label: completionSoundTitle }) })}
-              >
-                <span className="jini-seg-title">{preferences.soundEnabled ? activeLabel : offLabel}</span>
-              </button>
-            </div>
+            <NotificationToggle
+              title={completionSoundTitle}
+              enabled={preferences.soundEnabled}
+              onToggle={toggleSound}
+              activeLabel={activeLabel}
+              offLabel={offLabel}
+              agentHandle={agentHandle}
+              action="sound-toggle"
+            />
           </div>
           <p className="jini-hint">{completionSoundHint}</p>
         </div>
 
         {preferences.soundEnabled ? (
           <>
-            <div className="jini-settings-field">
-              <label>{successSoundLabel}</label>
-              <div
-                className="jini-seg-control"
-                role="group"
-                aria-label={successSoundLabel}
-                style={{ '--seg-cols': SUCCESS_SOUNDS.length } as CSSProperties}
-              >
-                {SUCCESS_SOUNDS.map((sound, index) => (
-                  <button
-                    key={sound.id}
-                    type="button"
-                    className={'jini-seg-btn' + (preferences.successSoundId === sound.id ? ' active' : '')}
-                    aria-pressed={preferences.successSoundId === sound.id}
-                    onClick={() => {
-                      onChange({ successSoundId: sound.id });
-                      playSound(sound.id);
-                    }}
-                    {...agentHandleProps({}, { base: successSoundHandles?.[index], ...({ role: 'button', label: t(sound.labelKey) }) })}
-                  >
-                    <span className="jini-seg-title">{t(sound.labelKey)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="jini-settings-field">
-              <label>{failureSoundLabel}</label>
-              <div
-                className="jini-seg-control"
-                role="group"
-                aria-label={failureSoundLabel}
-                style={{ '--seg-cols': FAILURE_SOUNDS.length } as CSSProperties}
-              >
-                {FAILURE_SOUNDS.map((sound, index) => (
-                  <button
-                    key={sound.id}
-                    type="button"
-                    className={'jini-seg-btn' + (preferences.failureSoundId === sound.id ? ' active' : '')}
-                    aria-pressed={preferences.failureSoundId === sound.id}
-                    onClick={() => {
-                      onChange({ failureSoundId: sound.id });
-                      playSound(sound.id);
-                    }}
-                    {...agentHandleProps({}, { base: failureSoundHandles?.[index], ...({ role: 'button', label: t(sound.labelKey) }) })}
-                  >
-                    <span className="jini-seg-title">{t(sound.labelKey)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <SoundPicker
+              label={successSoundLabel}
+              sounds={SUCCESS_SOUNDS}
+              selectedSoundId={preferences.successSoundId}
+              preferenceKey="successSoundId"
+              onChange={onChange}
+              previewSound={playSound}
+              agentHandle={agentHandle}
+              action="success-sound"
+            />
+            <SoundPicker
+              label={failureSoundLabel}
+              sounds={FAILURE_SOUNDS}
+              selectedSoundId={preferences.failureSoundId}
+              preferenceKey="failureSoundId"
+              onChange={onChange}
+              previewSound={playSound}
+              agentHandle={agentHandle}
+              action="failure-sound"
+            />
           </>
         ) : null}
       </div>
@@ -212,26 +171,16 @@ export function NotificationsTab({
         <div className="jini-settings-notify-card">
           <div className="jini-settings-notify-card-header">
             <h4>{desktopTitle}</h4>
-            <div
-              className="jini-seg-control"
-              role="group"
-              aria-label={desktopTitle}
-              style={{ '--seg-cols': 1 } as CSSProperties}
-            >
-              <button
-                type="button"
-                className={'jini-seg-btn' + (preferences.desktopEnabled ? ' active' : '')}
-                aria-pressed={preferences.desktopEnabled}
-                aria-label={desktopTitle}
-                disabled={permission === 'unsupported'}
-                onClick={() => {
-                  void toggleDesktop();
-                }}
-                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'desktop-toggle', role: 'button', label: desktopTitle }) })}
-              >
-                <span className="jini-seg-title">{preferences.desktopEnabled ? activeLabel : offLabel}</span>
-              </button>
-            </div>
+            <NotificationToggle
+              title={desktopTitle}
+              enabled={preferences.desktopEnabled}
+              onToggle={toggleDesktop}
+              activeLabel={activeLabel}
+              offLabel={offLabel}
+              agentHandle={agentHandle}
+              action="desktop-toggle"
+              disabled={permission === 'unsupported'}
+            />
           </div>
           <p className="jini-hint">{desktopHint}</p>
         </div>
@@ -258,5 +207,74 @@ export function NotificationsTab({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function NotificationToggle({
+  title, enabled, onToggle, activeLabel, offLabel, agentHandle, action, disabled,
+}: {
+  title: string;
+  enabled: boolean;
+  onToggle: () => void | Promise<void>;
+  activeLabel: string;
+  offLabel: string;
+  agentHandle: string | undefined;
+  action: 'sound-toggle' | 'desktop-toggle';
+  disabled?: boolean;
+}) {
+  return (
+    <div className="jini-seg-control" role="group" aria-label={title} style={{ '--seg-cols': 1 } as CSSProperties}>
+      <button
+        type="button"
+        className={'jini-seg-btn' + (enabled ? ' active' : '')}
+        aria-pressed={enabled}
+        aria-label={title}
+        disabled={disabled}
+        onClick={() => { void onToggle(); }}
+        {...agentHandleProps({}, { base: agentHandle, action, role: 'button', label: title })}
+      >
+        <span className="jini-seg-title">{enabled ? activeLabel : offLabel}</span>
+      </button>
+    </div>
+  );
+}
+
+function SoundPicker({
+  label, sounds, selectedSoundId, preferenceKey, onChange, previewSound, agentHandle, action,
+}: {
+  label: string;
+  sounds: SoundOption[];
+  selectedSoundId: string;
+  preferenceKey: 'successSoundId' | 'failureSoundId';
+  onChange: NotificationsTabProps['onChange'];
+  previewSound: typeof playSound;
+  agentHandle: string | undefined;
+  action: 'success-sound' | 'failure-sound';
+}) {
+  const t = useT();
+  const handles = agentHandle
+    ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action }), ids: sounds.map((sound) => sound.id) })
+    : undefined;
+  return (
+    <div className="jini-settings-field">
+      <label>{label}</label>
+      <div className="jini-seg-control" role="group" aria-label={label} style={{ '--seg-cols': sounds.length } as CSSProperties}>
+        {sounds.map((sound, index) => (
+          <button
+            key={sound.id}
+            type="button"
+            className={'jini-seg-btn' + (selectedSoundId === sound.id ? ' active' : '')}
+            aria-pressed={selectedSoundId === sound.id}
+            onClick={() => {
+              onChange({ [preferenceKey]: sound.id });
+              previewSound(sound.id);
+            }}
+            {...agentHandleProps({}, { base: handles?.[index], role: 'button', label: t(sound.labelKey) })}
+          >
+            <span className="jini-seg-title">{t(sound.labelKey)}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
