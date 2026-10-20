@@ -117,6 +117,8 @@ earlier one, by a tool or by one of its admin-surface handlers; the newest 64 ar
 withheld. An error is scanned through its whole object graph, not its JSON (which would miss the
 non-enumerable `cause` and `AggregateError.errors`): every own property, Map and Set contents, any
 depth; an object that throws while read, or a graph of more than 256 objects, is withheld too.
+`describeAffectedResources` answers go through the same memory: a list that mentions an obtained
+token is refused as an invalid list, and a hook error that does is withheld.
 The memory is per plugin, from `createIssuedTokenMemories()`, which the host creates once and
 passes to both the projection and `createAdminSurfaceHandlerHost`: a plugin's tools and handlers can
 share module scope, and Node keeps a module's scope across re-syncs.

@@ -172,6 +172,25 @@ function scanStep(value: unknown, issued: ReadonlySet<string>, seen: Set<object>
 }
 
 /**
+ * The credential scans alone, for plugin answers that need no capabilities (a tool's
+ * affected-resources disclosure): `mentionsToken`, and `sanitize` (an error, or a credential-free
+ * replacement without `cause`, since the cause may hold the token).
+ * @param required.issued - The plugin's token memory (see `createIssuedTokenMemories`).
+ * @complexity O(1) to open; the scans are O(scanned size * remembered tokens).
+ */
+export function openCredentialScan(required: { readonly issued: IssuedTokenMemory }, _optional: Record<string, never> = {}) {
+  const { issued } = required;
+  return {
+    mentionsToken: ({ value }: { readonly value: unknown }): boolean => mentionsToken(value, issued),
+    sanitize({ error }: { readonly error: unknown }): unknown {
+      return errorMentionsToken(error, issued) ? new Error(WITHHELD_ERROR_MESSAGE) : error;
+    },
+  };
+}
+
+export type AgentPluginCredentialScan = ReturnType<typeof openCredentialScan>;
+
+/**
  * The revocation and credential gates every capability session shares: this file's tool session and
  * the admin-surface session (`../../admin-surfaces/surface-capabilities.ts`), so both revoke and scan
  * the same way.
@@ -192,15 +211,11 @@ export function openCapabilityGate(required: { readonly isLive: () => boolean; r
       if (token) remember(issued, token);
       return token;
     },
-    mentionsToken: ({ value }: { readonly value: unknown }): boolean => mentionsToken(value, issued),
+    ...openCredentialScan({ issued }),
     /** The result, unless it mentions a token this plugin obtained. */
     release<T>({ value }: { readonly value: T }): T {
       if (mentionsToken(value, issued)) throw new Error(WITHHELD_OUTPUT_MESSAGE);
       return value;
-    },
-    /** The error itself, or a credential-free replacement without `cause` (the cause may hold it). */
-    sanitize({ error }: { readonly error: unknown }): unknown {
-      return errorMentionsToken(error, issued) ? new Error(WITHHELD_ERROR_MESSAGE) : error;
     },
   };
 }
