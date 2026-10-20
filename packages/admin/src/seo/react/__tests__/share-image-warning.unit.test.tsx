@@ -5,6 +5,7 @@ import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
 import { SeoEntrySection } from '../pages/SeoPage.js';
 import type { SyntheticEvent } from 'react';
 import { useMediaRefField } from '../hooks/MediaRefField.hooks.js';
+import { useShareImageWarning } from '../hooks/use-share-image-warning.hooks.js';
 import { MediaRefField } from '../components/MediaRefField.js';
 import { SeoPortsContext, SeoOptionsContext } from '../hooks/SeoPorts.hooks.js';
 import { createMemorySeoApi } from '../../adapters/memory.js';
@@ -242,4 +243,57 @@ test('wired decoded dimensions use the original even when the public rendition i
   expect(result.current.warning).toBeNull();
   act(() => result.current.onPreviewLoad!(load(1200, '/original/cover', 629)));
   expect(result.current.warning).toBe('Alto: 629 px.');
+});
+
+test('a probe rejected after the selection changed does not warn against the new selection', async () => {
+  let rejectFirst!: (error: Error) => void;
+  const port = api(({ url }) => url === '/original/cover'
+    ? new Promise((_resolve, reject) => { rejectFirst = reject; })
+    : Promise.resolve({ status: 200, byteSize: 5120 }));
+  const { result, rerender } = renderHook(({ value }) => useMediaRefField({ value, onChange: () => {}, api: port }), { initialProps: { value: 'cover:public' } });
+  rerender({ value: 'large:public' });
+  await act(async () => { rejectFirst(new Error('Network offline')); });
+  expect(result.current.warning).toBeNull();
+});
+
+test('a probe rejected with a non-Error value reports that value as the detail', async () => {
+  const port = api(() => Promise.reject('socket closed'));
+  const { result } = renderHook(() => useMediaRefField({ value: 'cover:public', onChange: () => {}, api: port }));
+  await waitFor(() => expect(result.current.warning).toBe('The share image could not be checked: socket closed'));
+});
+
+test('no probe runs outside a browser location', () => {
+  const inspect = vi.fn<NonNullable<AdminSeoPort['inspectShareImage']>>(async () => ({ status: 404, byteSize: null }));
+  vi.stubGlobal('location', undefined);
+  try {
+    renderHook(() => useShareImageWarning({ value: 'cover:public', previewUrl: '/original/cover', api: api(inspect) }));
+  } finally { vi.unstubAllGlobals(); }
+  expect(inspect).not.toHaveBeenCalled();
+});
+
+test('no probe runs for a preview URL the browser cannot parse', () => {
+  const inspect = vi.fn<NonNullable<AdminSeoPort['inspectShareImage']>>(async () => ({ status: 404, byteSize: null }));
+  const { result } = renderHook(() => useShareImageWarning({ value: 'cover:public', previewUrl: 'http://[', api: api(inspect) }));
+  expect(inspect).not.toHaveBeenCalled();
+  expect(result.current.warning).toBeNull();
+});
+
+test('a decoded size measured for a prior selection is not applied to the new selection', () => {
+  const port = api(() => new Promise(() => {}));
+  const { result, rerender } = renderHook(({ id }) => useShareImageWarning({ value: `${id}:public`, previewUrl: `/original/${id}`, api: port }), { initialProps: { id: 'cover' } });
+  act(() => result.current.onPreviewLoad!(load(1, '/original/cover', 1)));
+  expect(result.current.naturalWidth).toBe(1);
+  rerender({ id: 'large' });
+  expect(result.current.naturalWidth).toBeUndefined();
+  expect(result.current.warning).toBeNull();
+});
+
+test('a stale preview load event is not recorded for when its selection comes back', () => {
+  const port = api(() => new Promise(() => {}));
+  const { result, rerender } = renderHook(({ id }) => useShareImageWarning({ value: `${id}:public`, previewUrl: `/original/${id}`, api: port }), { initialProps: { id: 'cover' } });
+  rerender({ id: 'large' });
+  act(() => result.current.onPreviewLoad!(load(1, '/original/cover', 1)));
+  rerender({ id: 'cover' });
+  expect(result.current.naturalWidth).toBeUndefined();
+  expect(result.current.warning).toBeNull();
 });

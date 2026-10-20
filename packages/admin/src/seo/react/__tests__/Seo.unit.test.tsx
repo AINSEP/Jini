@@ -564,6 +564,15 @@ describe("SeoEntrySection / EntryPicker", () => {
     expect(screen.getByText("draft")).toHaveClass("select-option-badge");
   });
 
+  it("EntryPicker: loaded entries without picker rows open to the empty-list copy", async () => {
+    const user = userEvent.setup();
+    entryPickerRef.current = entryPickerController({ options: null });
+    renderSeo({}, ENTRIES_TAB);
+    await user.click(screen.getByRole("combobox", { name: "Entry" }));
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(screen.getByText("No matches")).toHaveClass("select-empty");
+  });
+
   it("choosing an entry calls setEntryId", async () => {
     const user = userEvent.setup();
     const setEntryId = vi.fn();
@@ -593,6 +602,12 @@ describe("SeoEntryPanel", () => {
     seoEntryPanelRef.current = seoEntryPanelController(overrides);
     renderSeo({}, ENTRIES_TAB);
   }
+
+  it("checks the robots boxes from the entry's effective directives", () => {
+    renderPanel({ resolved: { ...RESOLVED, robots: { noindex: true, nofollow: false } } });
+    expect(screen.getByRole("checkbox", { name: "Noindex" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Nofollow" })).not.toBeChecked();
+  });
 
   it("shows a loading notice while resolved is null and there is no loadError", () => {
     renderPanel({ resolved: null });
