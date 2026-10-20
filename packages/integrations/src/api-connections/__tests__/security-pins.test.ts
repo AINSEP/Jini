@@ -110,11 +110,23 @@ describe('installed-app client that sends a client secret', () => {
     expect([params.get('prompt'), params.get('include_granted'), exchange.get('client_secret'), exchange.has('code_verifier')])
       .toEqual(['consent', null, installedSecret, true]);
   });
-  it('replaces the whole token set when a same-account exchange omits a refresh token', async () => {
+  it('keeps the stored refresh token when a same-account re-consent omits one, so the credential stays renewable', async () => {
     const ref = await connect('alice');
     const { callbackParams } = await signIn(h, provider, { account: 'alice', omitRefreshToken: true });
     await complete(callbackParams);
-    expect((await h.tokens.load({ key: ref }))?.refreshToken).toBeNull();
+    expect([(await h.tokens.load({ key: ref }))?.accessToken, (await h.tokens.load({ key: ref }))?.refreshToken]).toEqual(['acme-at-2', 'acme-rt-1']);
+  });
+  it('refuses a first connect that grants no refresh token and stores nothing', async () => {
+    const { started, callbackParams } = await signIn(h, provider, { omitRefreshToken: true });
+    await expect(complete(callbackParams)).rejects.toMatchObject({ code: 'offline-access-required' });
+    expect([h.tokens.entries.size, (await h.service.getStatus({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).status])
+      .toEqual([0, 'disconnected']);
+  });
+  it('refuses to stage a switch whose new account granted no refresh token', async () => {
+    const ref = await connect('alice');
+    const { callbackParams } = await signIn(h, provider, { account: 'bob', intent: 'switch-account', omitRefreshToken: true });
+    await expect(complete(callbackParams)).rejects.toMatchObject({ code: 'offline-access-required' });
+    expect([h.tokens.entries.has(`${ref}#staged`), (await h.service.getStatus({ connectionRef: ref, workspaceId: 'ws-1' })).pendingSwitch]).toEqual([false, null]);
   });
   it('keeps the secret out of the authorization URL, attempt, record, stored tokens, status and result', async () => {
     const { started, callbackParams } = await signIn(h, provider);
@@ -281,12 +293,6 @@ describe('account rules', () => {
     await complete(callbackParams);
     expect((await h.tokens.load({ key: ref }))?.refreshToken).toBe('acme-rt-1');
   });
-  it('replaces the whole token set when an installed-app same-account exchange omits a refresh token', async () => {
-    const ref = await connect('alice');
-    const { callbackParams } = await signIn(h, provider, { account: 'alice', omitRefreshToken: true });
-    await complete(callbackParams);
-    expect((await h.tokens.load({ key: ref }))?.refreshToken).toBeNull();
-  });
   it('stages a switch without changing the live account until confirmed', async () => {
     const ref = await connect('alice');
     const { callbackParams } = await signIn(h, provider, { account: 'bob', intent: 'switch-account' });
@@ -405,6 +411,8 @@ describe('revocation honesty against the real vault token store', () => {
     expect([result.remoteRevocation, [...provider.revoked].sort()]).toEqual(['confirmed', ['acme-rt-1', 'acme-rt-2']]);
   });
   it('revokes with the access token when the stored credential has no refresh token', async () => {
+    // Hosted: an installed app is refused without a refresh token (offline-access-required).
+    v = buildVaultHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' }, clientKind: 'confidential' });
     const { started, callbackParams } = await signIn(v, provider, { omitRefreshToken: true });
     await finish(callbackParams);
     const result = await v.service.disconnect({ connectionRef: started.connectionRef, workspaceId: 'ws-1' });

@@ -12,7 +12,7 @@ export type ApiConnectionErrorCode =
   | 'reconnect-required' | 'revocation-pending' | 'invalid-attempt' | 'attempt-superseded'
   | 'access-denied' | 'authorization-failed' | 'scope-not-granted' | 'account-mismatch'
   | 'account-changed' | 'account-unchanged' | 'account-identity-invalid' | 'switch-not-staged' | 'switch-in-progress'
-  | 'storage-conflict';
+  | 'offline-access-required' | 'storage-conflict';
 
 export class ApiConnectionError extends IntegrationError {
   readonly code: ApiConnectionErrorCode;

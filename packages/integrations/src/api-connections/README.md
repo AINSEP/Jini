@@ -67,8 +67,10 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
   `reconnect-required`, then tokens are written, then the record becomes `connected`. A crash in
   between leaves "reconnect required", never a record that disagrees with its token.
 - **Reconnect** (`intent: 'connect'`) keeps the same `connectionRef` and must sign in as the same
-  account (`account-mismatch` otherwise). A `confidential` (hosted) client keeps the stored refresh
-  token when a same-account exchange omits one; a `public` (installed) client replaces the set.
+  account (`account-mismatch` otherwise). A same-account exchange that omits a refresh token keeps
+  the stored one; every other part of the set is replaced. A `public` (installed) client that would
+  end up with no refresh token (first connect, switch, or nothing valid stored) is refused with
+  `offline-access-required`: it could not renew access once the access token expires.
 - **Switch account** (`intent: 'switch-account'`) stages the new tokens and identity; nothing
   changes until the same actor calls `confirmSwitchAccount`. Bindings that froze an account pass
   `getAccessToken({ connectionRef }, { expectedAccountId })` and get `account-changed` instead of
