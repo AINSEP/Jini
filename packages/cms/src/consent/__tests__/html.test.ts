@@ -287,8 +287,42 @@ describe('gate boundaries', () => {
     const bare = transform('<p>Page</p>');
     expect(bare.startsWith('<section id="jini-consent"')).toBe(true); expect(bare.endsWith(`</section>${head}<p>Page</p>`)).toBe(true);
   });
-  it('current behaviour (reported, not fixed): attributes merged from a second body start tag are neither deferred nor stripped', () => {
-    const html = transform('<html><body><p>x</p><body onload="window.leaked=true" data-jini-consent-runtime="x"></body></html>');
-    expect(html).toContain('<body onload="window.leaked=true" data-jini-consent-runtime="x">');
+});
+
+describe('repeated html/body start tags (the parser merges their attributes into the first element)', () => {
+  const transform = (html: string, record: typeof accepted | null = null) => gateConsentHtml({ html, config, record, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
+  const roots = (dom: InstanceType<typeof JSDOM>) => [dom.window.document.documentElement, dom.window.document.body] as Array<{ getAttributeNames(): string[] }>;
+  it.each([
+    ['a second body tag', '<html><body><p>x</p><body onload="window.leaked=true" data-jini-consent-runtime="x"></body></html>'],
+    ['a second body tag with several handlers', '<html><body><p>x</p><body onpageshow="window.leaked=true" onclick="window.leaked=true" ONRESIZE="window.leaked=true"></body></html>'],
+    ['a second body tag repeating a handler the first already has', '<html><body onload="window.first=true"><p>x</p><body onload="window.leaked=true"></body></html>'],
+    ['an implied body followed by an explicit one', '<p>x</p><body onload="window.leaked=true">'],
+    ['a second html tag', '<html><body><p>x</p><html onclick="window.leaked=true" id="jini-consent-config"></body></html>'],
+    ['a body tag foster-parented out of a table', '<html><body><p>x</p><table><body onpageshow="window.leaked=true"></table></body></html>'],
+  ])('defers handlers and strips markers merged from %s', async (_name, page) => {
+    const html = transform(page);
+    const { dom } = await browser(html);
+    try {
+      const names = roots(dom).flatMap(element => element.getAttributeNames());
+      expect(names.filter(name => /^on/i.test(name) || name === 'data-jini-consent-runtime' || name === 'id')).toEqual([]);
+      expect(dom.window.leaked).toBeUndefined(); expect(dom.window.first).toBeUndefined();
+      expect(dom.window.document.getElementById('jini-consent-config').tagName).toBe('SCRIPT');
+      expect(dom.window.document.body.textContent).toContain('x');
+      expect(html).toContain('data-jini-consent-attributes=');
+    } finally { dom.window.close(); }
+  });
+  it('a merged handler is restored by the release payload once its category is granted', async () => {
+    const { dom } = await browser(transform('<html><body><p>x</p><body onclick="window.clicked=true"></body></html>', accepted));
+    try { expect(dom.window.document.body.getAttribute('onclick')).toBe('window.clicked=true'); }
+    finally { dom.window.close(); }
+  });
+  it('leaves documents without repeated root tags byte-for-byte outside the gated edits', () => {
+    const page = "<!doctype html><html lang='en'><body class=x><p title='a'>x</p></body></html>";
+    expect(transform(page)).toContain("<html lang='en'>"); expect(transform(page)).toContain("<p title='a'>x</p>");
+  });
+  it('defers foreign-content attributes whose parsed name differs from the source spelling', () => {
+    const dom = new JSDOM(transform('<html><body><svg><a xlink:href="javascript:window.leaked=true"><text>x</text></a></svg></body></html>'));
+    try { expect(dom.window.document.querySelector('svg a').getAttributeNames()).not.toContain('xlink:href'); }
+    finally { dom.window.close(); }
   });
 });

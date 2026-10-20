@@ -1,4 +1,4 @@
-import { parse, serializeOuter, type DefaultTreeAdapterMap } from 'parse5';
+import { defaultTreeAdapter, parse, serialize, serializeOuter, type DefaultTreeAdapterMap, type TreeAdapter } from 'parse5';
 import { escapeHtml } from '@jini-ai/core/text';
 import { type ConsentConfig, type ConsentRecord, type ConsentRegionMode } from '../types.js';
 import { renderConsentHead, renderConsentUi } from './render.js';
@@ -117,22 +117,31 @@ function isDeferredAttribute({ name, value }: Attribute): boolean {
   return name === 'style' && CSS_REQUEST.test(value);
 }
 
-/** @complexity O(attributes). */
-function removeAttributes({ attrs, location }: { attrs: Attribute[]; location: ElementLocation }): Edit[] {
-  return attrs.flatMap(attr => {
-    const attrLocation = location.attrs?.[attr.name];
-    return attrLocation ? [{ start: attrLocation.startOffset, end: attrLocation.endOffset, text: '' }] : [];
+/** Foreign content renames parsed attributes (viewbox→viewBox, xlink:href→prefix xlink + href);
+ * source locations keep the tokenized spelling. @complexity O(1). */
+function attributeLocation({ attr, location }: { attr: Attribute; location: ElementLocation | null | undefined }) {
+  const name = attr.prefix ? `${attr.prefix}:${attr.name}` : attr.name;
+  return location?.startTag ? location.attrs?.[name] ?? location.attrs?.[name.toLowerCase()] : undefined;
+}
+
+/** An attribute the gate must change but cannot address in the source would reach the browser
+ * unchanged, so refuse the page instead (the HTTP adapter then serves its restrictive fallback).
+ * @throws Error naming the attribute and element. @complexity O(attributes). */
+function removeAttributes({ element, attrs, location }: { element: Element; attrs: Attribute[]; location: ElementLocation | null | undefined }): Edit[] {
+  return attrs.map(attr => {
+    const attrLocation = attributeLocation({ attr, location });
+    if (!attrLocation) throw new Error(`Consent could not locate the "${attr.name}" attribute of <${element.tagName}> in the delivered HTML. Serve this page under the restrictive consent fallback.`);
+    return { start: attrLocation.startOffset, end: attrLocation.endOffset, text: '' };
   });
 }
 
 /** Strip reserved markers and move fetching/executing attributes into a release payload.
  * @complexity O(attributes). */
 function attributeEdits({ element, location, reserved, category }: { element: Element; location: Element['sourceCodeLocation']; reserved: Attribute[]; category: string }): Edit[] {
+  const deferred = element.attrs.filter(isDeferredAttribute);
+  const edits = removeAttributes({ element, attrs: [...reserved, ...deferred], location });
   const startTag = location?.startTag;
-  if (!location || !startTag) return [];
-  const deferred = element.attrs.filter(attr => location.attrs?.[attr.name] !== undefined && isDeferredAttribute(attr));
-  const edits = removeAttributes({ attrs: [...reserved, ...deferred], location });
-  if (!deferred.length) return edits;
+  if (!deferred.length || !startTag) return edits;
   const payload = escapeHtml({ text: JSON.stringify(Object.fromEntries(deferred.map(attr => [attr.name, attr.value]))) });
   return [...edits, { start: startTag.endOffset - 1, end: startTag.endOffset - 1, text: ` data-jini-consent-attributes="${payload}" data-jini-consent-category="${category}"` }];
 }
@@ -176,6 +185,30 @@ function gateDocument({ document }: { document: DefaultTreeAdapterMap['document'
   return { edits, startTagEnds };
 }
 
+/** Parse with a tree adapter that counts repeated html/body start tags. @complexity O(n). */
+function parseCountingMerges({ html }: { html: string }): { document: DefaultTreeAdapterMap['document']; merges: number } {
+  let merges = 0;
+  const treeAdapter: TreeAdapter<DefaultTreeAdapterMap> = { ...defaultTreeAdapter, adoptAttributes(recipient, attrs) { merges++; defaultTreeAdapter.adoptAttributes(recipient, attrs); } };
+  return { document: parse(html, { sourceCodeLocationInfo: true, scriptingEnabled: false, treeAdapter }), merges };
+}
+
+/** A repeated html/body start tag has no element of its own: the parser merges its new attributes
+ * into the first element, and a browser re-parsing the delivered page merges them again, so
+ * source-offset edits can neither defer nor strip them (even a handler the first tag already had
+ * would return once the gate removes it there). Re-serialize the repaired tree once instead; it has
+ * exactly one html and one body start tag, and every attribute has a source location.
+ * Byte preservation is given up only for these malformed documents.
+ * @throws Error when the normalized document still repeats a root tag. @complexity O(n). */
+function locatedDocument({ html }: { html: string }): { html: string; document: DefaultTreeAdapterMap['document'] } {
+  const parsed = parseCountingMerges({ html });
+  if (parsed.merges === 0) return { html, document: parsed.document };
+  // Without scripting, noscript children are elements; serializing them as raw text would change them.
+  const normalized = serialize(parsed.document, { scriptingEnabled: false });
+  const reparsed = parseCountingMerges({ html: normalized });
+  if (reparsed.merges !== 0) throw new Error('Consent could not normalize repeated <html> or <body> start tags. Serve this page under the restrictive consent fallback.');
+  return { html: normalized, document: reparsed.document };
+}
+
 /** Bootstrap goes first in head (else html, else after the doctype); the UI opens body. @complexity O(top-level nodes). */
 function insertionOffsets({ document, startTagEnds }: { document: DefaultTreeAdapterMap['document']; startTagEnds: Record<string, number> }): { head: number; ui: number } {
   const doctypeEnd = document.childNodes.find(node => node.nodeName === '#documentType')?.sourceCodeLocation?.endOffset ?? 0;
@@ -186,11 +219,15 @@ function insertionOffsets({ document, startTagEnds }: { document: DefaultTreeAda
 /** Gate delivered HTML using the existing parser, including no-JS and non-script requests.
  * Only host allowlisted scripts are necessary. JSON/JSON-LD and authored templates stay inert.
  * Resource hints are removed so browsers cannot fetch before consent. Source offsets preserve
- * unrelated markup byte-for-byte; wrapping a parent consumes its subtree without overlapping edits.
+ * unrelated markup byte-for-byte (except repeated html/body start tags, see locatedDocument);
+ * wrapping a parent consumes its subtree without overlapping edits.
+ * @throws Error when an attribute that must change cannot be located; never returns it ungated.
  * @complexity O(n + s log s + a*k) time/O(n) space: n bytes, s edits, a scripts, k manifest entries. */
 export function gateConsentHtml({ html, config, record, regionMode, gpc, endpoint }: { html: string; config: ConsentConfig; record: ConsentRecord | null; regionMode: ConsentRegionMode; gpc: boolean; endpoint: string }, options: ConsentGateOptions = {}): string {
   if (!config.enabled) return html;
-  const document = parse(html, { sourceCodeLocationInfo: true, scriptingEnabled: false });
+  const located = locatedDocument({ html });
+  const document = located.document;
+  html = located.html;
   const { edits, startTagEnds } = gateDocument({ document }, options);
   const offsets = insertionOffsets({ document, startTagEnds });
   edits.push({ start: offsets.head, end: offsets.head, text: renderConsentHead({ record, gpc, regionMode }, options) });
