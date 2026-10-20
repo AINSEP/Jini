@@ -1,7 +1,8 @@
 /**
  * @file Parses a plugin's admin-surface contribution file: which surfaces it ships, the contained
- * files each one serves, the actions it may ask the host to run (with their schemas) and the few
- * extra Content-Security-Policy sources it needs.
+ * files each one serves, the actions it may ask the host to run (with their schemas), the few
+ * extra Content-Security-Policy sources it needs and, optionally, the server-side handler module that
+ * answers those actions (`./surface-handlers.ts`) with the schema of the bootstrap data it provides.
  *
  * Why parsing is strict: everything here is later trusted by the host. A file path that is not a
  * plain relative path, an action schema outside the supported subset, or a CSP source that is not a
@@ -31,6 +32,11 @@ export interface AdminSurfaceDescriptor {
   readonly files: readonly string[];
   readonly actions: readonly AdminSurfaceAction[];
   readonly csp: Readonly<Partial<Record<AdminSurfaceCspDirective, readonly string[]>>>;
+  /** A server-side `.mjs` module exporting this surface's action handlers and optional bootstrap
+   * provider (`./surface-handlers.ts`). Loaded only through the executable trust gate; never served. */
+  readonly handlerModule?: string;
+  /** The schema bootstrap data from `handlerModule` must match before it reaches the frame. */
+  readonly bootstrap?: AdminSurfaceActionSchema;
 }
 
 type Parsed<T> = T | string;
@@ -105,8 +111,36 @@ function parseSurface(entry: unknown, at: string): Parsed<AdminSurfaceDescriptor
   if (typeof files === 'string') return files;
   const actions = parseActions(entry.actions ?? [], at);
   if (typeof actions === 'string') return actions;
+  return parseSurfaceExtras(entry, { ...identity, files, actions }, at);
+}
+
+/** The CSP extensions and the optional handler fields, after the core fields parsed. */
+function parseSurfaceExtras(entry: Entry, surface: Omit<AdminSurfaceDescriptor, 'csp'>, at: string): Parsed<AdminSurfaceDescriptor> {
   const csp = parseCsp(entry.csp ?? {}, at);
-  return typeof csp === 'string' ? csp : { ...identity, files, actions, csp };
+  if (typeof csp === 'string') return csp;
+  const handler = parseHandler(entry, surface, at);
+  return typeof handler === 'string' ? handler : { ...surface, csp, ...handler };
+}
+
+/**
+ * The optional server-side handler fields. A handler module is plugin code running in the server, so
+ * it may not also be served to the frame, and every action it answers must declare a `result`: unlike
+ * a host handler, plugin code is not trusted to shape what reaches the frame.
+ */
+function parseHandler(entry: Entry, surface: Pick<AdminSurfaceDescriptor, 'files' | 'actions'>, at: string): Parsed<Pick<AdminSurfaceDescriptor, 'handlerModule' | 'bootstrap'>> {
+  const { handlerModule } = entry;
+  if (handlerModule === undefined) return entry.bootstrap === undefined ? {} : `${at}.bootstrap needs a handlerModule that provides it`;
+  if (!isContainedAdminSurfacePath({ value: handlerModule, extensions: ['.mjs'] })) return `${at}.handlerModule must be a plain relative path ending in .mjs`;
+  if (surface.files.includes(handlerModule as string)) return `${at}.handlerModule is server code and may not also be served to the frame`;
+  const unchecked = surface.actions.findIndex((action) => action.result === undefined);
+  if (unchecked !== -1) return `${at}.actions[${unchecked}] must declare a result schema when the surface has a handlerModule`;
+  return parseBootstrap(entry.bootstrap, handlerModule as string, at);
+}
+
+function parseBootstrap(bootstrap: unknown, handlerModule: string, at: string): Parsed<Pick<AdminSurfaceDescriptor, 'handlerModule' | 'bootstrap'>> {
+  if (bootstrap === undefined) return { handlerModule };
+  const reason = checkAdminSurfaceActionSchema({ schema: bootstrap });
+  return reason === null ? { handlerModule, bootstrap: bootstrap as AdminSurfaceActionSchema } : `${at}.bootstrap ${reason}`;
 }
 
 function parseIdentity(entry: Entry, at: string): Parsed<Pick<AdminSurfaceDescriptor, 'id' | 'title' | 'entry'>> {
