@@ -13,6 +13,7 @@ Branch: `cloud/w3-user-management` (from origin/general-work). Brief: `origin/cl
 - `pnpm --no-bail -r build` 110 s; only `@jini-ai/integrations` failed tsc (expected), dist emitted for all 36 packages.
 - Baseline `tsc --noEmit -p packages/user-management`: 0 errors.
 - Baseline eslint (cyc/cog 10) on the 19 lot files: 32 violations, matching the brief's list.
+- Baseline `pnpm guard` on origin/general-work FAILS with 26 violations, 0 in user-management (HW1/HW3/N1/R10 in daemon, agent-plugins, agent-runtime, chat, cms, core, diagnostics, platform, ui). Merge criterion used: no new guard lines vs base (`/tmp/w3-user-management-coord/guard-base.sorted`).
 - Worktrees at `/home/user/wt-<LOT>`, dist copied from main checkout (including `packages/*/*/dist`), scratch `/tmp/w3-user-management-<LOT>/` with a pre-seeded `cx.config.mjs`.
 
 ## Lot status
