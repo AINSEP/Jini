@@ -82,12 +82,6 @@ function toCommandResult(result: { stdout: string; stderr: string; exitCode: num
   return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode };
 }
 
-/** Converts `SandboxFile.content` into what E2B's `files.write` actually accepts (`string |
- *  ArrayBuffer`, no `Uint8Array` overload). */
-function toE2bWriteData(content: string | Uint8Array): string | ArrayBuffer {
-  return typeof content === 'string' ? content : toArrayBuffer({ bytes: content });
-}
-
 /**
  * The `onStdout`/`onStderr` fragment to spread into an E2B `commands.run` call — present only
  * when `options.onOutput` is given. Built with a conditional spread rather than
@@ -147,6 +141,20 @@ function isExcludedPath(relativePath: string): boolean {
   return relativePath.split('/').some((segment) => EXCLUDED_DIR_NAMES.has(segment));
 }
 
+interface MountedFile {
+  fingerprint: string;
+}
+
+function rollbackMount(
+  { mounted, mountedFiles }: { mounted: ReadonlyMap<string, MountedFile>; mountedFiles: Map<string, MountedFile> },
+  _options: Record<string, never> = {},
+): void {
+  for (const [path, entry] of mounted) {
+    // Identity preserves a newer overlapping mount even when its content is identical.
+    if (mountedFiles.get(path) === entry) mountedFiles.delete(path);
+  }
+}
+
 export async function wrapE2bSandbox(
   { handle, config }: { handle: E2bSandboxHandle; config: E2bSessionConfig },
   { fetchImpl = fetch }: { fetchImpl?: typeof fetch } = {},
@@ -163,7 +171,7 @@ export async function wrapE2bSandbox(
   // The watcher carries no writer identity and can deliver echoes after write() resolves.
   // Keep content fingerprints, not file bodies, to suppress those delayed host echoes while
   // still reporting subsequent sandbox edits. Same-content rewrites are indistinguishable.
-  const mountedFiles = new Map<string, { fingerprint: string }>();
+  const mountedFiles = new Map<string, MountedFile>();
   const mountingPaths = new Map<string, number>();
   const fingerprint = (content: string | Uint8Array) => createHash('sha256').update(content).digest('hex');
   let watchHandle: Awaited<ReturnType<E2bSandboxHandle['files']['watchDir']>>;
@@ -206,7 +214,7 @@ export async function wrapE2bSandbox(
   return {
     async mountFiles({ files }) {
       if (files.length === 0) return;
-      const mounted = new Map<string, { fingerprint: string }>();
+      const mounted = new Map<string, MountedFile>();
       for (const file of files) {
         const path = relativeToRoot(posix.join(projectRoot, file.path), projectRoot);
         mounted.set(path, { fingerprint: fingerprint(file.content) });
@@ -216,14 +224,18 @@ export async function wrapE2bSandbox(
         mountingPaths.set(path, (mountingPaths.get(path) ?? 0) + 1);
       }
       try {
-        await handle.files.write({ files: files.map((file) => ({
-            path: posix.join(projectRoot, file.path),
-            data: toE2bWriteData(file.content),
-          })) });
+        await handle.files.write({ files: files.map((file) => {
+          const path = posix.join(projectRoot, file.path);
+          const content = file.content;
+          return {
+            path,
+            /** Converts `SandboxFile.content` into what E2B's `files.write` actually accepts (`string |
+             *  ArrayBuffer`, no `Uint8Array` overload). */
+            data: typeof content === 'string' ? content : toArrayBuffer({ bytes: content }),
+          };
+        }) });
       } catch (error) {
-        for (const [path, entry] of mounted) {
-          if (mountedFiles.get(path) === entry) mountedFiles.delete(path);
-        }
+        rollbackMount({ mounted, mountedFiles });
         throw wrapE2bError(error, 'Failed to write files into the sandbox');
       } finally {
         for (const path of mounted.keys()) {

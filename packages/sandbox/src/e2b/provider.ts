@@ -19,7 +19,7 @@ import { SandboxOperationError } from '../core/errors.js';
 import type { BootOptions, SandboxProviderPort, SandboxSession } from '../core/ports.js';
 import { categorizeE2bError } from './categorize-e2b-error.js';
 import type { E2bCommandHandle, E2bCommandResult, E2bRunOptions, E2bSandboxHandle } from './e2b-sandbox-handle.js';
-import { wrapE2bSandbox } from './wrap-e2b-sandbox.js';
+import { wrapE2bSandbox, type E2bSessionConfig } from './wrap-e2b-sandbox.js';
 
 const DEFAULT_PROJECT_ROOT = '/home/user/app';
 const DEFAULT_PREVIEW_PORT = 5173;
@@ -40,6 +40,17 @@ export interface E2bProviderConfig {
   /** How long `getPreview` waits for a single response before deciding nothing is listening.
    *  @default 3000 */
   readonly previewCheckTimeoutMs?: number;
+}
+
+function resolveSessionConfig(
+  { config }: { config: E2bProviderConfig },
+  _options: Record<string, never> = {},
+): E2bSessionConfig {
+  return {
+    projectRoot: config.projectRoot ?? DEFAULT_PROJECT_ROOT,
+    previewPort: config.previewPort ?? DEFAULT_PREVIEW_PORT,
+    previewCheckTimeoutMs: config.previewCheckTimeoutMs ?? DEFAULT_PREVIEW_CHECK_TIMEOUT_MS,
+  };
 }
 
 /**
@@ -105,11 +116,8 @@ export function createE2bSandboxProvider(_requiredArgs: Record<string, never>, c
         throw new SandboxOperationError({ category: categorizeE2bError({ error }), message: 'Failed to create the sandbox' }, { cause: error });
       }
 
-      return wrapE2bSandbox({ handle: toE2bHandle({ sandbox }), config: {
-        projectRoot: config.projectRoot ?? DEFAULT_PROJECT_ROOT,
-        previewPort: config.previewPort ?? DEFAULT_PREVIEW_PORT,
-        previewCheckTimeoutMs: config.previewCheckTimeoutMs ?? DEFAULT_PREVIEW_CHECK_TIMEOUT_MS,
-      } }, config.fetchImpl === undefined ? {} : { fetchImpl: config.fetchImpl });
+      return wrapE2bSandbox({ handle: toE2bHandle({ sandbox }), config: resolveSessionConfig({ config }) },
+        config.fetchImpl === undefined ? {} : { fetchImpl: config.fetchImpl });
     },
   };
 }
