@@ -79,4 +79,36 @@ Cloud-proof commit 396b8ed0.
 - Security (pinned): state.ts fail-open parsing: `commit: ["<40 hex>"]` passes because `RegExp.test` stringifies the array.
 - Outside scope: packages/mcp consumes site-guide through the built dist, so its tests did not exercise this source until the final build.
 
+
+## End-of-wave verification (coordinator)
+- Builds: `pnpm --filter @jini-ai/core build` (5 s) and `@jini-ai/agentic build` (6 s), both ok.
+- Whole suites, wave vs base (base = clean worktree of 6bdca722 = origin/general-work, with the pre-wave dist copied in; run after the wave runs, not concurrently):
+
+| package | wave | base |
+|---|---|---|
+| core | 82 files / **1189 passed**, no `Errors` line (17 s) | 66 files / 813 passed, no `Errors` line |
+| agentic | 62 files / **1257 passed**, no `Errors` line (9 s) | 57 files / 948 passed, no `Errors` line |
+| mcp (consumes site-guide via agentic dist) | 56 files / 885 passed, no `Errors` line | 56 files / 885 passed |
+
+  No failures on either side.
+- tsc: core ok; agentic ok under both tsconfig.json and tsconfig.dom.json.
+- `pnpm guard`: 31 lines against the baseline's 32. None are new. GONE: `HW3-module-state packages/core/src/text/sanitize-untrusted-text.ts`, fixed in L177. Guard still exits 1 because of the 26 violations that already exist elsewhere.
+- Complexity: the eslint 10/10 config reports 0 violations on all 25 lot files (24 + the new http-request.ts).
+- Worktrees removed; no node/vitest processes left.
+
+## Open items for the owner (not fixed, pinned where in scope)
+Security:
+1. agentic resolve.ts resolveArgs: agent arg `__proto__` sets the prototype of the args object handed to host impls.
+2. agentic json-pointer setAtPointer: unbounded array index, so one message can set length to about 4e9 (DoS).
+3. core sanitize-untrusted-text: bidi override/isolate characters pass through (Trojan Source).
+4. core paths pathContains (`\\` separator): `.. ` with a trailing space is treated as a name, but Win32 trims it.
+5. core origin-validation: a malformed allow-list entry is echoed in full to logs and the boot error, so `user:pass@host` leaks.
+6. core registration-kit: Object.prototype-named catalog ids skip the wired-or-declared tripwire and get Object.prototype.toString as their normalizer.
+7. agentic state.ts: `commit: ["<40hex>"]` accepted (array stringified by RegExp.test).
+8. core settings/express/http.ts: body validation runs before authorization, so validation messages leak to unauthorized callers.
+Bugs: a workspace reset of a core namespace clears nothing (cms-adapter); the `""` input key bypasses parseTarget's extra-key check; raw SyntaxError/TypeError escapes in github.ts/state.ts; normalizeToolInput drops `cause`.
+Cleanup candidates: `applyApprovalPolicy` has no callers; registration-kit.characterization.test.ts duplicates registration-kit.test.ts; the readOnly comment's "two lines above" is now stale (registration-kit.ts).
+Process: L078a pin commit 366b20d6 does not typecheck (fixed in 8671e1f3). The coverage-recipe basename grep misses suites that import through shared fixtures (settings `write-tool-fixture.js`); include the whole feature `__tests__/` folder.
+
 ## Next
+Wave complete. The owner reviews cloud/w3-core-agentic and merges it into general-work. Nothing is left for a coordinator to resume.
