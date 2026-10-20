@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 import { REVOKED_MESSAGE } from '../../lifecycle/tools/capabilities.js';
 import { FAKE_TOKEN, WORKSPACE_ID } from '../../lifecycle/tools/__tests__/support.js';
 import {
-  ADMIN_SURFACE_STATE_LIMITS, createAdminSurfaceActionDispatcher, createAdminSurfaceCallbackInbox, createAdminSurfaceHandlerHost, openAdminSurfaceCapabilitySession,
+  ADMIN_SURFACE_ACTION_INTENTS, ADMIN_SURFACE_STATE_LIMITS, createAdminSurfaceActionDispatcher, createAdminSurfaceCallbackInbox, createAdminSurfaceHandlerHost, openAdminSurfaceCapabilitySession,
   parseAdminSurfacesFile, STATE_CREDENTIAL_MESSAGE, type AdminSurfaceCapabilityDeclarations, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule,
 } from '../index.js';
 import { createFakeSurfaceHost } from './surface-support.js';
@@ -114,9 +114,12 @@ describe('connections: only declared ones, account actions only for an admin', (
     expect(started).toStrictEqual({ authorizationUrl: 'https://auth.example.test/authorize?state=s1', attemptId: 'attempt-1', expiresAt: '2026-10-20T00:10:00.000Z' });
     expect(session.log.calls).toEqual([`${PLUGIN}:begin:{"connectionId":"account","action":"add-scopes","scopeSetIds":["files"],"startParams":{"selection-mode":"one"}}`]);
   });
+  test('every account action maps explicitly onto an API-connection start intent', () => {
+    expect(ADMIN_SURFACE_ACTION_INTENTS).toStrictEqual({ connect: 'connect', reconnect: 'connect', 'add-scopes': 'connect', switch: 'switch-account' });
+  });
   test('confirmSwitch and cancelSwitch answers are cut back to the token-free status fields', async () => {
     const session = open();
-    const status = { connectionId: 'account', state: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
+    const status = { connectionId: 'account', status: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
     expect(await session.capabilities.connections.confirmSwitch({ connectionId: 'account' })).toStrictEqual(status);
     expect(await session.capabilities.connections.cancelSwitch({ connectionId: 'account' })).toStrictEqual(status);
     expect(session.log.calls).toEqual([`${PLUGIN}:confirmSwitch:{"connectionId":"account"}`, `${PLUGIN}:cancelSwitch:{"connectionId":"account"}`]);
@@ -128,9 +131,9 @@ describe('connections: only declared ones, account actions only for an admin', (
   });
   test('status and disconnect answers carry only the token-free status fields and the honest revocation outcome', async () => {
     const session = open();
-    const status = { connectionId: 'account', state: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
+    const status = { connectionId: 'account', status: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
     expect(await session.capabilities.connections.status({ connectionId: 'account' })).toStrictEqual(status);
-    expect(await session.capabilities.connections.disconnect({ connectionId: 'account' })).toStrictEqual({ ...status, state: 'revocation-pending', revocation: 'revocation-pending' });
+    expect(await session.capabilities.connections.disconnect({ connectionId: 'account' })).toStrictEqual({ ...status, status: 'revocation-pending', revocation: 'pending' });
   });
 });
 

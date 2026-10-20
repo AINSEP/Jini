@@ -20,7 +20,7 @@ const HANDLERS = `export default {
   actions: {
     async 'read-status'({ capabilities, context }) {
       const status = await capabilities.connections.status({ connectionId: context.connectionIds[0] });
-      return { state: status.state, account: status.accountLabel };
+      return { status: status.status, account: status.accountLabel };
     },
     async 'choose-resource'({ capabilities, context }) {
       return capabilities.connections.begin({ connectionId: context.connectionIds[0], action: 'add-scopes' },
@@ -47,7 +47,7 @@ const SURFACES = JSON.stringify({ schemaVersion: 1, surfaces: [{
   id: 'resource-chooser', title: 'Choose a resource', entry: 'surface/index.html', files: ['surface/app.mjs'], handlerModule: 'server/handlers.mjs',
   connections: [{ id: 'account', startParams: ['selection-mode'], callbackFields: ['picked-id'] }], publicConfig: ['ACME_APP_ID'],
   actions: [
-    { name: 'read-status', input: object({}), result: object({ state: { type: 'string' }, account: { type: 'string' } }, ['state']) },
+    { name: 'read-status', input: object({}), result: object({ status: { type: 'string' }, account: { type: 'string' } }, ['status']) },
     { name: 'choose-resource', input: object({}), result: object({ authorizationUrl: { type: 'string' }, attemptId: { type: 'string' }, expiresAt: { type: 'string' } }, ['authorizationUrl', 'attemptId']) },
     { name: 'finish-choice', input: object({ attemptId: { type: 'string', maxLength: 128 } }, ['attemptId']), result: object({ saved: { type: 'boolean' }, resourceId: { type: 'string' } }, ['saved']) },
   ],
@@ -76,7 +76,7 @@ test('an acme-style surface administers its own connection, takes a callback fie
     const dispatch = (action: string, payload: unknown = {}) => dispatcher.dispatch({ action, payload, context });
 
     expect(await host.bootstrapData({ context })).toEqual({ appId: 'app-123' });
-    expect(await dispatch('read-status')).toEqual({ ok: true, result: { state: 'connected', account: 'person@example.test' } });
+    expect(await dispatch('read-status')).toEqual({ ok: true, result: { status: 'connected', account: 'person@example.test' } });
     const started = await dispatch('choose-resource');
     expect(started).toEqual({ ok: true, result: { authorizationUrl: 'https://auth.example.test/authorize?state=s1', attemptId: 'attempt-1', expiresAt: '2026-10-20T00:10:00.000Z' } });
 

@@ -22,17 +22,30 @@ import {
 } from '../lifecycle/tools/capabilities.js';
 import type { AdminSurfaceCapabilityDeclarations, AdminSurfaceConnectionDeclaration } from './capability-declarations.js';
 
-/** Mirrors the API-connection lifecycle; only `connected` serves access tokens. */
+/** Mirrors the API-connection lifecycle (`ApiConnectionStatus`); only `connected` serves access tokens. */
 export type AdminSurfaceConnectionState = 'connected' | 'reconnect-required' | 'revocation-pending' | 'disconnected';
-/** `add-scopes` re-consents for more scope sets on the same account; `switch` stages another account. */
-export type AdminSurfaceConnectionAction = 'connect' | 'reconnect' | 'switch' | 'add-scopes';
-/** The honest remote outcome of a disconnect: never `revoked` unless the provider confirmed it. */
-export type AdminSurfaceRevocationOutcome = 'revoked' | 'revocation-pending' | 'not-needed';
+
+/**
+ * The API-connection start intent each account action maps to (`ApiConnectionIntent` in
+ * `@jini-ai/integrations/api-connections`, mirrored because agent-plugins does not depend on it), so a
+ * host passes `ADMIN_SURFACE_ACTION_INTENTS[action]` straight to `start`. `reconnect` and `add-scopes`
+ * are a same-account `connect` with the scope sets the handler passes (`add-scopes` re-consents for
+ * more of them); `switch` stages another account.
+ */
+export const ADMIN_SURFACE_ACTION_INTENTS = Object.freeze({
+  connect: 'connect', reconnect: 'connect', switch: 'switch-account', 'add-scopes': 'connect',
+} as const);
+export type AdminSurfaceConnectionAction = keyof typeof ADMIN_SURFACE_ACTION_INTENTS;
+/**
+ * The honest remote outcome of a disconnect, the same values as `ApiConnectionRemoteRevocation`:
+ * never `confirmed` unless the provider confirmed it.
+ */
+export type AdminSurfaceRevocationOutcome = 'confirmed' | 'pending' | 'not-needed';
 
 /** Token-free status. Scope sets are the plugin's own ids, never raw provider scopes. */
 export interface AdminSurfaceConnectionStatus {
   readonly connectionId: string;
-  readonly state: AdminSurfaceConnectionState;
+  readonly status: AdminSurfaceConnectionState;
   readonly accountLabel: string | null;
   readonly grantedScopeSetIds: readonly string[];
   /** The account a staged switch would move to, awaiting `confirmSwitch`. */
@@ -89,7 +102,7 @@ export type AdminSurfaceCapabilitiesPort = (required: AgentPluginToolCapabilityS
 
 export const ADMIN_SURFACE_STATE_LIMITS = Object.freeze({ maxKeyLength: PLUGIN_STATE_MAX_KEY_LENGTH, maxValueBytes: 16 * 1024, maxDepth: 16 });
 export const STATE_CREDENTIAL_MESSAGE = 'The plugin tried to save a connection credential in its settings; nothing was saved.';
-const ACTIONS: readonly string[] = ['connect', 'reconnect', 'switch', 'add-scopes'];
+const ACTIONS: readonly string[] = Object.keys(ADMIN_SURFACE_ACTION_INTENTS);
 const SCOPE_SET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const ATTEMPT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_SCOPE_SETS = 16;
@@ -132,7 +145,7 @@ function beginOptions(connection: AdminSurfaceConnectionDeclaration, optional: P
 /** The status shape the port promises, whatever else the host's object carried. */
 function toStatus(connectionId: string, status: AdminSurfaceConnectionStatus): AdminSurfaceConnectionStatus {
   return {
-    connectionId, state: status.state, accountLabel: status.accountLabel ?? null,
+    connectionId, status: status.status, accountLabel: status.accountLabel ?? null,
     grantedScopeSetIds: [...status.grantedScopeSetIds], pendingSwitchAccountLabel: status.pendingSwitchAccountLabel ?? null,
   };
 }

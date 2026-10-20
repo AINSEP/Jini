@@ -217,9 +217,9 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 | port | methods | Jini checks |
 |---|---|---|
 | `http`, `limiter`, `artifacts` | as for executable tools | revocation |
-| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, state, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel }` | declared connection; token noted for the result/error scans |
-| | `begin({ connectionId, action: 'connect' \| 'reconnect' \| 'switch' \| 'add-scopes' }, { scopeSetIds?, startParams? })` → `{ authorizationUrl, attemptId, expiresAt }` | declared connection and start parameters, string values ≤ 2048, ≤ 16 scope-set ids, a signed-in admin (`principalId`) |
-| | `confirmSwitch`, `cancelSwitch` → status; `disconnect` → status + `revocation: 'revoked' \| 'revocation-pending' \| 'not-needed'` | declared connection, a signed-in admin |
+| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, status, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel }` | declared connection; token noted for the result/error scans |
+| | `begin({ connectionId, action: 'connect' \| 'reconnect' \| 'switch' \| 'add-scopes' }, { scopeSetIds?, startParams? })` → `{ authorizationUrl, attemptId, expiresAt }`; the host starts the API connection with intent `ADMIN_SURFACE_ACTION_INTENTS[action]` | declared connection and start parameters, string values ≤ 2048, ≤ 16 scope-set ids, a signed-in admin (`principalId`) |
+| | `confirmSwitch`, `cancelSwitch` → status; `disconnect` → status + `revocation: 'confirmed' \| 'pending' \| 'not-needed'` | declared connection, a signed-in admin |
 | | `takeCallbackFields({ connectionId, attemptId })` → declared fields or `null` | declared connection, opaque attempt id, undeclared fields dropped |
 | `state` | `get({ key })`, `set({ key, value })`, `delete({ key })` | key `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}`; value plain JSON (depth ≤ 16, ≤ 16 KiB serialized); a value mentioning a token the call obtained is refused; the host stores a checked copy |
 | `publicConfig` | `get({ name })` → string or `null` | declared name only |
@@ -227,8 +227,9 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 Host duties: key `state` by the scope's plugin and workspace (never shared across plugins), and back
 the plugin's agent tools' read-only `state.get` (`../lifecycle/tools/README.md`) with this same store
 under the same keys, so a setting the surface saves (a product turned off) is what the tools honor; map
-`status` scopes to the plugin's scope-set ids; `disconnect` returns `revoked` only when the provider
-confirmed; never return a refresh token or secret from any port; give `publicConfig` only public values.
+`status` scopes to the plugin's scope-set ids; `disconnect` returns `confirmed` only when the provider
+confirmed (`revocation` uses the API-connection values `confirmed | pending | not-needed`, and
+`status` its four lifecycle values, so the host passes both through); never return a refresh token or secret from any port; give `publicConfig` only public values.
 
 Callback fields: when a sign-in started by `begin` completes successfully, the host's callback route
 deposits the provider's extra fields into `createAdminSurfaceCallbackInbox({ now })` (in-process,
