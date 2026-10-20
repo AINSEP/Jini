@@ -32,6 +32,33 @@ export interface ProjectLocationsTabProps {
   labels?: ProjectLocationsTabLabels;
 }
 
+function resolveLabels(
+  { t }: { t: ReturnType<typeof useT> },
+  labels: ProjectLocationsTabLabels = {},
+): Required<ProjectLocationsTabLabels> {
+  const copy = {
+    title: 'Project locations',
+    description: 'Where new projects are created and existing ones are found.',
+    builtInLabel: 'Default location',
+    defaultBadge: 'Default',
+    makeDefaultLabel: 'Make default',
+    deleteLabel: 'Delete',
+    addFolderLabel: 'Add folder',
+    rowHint: 'Used as a project root.',
+    noFolderSelectedLabel: 'No folder selected.',
+    duplicateLabel: 'That folder is already a project location.',
+    savedLabel: 'Saved.',
+    defaultSavedLabel: 'Default location updated.',
+    saveErrorLabel: 'Could not save project locations.',
+    scanErrorLabel: 'Could not scan the new folder for existing projects.',
+    scanCompleteTemplate: 'Imported {imported}, {existing} already tracked.',
+  };
+  for (const key of Object.keys(copy) as (keyof ProjectLocationsTabLabels)[]) {
+    copy[key] = labels?.[key] ?? t(copy[key]);
+  }
+  return copy;
+}
+
 /**
  * Configured project roots: the host's built-in default plus operator-added
  * folders, each markable as the new-project default and removable. Origin:
@@ -44,21 +71,11 @@ export function ProjectLocationsTab({ port, defaultLocationId, onDefaultLocation
   const { drafts, builtIn, effectiveDefaultLocationId, saving, result, addFolder, removeDraft, setDefaultLocationId } =
     useProjectLocationsTab({ port, defaultLocationId, onDefaultLocationIdChange });
 
-  const title = labels?.title ?? t('Project locations');
-  const description = labels?.description ?? t('Where new projects are created and existing ones are found.');
-  const builtInLabel = labels?.builtInLabel ?? t('Default location');
-  const defaultBadge = labels?.defaultBadge ?? t('Default');
-  const makeDefaultLabel = labels?.makeDefaultLabel ?? t('Make default');
-  const deleteLabel = labels?.deleteLabel ?? t('Delete');
-  const addFolderLabel = labels?.addFolderLabel ?? t('Add folder');
-  const rowHint = labels?.rowHint ?? t('Used as a project root.');
-  const noFolderSelectedLabel = labels?.noFolderSelectedLabel ?? t('No folder selected.');
-  const duplicateLabel = labels?.duplicateLabel ?? t('That folder is already a project location.');
-  const savedLabel = labels?.savedLabel ?? t('Saved.');
-  const defaultSavedLabel = labels?.defaultSavedLabel ?? t('Default location updated.');
-  const saveErrorLabel = labels?.saveErrorLabel ?? t('Could not save project locations.');
-  const scanErrorLabel = labels?.scanErrorLabel ?? t('Could not scan the new folder for existing projects.');
-  const scanCompleteTemplate = labels?.scanCompleteTemplate ?? t('Imported {imported}, {existing} already tracked.');
+  const {
+    title, description, builtInLabel, defaultBadge, makeDefaultLabel, deleteLabel, addFolderLabel, rowHint,
+    noFolderSelectedLabel, duplicateLabel, savedLabel, defaultSavedLabel, saveErrorLabel, scanErrorLabel,
+    scanCompleteTemplate,
+  } = resolveLabels({ t }, labels);
 
   function defaultControlLabel(active: boolean): string {
     return active ? defaultBadge : makeDefaultLabel;

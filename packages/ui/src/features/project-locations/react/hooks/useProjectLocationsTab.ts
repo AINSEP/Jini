@@ -41,6 +41,27 @@ export interface UseProjectLocationsTabResult {
   setDefaultLocationId: (id: string) => void;
 }
 
+/** Scan a saved location; disposed callers cannot publish success or failure. */
+export async function scanAddedLocation(
+  { port, alive, setResult }: {
+    port: ProjectLocationsPort;
+    alive: { readonly current: boolean };
+    setResult: (result: ProjectLocationsActionResult) => void;
+  },
+  _options = {},
+): Promise<void> {
+  const scan = port.scanLocations;
+  if (!scan) return;
+  try {
+    const scanResult = await scan.call(port);
+    if (!alive.current) return;
+    setResult({ status: 'scan-complete', imported: scanResult.imported.length, existing: scanResult.existing.length });
+  } catch (error: unknown) {
+    if (!alive.current) return;
+    setResult({ status: 'scan-error', message: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 /**
  * Owns the tab's async edges: the initial locations fetch, the add-folder ->
  * duplicate-check -> save -> (optional) scan sequence, and removal. Origin:
@@ -151,16 +172,7 @@ export function useProjectLocationsTab({
         if (alive.current) setDrafts(previous);
         return;
       }
-      const scan = portRef.current.scanLocations;
-      if (!scan) return;
-      try {
-        const scanResult = await scan.call(portRef.current);
-        if (!alive.current) return;
-        setResult({ status: 'scan-complete', imported: scanResult.imported.length, existing: scanResult.existing.length });
-      } catch (error: unknown) {
-        if (!alive.current) return;
-        setResult({ status: 'scan-error', message: error instanceof Error ? error.message : String(error) });
-      }
+      await scanAddedLocation({ port: portRef.current, alive, setResult });
     })();
   }, [persist]);
 

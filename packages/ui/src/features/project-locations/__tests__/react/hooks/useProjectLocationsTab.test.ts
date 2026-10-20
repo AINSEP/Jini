@@ -1,8 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ProjectLocationsPort } from '../../../ports.js';
 import type { ProjectLocation } from '../../../types.js';
-import { useProjectLocationsTab } from '../../../react/hooks/useProjectLocationsTab.js';
+import { scanAddedLocation, useProjectLocationsTab } from '../../../react/hooks/useProjectLocationsTab.js';
 
 const BUILT_IN: ProjectLocation = { id: 'default', name: 'Default', path: '/home/op/projects', builtIn: true };
 
@@ -137,24 +137,20 @@ describe('useProjectLocationsTab — addFolder', () => {
     const scan = deferred<{ imported: readonly string[]; existing: readonly string[] }>();
     const port: ProjectLocationsPort = {
       fetchLocations: () => Promise.resolve([BUILT_IN]),
-      openFolderDialog: () => Promise.resolve('/home/op/new-project'),
-      saveLocations: (drafts) =>
-        Promise.resolve([BUILT_IN, ...drafts.map((d, i) => ({ id: `new-${i}`, name: 'new-project', path: d.path }))]),
+      openFolderDialog: () => Promise.resolve(null),
+      saveLocations: () => Promise.resolve([BUILT_IN]),
       scanLocations: () => scan.promise,
     };
-    const { result, unmount } = renderHook(() => useProjectLocationsTab({ port }));
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    result.current.addFolder();
+    const alive = { current: true };
+    const setResult = vi.fn();
     // The save completes (status flips to 'saved') before the scan settles.
-    await waitFor(() => expect(result.current.result).toEqual({ status: 'saved' }));
-    const beforeUnmount = result.current;
-
-    unmount();
+    // Assert at the setter boundary: React's result.current freezes after unmount.
+    const completion = scanAddedLocation({ port, alive, setResult });
+    expect(setResult).not.toHaveBeenCalled();
+    alive.current = false;
     scan.resolve({ imported: [], existing: [] });
-    await scan.promise;
-
-    expect(result.current).toBe(beforeUnmount);
+    await completion;
+    expect(setResult).not.toHaveBeenCalled();
   });
 
   it('reports a scan-error when scanLocations rejects', async () => {
@@ -196,23 +192,19 @@ describe('useProjectLocationsTab — addFolder', () => {
     const scan = deferred<{ imported: readonly string[]; existing: readonly string[] }>();
     const port: ProjectLocationsPort = {
       fetchLocations: () => Promise.resolve([BUILT_IN]),
-      openFolderDialog: () => Promise.resolve('/home/op/new-project'),
-      saveLocations: (drafts) =>
-        Promise.resolve([BUILT_IN, ...drafts.map((d, i) => ({ id: `new-${i}`, name: 'new-project', path: d.path }))]),
+      openFolderDialog: () => Promise.resolve(null),
+      saveLocations: () => Promise.resolve([BUILT_IN]),
       scanLocations: () => scan.promise,
     };
-    const { result, unmount } = renderHook(() => useProjectLocationsTab({ port }));
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    result.current.addFolder();
+    const alive = { current: true };
+    const setResult = vi.fn();
     // The save completes (status flips to 'saved') before the scan settles.
-    await waitFor(() => expect(result.current.result).toEqual({ status: 'saved' }));
-    const beforeUnmount = result.current;
-
-    unmount();
+    // Assert at the setter boundary: React's result.current freezes after unmount.
+    const completion = scanAddedLocation({ port, alive, setResult });
+    expect(setResult).not.toHaveBeenCalled();
+    alive.current = false;
     scan.reject(new Error('scan crashed'));
-    await scan.promise.catch(() => undefined);
-
-    expect(result.current).toBe(beforeUnmount);
+    await completion;
+    expect(setResult).not.toHaveBeenCalled();
   });
 });
