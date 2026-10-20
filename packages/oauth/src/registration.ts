@@ -5,7 +5,7 @@ import { assertOAuthAppOptions } from "./options.js";
 import { MAX_OAUTH_RESPONSE_BYTES, readBoundedOAuthJson, readOptionalString } from "./bounded-json.js";
 import { assertSafeProviderEndpoint } from "./endpoint-safety.js";
 import { OAuthError } from "./errors.js";
-import type { OAuthClientAuthMethod, OAuthFetch, OAuthHttpPorts, OAuthAppOptions, RegisteredOAuthClient } from "./ports.js";
+import type { OAuthClientAuthMethod, OAuthHttpPorts, OAuthAppOptions, RegisteredOAuthClient } from "./ports.js";
 export type { RegisteredOAuthClient } from "./ports.js";
 const DEFAULT_REGISTRATION_TIMEOUT_MS = 15000;
 const REGISTRATION_MESSAGES = {
@@ -45,7 +45,10 @@ function buildClientMetadata(input: DynamicClientRegistrationInput, options: OAu
 function readOptionalNumber(value: unknown): number | null {
     return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
-function resolveAuthMethod(document: Record<string, unknown>, requested: OAuthClientAuthMethod, supported: readonly string[]): OAuthClientAuthMethod {
+function resolveAuthMethod({ document }: { document: Record<string, unknown> },
+    input: Pick<DynamicClientRegistrationInput, "tokenEndpointAuthMethod" | "authMethodsSupported"> = {}): OAuthClientAuthMethod {
+    const requested = input.tokenEndpointAuthMethod ?? "none";
+    const supported = input.authMethodsSupported ?? [];
     const echoed = readOptionalString(document.token_endpoint_auth_method);
     if (SUPPORTED_AUTH_METHODS.includes(echoed as OAuthClientAuthMethod))
         return echoed as OAuthClientAuthMethod;
@@ -73,7 +76,6 @@ export async function registerOAuthClientDynamically(requiredArgs: OAuthRequired
     assertOAuthAppOptions(deps.options);
     const endpoint = assertSafeProviderEndpoint(input.registrationEndpoint, "registration endpoint", deps.guard);
     const fetchFn = deps.fetchFn;
-    const requestedAuthMethod = input.tokenEndpointAuthMethod ?? "none";
     let response: Response;
     try {
         response = await fetchFn({
@@ -111,7 +113,7 @@ export async function registerOAuthClientDynamically(requiredArgs: OAuthRequired
     return {
         clientId,
         clientSecret: readOptionalString(document.client_secret),
-        tokenEndpointAuthMethod: resolveAuthMethod(document, requestedAuthMethod, input.authMethodsSupported ?? []),
+        tokenEndpointAuthMethod: resolveAuthMethod({ document }, input),
         registrationClientUri: readOptionalString(document.registration_client_uri),
         clientIdIssuedAt: readOptionalNumber(document.client_id_issued_at),
         clientSecretExpiresAt: readOptionalNumber(document.client_secret_expires_at),

@@ -15,6 +15,38 @@ export interface SealedAuthorizationState {
     open(requiredArgs: { state: string; ownerKey: string; providerId: string; redirectUri: string }, optionalArgs?: Record<string, never>): Promise<PendingAuthorization>;
 }
 
+type OpenStateInput = Parameters<SealedAuthorizationState['open']>[0];
+type AuthorizationPayload = AuthorizationEntry & { createdAt: string; exp: number };
+
+function assertStateBinding({ value, workspaceId, serverId, principalId, ownerKey, providerId, redirectUri }: {
+    value: Record<string, unknown>; workspaceId: string; serverId: string; principalId: string | undefined;
+} & Omit<OpenStateInput, 'state'>, _optional: Record<string, never> = {}): void {
+    if (value.workspaceId !== workspaceId || value.serverId !== serverId
+        || value.principalId !== principalId
+        || typeof value.ownerKey !== 'string' || !secureEquals({ a: value.ownerKey, b: ownerKey })
+        || value.providerId !== providerId || value.redirectUri !== redirectUri) {
+        throw invalidState({});
+    }
+}
+
+function isValidStateResource({ resource }: { resource: unknown }, _optional: Record<string, never> = {}): boolean {
+    return resource === undefined || typeof resource === 'string'
+        || (Array.isArray(resource) && resource.every((item: unknown) => typeof item === 'string'));
+}
+
+function readStatePayload({ value, clock }: {
+    value: Record<string, unknown>; clock: Clock;
+}, _optional: Record<string, never> = {}): AuthorizationPayload {
+    if (!Number.isSafeInteger(value.exp) || (value.exp as number) <= clock.nowMs()
+        || typeof value.codeVerifier !== 'string' || typeof value.createdAt !== 'string'
+        || !Number.isFinite(Date.parse(value.createdAt))
+        || !Array.isArray(value.scopes) || !value.scopes.every((scope: unknown) => typeof scope === 'string')
+        || !isValidStateResource({ resource: value.resource })) {
+        throw invalidState({});
+    }
+    return value as AuthorizationPayload;
+}
+
 /** Stateless redirect binding. Replay is rejected by the provider's single-use code, not a store.
  * Seal errors propagate; all open/expiry/binding failures are OAUTH_INVALID_STATE.
  * @example beginAuthorizationCode({ ...grant, stateless: createSealedAuthorizationState({ clock, codec, workspaceId, serverId }) })
@@ -38,20 +70,13 @@ export function createSealedAuthorizationState(requiredArgs: {
         async open({ state, ownerKey, providerId, redirectUri }, _optional = {}) {
             if (state.length === 0 || state.length > MAX_AUTHORIZATION_STATE_LENGTH) throw invalidState({});
             try {
-                const value = JSON.parse(await codec.open({ state }));
-                if (!value || typeof value !== 'object' || Array.isArray(value)
-                    || value.workspaceId !== workspaceId || value.serverId !== serverId
-                    || value.principalId !== principalId
-                    || typeof value.ownerKey !== 'string' || !secureEquals({ a: value.ownerKey, b: ownerKey })
-                    || value.providerId !== providerId || value.redirectUri !== redirectUri
-                    || !Number.isSafeInteger(value.exp) || value.exp <= clock.nowMs()
-                    || typeof value.codeVerifier !== 'string' || typeof value.createdAt !== 'string'
-                    || !Number.isFinite(Date.parse(value.createdAt))
-                    || !Array.isArray(value.scopes) || !value.scopes.every((scope: unknown) => typeof scope === 'string')
-                    || (value.resource !== undefined && typeof value.resource !== 'string'
-                        && (!Array.isArray(value.resource) || !value.resource.every((resource: unknown) => typeof resource === 'string')))) {
+                const parsed: unknown = JSON.parse(await codec.open({ state }));
+                if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
                     throw invalidState({});
                 }
+                const document = parsed as Record<string, unknown>;
+                assertStateBinding({ value: document, workspaceId, serverId, principalId, ownerKey, providerId, redirectUri });
+                const value = readStatePayload({ value: document, clock });
                 return { state, ownerKey: value.ownerKey, providerId: value.providerId,
                     codeVerifier: value.codeVerifier, redirectUri: value.redirectUri, scopes: value.scopes,
                     createdAt: value.createdAt, expiresAt: new Date(value.exp).toISOString(),
