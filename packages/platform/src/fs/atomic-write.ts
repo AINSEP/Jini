@@ -53,33 +53,78 @@ export function createNodeAtomicFilesystem(_required: Record<string, never>, { f
     remove: ({ path }) => filesystem.rmSync(path, { force: true }),
   };
 }
+const DIRECTORY_SYNC_UNSUPPORTED = ["EPERM", "EISDIR", "EINVAL", "EACCES", "ENOTSUP"];
+function hasErrorCode(error: unknown, codes: readonly string[]): boolean {
+  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" && codes.includes(error.code);
+}
 function isMissing(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+  return hasErrorCode(error, ["ENOENT"]);
+}
+/** Runs a probe where only ENOENT means absent; every other failure propagates. */
+function ignoreMissing<T>(probe: () => T): T | undefined {
+  try { return probe(); } catch (error) { if (!isMissing(error)) throw error; return undefined; }
+}
+async function ignoreMissingAsync<T>(probe: () => Promise<T>): Promise<T | undefined> {
+  try { return await probe(); } catch (error) { if (!isMissing(error)) throw error; return undefined; }
+}
+/** Cleanup must never mask the failure that triggered it. */
+function attempt(action: () => void): void {
+  try { action(); } catch { /* preserve the original failure */ }
+}
+async function attemptAsync(action: () => Promise<unknown>): Promise<void> {
+  try { await action(); } catch { /* preserve the original failure */ }
+}
+function messagesFor(options: AtomicWriteOptions): PlatformMessages {
+  return options.messages ?? defaultPlatformMessages;
 }
 function validateMode(mode: number, options: AtomicWriteOptions): number {
-  if (!Number.isInteger(mode) || mode < 0 || mode > 0o777) throw new RangeError((options.messages ?? defaultPlatformMessages).atomicModeInvalid());
+  if (!Number.isInteger(mode) || mode < 0 || mode > 0o777) throw new RangeError(messagesFor(options).atomicModeInvalid());
   return mode;
 }
-function temporaryPath({ filePath }: { filePath: string }, options: AtomicWriteOptions): string {
-  const { tempName = () => `${process.pid}.${randomUUID()}` } = options;
-  if (options.tempPath) {
-    const temporary = options.tempPath({ filePath });
-    if (path.resolve(path.dirname(temporary)) !== path.resolve(path.dirname(filePath)) || path.resolve(temporary) === path.resolve(filePath) || temporary.includes("\0")) throw new RangeError((options.messages ?? defaultPlatformMessages).atomicTempPathInvalid());
-    return temporary;
-  }
-  const token = tempName({ filePath });
-  if (!token || token === "." || token === ".." || /[/\\\x00]/.test(token)) throw new RangeError((options.messages ?? defaultPlatformMessages).atomicTempNameInvalid());
+/** Explicit mode wins, then the preserved destination mode, then the store default, then 0600. */
+function resolveMode({ existingMode }: { existingMode: number | undefined }, options: AtomicWriteOptions): number {
+  return validateMode(options.mode ?? existingMode ?? options.defaultMode ?? 0o600, options);
+}
+function defaultTempName(): string {
+  return `${process.pid}.${randomUUID()}`;
+}
+function checkedTempPath({ filePath, temporary }: { filePath: string; temporary: string }, options: AtomicWriteOptions): string {
+  if (path.resolve(path.dirname(temporary)) !== path.resolve(path.dirname(filePath)) || path.resolve(temporary) === path.resolve(filePath) || temporary.includes("\0")) throw new RangeError(messagesFor(options).atomicTempPathInvalid());
+  return temporary;
+}
+function tokenTempPath({ filePath, token }: { filePath: string; token: string }, options: AtomicWriteOptions): string {
+  if (!token || token === "." || token === ".." || /[/\\\x00]/.test(token)) throw new RangeError(messagesFor(options).atomicTempNameInvalid());
   return path.join(path.dirname(filePath), `.${path.basename(filePath)}.${token}.tmp`);
 }
+function temporaryPath({ filePath }: { filePath: string }, options: AtomicWriteOptions): string {
+  if (options.tempPath) return checkedTempPath({ filePath, temporary: options.tempPath({ filePath }) }, options);
+  return tokenTempPath({ filePath, token: (options.tempName ?? defaultTempName)({ filePath }) }, options);
+}
 function assertNotSymlink(info: { isSymbolicLink(): boolean }, options: AtomicWriteOptions): void {
-  if (info.isSymbolicLink()) throw new Error((options.messages ?? defaultPlatformMessages).atomicSymlinkRefused());
+  if (info.isSymbolicLink()) throw new Error(messagesFor(options).atomicSymlinkRefused());
 }
 function assertOwnerOnly(mode: number, options: AtomicWriteOptions, platform: NodeJS.Platform): void {
   // Windows has no POSIX group/other bits; secret stores skip this verification there.
-  if (options.verifyOwnerOnly && platform !== "win32" && (mode & 0o077) !== 0) throw new Error((options.messages ?? defaultPlatformMessages).atomicPermissionsRefused());
+  if (options.verifyOwnerOnly && platform !== "win32" && (mode & 0o077) !== 0) throw new Error(messagesFor(options).atomicPermissionsRefused());
 }
 function isDirectorySyncUnsupported(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" && ["EPERM", "EISDIR", "EINVAL", "EACCES", "ENOTSUP"].includes(error.code);
+  return hasErrorCode(error, DIRECTORY_SYNC_UNSUPPORTED);
+}
+/** Destination mode with optional symlink refusal; ENOENT handling is left to the caller. */
+function destinationModeSync({ filePath, filesystem }: { filePath: string; filesystem: AtomicFilesystemPort }, options: AtomicWriteOptions): number {
+  if (!options.refuseSymlink) return filesystem.stat({ path: filePath }).mode & 0o777;
+  const info = filesystem.lstat({ path: filePath }); assertNotSymlink(info, options);
+  return info.mode & 0o777;
+}
+async function destinationModeAsync({ filePath, filesystem }: { filePath: string; filesystem: AtomicAsyncFilesystem }, options: AtomicWriteOptions): Promise<number> {
+  if (!options.refuseSymlink) return (await filesystem.stat(filePath)).mode & 0o777;
+  const info = await filesystem.lstat(filePath); assertNotSymlink(info, options);
+  return info.mode & 0o777;
+}
+function serializeJson({ data }: { data: unknown }, options: AtomicWriteOptions): string {
+  const content = JSON.stringify(data, null, 2);
+  if (content === undefined) throw new TypeError(messagesFor(options).atomicJsonUnserializable());
+  return content;
 }
 /** Flush directory metadata where supported; Windows cannot fsync directory handles.
  * Unsupported open/sync errors are ignored because replacement has already landed.
@@ -118,13 +163,8 @@ export async function syncDirectoryBestEffortAsync(
 export function writeFileAtomic(required: AtomicWriteRequired, options: AtomicWriteOptions = {}): void {
   const { filePath, content, fs: filesystem } = required;
   const platform = options.platform ?? process.platform;
-  let existingMode: number | undefined;
-  try {
-    if (options.refuseSymlink) {
-      const info = filesystem.lstat({ path: filePath }); assertNotSymlink(info, options); existingMode = info.mode & 0o777;
-    } else { existingMode = filesystem.stat({ path: filePath }).mode & 0o777; }
-  } catch (error) { if (!isMissing(error)) throw error; }
-  const mode = validateMode(options.mode ?? existingMode ?? options.defaultMode ?? 0o600, options);
+  const existingMode = ignoreMissing(() => destinationModeSync({ filePath, filesystem }, options));
+  const mode = resolveMode({ existingMode }, options);
   const temporary = temporaryPath(required, options);
   // A failed exclusive create does not grant ownership of an existing temporary file.
   let descriptor: number | undefined = filesystem.open({ path: temporary, flags: "wx", mode });
@@ -136,26 +176,23 @@ export function writeFileAtomic(required: AtomicWriteRequired, options: AtomicWr
     filesystem.sync({ descriptor });
     const fileDescriptor = descriptor; descriptor = undefined;
     filesystem.close({ descriptor: fileDescriptor });
-    if (options.refuseSymlink) {
-      try { assertNotSymlink(filesystem.lstat({ path: filePath }), options); } catch (error) { if (!isMissing(error)) throw error; }
-    }
+    if (options.refuseSymlink) ignoreMissing(() => assertNotSymlink(filesystem.lstat({ path: filePath }), options));
     filesystem.rename({ from: temporary, to: filePath }); renamed = true;
     syncDirectoryBestEffort({ directory: path.dirname(filePath),
       open: (path, flags) => filesystem.open({ path, flags }),
       sync: descriptor => filesystem.sync({ descriptor }), close: descriptor => filesystem.close({ descriptor }),
     }, { platform });
   } catch (error) {
-    if (descriptor !== undefined) { try { filesystem.close({ descriptor }); } catch { /* preserve the original failure */ } }
-    if (!renamed) { try { filesystem.remove({ path: temporary }); } catch { /* preserve the original failure */ } }
+    const openDescriptor = descriptor;
+    if (openDescriptor !== undefined) attempt(() => filesystem.close({ descriptor: openDescriptor }));
+    if (!renamed) attempt(() => filesystem.remove({ path: temporary }));
     throw error;
   }
 }
 /** Pretty JSON delegates to the same mode-preserving atomic primitive. */
 export function writeJsonFileAtomic(required: Omit<AtomicWriteRequired, "content"> & { data: unknown }, options: AtomicWriteOptions = {}): void {
   const { data, ...writer } = required;
-  const content = JSON.stringify(data, null, 2);
-  if (content === undefined) throw new TypeError((options.messages ?? defaultPlatformMessages).atomicJsonUnserializable());
-  writeFileAtomic({ ...writer, content }, options);
+  writeFileAtomic({ ...writer, content: serializeJson({ data }, options) }, options);
 }
 /** Async counterpart with the same ownership, permission and durability guarantees.
  * Parent creation supports runtime-state and secret stores without another writer implementation. */
@@ -167,13 +204,8 @@ export async function writeFileAtomicAsync(
   const platform = options.platform ?? process.platform;
   const filesystem = options.fs ?? fsPromises;
   if (options.createParent) await filesystem.mkdir(path.dirname(filePath), { recursive: true });
-  let existingMode: number | undefined;
-  try {
-    const info = options.refuseSymlink ? await filesystem.lstat(filePath) : await filesystem.stat(filePath);
-    if (options.refuseSymlink) assertNotSymlink(info, options);
-    existingMode = info.mode & 0o777;
-  } catch (error) { if (!isMissing(error)) throw error; }
-  const mode = validateMode(options.mode ?? existingMode ?? options.defaultMode ?? 0o600, options);
+  const existingMode = await ignoreMissingAsync(() => destinationModeAsync({ filePath, filesystem }, options));
+  const mode = resolveMode({ existingMode }, options);
   const temporary = temporaryPath(required, options);
   // Keep the exclusive create outside cleanup: EEXIST belongs to a different writer.
   const handle = await filesystem.open(temporary, "wx", mode);
@@ -184,14 +216,12 @@ export async function writeFileAtomicAsync(
     assertOwnerOnly((await handle.stat()).mode, options, platform);
     await handle.sync();
     await handle.close(); closed = true;
-    if (options.refuseSymlink) {
-      try { assertNotSymlink(await filesystem.lstat(filePath), options); } catch (error) { if (!isMissing(error)) throw error; }
-    }
+    if (options.refuseSymlink) await ignoreMissingAsync(async () => assertNotSymlink(await filesystem.lstat(filePath), options));
     await filesystem.rename(temporary, filePath); renamed = true;
     await syncDirectoryBestEffortAsync({ directory: path.dirname(filePath), open: (path, flags) => filesystem.open(path, flags) }, { platform });
   } catch (error) {
-    if (!closed) { try { await handle.close(); } catch { /* preserve the original failure */ } }
-    if (!renamed) { try { await filesystem.rm(temporary, { force: true }); } catch { /* preserve the original failure */ } }
+    if (!closed) await attemptAsync(() => handle.close());
+    if (!renamed) await attemptAsync(() => filesystem.rm(temporary, { force: true }));
     throw error;
   }
 }
@@ -201,7 +231,5 @@ export async function writeJsonFileAtomicAsync(
   options: AtomicWriteOptions & { fs?: AtomicAsyncFilesystem; createParent?: boolean; trailingNewline?: boolean } = {},
 ): Promise<void> {
   const { data, ...writer } = required;
-  const content = JSON.stringify(data, null, 2);
-  if (content === undefined) throw new TypeError((options.messages ?? defaultPlatformMessages).atomicJsonUnserializable());
-  await writeFileAtomicAsync({ ...writer, content: content + (options.trailingNewline ? "\n" : "") }, options);
+  await writeFileAtomicAsync({ ...writer, content: serializeJson({ data }, options) + (options.trailingNewline ? "\n" : "") }, options);
 }
