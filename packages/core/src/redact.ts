@@ -169,11 +169,6 @@ function isLuhnValid(digits: string): boolean {
   return sum % 10 === 0;
 }
 
-function redactApiKeyHeaderValue(prefix: string, quote: string, name: string, separator: string, value: string): string {
-  const redactedValue = value.startsWith('"') ? '"[REDACTED:api_key_header]"' : '[REDACTED:api_key_header]';
-  return `${prefix}${quote}${name}${quote}${separator}${redactedValue}`;
-}
-
 /** Optional caller-owned secrets and named lexical rules, without ambient credential lookup. */
 export interface SecretRedactionOptions {
   /** Diagnostic text can retain addresses/numbers while using the same credential rules. Default true. */
@@ -249,42 +244,89 @@ export function redactSecretsWithCounts({ input }: { input: string }, options: S
 } {
   const counts: Record<string, number> = {};
   if (!input) return { redacted: input, counts };
-  let out = input;
-  const marker = (name: string): string => {
+  const marker: Marker = (name) => {
     counts[name] = (counts[name] ?? 0) + 1;
     return `[REDACTED:${name}]`;
   };
-  const applyPattern = ({ name, regex }: SecretRedactionPattern): void => {
+  let out = redactExactSecrets({ text: input, marker, secrets: options.exactSecrets ?? [] });
+  out = redactUrlCredentials({ text: out, marker });
+  out = applyPatterns({ text: out, marker, patterns: credentialPatterns(options.extraPatterns ?? []) });
+  out = redactKeyedCredentials({ text: out, marker });
+  if (options.policy === 'aggressive') {
+    out = out.replace(OPAQUE_TOKEN_RE, (match) => NON_SECRET_TOKEN_RE.test(match) ? match : marker('opaque_token'));
+  }
+  if (options.redactPii !== false) out = redactPii({ text: out, marker });
+  return { redacted: out, counts };
+}
+
+/** Records one match of category `name` and returns its `[REDACTED:<name>]` marker. */
+type Marker = (name: string) => string;
+
+interface RedactionPass {
+  text: string;
+  marker: Marker;
+}
+
+// PII rules run last (after credential and opt-in opaque rules) and only when PII redaction is on;
+// splitting once keeps each list in PATTERNS order.
+const PII_PATTERN_NAMES = new Set(['email', 'ipv4', 'phone']);
+const NON_PII_PATTERNS = PATTERNS.filter((pattern) => !PII_PATTERN_NAMES.has(pattern.name));
+const PII_PATTERNS = PATTERNS.filter((pattern) => PII_PATTERN_NAMES.has(pattern.name));
+
+/** Built-in credential rules, then the static-scan shapes (labeled `credential`), then the caller's extra rules. */
+function credentialPatterns(extraPatterns: readonly SecretRedactionPattern[]): SecretRedactionPattern[] {
+  return [
+    ...NON_PII_PATTERNS,
+    ...SECRET_SHAPE_PATTERNS.map((shape) => ({ name: 'credential', regex: shape.pattern })),
+    ...extraPatterns,
+  ];
+}
+
+function applyPatterns({ text, marker, patterns }: RedactionPass & { patterns: readonly SecretRedactionPattern[] }): string {
+  let out = text;
+  for (const { name, regex } of patterns) {
     // Clone host/global regexes so lastIndex state never leaks across requests. Named extra
     // patterns use the same global replacement contract as the built-in vocabulary.
     const flags = regex.flags.includes('g') ? regex.flags : `${regex.flags}g`;
     out = out.replace(new RegExp(regex.source, flags), () => marker(name));
-  };
-  const secrets = [...new Set((options.exactSecrets ?? []).filter(
+  }
+  return out;
+}
+
+/** Masks caller-supplied secrets verbatim, longest first, ignoring empty and non-string entries. */
+function redactExactSecrets(
+  { text, marker, secrets }: RedactionPass & { secrets: ReadonlyArray<string | undefined | null> },
+): string {
+  const usable = [...new Set(secrets.filter(
     (secret): secret is string => typeof secret === 'string' && secret.length > 0,
   ))].sort((a, b) => b.length - a.length);
-  for (const secret of secrets) {
+  let out = text;
+  for (const secret of usable) {
     const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     out = out.replace(new RegExp(escaped, 'g'), () => marker('exact_secret'));
   }
-  out = out.replace(URL_CREDENTIALS_RE, (match, scheme: string, userinfo: string) =>
-    isMaskedValue(userinfo) ? match : `${scheme}${marker('url_credentials')}@`,
-  );
-  out = out.replace(SIGNED_QUERY_RE, (match, prefix: string, value: string) =>
-    isMaskedValue(value) ? match : `${prefix}${marker('signed_query')}`,
-  );
-  const piiNames = new Set(['email', 'ipv4', 'phone']);
-  for (const pattern of PATTERNS) {
-    if (!piiNames.has(pattern.name)) applyPattern(pattern);
-  }
-  for (const shape of SECRET_SHAPE_PATTERNS) applyPattern({ name: 'credential', regex: shape.pattern });
-  for (const pattern of options.extraPatterns ?? []) applyPattern(pattern);
+  return out;
+}
 
-  out = out.replace(API_KEY_HEADER, (_match, prefix: string, quote: string, name: string, separator: string, value: string) => {
+/** URL userinfo and signed query values: credentials recognized by their URL context. */
+function redactUrlCredentials({ text, marker }: RedactionPass): string {
+  return text
+    .replace(URL_CREDENTIALS_RE, (match, scheme: string, userinfo: string) =>
+      isMaskedValue(userinfo) ? match : `${scheme}${marker('url_credentials')}@`,
+    )
+    .replace(SIGNED_QUERY_RE, (match, prefix: string, value: string) =>
+      isMaskedValue(value) ? match : `${prefix}${marker('signed_query')}`,
+    );
+}
+
+/** Values named by a header, query parameter, bearer prefix or credential label. */
+function redactKeyedCredentials({ text, marker }: RedactionPass): string {
+  let out = text.replace(API_KEY_HEADER, (_match, prefix: string, quote: string, name: string, separator: string, value: string) => {
     // Already masked values are not new credentials and should not inflate the audit count.
     if (isMaskedValue(value)) return `${prefix}${quote}${name}${quote}${separator}${value}`;
     marker('api_key_header');
-    return redactApiKeyHeaderValue(prefix, quote, name, separator, value);
+    const redactedValue = value.startsWith('"') ? '"[REDACTED:api_key_header]"' : '[REDACTED:api_key_header]';
+    return `${prefix}${quote}${name}${quote}${separator}${redactedValue}`;
   });
   // The provider rule includes a query fragment in an echoed key; mask that whole value
   // before the narrower core query rule can split it and leave a credential suffix behind.
@@ -298,23 +340,18 @@ export function redactSecretsWithCounts({ input }: { input: string }, options: S
   out = out.replace(PROVIDER_API_KEY_HEADER, (match, name: string, value: string) =>
     isMaskedValue(value) ? match : `${name}: ${marker('api_key_header')}`,
   );
-  out = out.replace(MASK_AWARE_LABELED_SECRET_RE, (match, _label: string, value: string) => {
+  return out.replace(MASK_AWARE_LABELED_SECRET_RE, (match, _label: string, value: string) => {
     // Replace only the captured value, retaining labels even when no whitespace separates
     // them. Glued credential suffixes fail the complete-marker check and remain maskable.
     if (isMaskedValue(value)) return match;
     return `${match.slice(0, -value.length)}${marker('labeled_secret')}`;
   });
-  if (options.policy === 'aggressive') {
-    out = out.replace(OPAQUE_TOKEN_RE, (match) => NON_SECRET_TOKEN_RE.test(match) ? match : marker('opaque_token'));
-  }
-  if (options.redactPii !== false) {
-    for (const pattern of PATTERNS) {
-      if (piiNames.has(pattern.name)) applyPattern(pattern);
-    }
-    out = out.replace(CARD_CANDIDATE, (match) => {
-      const digits = match.replace(/\D/g, '');
-      return isLuhnValid(digits) ? marker('credit_card') : match;
-    });
-  }
-  return { redacted: out, counts };
+}
+
+/** Email/IPv4/phone rules, then Luhn-checked card candidates. */
+function redactPii({ text, marker }: RedactionPass): string {
+  return applyPatterns({ text, marker, patterns: PII_PATTERNS }).replace(CARD_CANDIDATE, (match) => {
+    const digits = match.replace(/\D/g, '');
+    return isLuhnValid(digits) ? marker('credit_card') : match;
+  });
 }
