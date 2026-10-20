@@ -148,6 +148,13 @@ async function checkAvailability(deps: AvailabilityDeps): Promise<TranscriptionA
   return { available: result.available, reason: result.reason ?? undefined };
 }
 
+function readSuccessfulTranscription({ result, messages }: { result: HelperPayload; messages: MacTranscriberMessages }, _options = {}): TranscriptionResult {
+  if ((result.text !== undefined && typeof result.text !== "string") || (result.elapsedMs !== undefined && (typeof result.elapsedMs !== "number" || !Number.isFinite(result.elapsedMs)))) {
+    throw new Error(messages.invalidOutput({ stdout: JSON.stringify(result) }));
+  }
+  return { text: result.text ?? "", elapsedMs: result.elapsedMs ?? 0 };
+}
+
 /** Transcribe scratch WAV input and remove the recording on every completion path. */
 async function transcribeWav({ wavBuffer, ...deps }: MacTranscriberDeps & { wavBuffer: Buffer }): Promise<TranscriptionResult> {
   const compiled = await ensureHelperCompiled(deps);
@@ -158,10 +165,7 @@ async function transcribeWav({ wavBuffer, ...deps }: MacTranscriberDeps & { wavB
     deps.fs.writeFileSync({ path: tempPath, data: wavBuffer });
     const result = await runHelperJson({ execFileAsync: deps.execFileAsync, binaryPath: deps.binaryPath, args: ["transcribe", tempPath, deps.locale], messages: deps.messages });
     if (result.ok !== true) throw new Error(deps.messages.recognitionFailed({ reason: result.error ?? "" }));
-    if ((result.text !== undefined && typeof result.text !== "string") || (result.elapsedMs !== undefined && (typeof result.elapsedMs !== "number" || !Number.isFinite(result.elapsedMs)))) {
-      throw new Error(deps.messages.invalidOutput({ stdout: JSON.stringify(result) }));
-    }
-    return { text: result.text ?? "", elapsedMs: result.elapsedMs ?? 0 };
+    return readSuccessfulTranscription({ result, messages: deps.messages });
   } finally {
     deps.fs.rmSync({ path: tempPath }, { force: true });
   }

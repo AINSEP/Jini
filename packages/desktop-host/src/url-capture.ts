@@ -34,21 +34,28 @@ export function isCaptureUrlAllowed({ url, allowedOrigins }: { url: string; allo
   } catch { return false; }
 }
 
+function integerInRange({ value, min, max }: { value: unknown; min: number; max: number }, _options = {}): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+}
+
+function validCaptureViewport({ viewport }: { viewport: UrlCaptureRequest['viewport'] | undefined }, _options = {}): boolean {
+  return !!viewport && integerInRange({ value: viewport.width, min: 1, max: 1280 })
+    && integerInRange({ value: viewport.height, min: 1, max: 1024 })
+    && [undefined, 1, 2].includes(viewport.deviceScaleFactor)
+    && [undefined, true, false].includes(viewport.isMobile);
+}
+
 /** Parse the wire request before allocating a renderer; reject oversized images and waits.
  * @throws RenderServiceError for invalid input. @complexity O(url length).
  */
 export function readUrlCaptureRequest({ value }: { value: unknown }, _options = {}): UrlCaptureRequest {
   const request = value as Partial<UrlCaptureRequest> | null;
   const viewport = request?.viewport;
-  const integer = (value: unknown, min: number, max: number) => typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
-  if (!request || typeof request.url !== 'string' || request.url.length > 2048 || !viewport
-    || !integer(viewport.width, 1, 1280) || !integer(viewport.height, 1, 1024)
-    || ![undefined, 1, 2].includes(viewport.deviceScaleFactor)
-    || ![undefined, true, false].includes(viewport.isMobile)
-    || typeof request.fullPage !== 'boolean' || !integer(request.maxPageHeightPx, 1, 8000)
-    || !integer(request.settleMs, 0, 5000)) {
+  if (!request || typeof request.url !== 'string' || request.url.length > 2048 || !validCaptureViewport({ viewport })
+    || typeof request.fullPage !== 'boolean' || !integerInRange({ value: request.maxPageHeightPx, min: 1, max: 8000 })
+    || !integerInRange({ value: request.settleMs, min: 0, max: 5000 })) {
     throw new RenderServiceError({ code: 'load-failed', message: 'invalid capture request' });
   }
-  return { url: request.url, viewport: { ...viewport }, fullPage: request.fullPage,
+  return { url: request.url, viewport: { ...viewport! }, fullPage: request.fullPage,
     maxPageHeightPx: request.maxPageHeightPx!, settleMs: request.settleMs! };
 }

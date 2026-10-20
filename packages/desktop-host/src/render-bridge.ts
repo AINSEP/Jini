@@ -87,6 +87,25 @@ export async function startRenderBridge({ capture }: { capture: UrlCapturePort }
     close() { closed = true; active?.abort(); server.close(); server.closeAllConnections(); } };
 }
 
+function isPrivateCaptureEndpoint({ url }: { url: URL }, _options = {}): boolean {
+  return url.protocol === 'http:' && url.hostname === '127.0.0.1' && url.pathname === '/capture'
+    && !url.username && !url.password && !url.search && !url.hash;
+}
+
+async function readCaptureResponse({ response }: { response: Response }, _options = {}): Promise<UrlCaptureResult> {
+  if (!response.body) throw new RenderServiceError({ code: 'load-failed', message: 'empty desktop capture response' });
+  const data = JSON.parse((await readBody({ stream: response.body as unknown as AsyncIterable<Uint8Array>, limit: MAX_WIRE_BYTES })).toString('utf8'));
+  if (!response.ok) {
+    const known: RenderServiceErrorCode[] = ['timeout', 'aborted', 'load-failed', 'navigation-blocked', 'not-implemented'];
+    const code = known.includes(data.error) ? data.error : 'load-failed';
+    throw new RenderServiceError({ code, message: 'desktop capture failed' });
+  }
+  if (typeof data.png !== 'string' || data.png.length > MAX_WIRE_BYTES) throw new RenderServiceError({ code: 'load-failed', message: 'invalid desktop capture response' });
+  const png = Buffer.from(data.png, 'base64');
+  if (png.byteLength > URL_CAPTURE_MAX_BYTES) throw new RenderServiceError({ code: 'load-failed', message: 'capture too large' });
+  return { ...data, png };
+}
+
 /** Detect a complete private bridge contract; a partial/invalid contract fails closed.
  * No bridge returns null so hosts retain their current browser fallback.
  * @example const capture = renderBridgeFromEnv({ env: process.env });
@@ -100,7 +119,7 @@ export function renderBridgeFromEnv(
   if (endpoint === undefined && token === undefined) return null;
   let url: URL;
   try { url = new URL(endpoint ?? ''); } catch { throw new RenderServiceError({ code: 'load-failed', message: 'invalid desktop capture channel' }); }
-  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.pathname !== '/capture' || url.username || url.password || url.search || url.hash || !/^[a-f0-9]{64}$/.test(token ?? '')) {
+  if (!isPrivateCaptureEndpoint({ url }) || !/^[a-f0-9]{64}$/.test(token ?? '')) {
     throw new RenderServiceError({ code: 'load-failed', message: 'invalid desktop capture channel' });
   }
   return { async captureUrl(request, { signal } = {}): Promise<UrlCaptureResult> {
@@ -111,17 +130,7 @@ export function renderBridgeFromEnv(
         body: JSON.stringify(readUrlCaptureRequest({ value: request })),
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       });
-      if (!response.body) throw new RenderServiceError({ code: 'load-failed', message: 'empty desktop capture response' });
-      const data = JSON.parse((await readBody({ stream: response.body as unknown as AsyncIterable<Uint8Array>, limit: MAX_WIRE_BYTES })).toString('utf8'));
-      if (!response.ok) {
-        const known: RenderServiceErrorCode[] = ['timeout', 'aborted', 'load-failed', 'navigation-blocked', 'not-implemented'];
-        const code = known.includes(data.error) ? data.error : 'load-failed';
-        throw new RenderServiceError({ code, message: 'desktop capture failed' });
-      }
-      if (typeof data.png !== 'string' || data.png.length > MAX_WIRE_BYTES) throw new RenderServiceError({ code: 'load-failed', message: 'invalid desktop capture response' });
-      const png = Buffer.from(data.png, 'base64');
-      if (png.byteLength > URL_CAPTURE_MAX_BYTES) throw new RenderServiceError({ code: 'load-failed', message: 'capture too large' });
-      return { ...data, png };
+      return await readCaptureResponse({ response });
     } catch (error) {
       if (error instanceof RenderServiceError) throw error;
       const code = timeout.aborted ? 'timeout' : signal?.aborted ? 'aborted' : 'load-failed';
