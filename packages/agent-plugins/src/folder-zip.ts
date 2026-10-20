@@ -51,6 +51,11 @@ function entryPath(file: File): { folder: string; path: string } {
   return slash < 0 ? { folder: "", path: relative } : { folder: relative.slice(0, slash), path: relative.slice(slash + 1) };
 }
 
+async function readFolderFile(required: { file: Pick<File, "arrayBuffer"> }, _optional: Record<string, never> = {}): Promise<Uint8Array> {
+  try { return new Uint8Array(await required.file.arrayBuffer()); }
+  catch { throw new FolderZipError("unreadable", FOLDER_UNREADABLE); }
+}
+
 /**
  * Zips the files of one picked folder.
  *
@@ -74,9 +79,7 @@ export async function zipFolderFiles(required: { files: readonly File[]; maxByte
   for (const file of files) {
     const entry = entryPath(file);
     folder ||= entry.folder;
-    let data: Uint8Array;
-    try { data = new Uint8Array(await file.arrayBuffer()); }
-    catch { throw new FolderZipError("unreadable", FOLDER_UNREADABLE); }
+    const data = await readFolderFile({ file });
     const name = encoder.encode(entry.path);
     const crc = crc32(data);
     // Bit 11: the name is UTF-8, so a reader never decodes it as CP437.

@@ -56,3 +56,15 @@ test("local folder collection refuses file and directory symlinks", async () => 
     await assert.rejects(() => zipLocalFolder({ path: folder, maxBytes: 1024 }), { reason: "unreadable", message: "Could not read that folder. Try again." });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("a symlink supplied as the root is resolved and accepted (reported, not fixed)", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "folder-zip-root-link-"));
+  try {
+    const target = path.join(root, "target");
+    const link = path.join(root, "link");
+    await mkdir(target);
+    await writeFile(path.join(target, "a"), "content");
+    await symlink(target, link);
+    assert.deepEqual(await zipLocalFolder({ path: link, maxBytes: 1024 }), await zipLocalFolder({ path: target, maxBytes: 1024 }));
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
