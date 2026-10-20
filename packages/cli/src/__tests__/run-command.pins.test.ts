@@ -72,7 +72,7 @@ describe('run-command pins: watchRunEvents', () => {
     const r = rec(() => new Response(null, { status: 200 }));
     await expect(watchRunEvents({ baseUrl: 'http://d', runId: 'r', args: [] }, r.deps)).rejects.toBeInstanceOf(ExitSentinel);
     expect(r.exits).toEqual([64]);
-    expect(errorEnvelope(r).error.code).toBe('daemon-not-running');
+    expect(errorEnvelope(r).error).toMatchObject({ code: 'daemon-not-running', message: 'HTTP 200' });
   });
 
   it('maps a non-ok response through structuredHttpFailure', async () => {

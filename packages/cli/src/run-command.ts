@@ -102,17 +102,17 @@ function printJsonResult(deps: RunCommandDeps, value: unknown): void {
   (deps.write ?? defaultWrite)({ text: `${JSON.stringify(value)}\n` });
 }
 
-async function resolveBaseUrl(deps: RunCommandDeps): Promise<string> {
-  return deps.resolveBaseUrl();
+/** Prints `usage` and reports `true` when `args` asks for help (`--help`/`-h` anywhere), so the command returns before touching the daemon. */
+function printUsageIfHelp({ args, usage }: { args: readonly string[]; usage: string }, deps: RunCommandDeps): boolean {
+  if (!args.includes('--help') && !args.includes('-h')) return false;
+  (deps.write ?? defaultWrite)({ text: `${usage}\n` });
+  return true;
 }
 
 /** `run start --context-ref <ref> [--agent-id <id>] [--idempotency-key <key>]` */
 export async function runStartCommand({ args, resolveBaseUrl: resolveBaseUrlPort }: { args: readonly string[]; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
   const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
-  if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)({ text: `${RUN_START_USAGE}\n` });
-    return;
-  }
+  if (printUsageIfHelp({ args, usage: RUN_START_USAGE }, deps)) return;
   const flags = parseFlags({ argv: args }, { string: new Set(['context-ref', 'agent-id', 'idempotency-key']) });
   const contextRef = flags['context-ref'];
   if (typeof contextRef !== 'string' || contextRef.length === 0) {
@@ -122,7 +122,7 @@ export async function runStartCommand({ args, resolveBaseUrl: resolveBaseUrlPort
   if (typeof flags['agent-id'] === 'string') body.agentId = flags['agent-id'];
   if (typeof flags['idempotency-key'] === 'string') body.idempotencyKey = flags['idempotency-key'];
 
-  const baseUrl = await resolveBaseUrl(deps);
+  const baseUrl = await deps.resolveBaseUrl();
   const result = await postJsonToDaemon({ base: baseUrl, route: '/api/runs', body }, transportOptions(deps));
   printJsonResult(deps, result);
 }
@@ -130,17 +130,14 @@ export async function runStartCommand({ args, resolveBaseUrl: resolveBaseUrlPort
 /** `run list [--context-ref <ref>]` */
 export async function runListCommand({ args, resolveBaseUrl: resolveBaseUrlPort }: { args: readonly string[]; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
   const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
-  if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)({ text: `${RUN_LIST_USAGE}\n` });
-    return;
-  }
+  if (printUsageIfHelp({ args, usage: RUN_LIST_USAGE }, deps)) return;
   const flags = parseFlags({ argv: args }, { string: new Set(['context-ref']) });
   const contextRef = flags['context-ref'];
   const route = typeof contextRef === 'string' && contextRef.length > 0
     ? `/api/runs?contextRef=${encodeURIComponent(contextRef)}`
     : '/api/runs';
 
-  const baseUrl = await resolveBaseUrl(deps);
+  const baseUrl = await deps.resolveBaseUrl();
   const result = await getJsonFromDaemon({ base: baseUrl, route }, transportOptions(deps));
   printJsonResult(deps, result);
 }
@@ -148,16 +145,13 @@ export async function runListCommand({ args, resolveBaseUrl: resolveBaseUrlPort 
 /** `run get <runId>` */
 export async function runGetCommand({ args, resolveBaseUrl: resolveBaseUrlPort }: { args: readonly string[]; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
   const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
-  if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)({ text: `${RUN_GET_USAGE}\n` });
-    return;
-  }
+  if (printUsageIfHelp({ args, usage: RUN_GET_USAGE }, deps)) return;
   const runId = positionalArgs({ argv: args })[0];
   if (typeof runId !== 'string' || runId.length === 0) {
     missingInput(deps, 'runId is required: run get <runId>');
   }
 
-  const baseUrl = await resolveBaseUrl(deps);
+  const baseUrl = await deps.resolveBaseUrl();
   const result = await getJsonFromDaemon({ base: baseUrl, route: `/api/runs/${encodeURIComponent(runId)}` }, transportOptions(deps));
   printJsonResult(deps, result);
 }
@@ -165,10 +159,7 @@ export async function runGetCommand({ args, resolveBaseUrl: resolveBaseUrlPort }
 /** `run cancel <runId> [--reason <text>]` */
 export async function runCancelCommand({ args, resolveBaseUrl: resolveBaseUrlPort }: { args: readonly string[]; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
   const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
-  if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)({ text: `${RUN_CANCEL_USAGE}\n` });
-    return;
-  }
+  if (printUsageIfHelp({ args, usage: RUN_CANCEL_USAGE }, deps)) return;
   const flags = parseFlags({ argv: args }, { string: new Set(['reason']) });
   const runId = positionalArgs({ argv: args }, { string: new Set(['reason']) })[0];
   if (typeof runId !== 'string' || runId.length === 0) {
@@ -177,7 +168,7 @@ export async function runCancelCommand({ args, resolveBaseUrl: resolveBaseUrlPor
   const body: Record<string, unknown> = {};
   if (typeof flags.reason === 'string') body.reason = flags.reason;
 
-  const baseUrl = await resolveBaseUrl(deps);
+  const baseUrl = await deps.resolveBaseUrl();
   const result = await postJsonToDaemon({ base: baseUrl, route: `/api/runs/${encodeURIComponent(runId)}/cancel`, body }, transportOptions(deps));
   printJsonResult(deps, result);
 }
@@ -235,23 +226,16 @@ function isTerminalEventFrame(frame: SseFrame): boolean {
  * error detail.
  */
 export async function watchRunEvents({ baseUrl, runId, args }: { baseUrl: string; runId: string; args: readonly string[] }, deps: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
-  const flags = parseFlags({ argv: args }, { string: new Set(['after-cursor']) });
-  const afterCursor = flags['after-cursor'];
+  const headers = resumeHeaders(args);
   const fetchImpl = deps.fetchImpl ?? fetch;
   const write = deps.write ?? defaultWrite;
-
-  const headers: Record<string, string> = {};
-  if (typeof afterCursor === 'string' && afterCursor.length > 0) headers['last-event-id'] = afterCursor;
 
   const resp = await fetchImpl(`${baseUrl}/api/runs/${encodeURIComponent(runId)}/events`, { headers });
   if (!resp.ok || resp.body === null) {
     return structuredHttpFailure({ resp }, { fallbackCode: 'daemon-not-running', ...errorOptions(deps) });
   }
   try {
-    for await (const frame of readSseFrames(resp.body)) {
-      write({ text: `${stripControlSequences({ text: frame.data })}\n` });
-      if (isTerminalEventFrame(frame)) return;
-    }
+    await writeEventsUntilEnd({ body: resp.body, write });
   } catch (error) {
     // A broken/hostile stream (e.g. the unbounded-buffer guard above) must exit through the same
     // structured contract as every other failure here, not surface as an unhandled rejection.
@@ -260,18 +244,29 @@ export async function watchRunEvents({ baseUrl, runId, args }: { baseUrl: string
   }
 }
 
+/** `last-event-id` from a non-empty `--after-cursor`, so a reconnect resumes after that cursor; no header otherwise. */
+function resumeHeaders(args: readonly string[]): Record<string, string> {
+  const afterCursor = parseFlags({ argv: args }, { string: new Set(['after-cursor']) })['after-cursor'];
+  return typeof afterCursor === 'string' && afterCursor.length > 0 ? { 'last-event-id': afterCursor } : {};
+}
+
+/** Writes one control-sequence-stripped NDJSON line per SSE frame, stopping after the terminal `'end'` event or when the stream closes. */
+async function writeEventsUntilEnd({ body, write }: { body: ReadableStream<Uint8Array>; write: (requiredArgs: { text: string }) => void }): Promise<void> {
+  for await (const frame of readSseFrames(body)) {
+    write({ text: `${stripControlSequences({ text: frame.data })}\n` });
+    if (isTerminalEventFrame(frame)) return;
+  }
+}
+
 /** `run watch <runId> [--after-cursor <cursor>]` */
 export async function runWatchCommand({ args, resolveBaseUrl: resolveBaseUrlPort }: { args: readonly string[]; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
   const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
-  if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)({ text: `${RUN_WATCH_USAGE}\n` });
-    return;
-  }
+  if (printUsageIfHelp({ args, usage: RUN_WATCH_USAGE }, deps)) return;
   const runId = positionalArgs({ argv: args }, { string: new Set(['after-cursor']) })[0];
   if (typeof runId !== 'string' || runId.length === 0) {
     missingInput(deps, 'runId is required: run watch <runId>');
   }
-  const baseUrl = await resolveBaseUrl(deps);
+  const baseUrl = await deps.resolveBaseUrl();
   await watchRunEvents({ baseUrl, runId, args }, deps);
 }
 
