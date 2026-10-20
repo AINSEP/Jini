@@ -6,30 +6,36 @@ import { isIP } from "node:net";
 
 import { EgressRefusedError } from "./errors.js";
 import type { HttpClientPort } from "@jini-ai/core/primitives";
-import type { EgressPolicy, HttpTransportAdapter } from "./ports.js";
-import type { DnsResolver, GuardedHttpRequired } from "./ports.js";
+import type { DnsResolver, EgressPolicy, GuardedHttpRequired, HttpTransportAdapter } from "./ports.js";
 import type { HttpRequest, HttpResponse, RequestRedirect } from "@jini-ai/core/primitives";
 import type { PinnedPeer } from "./types.js";
 
 export type AddressClass = "public" | "private" | "loopback" | "link-local" | "reserved";
 /** Uses the canonical net address validator; labels preserve the guarded refusal contract. */
 export function classifyAddress({ ip }: { ip: string }): AddressClass {
-  if (!isPrivateAddress({ address: ip })) {
+  if (!isPrivateAddress({ address: ip })) return classifyUnblockedSpelling({ ip });
+  const family = isIP(ip);
+  if (family === 6) return classifyIpv6Groups({ groups: expandIpv6({ address: ip })! });
+  if (family === 4) return classifyIpv4({ ip });
+  return "reserved";
+}
 
-    if (ip.toLowerCase().startsWith("::0.")) return "reserved";
-    return "public";
+function classifyUnblockedSpelling({ ip }: { ip: string }): AddressClass {
+  return ip.toLowerCase().startsWith("::0.") ? "reserved" : "public";
+}
+
+function classifyIpv6Groups({ groups: g }: { groups: readonly number[] }): AddressClass {
+  if (g.slice(0, 5).every(n => n === 0) && g[5] === 0xffff) {
+    return classifyAddress({ ip: [g[6]! >> 8, g[6]! & 255, g[7]! >> 8, g[7]! & 255].join(".") });
   }
-  if (isIP(ip) === 6) {
-    const g = expandIpv6({ address: ip })!;
-    if (g.slice(0, 5).every(n => n === 0) && g[5] === 0xffff) {
-      return classifyAddress({ ip: [g[6]! >> 8, g[6]! & 255, g[7]! >> 8, g[7]! & 255].join(".") });
-    }
-    if (g.slice(0, 7).every(n => n === 0) && g[7] === 1) return "loopback";
-    if ((g[0]! & 0xffc0) === 0xfe80) return "link-local";
-    if ((g[0]! & 0xfe00) === 0xfc00) return "private";
-    return "reserved";
-  }
-  if (isIP(ip) !== 4) return "reserved";
+  if (g.slice(0, 7).every(n => n === 0) && g[7] === 1) return "loopback";
+  if ((g[0]! & 0xffc0) === 0xfe80) return "link-local";
+  if ((g[0]! & 0xfe00) === 0xfc00) return "private";
+  return "reserved";
+}
+
+// Only called for an IPv4 literal the canonical validator already blocked.
+function classifyIpv4({ ip }: { ip: string }): AddressClass {
   const [a,b] = ip.split(".").map(Number);
   if (a === 127) return "loopback";
   // This range includes the cloud metadata address 169.254.169.254.
@@ -158,54 +164,65 @@ function capResponse(response: HttpResponse, maxBytes: number): HttpResponse {
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
-async function sendWithPolicy(
-  transport: HttpTransportAdapter,
-  policy: EgressPolicy,
-  request: HttpRequest,
-  redirectsFollowed: number,
-  dns: DnsResolver,
-  redirect: RequestRedirect
-): Promise<HttpResponse> {
-  const url = new URL(request.url);
-  request.signal?.throwIfAborted();
-  const peer = await resolveBeforeDeadline(resolvePinnedPeer(url, policy, dns), request.signal);
-  request.signal?.throwIfAborted();
+/** Per-client collaborators and the per-call redirect mode, fixed for every hop of one send. */
+interface HopContext { transport: HttpTransportAdapter; policy: EgressPolicy; dns: DnsResolver; redirect: RequestRedirect }
 
-  const boundedRequest: HttpRequest = {
+async function sendWithPolicy({ hop, request, redirectsFollowed }: { hop: HopContext; request: HttpRequest; redirectsFollowed: number }): Promise<HttpResponse> {
+  const url = new URL(request.url);
+  const response = await sendOneHop({ hop, request, url });
+  const nextRequest = followableRedirect({ hop, request, url, response, redirectsFollowed });
+  if (!nextRequest) return response;
+  return sendWithPolicy({ hop, request: nextRequest, redirectsFollowed: redirectsFollowed + 1 });
+}
+
+// One effective cap serves both the transport hint and the post-read truncation.
+function boundRequest({ request, policy }: { request: HttpRequest; policy: EgressPolicy }): HttpRequest {
+  // The policy timeout is a ceiling: callers may choose a shorter idle budget, never a longer one.
+  // Keep the legacy alias synchronized for host transport adapters. Activity resets
+  // Node's socket timer; a large progressing body must not spend a wall-clock budget.
+  const idleTimeoutMs = Math.min(request.idleTimeoutMs ?? request.timeoutMs!, policy.connectTimeoutMs);
+  return {
     ...request,
-    // The policy timeout is a ceiling: callers may choose a shorter idle budget, never a longer one.
-    // Keep the legacy alias synchronized for host transport adapters. Activity resets
-    // Node's socket timer; a large progressing body must not spend a wall-clock budget.
-    idleTimeoutMs: Math.min(request.idleTimeoutMs ?? request.timeoutMs!, policy.connectTimeoutMs),
-    timeoutMs: Math.min(request.idleTimeoutMs ?? request.timeoutMs!, policy.connectTimeoutMs),
+    idleTimeoutMs,
+    timeoutMs: idleTimeoutMs,
     maxResponseBytes: Math.min(request.maxResponseBytes ?? Infinity, policy.maxResponseBytes, policy.maxDecompressedBytes),
   };
-  const response = await resolveBeforeDeadline(transport.requestPinned({ request: boundedRequest, peer }), request.signal);
+}
 
-  const effectiveCap = Math.min(request.maxResponseBytes ?? Infinity, policy.maxResponseBytes, policy.maxDecompressedBytes);
+async function sendOneHop({ hop, request, url }: { hop: HopContext; request: HttpRequest; url: URL }): Promise<HttpResponse> {
+  request.signal?.throwIfAborted();
+  const peer = await resolveBeforeDeadline(resolvePinnedPeer(url, hop.policy, hop.dns), request.signal);
+  request.signal?.throwIfAborted();
+
+  const boundedRequest = boundRequest({ request, policy: hop.policy });
+  const response = await resolveBeforeDeadline(hop.transport.requestPinned({ request: boundedRequest, peer }), request.signal);
 
   // Record the normalized URL actually resolved and pinned, not the caller's original spelling.
   // A followed redirect returns the deeper hop's response, including that hop's finalUrl.
-  const cappedResponse: HttpResponse = { ...capResponse(response, effectiveCap), finalUrl: url.href };
+  const cappedResponse: HttpResponse = { ...capResponse(response, boundedRequest.maxResponseBytes!), finalUrl: url.href };
 
   // A refused redirect is a policy decision like a refused address, so it carries the same type.
   // The text names no Location target, which may be private, so both messages can share it.
-  if (redirect === "error" && REDIRECT_STATUSES.has(cappedResponse.status)) {
+  if (hop.redirect === "error" && REDIRECT_STATUSES.has(cappedResponse.status)) {
     const message = "redirect response refused by the request's redirect policy";
     throw new EgressRefusedError({ message }, { callerSafeMessage: message });
   }
+  return cappedResponse;
+}
 
+/** The next hop's request when this response is a redirect the policy follows, else undefined. */
+function followableRedirect(
+  { hop, request, url, response, redirectsFollowed }: { hop: HopContext; request: HttpRequest; url: URL; response: HttpResponse; redirectsFollowed: number },
+): HttpRequest | undefined {
   // Follow GET only even when the policy allows redirects: 307/308 preserve method and body,
   // so following a mutating request would replay a write and leak its body to an unchosen target.
   // With follow policy, a non-GET redirect stays a raw response rather than a target refusal.
   const canFollowRedirect =
-    redirect === "follow" && request.method === "GET" && REDIRECT_STATUSES.has(cappedResponse.status) && redirectsFollowed < policy.maxRedirects;
-  if (!canFollowRedirect) {
-    return cappedResponse;
-  }
+    hop.redirect === "follow" && request.method === "GET" && REDIRECT_STATUSES.has(response.status) && redirectsFollowed < hop.policy.maxRedirects;
+  if (!canFollowRedirect) return undefined;
 
-  const location = cappedResponse.headers.location ?? cappedResponse.headers.Location;
-  if (!location) return cappedResponse;
+  const location = response.headers.location ?? response.headers.Location;
+  if (!location) return undefined;
 
   const nextUrl = new URL(location, url);
   // Cross-origin hops must not inherit authorization or cookies entrusted to the original origin.
@@ -213,15 +230,31 @@ async function sendWithPolicy(
   const nextHeaders = isCrossOrigin(url, nextUrl)
     ? withCrossOriginHeaders(request.headers)
     : request.headers;
+  return { ...request, url: nextUrl.toString(), headers: nextHeaders };
+}
 
-  return sendWithPolicy(
-    transport,
-    policy,
-    { ...request, url: nextUrl.toString(), headers: nextHeaders },
-    redirectsFollowed + 1,
-    dns,
-    redirect
-  );
+function isPositiveSafeInteger(value: number | undefined): boolean {
+  return Number.isSafeInteger(value) && value! > 0;
+}
+
+function assertValidPolicy(policy: EgressPolicy): void {
+  for (const value of [policy.connectTimeoutMs, policy.maxResponseBytes, policy.maxDecompressedBytes]) {
+    if (!isPositiveSafeInteger(value)) throw new TypeError("policy time and byte limits must be positive safe integers");
+  }
+  if (!Number.isSafeInteger(policy.maxRedirects) || policy.maxRedirects < 0) throw new TypeError("maxRedirects must be a nonnegative safe integer");
+}
+
+function assertValidRequestLimits(request: HttpRequest): void {
+  if (!isPositiveSafeInteger(request.idleTimeoutMs ?? request.timeoutMs)) {
+    const timeoutName = request.idleTimeoutMs === undefined ? "timeoutMs" : "idleTimeoutMs";
+    throw new TypeError(`${timeoutName} must be a positive safe integer`);
+  }
+  if (request.totalDeadlineMs !== undefined && !isPositiveSafeInteger(request.totalDeadlineMs)) throw new TypeError("totalDeadlineMs must be a positive safe integer");
+  if (request.maxResponseBytes !== undefined && !isPositiveSafeInteger(request.maxResponseBytes)) throw new TypeError("maxResponseBytes must be a positive safe integer");
+}
+
+function combineSignals(caller: AbortSignal | undefined, deadline: AbortSignal | undefined): AbortSignal | undefined {
+  return caller && deadline ? AbortSignal.any([caller, deadline]) : caller ?? deadline;
 }
 
 /** Builds an adapter-friendly outbound port. Every hop is resolved, checked, and pinned before I/O.
@@ -231,22 +264,14 @@ async function sendWithPolicy(
 export function createHttpClient(required: GuardedHttpRequired): HttpClientPort {
   const { transport, policy, dns, clock, userAgent } = required;
   if (!userAgent.trim()) throw new TypeError("userAgent is required");
-  for (const value of [policy.connectTimeoutMs, policy.maxResponseBytes, policy.maxDecompressedBytes]) {
-    if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError("policy time and byte limits must be positive safe integers");
-  }
-  if (!Number.isSafeInteger(policy.maxRedirects) || policy.maxRedirects < 0) throw new TypeError("maxRedirects must be a nonnegative safe integer");
+  assertValidPolicy(policy);
   return { async send({ request }, { redirect = "follow" } = {}): Promise<HttpResponse> {
-    const idleTimeoutMs = request.idleTimeoutMs ?? request.timeoutMs;
-    if (!Number.isSafeInteger(idleTimeoutMs) || idleTimeoutMs! <= 0) {
-      const timeoutName = request.idleTimeoutMs === undefined ? "timeoutMs" : "idleTimeoutMs";
-      throw new TypeError(`${timeoutName} must be a positive safe integer`);
-    }
-    if (request.totalDeadlineMs !== undefined && (!Number.isSafeInteger(request.totalDeadlineMs) || request.totalDeadlineMs <= 0)) throw new TypeError("totalDeadlineMs must be a positive safe integer");
-    if (request.maxResponseBytes !== undefined && (!Number.isSafeInteger(request.maxResponseBytes) || request.maxResponseBytes <= 0)) throw new TypeError("maxResponseBytes must be a positive safe integer");
+    assertValidRequestLimits(request);
     const deadline = request.totalDeadlineMs === undefined ? undefined : clock.timeoutSignal({ timeoutMs: request.totalDeadlineMs });
-    const signal = request.signal && deadline ? AbortSignal.any([request.signal, deadline]) : request.signal ?? deadline;
+    const signal = combineSignals(request.signal, deadline);
     try {
-      return await sendWithPolicy(transport, policy, { ...request, ...(signal === undefined ? {} : { signal }), headers: withDefaultUserAgent(request.headers, userAgent) }, 0, dns, redirect);
+      const guardedRequest = { ...request, ...(signal === undefined ? {} : { signal }), headers: withDefaultUserAgent(request.headers, userAgent) };
+      return await sendWithPolicy({ hop: { transport, policy, dns, redirect }, request: guardedRequest, redirectsFollowed: 0 });
     } catch (error) {
       if (deadline?.aborted && !request.signal?.aborted) throw new FetchTimeoutError(request.url, request.totalDeadlineMs!);
       throw error;
