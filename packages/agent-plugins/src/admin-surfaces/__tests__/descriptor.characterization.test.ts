@@ -26,3 +26,13 @@ test('omitted files, actions and csp default to empty', () => {
   const parsed = parseAdminSurfacesFile({ raw: raw({ id: 'settings', title: 'Settings', entry: 'index.html' }) });
   expect(parsed).toStrictEqual({ ok: true, descriptors: [{ id: 'settings', title: 'Settings', entry: 'index.html', files: [], actions: [], csp: {} }] });
 });
+
+// Pinned green before the capability declarations (`connections`, `publicConfig`) were added:
+// a handled surface that declares neither keeps parsing to exactly its handler fields.
+test('a surface with a handler module but no capability declarations parses to exactly its handler fields', () => {
+  const handled = { ...base, actions: [{ name: 'save', input, result: input }], handlerModule: 'server/handlers.mjs' };
+  expect(parseAdminSurfacesFile({ raw: raw(handled) })).toStrictEqual({
+    ok: true,
+    descriptors: [{ id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'], actions: [{ name: 'save', input, result: input }], csp: {}, handlerModule: 'server/handlers.mjs' }],
+  });
+});
