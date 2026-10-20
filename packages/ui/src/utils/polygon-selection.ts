@@ -88,29 +88,37 @@ export function pointInPolygon(point: Point, polygon: readonly Point[]): boolean
   return inside;
 }
 
+/** The rect's 4 corners, clockwise from its top-left. */
+function rectCorners({ rect }: { rect: Rect }): [Point, Point, Point, Point] {
+  const x2 = rect.x + rect.width;
+  const y2 = rect.y + rect.height;
+  return [
+    { x: rect.x, y: rect.y },
+    { x: x2, y: rect.y },
+    { x: x2, y: y2 },
+    { x: rect.x, y: y2 },
+  ];
+}
+
+/** Is `point` inside `rect`, border included? */
+function rectHoldsPoint({ rect, point }: { rect: Rect; point: Point }): boolean {
+  return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
+}
+
+/** Does segment `from`→`to` cross any of the 4 edges (top, right, bottom, left) of the rect with these `corners`? */
+function segmentCrossesRectEdges({ from, to, corners }: { from: Point; to: Point; corners: readonly Point[] }): boolean {
+  return corners.some((corner, index) => lineIntersectsLine(from, to, corner, corners[(index + 1) % corners.length]!));
+}
+
 /** Does the polyline `points` pass through `rect`, either by a point
  *  landing inside it or a segment crossing one of its 4 edges? */
 export function pathIntersectsRect(points: readonly Point[], rect: Rect): boolean {
-  if (points.length === 0) return false;
-  const x1 = rect.x;
-  const y1 = rect.y;
-  const x2 = rect.x + rect.width;
-  const y2 = rect.y + rect.height;
-  for (let index = 0; index < points.length; index += 1) {
-    const point = points[index]!;
-    if (point.x >= x1 && point.x <= x2 && point.y >= y1 && point.y <= y2) return true;
+  const corners = rectCorners({ rect });
+  return points.some((point, index) => {
+    if (rectHoldsPoint({ rect, point })) return true;
     const next = points[index + 1];
-    if (!next) continue;
-    if (
-      lineIntersectsLine(point, next, { x: x1, y: y1 }, { x: x2, y: y1 }) ||
-      lineIntersectsLine(point, next, { x: x2, y: y1 }, { x: x2, y: y2 }) ||
-      lineIntersectsLine(point, next, { x: x2, y: y2 }, { x: x1, y: y2 }) ||
-      lineIntersectsLine(point, next, { x: x1, y: y2 }, { x: x1, y: y1 })
-    ) {
-      return true;
-    }
-  }
-  return false;
+    return next !== undefined && segmentCrossesRectEdges({ from: point, to: next, corners });
+  });
 }
 
 export interface LassoHitTestInput {
@@ -132,11 +140,5 @@ export function lassoSelectionHitsRect(input: LassoHitTestInput): boolean {
   if (!closedLoop) return false;
   const center: Point = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   if (pointInPolygon(center, points)) return true;
-  const corners: Point[] = [
-    { x: rect.x, y: rect.y },
-    { x: rect.x + rect.width, y: rect.y },
-    { x: rect.x + rect.width, y: rect.y + rect.height },
-    { x: rect.x, y: rect.y + rect.height },
-  ];
-  return corners.some((corner) => pointInPolygon(corner, points));
+  return rectCorners({ rect }).some((corner) => pointInPolygon(corner, points));
 }
