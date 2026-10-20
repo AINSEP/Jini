@@ -1,10 +1,11 @@
-import { Fragment, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { type Dispatch, type FormEvent, type SetStateAction } from "react";
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../models.js";
 import { RowMenu, ConfirmDialog } from "@jini-ai/admin/react";
 import { agentHandle } from "@jini-ai/agentic";
 import { buildAgentListHandles } from "@jini-ai/ui/panel-kit";
 
-import { formatGrantLabel, grantOptionLabel, userRowMenuItems, type UserAccountCapabilities } from "./rules.js";
+import { grantOptionLabel, type UserAccountCapabilities } from "./rules.js";
+import { UserGrantCells, UserNameCell, UserStatusCell, userRowMenuItemsFor } from "./UserRowParts.js";
 import { useUsers, type UsersController, type UsersDependencies, type UsersOptions } from "./hooks/use-users.hooks.js";
 import type { ReactNode } from "react";
 import type { Translate } from "@jini-ai/ui/panel-kit";
@@ -51,6 +52,11 @@ import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
  * didn't already support — see `__tests__/Users.unit.test.tsx`/`Users.crud.unit.test.tsx` for the
  * full-render tests these were extracted underneath (unchanged), plus new
  * `__tests__/users-components.unit.test.tsx` for direct component-level tests of each piece.
+ *
+ * Second complexity pass (lot L182a): `UserRow` was back at cyclomatic 16 and `Users` at 11. The
+ * row's cells and its menu-item wiring moved to `UserRowParts.tsx` (`UserNameCell`,
+ * `UserStatusCell`, `UserGrantCells`, `userRowMenuItemsFor`), and the Manage panel's controller
+ * assembly moved out of `Users`' JSX into `userManageController` below. Markup is unchanged.
  *
  * Reset-password confirm + reveal (typo-catching pass): `UserResetPasswordDialog` gained a second
  * field ("Confirm new password") and an independent show/hide toggle per field, both driven by the
@@ -343,44 +349,15 @@ export interface UserRowProps {
 /** One user's row plus its optional expanded "Manage" row. `key` lives on the `<UserRow>` element at
  *  the call site, not inside here, since this is no longer the array-mapping callback itself. */
 function UserRow({ user, isOwn, roleById, policyById, showGrants, actions, manage, agentBase, t, translate, renderServerLabel }: UserRowProps) {
-  const roleLabel = formatGrantLabel({ ids: user.roleIds, byId: roleById, translate });
-  const policyLabel = formatGrantLabel({ ids: user.policyIds, byId: policyById });
+  const expanded = actions.expandedId === user.principalId;
   return (
     <>
       <tr aria-current={isOwn ? "true" : undefined}>
-        <td>
-          {/* Two affordances, one behavior: this and the RowMenu's "Manage" item both
-              call `toggleExpanded` directly rather than duplicating its logic. A real
-              `<button>`, not `<a href="#">` — this doesn't navigate anywhere, it only
-              toggles the panel below, and an anchor with no real target is its own
-              accessibility smell. The visible text is the username itself, so the
-              accessible name already identifies which user this manages — no need for a
-              separate "Manage user ..." label duplicating what's already legible.
-              `aria-expanded` mirrors `Members.tsx`'s identical email-toggle-button
-              convention for the same shape of control. */}
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => actions.toggleExpanded(user)}
-            aria-expanded={actions.expandedId === user.principalId}
-            {...agentHandle({ handle: `${agentBase}-manage` }, {
-              role: "button",
-              label: "Open this user's Manage panel — edit email, assign a role, attach a policy",
-            })}
-          >
-            {user.username}
-          </button>
-          {isOwn ? <span style={{ color: "var(--jini-text-secondary)", fontSize: "inherit", fontWeight: 400, marginInlineStart: "0.35em" }}>{t("(you)")}</span> : null}
-        </td>
+        <UserNameCell user={user} isOwn={isOwn} expanded={expanded} onToggle={actions.toggleExpanded} agentBase={agentBase} t={t} />
         <td>{user.email ?? <span className="muted-cell">—</span>}</td>
-        <td>
-          <span className={`status status-${user.status}`}>{renderServerLabel?.({ value: user.status }) ?? t(user.status)}</span>
-        </td>
+        <UserStatusCell status={user.status} t={t} renderServerLabel={renderServerLabel} />
         {showGrants ? (
-          <>
-            <td>{roleLabel !== null ? (renderServerLabel?.({ value: roleLabel }) ?? roleLabel) : <span className="muted-cell">{t("none")}</span>}</td>
-            <td>{policyLabel !== null ? policyLabel : <span className="muted-cell">{t("none")}</span>}</td>
-          </>
+          <UserGrantCells user={user} roleById={roleById} policyById={policyById} t={t} translate={translate} renderServerLabel={renderServerLabel} />
         ) : null}
         <td>
           {/* Matches Posts.tsx/Pages.tsx's three-dot RowMenu shape — Disable/Enable,
@@ -390,22 +367,11 @@ function UserRow({ user, isOwn, roleById, policyById, showGrants, actions, manag
           <RowMenu
             triggerLabel={`${t("Actions for user")} "${user.username}"`}
             agentHandle={`${agentBase}-menu`}
-            items={userRowMenuItems({
-              user, toggleSaving: actions.savingId === user.principalId,
-              handlers: {
-                onRequestDisable: actions.requestDisable,
-                onEnable: (u) => void actions.toggleStatus(u),
-                onManage: actions.toggleExpanded,
-                onResetPassword: actions.openResetPassword,
-                onChangeUsername: actions.renameUserHandler?.({ user }),
-                onRequestDelete: actions.requestDelete,
-              }, translate, canDelete: actions.canDelete,
-              capabilities: actions.rowCapabilities?.(user) ?? actions.canDelete,
-            })}
+            items={userRowMenuItemsFor({ user, actions, translate })}
           />
         </td>
       </tr>
-      {actions.expandedId === user.principalId ? (
+      {expanded ? (
         <UserManagePanel principalId={user.principalId} manage={manage} t={t} colSpan={showGrants ? 6 : 4} />
       ) : null}
     </>
@@ -485,21 +451,20 @@ function UsersTable({ users, ownPrincipalId, roles, policies, showGrants, action
         </thead>
         <tbody>
           {users.map((user, index) => (
-            <Fragment key={user.principalId}>
-              <UserRow
-                user={user}
-                isOwn={user.principalId === ownPrincipalId}
-                roleById={roleById}
-                policyById={policyById}
-                showGrants={showGrants}
-                actions={actions}
-                manage={manage}
-                agentBase={rowHandles[index]!}
-                t={t}
-                translate={translate}
-        renderServerLabel={renderServerLabel}
-              />
-            </Fragment>
+            <UserRow
+              key={user.principalId}
+              user={user}
+              isOwn={user.principalId === ownPrincipalId}
+              roleById={roleById}
+              policyById={policyById}
+              showGrants={showGrants}
+              actions={actions}
+              manage={manage}
+              agentBase={rowHandles[index]!}
+              t={t}
+              translate={translate}
+              renderServerLabel={renderServerLabel}
+            />
           ))}
         </tbody>
       </table>
@@ -856,8 +821,33 @@ function UsersNotices({ toggleError, notice }: UsersNoticesProps) {
   );
 }
 
+/** Assembles the expanded "Manage" panel's {@link UserManageController} from the screen-wide
+ *  controller — extracted from `Users`' JSX in the complexity-ceiling pass (lot L182a) so its two
+ *  `canGrant` ternaries count against this function, not `Users`. `roles`/`policies` are the
+ *  already-loaded (non-null) lists `Users` narrowed before rendering the table. Without `canGrant`
+ *  both grants are `null`, so the panel renders no grant controls. */
+function userManageController({ controller, roles, policies }: {
+  controller: UsersController; roles: AdminRole[]; policies: AdminPolicy[];
+}): UserManageController {
+  const { canGrant } = controller;
+  return {
+    error: controller.grantError,
+    saving: controller.grantSaving,
+    email: { value: controller.editEmail, set: controller.setEditEmail, saving: controller.emailSaving, save: controller.onSaveEmail },
+    roleGrant: canGrant
+      ? { options: roles, pendingId: controller.pendingRoleId, setPendingId: controller.setPendingRoleId, submit: controller.onAssignRole }
+      : null,
+    policyGrant: canGrant
+      ? { options: policies, pendingId: controller.pendingPolicyId, setPendingId: controller.setPendingPolicyId, submit: controller.onAttachPolicy }
+      : null,
+  };
+}
+
 export function Users({ useUsersHook = useUsers, port, translate: injectedTranslate, queryScope,
   openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice, renderServerLabel }: UsersProps) {
+  const controller = useUsersHook({ port, translate: injectedTranslate, queryScope }, {
+    openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice,
+  });
   const {
     users,
     roles,
@@ -879,19 +869,6 @@ export function Users({ useUsersHook = useUsers, port, translate: injectedTransl
 
     expandedId,
     toggleExpanded,
-    pendingRoleId,
-    setPendingRoleId,
-    pendingPolicyId,
-    setPendingPolicyId,
-    grantSaving,
-    grantError,
-    onAssignRole,
-    onAttachPolicy,
-
-    editEmail,
-    setEditEmail,
-    emailSaving,
-    onSaveEmail,
 
     toggleSavingId,
     toggleError,
@@ -926,9 +903,7 @@ export function Users({ useUsersHook = useUsers, port, translate: injectedTransl
 
     t,
     translate,
-  } = useUsersHook({ port, translate: injectedTranslate, queryScope }, {
-    openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice,
-  });
+  } = controller;
 
   if (error) return <div className="notice error">{error}</div>;
   if (!users || !roles || !policies) return <div className="notice">{t("Loading users…")}</div>;
@@ -972,17 +947,7 @@ export function Users({ useUsersHook = useUsers, port, translate: injectedTransl
           rowCapabilities,
           requestDelete,
         }}
-        manage={{
-          error: grantError,
-          saving: grantSaving,
-          email: { value: editEmail, set: setEditEmail, saving: emailSaving, save: onSaveEmail },
-          roleGrant: canGrant
-            ? { options: roles, pendingId: pendingRoleId, setPendingId: setPendingRoleId, submit: onAssignRole }
-            : null,
-          policyGrant: canGrant
-            ? { options: policies, pendingId: pendingPolicyId, setPendingId: setPendingPolicyId, submit: onAttachPolicy }
-            : null,
-        }}
+        manage={userManageController({ controller, roles, policies })}
         t={t}
         translate={translate}
         renderServerLabel={renderServerLabel}
