@@ -71,6 +71,10 @@ function validRunningRecord(value: unknown): value is DirectoryRunningRecord {
   if (!value || typeof value !== "object") return false;
   const record = value as DirectoryRunningRecord;
   return Number.isSafeInteger(record.pid) && record.pid > 0 && Number.isInteger(record.port) && record.port >= 0 && record.port <= 65535 &&
-    typeof record.app === "string" && record.app.length > 0 && typeof record.token === "string" && record.token.length > 0 &&
-    (record.bootId === undefined || typeof record.bootId === "string") && typeof record.started === "string" && Number.isFinite(Date.parse(record.started)) && ["http", "https"].includes(record.scheme);
+    validRunningIdentity({ record }) && ["http", "https"].includes(record.scheme);
+}
+
+function validRunningIdentity({ record }: { record: DirectoryRunningRecord }, _options = {}): boolean {
+  return typeof record.app === "string" && record.app.length > 0 && typeof record.token === "string" && record.token.length > 0 &&
+    (record.bootId === undefined || typeof record.bootId === "string") && typeof record.started === "string" && Number.isFinite(Date.parse(record.started));
 }
