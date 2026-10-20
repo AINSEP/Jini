@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   hasAnyConfiguredProvider,
   hasRecoverableFields,
+  invalidBaseUrlProviderIds,
+  isProviderBaseUrlInvalid,
   isEntryEmpty,
   isEntryPresent,
   isMarkerOnlyEntry,
@@ -13,8 +15,8 @@ import {
   resolveProviderBaseUrl,
   shouldSyncLocalProvidersToDaemon,
   sortProvidersByConfigured,
-} from '../../../features/media-providers/rules.js';
-import type { MediaProviderMap } from '../../../features/media-providers/types.js';
+} from '../rules.js';
+import type { MediaProviderMap } from '../types.js';
 
 /**
  * The whole module turns on ONE distinction — real credential data
@@ -165,6 +167,13 @@ describe('mergeDaemonProviders', () => {
     });
   });
 
+  it('lets a preserved local field override the same server field', () => {
+    const local: MediaProviderMap = { a: { model: 'being-typed' } };
+    const daemon: MediaProviderMap = { a: { apiKeyConfigured: true, model: 'server-m' } };
+    const merged = mergeDaemonProviders(local, daemon, { preserveLocalProviderIds: new Set(['a']) });
+    expect(merged.a).toEqual({ apiKeyConfigured: true, model: 'being-typed' });
+  });
+
   it('does NOT preserve a named provider whose local entry has only markers', () => {
     // Nothing recoverable to protect — the server copy is strictly better.
     const local: MediaProviderMap = { a: { apiKeyConfigured: true } };
@@ -200,6 +209,58 @@ describe('mergeDaemonProviders', () => {
       a: { apiKeyConfigured: true },
     });
     expect(mergeDaemonProviders(undefined, null)).toEqual({});
+  });
+});
+
+describe('mergeDaemonProviders — dropProviderIds', () => {
+  it('drops a named local entry when the server is unreachable', () => {
+    const local: MediaProviderMap = { a: { apiKey: 'x' }, b: { apiKey: 'y' } };
+    expect(mergeDaemonProviders(local, null, { dropProviderIds: new Set(['a']) })).toEqual({ b: { apiKey: 'y' } });
+  });
+
+  it('drops a named local entry when the server manages nothing', () => {
+    const local: MediaProviderMap = { a: { apiKey: 'x' }, b: { apiKey: 'y' } };
+    expect(mergeDaemonProviders(local, {}, { dropProviderIds: new Set(['b']) })).toEqual({ a: { apiKey: 'x' } });
+  });
+
+  it('does not re-create a cleared provider from the server copy', () => {
+    const daemon: MediaProviderMap = { a: { apiKeyConfigured: true }, b: { apiKeyTail: '2' } };
+    expect(mergeDaemonProviders({}, daemon, { dropProviderIds: new Set(['a']) })).toEqual({ b: { apiKeyTail: '2' } });
+  });
+
+  it('treats an empty drop set as dropping nothing', () => {
+    const local: MediaProviderMap = { a: { apiKey: 'x' } };
+    expect(mergeDaemonProviders(local, null, { dropProviderIds: new Set() })).toEqual(local);
+  });
+});
+
+describe('isProviderBaseUrlInvalid', () => {
+  it('is false when nothing was typed', () => {
+    expect(isProviderBaseUrlInvalid({ baseUrl: '   ' })).toBe(false);
+    expect(isProviderBaseUrlInvalid(undefined)).toBe(false);
+  });
+
+  it('is false for an allowed https url', () => {
+    expect(isProviderBaseUrlInvalid({ baseUrl: 'https://api.example.com/v1' })).toBe(false);
+  });
+
+  it('is true for a non-http scheme', () => {
+    expect(isProviderBaseUrlInvalid({ baseUrl: 'ftp://api.example.com' })).toBe(true);
+  });
+});
+
+describe('invalidBaseUrlProviderIds', () => {
+  it('returns an empty list for a missing map', () => {
+    expect(invalidBaseUrlProviderIds(null)).toEqual([]);
+  });
+
+  it('lists only the providers with an unacceptable typed url', () => {
+    const providers: MediaProviderMap = {
+      ok: { baseUrl: 'https://api.example.com' },
+      bad: { baseUrl: 'ftp://x.example.com' },
+      empty: {},
+    };
+    expect(invalidBaseUrlProviderIds(providers)).toEqual(['bad']);
   });
 });
 

@@ -116,6 +116,37 @@ describe('useMediaProvidersTab — clearProvider', () => {
     expect(result.current.providers.a).toEqual({ apiKeyConfigured: true });
   });
 
+  it('a failed clear of a provider that was never present restores nothing', async () => {
+    const port: MediaProvidersPort = {
+      fetchMediaProviders: () => Promise.resolve({ a: { apiKeyConfigured: true } }),
+      saveMediaProviders: () => Promise.reject(new Error('disk full')),
+    };
+    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    await waitFor(() => expect(result.current.providers.a).toBeDefined());
+
+    result.current.clearProvider('ghost');
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'save-error', message: 'disk full' }));
+    expect(result.current.providers).toEqual({ a: { apiKeyConfigured: true } });
+  });
+
+  it('releases the tombstone once the clear is saved, so a later daemon copy shows again', async () => {
+    let daemon: MediaProviderMap = { a: { apiKeyConfigured: true } };
+    const port: MediaProvidersPort = {
+      fetchMediaProviders: () => Promise.resolve(daemon),
+      saveMediaProviders: (providers) => Promise.resolve(providers),
+    };
+    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    await waitFor(() => expect(result.current.providers.a).toBeDefined());
+
+    result.current.clearProvider('a');
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
+
+    // Re-configured elsewhere after the clear landed: the daemon is authoritative again.
+    daemon = { a: { apiKeyTail: '7777' } };
+    result.current.reload();
+    await waitFor(() => expect(result.current.providers.a).toEqual({ apiKeyTail: '7777' }));
+  });
+
   /**
    * The clear-then-reload resurrection. A clear is deliberately NOT a pending edit, so it is absent
    * from `preserveLocalProviderIds` — and `mergeDaemonProviders` could not have preserved it anyway,
