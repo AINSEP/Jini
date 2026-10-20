@@ -7,7 +7,7 @@ Setup: 140 s (pnpm install + build; integrations build fails as expected). Wave 
 ## Lots
 | Lot | Files | Status | Before cyc/cog | After cyc/cog | Coverage | Commits | Verify |
 |---|---|---|---|---|---|---|---|
-| L214 | redirects conformance + import form hook | pending | 18/11 | | | | |
+| L214 | redirects conformance + import form hook | merged | 18/11 | 8/6 | 100/100/100 | 609feee2, 72ae6292 | PASS: 50 lot tests; conformance split into 6 ordered phases (same check order/names); bug pinned: status-filter check passes on empty list |
 | L216 | browser/navigation.ts | merged | 18/11 | 9/4 | 100/100/100 | 06c86059 | PASS: eslint 0, tsc 0, 32 tests, comments moved, no as-any |
 | L246 | media/controllers/library.controller.ts | merged | 12/13 | ≤10/≤10 (eslint 0) | 100/100/100 | d1985d3b | PASS: 26 new + 88 related tests; libraryView dedup (3 sites); write() single exit; verified store.set no-ops after dispose so dropped aborted-guard is equivalent |
 | L247 | source-control conformance/controller/ProvidersTab hook | pending | 12/≤10 | | | | |
