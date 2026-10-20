@@ -39,4 +39,13 @@ Branch: cloud/w3-integrations (base origin/general-work 6bdca722). Brief: origin
 ## Problems
 - `pnpm guard` is RED on base origin/general-work too (26 violations in agent-runtime/chat/cms/core/daemon/ui/diagnostics; 0 in integrations). Verify criterion used: no NEW guard lines vs base (/tmp/w3-integrations-coord/guard-base.txt).
 
+## Final verification (run 3, 06:40Z)
+- Wave complexity: eslint (cyc/cog ≤10) over packages/integrations/src/media-providers + credentialed-http (non-test): 0 errors (base: 45).
+- `pnpm --filter @jini-ai/integrations build`: exit 2 from the same 8 pre-existing test-file tsc errors as base; dist emitted.
+- Whole integrations suite, wave head: 57 files / 1,270 tests passed, no `Errors` line (06:40:36→06:40:45).
+- Whole integrations suite, base origin/general-work 6bdca722 (clean worktree, dist copied, run after the wave run): 54 files / 843 tests passed, no `Errors` line. No failures on either side.
+- tsc --noEmit -p packages/integrations: the 8 base errors only. `pnpm guard`: 26 violations, identical to base, none in integrations (base guard is red independently of this wave).
+- Parallelism: 5 subagents concurrently, L235 started when L129b finished. Subagent tokens: max ~208k (L052b, 80 calls), avg ~155k. No hand-offs. All worktrees removed.
+
 ## Next
+- Wave complete. Owner: review cloud/w3-integrations and merge into general-work (not done by the coordinator). Security findings above need a human decision (policy.ts fail-open mode, async-op Map allowlist bypass, audit-log label injection, header-name secret, outbound baseUrl not SSRF-checked in adapters).
