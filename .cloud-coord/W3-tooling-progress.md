@@ -47,3 +47,16 @@ Coordinator loaded: software-architect, code-inspection, security (AI-Dev-Shop c
 - L124 removed check (non-security, accepted): listenServer trailing unreachable `throw 'Listener range exhausted'` — validListenRange refuses attempts<1 (pinned 'Invalid listener port or attempt range'), last loop pass always returns/rethrows.
 - L124 note: commit 174dde33 does not typecheck alone (exactOptionalPropertyTypes); fixed by next commit 31c8bb29.
 - L124 bugs/SEC (pinned, reported not fixed), registry.ts: a path policy answering differently on re-check silently drops reservedPaths/workflowPaths (fail-open); same provider id from two trusted plugins not refused (first by plugin id wins get()); catalog item with unknown state imported as trusted (fail-open). Outside lot: devops source-control/repository-target.ts:6 BRANCH_PATTERN accepts leading '-' and '..' (matters if an adapter passes branch to git argv). jobs.ts error reasons echo raw agent event JSON.
+
+## Final (2026-10-20 ~05:12 UTC; wall time ~42 min from STEP 0)
+- All 8 lots merged into cloud/w3-tooling (none left). Parallelism: 5 concurrent subagents, refilled as each finished (L060b, L124, L035a backfilled); 9 subagents total (8 lots + 1 guard-fix). No hand-offs, no 200k overruns (max 189k L047, avg ~150k).
+- Final builds: `pnpm --filter @jini-ai/cli build` and `@jini-ai/devops build` OK.
+- Whole suites (wave tree, --maxWorkers=4): cli 30 files / 572 tests all pass, no Errors line. devops 49 files / 817 tests: 6 failed (published-types.test.ts) / 811 passed, no Errors line.
+- Base (clean worktree of origin/general-work, dist copied, run after the wave): cli 21 files / 336 pass, no Errors. devops 38 files / 328 tests: the SAME 6 published-types.test.ts tests fail, no Errors line → no new failures.
+- tsc --noEmit devops/cli 0 errors; pnpm guard violation list + hardwiring summary identical to base (base already has 26 violations, none in devops/cli).
+- Worktrees removed; no processes left running.
+
+## Next (for owner)
+- Review + merge cloud/w3-tooling into general-work.
+- Fix devops checks/node.ts copyDirectory (cpSync errorOnExist vs pre-created shadow dir under Node 24) — 6 base failures; also note published-types/index.ts catch (L108-110) is only reached by those tests.
+- Decide the pinned bugs/SEC items above (each has a "(reported, not fixed)" test that must be flipped when fixed).
