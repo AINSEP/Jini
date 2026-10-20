@@ -241,7 +241,7 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 | port | methods | Jini checks |
 |---|---|---|
 | `http`, `limiter`, `artifacts` | as for executable tools | revocation |
-| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, status, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel }` | declared connection; token noted for the result/error scans |
+| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, status, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel, lastSignInAttempt }` (`lastSignInAttempt`: `{ code, nextAction }` or `null`) | declared connection; token noted for the result/error scans; `lastSignInAttempt` keeps only `code` and `nextAction`, and becomes `null` unless both are lowercase hyphenated codes (≤ 64) |
 | | `begin({ connectionId, action: 'connect' \| 'reconnect' \| 'switch' \| 'add-scopes' }, { scopeSetIds?, startParams? })` → `{ authorizationUrl, attemptId, expiresAt }`; the host starts the API connection with intent `ADMIN_SURFACE_ACTION_INTENTS[action]` | declared connection and start parameters, string values ≤ 2048, ≤ 16 scope-set ids, a signed-in admin (`principalId`) |
 | | `confirmSwitch`, `cancelSwitch` → status; `disconnect` → status + `revocation: 'confirmed' \| 'pending' \| 'not-needed'` | declared connection, a signed-in admin |
 | | `takeCallbackFields({ connectionId, attemptId })` → declared fields or `null` | declared connection, opaque attempt id, undeclared fields dropped |
@@ -253,7 +253,9 @@ the plugin's agent tools' read-only `state.get` (`../lifecycle/tools/README.md`)
 under the same keys, so a setting the surface saves (a product turned off) is what the tools honor; map
 `status` scopes to the plugin's scope-set ids; `disconnect` returns `confirmed` only when the provider
 confirmed (`revocation` uses the API-connection values `confirmed | pending | not-needed`, and
-`status` its four lifecycle values, so the host passes both through); never return a refresh token or secret from any port; give `publicConfig` only public values.
+`status` its four lifecycle values, so the host passes both through); fill `lastSignInAttempt` with
+your OWN codes for a sign-in that did not complete (for example `access-denied` + `reconnect`), never
+the provider's error text; never return a refresh token or secret from any port; give `publicConfig` only public values.
 
 Callback fields: when a sign-in started by `begin` completes successfully, the host's callback route
 deposits the provider's extra fields into `createAdminSurfaceCallbackInbox({ now })` (in-process,

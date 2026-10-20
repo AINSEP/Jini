@@ -25,7 +25,7 @@ export function createFakeSurfaceHost(optional: { readonly config?: Readonly<Rec
   const port = (scope: AgentPluginToolCapabilityScope): AdminSurfaceCapabilities => {
     const note = (method: string, args: unknown) => { log.calls.push(`${scope.pluginId}:${method}:${JSON.stringify(args)}`); };
     const status = (connectionId: string): AdminSurfaceConnectionStatus & OverSharing => ({
-      connectionId, status: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null, ...optional.status,
+      connectionId, status: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null, lastSignInAttempt: null, ...optional.status,
     });
     const stateKey = (key: string) => `${scope.workspaceId}\u0000${scope.pluginId}\u0000${key}`;
     const { connections: _toolConnections, state: _toolState, ...shared } = fakeCapabilities(log);

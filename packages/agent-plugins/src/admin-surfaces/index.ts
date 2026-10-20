@@ -25,7 +25,7 @@ export {
 export type { AdminSurfaceConnectionDeclaration, AdminSurfaceCapabilityDeclarations } from './capability-declarations.js';
 export {
   ADMIN_SURFACE_ACTION_INTENTS, ADMIN_SURFACE_STATE_LIMITS,
-  type AdminSurfaceConnectionState, type AdminSurfaceConnectionAction, type AdminSurfaceRevocationOutcome, type AdminSurfaceConnectionStatus,
+  type AdminSurfaceConnectionState, type AdminSurfaceConnectionAction, type AdminSurfaceRevocationOutcome, type AdminSurfaceConnectionStatus, type AdminSurfaceSignInAttempt,
   type AdminSurfaceAuthorizationStart, type AdminSurfaceConnections, type AdminSurfaceStateValue, type AdminSurfaceState,
   type AdminSurfacePublicConfig, type AdminSurfaceCapabilities, type AdminSurfaceCapabilitiesPort,
 } from './surface-capabilities.js';

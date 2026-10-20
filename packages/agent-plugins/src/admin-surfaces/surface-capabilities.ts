@@ -50,6 +50,16 @@ export interface AdminSurfaceConnectionStatus {
   readonly grantedScopeSetIds: readonly string[];
   /** The account a staged switch would move to, awaiting `confirmSwitch`. */
   readonly pendingSwitchAccountLabel: string | null;
+  /** Why the latest sign-in did not complete and what to do next, as the HOST's own lowercase
+   *  hyphenated codes (for example `access-denied` / `reconnect`), never provider text; `null` when
+   *  the latest attempt succeeded or none is recorded. A value that is not a safe code becomes `null`. */
+  readonly lastSignInAttempt: AdminSurfaceSignInAttempt | null;
+}
+
+/** The outcome codes of a sign-in attempt that did not complete. */
+export interface AdminSurfaceSignInAttempt {
+  readonly code: string;
+  readonly nextAction: string;
 }
 
 /** A sign-in the person opens (a button on hosted, the system browser on desktop). */
@@ -142,11 +152,24 @@ function beginOptions(connection: AdminSurfaceConnectionDeclaration, optional: P
   };
 }
 
+const SAFE_CODE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const MAX_SAFE_CODE_LENGTH = 64;
+const isSafeCode = (value: unknown): value is string => typeof value === 'string' && value.length <= MAX_SAFE_CODE_LENGTH && SAFE_CODE_PATTERN.test(value);
+
+/** Only `code` and `nextAction`, and only when both are safe codes: a host that forwarded provider
+ * text (an error description) by mistake must not put it in front of the person or the plugin. */
+function toSignInAttempt(attempt: unknown): AdminSurfaceSignInAttempt | null {
+  if (typeof attempt !== 'object' || attempt === null) return null;
+  const { code, nextAction } = attempt as Readonly<Record<string, unknown>>;
+  return isSafeCode(code) && isSafeCode(nextAction) ? { code, nextAction } : null;
+}
+
 /** The status shape the port promises, whatever else the host's object carried. */
 function toStatus(connectionId: string, status: AdminSurfaceConnectionStatus): AdminSurfaceConnectionStatus {
   return {
     connectionId, status: status.status, accountLabel: status.accountLabel ?? null,
     grantedScopeSetIds: [...status.grantedScopeSetIds], pendingSwitchAccountLabel: status.pendingSwitchAccountLabel ?? null,
+    lastSignInAttempt: toSignInAttempt(status.lastSignInAttempt),
   };
 }
 

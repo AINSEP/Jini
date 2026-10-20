@@ -11,7 +11,7 @@ import { FAKE_TOKEN, WORKSPACE_ID } from '../../lifecycle/tools/__tests__/suppor
 import {
   ADMIN_SURFACE_ACTION_INTENTS, ADMIN_SURFACE_STATE_LIMITS, createAdminSurfaceActionDispatcher, createAdminSurfaceCallbackInbox, createAdminSurfaceHandlerHost, parseAdminSurfacesFile, type AdminSurfaceCapabilityDeclarations, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule,
 } from '../index.js';
-import { openAdminSurfaceCapabilitySession, STATE_CREDENTIAL_MESSAGE } from '../surface-capabilities.js';
+import { openAdminSurfaceCapabilitySession, STATE_CREDENTIAL_MESSAGE, type AdminSurfaceConnectionStatus } from '../surface-capabilities.js';
 import { createFakeSurfaceHost } from './surface-support.js';
 
 const PLUGIN = 'acme-office';
@@ -119,7 +119,7 @@ describe('connections: only declared ones, account actions only for an admin', (
   });
   test('confirmSwitch and cancelSwitch answers are cut back to the token-free status fields', async () => {
     const session = open();
-    const status = { connectionId: 'account', status: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
+    const status = { connectionId: 'account', status: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null, lastSignInAttempt: null };
     expect(await session.capabilities.connections.confirmSwitch({ connectionId: 'account' })).toStrictEqual(status);
     expect(await session.capabilities.connections.cancelSwitch({ connectionId: 'account' })).toStrictEqual(status);
     expect(session.log.calls).toEqual([`${PLUGIN}:confirmSwitch:{"connectionId":"account"}`, `${PLUGIN}:cancelSwitch:{"connectionId":"account"}`]);
@@ -131,9 +131,30 @@ describe('connections: only declared ones, account actions only for an admin', (
   });
   test('status and disconnect answers carry only the token-free status fields and the honest revocation outcome', async () => {
     const session = open();
-    const status = { connectionId: 'account', status: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
+    const status = { connectionId: 'account', status: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null, lastSignInAttempt: null };
     expect(await session.capabilities.connections.status({ connectionId: 'account' })).toStrictEqual(status);
     expect(await session.capabilities.connections.disconnect({ connectionId: 'account' })).toStrictEqual({ ...status, status: 'revocation-pending', revocation: 'pending' });
+  });
+});
+
+describe('the last sign-in attempt carries host-supplied safe codes only', () => {
+  const statusWith = async (lastSignInAttempt: unknown) => {
+    // Malformed input on purpose where the attempt carries provider text: the host port is untyped at run time.
+    const fake = createFakeSurfaceHost({ status: { lastSignInAttempt: lastSignInAttempt as AdminSurfaceConnectionStatus['lastSignInAttempt'] } });
+    const session = openAdminSurfaceCapabilitySession({ capabilities: fake.port({ pluginId: PLUGIN, workspaceId: WORKSPACE_ID }), isLive: () => true, declared: DECLARED, issued: new Set() }, { actorId: 'admin-1' });
+    return (await session.capabilities.connections.status({ connectionId: 'account' })).lastSignInAttempt;
+  };
+  test('safe codes are copied through, and only code and nextAction', async () => {
+    expect(await statusWith({ code: 'access-denied', nextAction: 'reconnect', description: 'The user denied access' })).toStrictEqual({ code: 'access-denied', nextAction: 'reconnect' });
+  });
+  test.each([
+    ['provider text as the code', { code: 'The user denied access', nextAction: 'reconnect' }],
+    ['provider text as the next action', { code: 'access-denied', nextAction: 'Ask your administrator' }],
+    ['a missing next action', { code: 'access-denied' }],
+    ['an over-long code', { code: 'a'.repeat(65), nextAction: 'reconnect' }],
+    ['a string instead of an object', 'access_denied: denied'],
+  ])('%s becomes null, never passed through', async (_label, attempt) => {
+    expect(await statusWith(attempt)).toBeNull();
   });
 });
 
