@@ -6,6 +6,7 @@ import {
   $isParagraphNode,
   $isTextNode,
   type EditorState,
+  type ParagraphNode,
 } from 'lexical';
 import { $isMentionNode } from './mention-node.js';
 import type { SerializedRichText } from './types.js';
@@ -19,28 +20,37 @@ import type { SerializedRichText } from './types.js';
 export function serializeRichText(state: EditorState): SerializedRichText {
   return state.read(() => {
     const mentions: SerializedRichText['mentions'] = [];
-    const blocks: string[] = [];
-    for (const block of $getRoot().getChildren()) {
-      if (!$isParagraphNode(block)) {
-        // Stray non-paragraph block (shouldn't happen): fall back to its text.
-        blocks.push(block.getTextContent());
-        continue;
-      }
-      let line = '';
-      for (const child of block.getChildren()) {
-        if ($isMentionNode(child)) {
-          line += child.getToken();
-          mentions.push(child.getEntity());
-        } else if ($isLineBreakNode(child)) {
-          line += '\n';
-        } else if ($isTextNode(child)) {
-          line += child.getTextContent();
-        } else if ($isElementNode(child)) {
-          line += child.getTextContent();
-        }
-      }
-      blocks.push(line);
-    }
+    const blocks = $getRoot()
+      .getChildren()
+      .map((block) =>
+        $isParagraphNode(block)
+          ? serializeParagraph({ paragraph: block, mentions })
+          : // Stray non-paragraph block (shouldn't happen): fall back to its text.
+            block.getTextContent(),
+      );
     return { text: blocks.join('\n'), mentions };
   });
+}
+
+/**
+ * One paragraph's wire text; appends each atomic mention's entity to
+ * `mentions` in document order. A non-mention decorator child contributes
+ * nothing.
+ */
+function serializeParagraph(at: {
+  paragraph: ParagraphNode;
+  mentions: SerializedRichText['mentions'];
+}): string {
+  let line = '';
+  for (const child of at.paragraph.getChildren()) {
+    if ($isMentionNode(child)) {
+      line += child.getToken();
+      at.mentions.push(child.getEntity());
+    } else if ($isLineBreakNode(child)) {
+      line += '\n';
+    } else if ($isTextNode(child) || $isElementNode(child)) {
+      line += child.getTextContent();
+    }
+  }
+  return line;
 }

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
   CONFIRM_DWELL_MS,
   buildConfirmationSurface,
@@ -681,5 +682,52 @@ describe('buildConfirmationSurface', () => {
     const resource = buildConfirmationSurface({ ...noCancel, uri: 'ui://example-host/x/2' });
     const plan = resource.resource._meta?.[MCP_UI_ACTION_PLAN_META_KEY] as { actions: unknown[] };
     expect(plan.actions).toEqual([{ id: 'confirm', label: 'Delete post', variant: 'danger' }]);
+  });
+});
+
+describe('renderConfirmationDocument choicesParam collisions with alternatives', () => {
+  it('refuses an alternative whose params already carry the choices param, naming the alternative', () => {
+    expect(() => renderConfirmationDocument({
+      ...DELETE_POST,
+      choices: [{ id: 'c1', label: 'C1' }],
+      alternatives: [{ id: 'keep-both', label: 'Keep both', toolName: 't', params: { overwrite: [] } }],
+    })).toThrow(new Error('choicesParam "overwrite" collides with a key already in the params of alternative "keep-both".'));
+  });
+
+  it('allows that same key on an alternative when there are no choices to merge', () => {
+    expect(() => renderConfirmationDocument({
+      ...DELETE_POST,
+      alternatives: [{ id: 'keep-both', label: 'Keep both', toolName: 't', params: { overwrite: [] } }],
+    })).not.toThrow();
+  });
+});
+
+// Exact-output pins: sha256 of whole documents/resources captured on the pre-refactor code, so a
+// refactor that moves one byte of markup, inline script, action plan or framing fails here.
+describe('renderConfirmationDocument exact output', () => {
+  const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  const FULL = {
+    ...DELETE_POST,
+    choices: [{ id: 'a.txt', label: 'a.txt', hint: 'exists' }, { id: 'b', label: 'B' }],
+    choicesParam: 'replace',
+    alternatives: [{ id: 'keep-both', label: 'Keep both', toolName: 'alt_tool', params: { mode: 'both' } }],
+    text: { working: 'W' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
+  } as const;
+  const cases: ReadonlyArray<readonly [string, Parameters<typeof renderConfirmationDocument>[0], string]> = [
+    ['tool-routed cancel', DELETE_POST, 'f6a869447f8966829c0d36d52dcf113caa30e03f620c04b1eee413577efc1896'],
+    ['minimal with no cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} } }, 'c8b0f37daf7fa589a2f41f75b30f8e1bd11109403cc9cb6a698ddc315edbbd96'],
+    ['local-only cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, cancel: { label: 'No' } }, 'b017c612043de8a70e5b4d4160b3c54350cf9fe5540a27df6e5f5d99f80e2d6b'],
+    ['choices, alternatives and every option', FULL, '8d72fde4f751183c1c1800208701466696e6f45390c51eba0df3ac1e2ca4a876'],
+  ];
+  it.each(cases)('%s', (_name, spec, expected) => {
+    expect(digest(renderConfirmationDocument(spec))).toBe(expected);
+  });
+
+  it('pins the framed, expiring resource wrapper and its action plan', () => {
+    expect(digest(buildConfirmationSurface({ ...FULL, uri: 'ui://h/c/1', preferredFrameSize: ['1px', '2px'], expiresAtMs: 123 }))).toBe('4bcd9e1427b2c3e1739d97c9b11bcfc8770b9ebfeb52d8db70867185163345c1');
+  });
+
+  it('pins the bare resource wrapper', () => {
+    expect(digest(buildConfirmationSurface({ title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, uri: 'ui://h/c/2' }))).toBe('7efbc7ae94f9dc037f513c3405401cb3b67218b3159e9d9eff2c3730f4813c0f');
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { mergeRegister } from '@lexical/utils';
 import {
@@ -12,6 +12,7 @@ import {
   KEY_ENTER_COMMAND,
   KEY_ESCAPE_COMMAND,
   KEY_TAB_COMMAND,
+  type LexicalEditor,
 } from 'lexical';
 import type { PopoverNavigationKey } from '../../types.js';
 
@@ -37,60 +38,18 @@ export function useKeyboardCommands(
   onPopoverKeyRef.current = onPopoverKey;
 
   useEffect(() => {
+    const routing: KeyRouting = { editor, popoverOpenRef, onSubmitRef, onPopoverKeyRef };
+    const navKey = (key: 'ArrowDown' | 'ArrowUp' | 'Tab') => (event: KeyboardEvent | null) =>
+      routeNavKeyToPopover({ ...routing, event, key });
     return mergeRegister(
       editor.registerCommand(
         KEY_ENTER_COMMAND,
-        (e: KeyboardEvent | null) => {
-          // IME confirm Enter — let Lexical commit the composition.
-          if (editor.isComposing()) return false;
-          if (e?.shiftKey) {
-            editor.dispatchCommand(INSERT_LINE_BREAK_COMMAND, false);
-            e.preventDefault();
-            return true;
-          }
-          // Cmd/Ctrl+Enter force-submits even with a popover open.
-          if (e?.metaKey || e?.ctrlKey) {
-            e.preventDefault();
-            onSubmitRef.current();
-            return true;
-          }
-          if (popoverOpenRef.current) {
-            e?.preventDefault();
-            return onPopoverKeyRef.current('Enter');
-          }
-          e?.preventDefault();
-          onSubmitRef.current();
-          return true;
-        },
+        (event: KeyboardEvent | null) => handleEnter({ ...routing, event }),
         COMMAND_PRIORITY_HIGH,
       ),
-      editor.registerCommand(
-        KEY_ARROW_DOWN_COMMAND,
-        (e) => {
-          if (!popoverOpenRef.current || editor.isComposing()) return false;
-          e?.preventDefault();
-          return onPopoverKeyRef.current('ArrowDown');
-        },
-        COMMAND_PRIORITY_HIGH,
-      ),
-      editor.registerCommand(
-        KEY_ARROW_UP_COMMAND,
-        (e) => {
-          if (!popoverOpenRef.current || editor.isComposing()) return false;
-          e?.preventDefault();
-          return onPopoverKeyRef.current('ArrowUp');
-        },
-        COMMAND_PRIORITY_HIGH,
-      ),
-      editor.registerCommand(
-        KEY_TAB_COMMAND,
-        (e) => {
-          if (!popoverOpenRef.current || editor.isComposing()) return false;
-          e?.preventDefault();
-          return onPopoverKeyRef.current('Tab');
-        },
-        COMMAND_PRIORITY_HIGH,
-      ),
+      editor.registerCommand(KEY_ARROW_DOWN_COMMAND, navKey('ArrowDown'), COMMAND_PRIORITY_HIGH),
+      editor.registerCommand(KEY_ARROW_UP_COMMAND, navKey('ArrowUp'), COMMAND_PRIORITY_HIGH),
+      editor.registerCommand(KEY_TAB_COMMAND, navKey('Tab'), COMMAND_PRIORITY_HIGH),
       editor.registerCommand(
         KEY_ESCAPE_COMMAND,
         () => {
@@ -109,4 +68,43 @@ export function useKeyboardCommands(
       ),
     );
   }, [editor]);
+}
+
+/** Live (ref-held) inputs every key handler reads at dispatch time. */
+interface KeyRouting {
+  editor: LexicalEditor;
+  popoverOpenRef: RefObject<boolean>;
+  onSubmitRef: RefObject<() => void>;
+  onPopoverKeyRef: RefObject<(key: PopoverNavigationKey) => boolean>;
+}
+
+function handleEnter(at: KeyRouting & { event: KeyboardEvent | null }): boolean {
+  const { editor, event: e } = at;
+  // IME confirm Enter — let Lexical commit the composition.
+  if (editor.isComposing()) return false;
+  if (e?.shiftKey) {
+    editor.dispatchCommand(INSERT_LINE_BREAK_COMMAND, false);
+    e.preventDefault();
+    return true;
+  }
+  // Cmd/Ctrl+Enter force-submits even with a popover open.
+  if (e?.metaKey || e?.ctrlKey) {
+    e.preventDefault();
+    at.onSubmitRef.current();
+    return true;
+  }
+  e?.preventDefault();
+  if (at.popoverOpenRef.current) return at.onPopoverKeyRef.current('Enter');
+  at.onSubmitRef.current();
+  return true;
+}
+
+/** Arrow-down/up/Tab go to the popover only while it's open and no IME
+ *  composition is in progress; otherwise Lexical handles them. */
+function routeNavKeyToPopover(
+  at: KeyRouting & { event: KeyboardEvent | null; key: 'ArrowDown' | 'ArrowUp' | 'Tab' },
+): boolean {
+  if (!at.popoverOpenRef.current || at.editor.isComposing()) return false;
+  at.event?.preventDefault();
+  return at.onPopoverKeyRef.current(at.key);
 }

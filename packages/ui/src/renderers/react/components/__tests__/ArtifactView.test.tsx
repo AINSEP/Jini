@@ -118,6 +118,15 @@ describe('ArtifactView', () => {
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
   });
 
+  it('renders svg artifacts through the same sandboxed iframe as html, titled by the manifest', () => {
+    const svgManifest: ArtifactManifest = { version: 1, kind: 'svg', title: 'Logo', entry: 'logo.svg', renderer: 'svg', exports: [] };
+    const file: ArtifactFile = { name: 'logo.svg', kind: 'text', content: '<svg><circle r="1"/></svg>', manifest: svgManifest };
+    render(<ArtifactView file={file} registry={registry} />);
+    const iframe = document.querySelector('iframe');
+    expect(iframe?.getAttribute('title')).toBe('Logo');
+    expect(iframe?.srcdoc).toContain('<circle r="1"/>');
+  });
+
   it('treats a missing `content` as an empty document for the sandboxed html/svg renderer', () => {
     const file: ArtifactFile = { name: 'index.html', kind: 'html', manifest: htmlManifest };
     render(<ArtifactView file={file} registry={registry} />);

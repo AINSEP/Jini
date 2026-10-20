@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { ResourceRowListItem, type ResourceRowListItemProps } from './ResourceRowListItem.js';
-import type { ResourceRowItem } from '../../types.js';
+import { ResourceRowListItem, type ResourceRowListItemProps } from '../react/components/ResourceRowListItem.js';
+import type { ResourceRowItem } from '../types.js';
 
 const ROW: ResourceRowItem = {
   id: 'r1',
@@ -122,5 +122,26 @@ describe('ResourceRowListItem', () => {
   it('applies the is-paused class when row.paused is true', () => {
     render(<ResourceRowListItem {...baseProps({ row: { ...ROW, paused: true } })} />);
     expect(screen.getByTestId('resource-row-list-item')).toHaveClass('is-paused');
+  });
+
+  it('omits the meta and detail lines when the row has neither', () => {
+    const { metaLine: _metaLine, detailLine: _detailLine, ...bareRow } = ROW;
+    const { container } = render(<ResourceRowListItem {...baseProps({ row: bareRow })} />);
+    expect(container.querySelector('.resource-row-list-item-meta')).toBeNull();
+    expect(container.querySelector('.resource-row-list-item-detail')).toBeNull();
+  });
+
+  it('renders the last-run pill without a label span when lastRunLabel is missing', () => {
+    const { lastRunLabel: _lastRunLabel, ...rowWithoutLabel } = ROW;
+    const { container } = render(<ResourceRowListItem {...baseProps({ row: rowWithoutLabel })} />);
+    const lastRun = container.querySelector('.resource-row-list-item-last-run');
+    expect(lastRun?.children).toHaveLength(1);
+    expect(screen.getByText('Status: succeeded')).toBeInTheDocument();
+  });
+
+  it('leaves a non-danger action button without a class attribute', () => {
+    render(<ResourceRowListItem {...baseProps()} />);
+    expect(screen.getByRole('button', { name: 'Run' })).not.toHaveAttribute('class');
+    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('danger');
   });
 });

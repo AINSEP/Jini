@@ -1,5 +1,4 @@
-import { ResourceMetrics } from './ResourceMetrics.js';
-import { ResourceRowListItem } from './ResourceRowListItem.js';
+import { ResourceRowListAlerts, ResourceRowListEmpty, ResourceRowListHero, ResourceRowListRows } from './ResourceRowListViewParts.js';
 import type { ResourceMetric, ResourceRowItem, ResourceRunHistoryItem, ResourceStatusToneMap } from '../../types.js';
 
 export interface ResourceRowListViewProps {
@@ -51,71 +50,15 @@ export interface ResourceRowListViewProps {
  * list (create-flow and automation-evolution-specific concerns, no
  * DesignsTab analog at all).
  */
-export function ResourceRowListView({
-  eyebrow,
-  title,
-  lede,
-  metrics,
-  metricsAriaLabel,
-  createLabel,
-  onCreate,
-  loading,
-  error,
-  errorLabel,
-  actionError,
-  actionErrorLabel,
-  sectionLabel,
-  loadingLabel,
-  emptyTitle,
-  emptyBody,
-  rows,
-  isRowBusy,
-  statusLabel,
-  toneMap,
-  canExpandHistory,
-  expandedRowId,
-  historyLoadingRowId,
-  historyByRowId,
-  showHistoryLabel,
-  hideHistoryLabel,
-  historyTitleLabel,
-  historyLoadingLabel,
-  historyEmptyLabel,
-  onToggleExpand,
-  onRowAction,
-  onHistoryItemAction,
-}: ResourceRowListViewProps) {
+export function ResourceRowListView(props: ResourceRowListViewProps) {
+  const { loading, rows, sectionLabel, loadingLabel } = props;
   const isEmpty = !loading && rows.length === 0;
 
   return (
     <section className="resource-row-list">
-      <header className="resource-row-list-hero">
-        <div className="resource-row-list-hero-copy">
-          {eyebrow ? <span className="resource-row-list-hero-eyebrow">{eyebrow}</span> : null}
-          <h1 className="resource-row-list-hero-title">{title}</h1>
-          {lede ? <p className="resource-row-list-hero-lede">{lede}</p> : null}
-        </div>
-        <div className="resource-row-list-hero-actions">
-          <ResourceMetrics metrics={metrics} ariaLabel={metricsAriaLabel} />
-          {onCreate && createLabel ? (
-            <button type="button" className="resource-row-list-new" onClick={onCreate}>
-              {createLabel}
-            </button>
-          ) : null}
-        </div>
-      </header>
+      <ResourceRowListHero {...props} />
 
-      {error ? (
-        <div className="resource-row-list-error" role="alert">
-          {errorLabel ?? error}
-        </div>
-      ) : null}
-
-      {actionError ? (
-        <div className="resource-row-list-action-error" role="alert">
-          {actionErrorLabel ?? actionError}
-        </div>
-      ) : null}
+      <ResourceRowListAlerts {...props} />
 
       <section className="resource-row-list-saved" aria-label={sectionLabel}>
         <div className="resource-row-list-section-head">
@@ -123,43 +66,7 @@ export function ResourceRowListView({
           {loading ? <span className="resource-row-list-section-meta">{loadingLabel}</span> : null}
         </div>
 
-        {isEmpty ? (
-          onCreate ? (
-            <button type="button" className="resource-row-list-empty" onClick={onCreate}>
-              <strong>{emptyTitle}</strong>
-              <span>{emptyBody}</span>
-            </button>
-          ) : (
-            <div className="resource-row-list-empty">
-              <strong>{emptyTitle}</strong>
-              <span>{emptyBody}</span>
-            </div>
-          )
-        ) : rows.length > 0 ? (
-          <ul className="resource-row-list-items">
-            {rows.map((row) => (
-              <ResourceRowListItem
-                key={row.id}
-                row={row}
-                busy={isRowBusy(row.id)}
-                statusLabel={statusLabel}
-                {...(toneMap ? { toneMap } : {})}
-                canExpandHistory={canExpandHistory}
-                expanded={expandedRowId === row.id}
-                showHistoryLabel={showHistoryLabel}
-                hideHistoryLabel={hideHistoryLabel}
-                historyItems={historyByRowId[row.id]}
-                historyLoading={historyLoadingRowId === row.id}
-                historyTitleLabel={historyTitleLabel}
-                historyLoadingLabel={historyLoadingLabel}
-                historyEmptyLabel={historyEmptyLabel}
-                onToggleExpand={() => onToggleExpand(row.id)}
-                onAction={(kind) => onRowAction(row.id, kind)}
-                {...(onHistoryItemAction ? { onHistoryItemAction: (historyItemId: string, kind: string) => onHistoryItemAction(row.id, historyItemId, kind) } : {})}
-              />
-            ))}
-          </ul>
-        ) : null}
+        {isEmpty ? <ResourceRowListEmpty {...props} /> : rows.length > 0 ? <ResourceRowListRows {...props} /> : null}
       </section>
     </section>
   );

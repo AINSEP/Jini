@@ -1,10 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { ResourceRowList } from './ResourceRowList.js';
-import { I18nProvider } from '../../../i18n/index.js';
-import type { ResourceRowListDependencies, ResourceRowListPort } from '../../ports.js';
-import type { ResourceRowItem, ResourceStatusOption } from '../../types.js';
+import { ResourceRowList } from '../react/components/ResourceRowList.js';
+import { I18nProvider } from '../../i18n/index.js';
+import type { ResourceRowListDependencies, ResourceRowListPort } from '../ports.js';
+import type { ResourceRowItem, ResourceStatusOption } from '../types.js';
 
 const STATUS_OPTIONS: ResourceStatusOption[] = [
   { value: 'succeeded', label: 'Succeeded' },
@@ -111,6 +111,13 @@ describe('ResourceRowList', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'New automation' })).toBeInTheDocument());
   });
 
+  it('renders no create CTA when only createLabel is given without onCreate', async () => {
+    const dependencies = fakeDependencies({ fetchRows: vi.fn().mockResolvedValue([]) });
+    render(<ResourceRowList dependencies={dependencies} title="Automations" statusOptions={STATUS_OPTIONS} onRowAction={() => {}} createLabel="New automation" />);
+    await waitFor(() => expect(screen.getByText('Nothing here yet')).toBeInTheDocument());
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('surfaces a translated load-failure error', async () => {
     const dependencies = fakeDependencies({ fetchRows: vi.fn().mockRejectedValue(new Error('down')) });
     render(<ResourceRowList dependencies={dependencies} title="Automations" statusOptions={STATUS_OPTIONS} onRowAction={() => {}} />);
@@ -185,5 +192,27 @@ describe('ResourceRowList', () => {
     );
     await waitFor(() => expect(screen.getByText('Rien pour le moment')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Nouveau' })).toBeInTheDocument();
+  });
+
+  it('translates the load-failure message through the I18nProvider dictionary', async () => {
+    const dependencies = fakeDependencies({ fetchRows: vi.fn().mockRejectedValue(new Error('down')) });
+    render(
+      <I18nProvider dictionaries={{ en: { 'Failed to load items.': 'Echec du chargement.' } }} initialLocale="en">
+        <ResourceRowList dependencies={dependencies} title="Automations" statusOptions={STATUS_OPTIONS} onRowAction={() => {}} />
+      </I18nProvider>,
+    );
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Echec du chargement.'));
+  });
+
+  it('translates the row-action failure message through the I18nProvider dictionary', async () => {
+    const onRowAction = vi.fn().mockRejectedValue(new Error('run failed'));
+    render(
+      <I18nProvider dictionaries={{ en: { 'Failed to complete action.': "Echec de l'action." } }} initialLocale="en">
+        <ResourceRowList dependencies={fakeDependencies()} title="Automations" statusOptions={STATUS_OPTIONS} onRowAction={onRowAction} />
+      </I18nProvider>,
+    );
+    await waitFor(() => expect(screen.getByText('Nightly digest')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Echec de l'action."));
   });
 });

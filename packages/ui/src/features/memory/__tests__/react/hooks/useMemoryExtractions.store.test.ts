@@ -156,6 +156,85 @@ describe('store.applyFrame — merge semantics', () => {
   });
 });
 
+describe('store.applyFrame — boundaries', () => {
+  it('a remote "cleared" frame tombstones every previously visible id', () => {
+    const { store } = makeStore();
+    store.applyFrame(record('a', { phase: 'running' }));
+    store.applyFrame(record('x', { phase: 'cleared' }));
+    store.applyFrame(record('a', { phase: 'success', finishedAt: 2_000 }));
+    expect(store.rows()).toEqual([]);
+  });
+
+  it('a remote "cleared" frame tombstones an id hidden by a pending local delete', () => {
+    const { store } = makeStore();
+    store.applyFrame(record('a'));
+    store.beginDelete('a');
+    store.applyFrame(record('x', { phase: 'cleared' }));
+    store.settleDeleteFailure('a');
+    store.applyFrame(record('a', { finishedAt: 5_000 }));
+    expect(store.rows()).toEqual([]);
+  });
+
+  it('a remote "cleared" frame discards and tombstones a buffered frame', () => {
+    const { store } = makeStore();
+    store.beginClear();
+    store.applyFrame(record('late', { phase: 'running' }));
+    store.applyFrame(record('x', { phase: 'cleared' }));
+    store.settleClearFailure();
+    expect(store.rows()).toEqual([]);
+    store.applyFrame(record('late', { finishedAt: 5_000 }));
+    expect(store.rows()).toEqual([]);
+  });
+
+  it('a "deleted" frame discards the buffered frame of a pending delete for that id', () => {
+    const { store } = makeStore();
+    store.applyFrame(record('a', { phase: 'running' }));
+    store.beginDelete('a');
+    store.applyFrame(record('a', { finishedAt: 2_000 }));
+    store.applyFrame(record('a', { phase: 'deleted' }));
+    store.settleDeleteFailure('a');
+    expect(store.rows()).toEqual([]);
+  });
+
+  it('a "deleted" frame for an unseen id still commits an unchanged list', () => {
+    const { store, onRowsChanged } = makeStore();
+    store.applyFrame(record('a'));
+    store.applyFrame(record('ghost', { phase: 'deleted' }));
+    expect(onRowsChanged).toHaveBeenCalledTimes(2);
+    expect(store.rows().map((r) => r.id)).toEqual(['a']);
+  });
+
+  it('buffers a brand-new id that arrives while a clear is in flight', () => {
+    const { store } = makeStore();
+    store.beginClear();
+    store.applyFrame(record('fresh'));
+    expect(store.rows()).toEqual([]);
+  });
+
+  it('stamps a live-inserted row so a snapshot started before it keeps it', () => {
+    const { store } = makeStore();
+    const since = store.snapshotClock();
+    store.applyFrame(record('live'));
+    expect(store.commitSnapshot([], since).map((r) => r.id)).toEqual(['live']);
+  });
+
+  it('stamps a live-merged row so a snapshot started before the merge keeps it', () => {
+    const { store } = makeStore();
+    store.applyFrame(record('a', { phase: 'running' }));
+    const since = store.snapshotClock();
+    store.applyFrame(record('a', { finishedAt: 2_000 }));
+    expect(store.commitSnapshot([], since).map((r) => r.phase)).toEqual(['success']);
+  });
+
+  it('merges onto an existing row in place without reordering', () => {
+    const { store } = makeStore();
+    store.applyFrame(record('a', { phase: 'running' }));
+    store.applyFrame(record('b', { phase: 'running' }));
+    store.applyFrame(record('a', { finishedAt: 2_000 }));
+    expect(store.rows().map((r) => `${r.id}:${r.phase}`)).toEqual(['b:running', 'a:success']);
+  });
+});
+
 // ─── delete lifecycle ────────────────────────────────────────────────────────
 
 describe('store.beginDelete / settleDeleteSuccess / settleDeleteFailure', () => {

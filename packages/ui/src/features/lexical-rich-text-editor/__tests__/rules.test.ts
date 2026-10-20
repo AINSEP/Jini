@@ -11,7 +11,7 @@ import {
   type TextNode,
 } from 'lexical';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { $createMentionNode, MentionNode } from './mention-node.js';
+import { $createMentionNode, MentionNode } from '../mention-node.js';
 import {
   $collectMentionNodeKeys,
   buildAnyTriggerDeletionRegex,
@@ -28,8 +28,8 @@ import {
   selectAfterMention,
   selectBeforeMention,
   textBeforeCaretOnLine,
-} from './rules.js';
-import type { RichTextTriggerConfig } from './types.js';
+} from '../rules.js';
+import type { RichTextTriggerConfig } from '../types.js';
 
 function makeEditor(rootEl?: HTMLElement): LexicalEditor {
   const editor = createEditor({
@@ -817,6 +817,50 @@ describe('readCaretRect', () => {
     expect(readCaretRect(null)).toBeNull();
   });
 
+  it('does not create a probe range when the live range geometry is already usable', () => {
+    const host = document.createElement('div');
+    host.textContent = 'hello';
+    document.body.appendChild(host);
+    const range = document.createRange();
+    range.setStart(host.firstChild!, 2);
+    range.collapse(true);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const usable: DOMRect = DOMRect.fromRect({ x: 4, y: 6, width: 0, height: 10 });
+    Range.prototype.getBoundingClientRect = vi.fn().mockReturnValue(usable);
+    const createRange = vi.spyOn(document, 'createRange');
+    expect(readCaretRect(null)).toEqual({ top: 6, bottom: 16, left: 4, right: 4 });
+    expect(createRange).not.toHaveBeenCalled();
+    sel.removeAllRanges();
+    host.remove();
+  });
+
+  it('places the probe range at the live range anchor offset', () => {
+    const host = document.createElement('div');
+    host.textContent = 'hello';
+    document.body.appendChild(host);
+    const text = host.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 3);
+    range.collapse(true);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const empty: DOMRect = DOMRect.fromRect({ x: 0, y: 0, width: 0, height: 0 });
+    const usable: DOMRect = DOMRect.fromRect({ x: 7, y: 2, width: 0, height: 10 });
+    Range.prototype.getBoundingClientRect = vi
+      .fn()
+      .mockReturnValueOnce(empty)
+      .mockReturnValueOnce(usable);
+    Range.prototype.getClientRects = vi.fn().mockReturnValue([]);
+    const setStart = vi.spyOn(Range.prototype, 'setStart');
+    expect(readCaretRect(null)).toEqual({ top: 2, bottom: 12, left: 7, right: 7 });
+    expect(setStart).toHaveBeenCalledWith(text, 3);
+    sel.removeAllRanges();
+    host.remove();
+  });
+
   it('handles a range whose getBoundingClientRect/getClientRects are not functions', () => {
     const fakeRange = {
       startContainer: document.createElement('div'),
@@ -900,3 +944,55 @@ describe('computeCaretFloatingLayerPosition', () => {
     expect(pos.width).toBeGreaterThanOrEqual(Math.min(240, config.preferredWidth));
   });
 });
+
+describe('computeCaretFloatingLayerPosition boundaries', () => {
+  const config = { gap: 8, margin: 8, hardMaxHeight: 460, preferredWidth: 420 };
+
+  beforeEach(() => {
+    vi.stubGlobal('innerWidth', 1000);
+    vi.stubGlobal('innerHeight', 800);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('returns the exact layout for an above placement inside a narrow boundary', () => {
+    const caret = { top: 400, bottom: 420, left: 100, right: 120 };
+    const boundary = { left: 50, right: 350, width: 300, top: 0, bottom: 800 } as DOMRect;
+    expect(
+      computeCaretFloatingLayerPosition(caret, { width: 200, height: 100 }, boundary, config),
+    ).toEqual({ left: 58, top: 292, width: 284, maxHeight: 384, placement: 'above' });
+  });
+
+  it('returns the exact layout for a below placement capped at hardMaxHeight', () => {
+    const caret = { top: 20, bottom: 40, left: 100, right: 120 };
+    expect(computeCaretFloatingLayerPosition(caret, { width: 300, height: 300 }, null, config)).toEqual({
+      left: 100,
+      top: 48,
+      width: 420,
+      maxHeight: 460,
+      placement: 'below',
+    });
+  });
+
+  it('keeps above on an exact space tie even when above does not fit, flooring maxHeight at 120', () => {
+    const caret = { top: 116, bottom: 684, left: 100, right: 120 };
+    const pos = computeCaretFloatingLayerPosition(caret, { width: 300, height: 300 }, null, config);
+    expect(pos).toEqual({ left: 100, top: 8, width: 420, maxHeight: 120, placement: 'above' });
+  });
+
+  it('clamps left to the viewport maxLeft when there is no boundary', () => {
+    const caret = { top: 400, bottom: 420, left: 900, right: 920 };
+    const pos = computeCaretFloatingLayerPosition(caret, { width: 300, height: 100 }, null, config);
+    expect(pos.left).toBe(1000 - 8 - 420);
+  });
+
+  it('floors the boundary maxLeft at minLeft when the boundary is narrower than the layer', () => {
+    const caret = { top: 400, bottom: 420, left: 495, right: 500 };
+    const boundary = { left: 490, right: 510, width: 20, top: 0, bottom: 800 } as DOMRect;
+    const pos = computeCaretFloatingLayerPosition(caret, { width: 420, height: 100 }, boundary, config);
+    expect(pos).toMatchObject({ left: 498, width: 240 });
+  });
+});
+

@@ -34,4 +34,27 @@ describe('parseSseFrame', () => {
     const result = parseSseFrame({ frame: 'event: tick\r\ndata: {"n":1}\r' });
     expect(result).toEqual({ kind: 'event', event: 'tick', data: { n: 1 } });
   });
+
+  it('prefers the data payload over comment lines in the same frame', () => {
+    const result = parseSseFrame({ frame: ': note\ndata: {"n":2}' });
+    expect(result).toEqual({ kind: 'event', event: 'message', data: { n: 2 } });
+  });
+
+  it('joins several comment lines with a newline and trims the space after ":"', () => {
+    expect(parseSseFrame({ frame: ':first\n:   second' })).toEqual({ kind: 'comment', comment: 'first\nsecond' });
+  });
+
+  it('omits the id when the id: line carries only whitespace', () => {
+    const result = parseSseFrame({ frame: 'id:   \ndata: {"n":3}' });
+    expect(result).toEqual({ kind: 'event', event: 'message', data: { n: 3 } });
+  });
+
+  it('ignores field lines without the space after the colon', () => {
+    expect(parseSseFrame({ frame: 'data:{"n":4}\nevent:tick' })).toEqual({ kind: 'empty' });
+  });
+
+  it('keeps the last event: and id: line when they repeat', () => {
+    const result = parseSseFrame({ frame: 'event: a\nevent:  b \nid: 1\nid: 2\ndata: {}' });
+    expect(result).toEqual({ kind: 'event', event: 'b', data: {}, id: '2' });
+  });
 });

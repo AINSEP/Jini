@@ -67,6 +67,39 @@ function resolveInputType(props: Pick<TextInputProps, 'inputType' | 'secret'>): 
   return props.secret === true ? 'password' : 'text';
 }
 
+/** The reveal toggle a multiline secret carries. @complexity O(n) in the label lengths. */
+function renderSecretToggle(props: TextInputProps, id: string): string {
+  const showSecret = props.showSecret ?? DEFAULT_SECRET_INPUT_TEXT.showSecret;
+  const hideSecret = props.hideSecret ?? DEFAULT_SECRET_INPUT_TEXT.hideSecret;
+  return `<button type="button" class="mcpui-button" data-mcpui-secret-toggle="${escapeHtml(id)}" data-mcpui-show-secret="${escapeHtml(showSecret)}" data-mcpui-hide-secret="${escapeHtml(hideSecret)}" aria-controls="${escapeHtml(id)}" aria-pressed="false"${booleanAttribute('disabled', props.disabled)}>${escapeHtml(showSecret)}</button>`;
+}
+
+/** The `<textarea>` control, masked with a reveal toggle when secret. @complexity O(n) in the rendered length. */
+function renderTextarea(props: TextInputProps, required: { id: string; common: string }): string {
+  const secret = props.secret === true;
+  return `<textarea class="mcpui-textarea"${required.common}${optionalAttribute('rows', props.rows)}` +
+    // Password inputs strip line breaks. CSS masking keeps the textarea's actual value intact,
+    // and disables browser text assistance that could retain or alter a pasted credential.
+    (secret ? ' data-mcpui-secret style="-webkit-text-security: disc;" autocomplete="off" spellcheck="false"' : '') +
+    `>${props.value === undefined ? '' : escapeHtml(String(props.value))}</textarea>` +
+    (secret ? renderSecretToggle(props, required.id) : '');
+}
+
+/** The single-line `<input>` control. @complexity O(n) in the rendered length. */
+function renderInput(props: TextInputProps, required: { type: 'text' | 'number' | 'password'; common: string }): string {
+  const { type, common } = required;
+  return `<input class="mcpui-input" type="${type}"${common}` +
+    optionalAttribute('value', props.value) +
+    // A stored secret (e.g. a cloud provider's access key or a database password) must never be
+    // autofilled with a saved website login. `new-password`, not `off`: Chrome ignores `off` on
+    // password inputs by design and fills the saved login anyway.
+    (type === 'password' ? optionalAttribute('autocomplete', 'new-password') : '') +
+    (type === 'number'
+      ? optionalAttribute('min', props.min) + optionalAttribute('max', props.max) + optionalAttribute('step', props.step)
+      : '') +
+    '>';
+}
+
 /**
  * Renders one free-text field: its label, hint, and control, wrapped in `.mcpui-field`.
  *
@@ -89,27 +122,9 @@ export function renderTextInput(props: TextInputProps): string {
     fieldDescribedBy(props);
 
   const type = resolveInputType(props);
-  const isNumber = type === 'number';
-  const secretMultiline = props.secret === true && props.multiline === true && !isNumber;
-  const control = props.multiline === true && !isNumber
-    ? `<textarea class="mcpui-textarea"${common}${optionalAttribute('rows', props.rows)}` +
-      // Password inputs strip line breaks. CSS masking keeps the textarea's actual value intact,
-      // and disables browser text assistance that could retain or alter a pasted credential.
-      (secretMultiline ? ' data-mcpui-secret style="-webkit-text-security: disc;" autocomplete="off" spellcheck="false"' : '') +
-      `>${props.value === undefined ? '' : escapeHtml(String(props.value))}</textarea>` +
-      (secretMultiline
-        ? `<button type="button" class="mcpui-button" data-mcpui-secret-toggle="${escapeHtml(id)}" data-mcpui-show-secret="${escapeHtml(props.showSecret ?? DEFAULT_SECRET_INPUT_TEXT.showSecret)}" data-mcpui-hide-secret="${escapeHtml(props.hideSecret ?? DEFAULT_SECRET_INPUT_TEXT.hideSecret)}" aria-controls="${escapeHtml(id)}" aria-pressed="false"${booleanAttribute('disabled', props.disabled)}>${escapeHtml(props.showSecret ?? DEFAULT_SECRET_INPUT_TEXT.showSecret)}</button>`
-        : '')
-    : `<input class="mcpui-input" type="${type}"${common}` +
-      optionalAttribute('value', props.value) +
-      // A stored secret (e.g. a cloud provider's access key or a database password) must never be
-      // autofilled with a saved website login. `new-password`, not `off`: Chrome ignores `off` on
-      // password inputs by design and fills the saved login anyway.
-      (type === 'password' ? optionalAttribute('autocomplete', 'new-password') : '') +
-      (isNumber
-        ? optionalAttribute('min', props.min) + optionalAttribute('max', props.max) + optionalAttribute('step', props.step)
-        : '') +
-      '>';
+  const control = props.multiline === true && type !== 'number'
+    ? renderTextarea(props, { id, common })
+    : renderInput(props, { type, common });
 
   return `<div class="mcpui-field">\n${renderFieldLabel(props)}\n${control}\n</div>`;
 }

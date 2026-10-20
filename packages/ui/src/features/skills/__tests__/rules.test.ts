@@ -21,8 +21,8 @@ import {
   skillMatchesSearch,
   summaryToDraft,
   validateSkillDraft,
-} from '../../../features/skills/rules.js';
-import type { SkillDraft, SkillFilters, SkillSummary } from '../../../features/skills/types.js';
+} from '../rules.js';
+import type { SkillDraft, SkillFilters, SkillSummary } from '../types.js';
 
 /**
  * These assert BEHAVIOUR, not line execution — each case is written so that a

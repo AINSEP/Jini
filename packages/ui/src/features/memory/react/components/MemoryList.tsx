@@ -12,6 +12,181 @@ import type { MemoryEntrySummary, MemoryExtractionRecord, MemoryType } from '../
 import { MemoryEntryCard } from './MemoryEntryCard.js';
 import { MemoryExtractionCard } from './MemoryExtractionCard.js';
 
+type MemoryFilter = 'all' | MemoryType;
+
+/** Per-row agent handles under `<agentHandle>-<action>`, or undefined when unpublished. */
+function rowHandles({ agentHandle, action, ids }: { agentHandle: string | undefined; action: string; ids: string[] }): string[] | undefined {
+  return agentHandle ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action }), ids }) : undefined;
+}
+
+function MemoryListCounts({ savedCount, extractionCount }: { savedCount: number; extractionCount: number }) {
+  const t = useT();
+  return (
+    <div className="memory-management-counts">
+      <span className="memory-source-badge">{savedCount} {t('saved')}</span>
+      {extractionCount > 0 ? (
+        <span className="memory-source-badge">
+          {extractionCount} {extractionCount === 1 ? t('extraction') : t('extractions')}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function MemoryFilterPills({
+  entries,
+  extractionCount,
+  filter,
+  onFilterChange,
+  agentHandle,
+}: {
+  entries: MemoryEntrySummary[];
+  extractionCount: number;
+  filter: MemoryFilter;
+  onFilterChange: (filter: MemoryFilter) => void;
+  agentHandle: string | undefined;
+}) {
+  const t = useT();
+  const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
+  return (
+    <div className="library-filters">
+      <button
+        type="button"
+        className={`filter-pill${filter === 'all' ? ' active' : ''}`}
+        onClick={() => onFilterChange('all')}
+        {...agentHandleProps({}, { base: agentHandle, action: 'filter-all', role: 'button', label: t('All') })}
+      >
+        {t('All')}
+        <span className="filter-pill-count">{entries.length + extractionCount}</span>
+      </button>
+      {TYPES.map((type) => {
+        const count = entries.filter((e) => e.type === type).length;
+        if (count === 0 && filter !== type) return null;
+        return (
+          <button
+            key={type}
+            type="button"
+            className={`filter-pill${filter === type ? ' active' : ''}`}
+            onClick={() => onFilterChange(type)}
+            {...agentHandleProps({}, { base: agentHandle, action: `filter-${type}`, role: 'button', label: typeLabel[type] })}
+          >
+            {typeLabel[type]}
+            <span className="filter-pill-count">{count}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MemoryExtractionActions({
+  onClearExtractions,
+  onRefreshExtractions,
+  isRefreshing,
+  agentHandle,
+}: {
+  onClearExtractions: () => void;
+  onRefreshExtractions: () => void;
+  isRefreshing: boolean;
+  agentHandle: string | undefined;
+}) {
+  const t = useT();
+  return (
+    <>
+      <button
+        type="button"
+        className="ghost memory-clear-extractions"
+        onClick={() => onClearExtractions()}
+        title={t('Clear extraction history')}
+        {...agentHandleProps({}, { base: agentHandle, action: 'clear-extractions', role: 'button', label: t('Clear extraction history') })}
+      >
+        <Icon name="close" size={12} />
+        <span>{t('Clear')}</span>
+      </button>
+      <button
+        type="button"
+        className="ghost memory-refresh-extractions"
+        onClick={() => onRefreshExtractions()}
+        disabled={isRefreshing}
+        title={t('Refresh')}
+        {...agentHandleProps({}, { base: agentHandle, action: 'refresh-extractions', role: 'button', label: t('Refresh') })}
+      >
+        <Icon name="refresh" size={12} className={isRefreshing ? 'icon-spin' : ''} />
+        <span>{isRefreshing ? t('Refreshing') : t('Refresh')}</span>
+      </button>
+    </>
+  );
+}
+
+function MemoryListEmpty() {
+  const t = useT();
+  return (
+    // Empty state: one clear "no rows yet" line and a one-sentence
+    // primer that explains the mechanism (talk in chat, fact gets
+    // extracted) with a single example.
+    <div className="library-empty">
+      <p className="library-empty-title">{t('No saved memories yet')}</p>
+      <p className="library-empty-hint">
+        {t('Tell the assistant a fact in chat — e.g.')} <code>{t('I prefer dark mode')}</code>{' '}
+        {t('— and it will be saved here automatically.')}
+      </p>
+    </div>
+  );
+}
+
+function MemoryListRows({
+  filtered,
+  visibleExtractions,
+  previewId,
+  previewBody,
+  nowClock,
+  onOpenPreview,
+  onStartEdit,
+  onDeleteEntry,
+  onDeleteExtraction,
+  agentHandle,
+}: {
+  filtered: MemoryEntrySummary[];
+  visibleExtractions: MemoryExtractionRecord[];
+  previewId: string | null;
+  previewBody: string | null;
+  nowClock: number;
+  onOpenPreview: (id: string) => void;
+  onStartEdit: (id: string) => void;
+  onDeleteEntry: (id: string) => void;
+  onDeleteExtraction: (id: string) => void;
+  agentHandle: string | undefined;
+}) {
+  const entryHandles = rowHandles({ agentHandle, action: 'entry', ids: filtered.map((e) => e.id) });
+  const extractionHandles = rowHandles({ agentHandle, action: 'extraction', ids: visibleExtractions.map((r) => r.id) });
+  return (
+    <>
+      {filtered.map((entry, index) => (
+        <MemoryEntryCard
+          key={entry.id}
+          entry={entry}
+          previewId={previewId}
+          previewBody={previewBody}
+          onOpenPreview={onOpenPreview}
+          onStartEdit={onStartEdit}
+          onDelete={onDeleteEntry}
+          {...(entryHandles?.[index] ? { agentHandle: entryHandles[index] } : {})}
+        />
+      ))}
+      {visibleExtractions.map((record, index) => (
+        <MemoryExtractionCard
+          key={record.id}
+          record={record}
+          nowClock={nowClock}
+          onOpenPreview={onOpenPreview}
+          onDelete={onDeleteExtraction}
+          {...(extractionHandles?.[index] ? { agentHandle: extractionHandles[index] } : {})}
+        />
+      ))}
+    </>
+  );
+}
+
 export function MemoryList({
   sectionRef,
   entries,
@@ -53,13 +228,6 @@ export function MemoryList({
   agentHandle?: string;
 }) {
   const t = useT();
-  const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
-  const entryHandles = agentHandle
-    ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'entry' }), ids: filtered.map((e) => e.id) })
-    : undefined;
-  const extractionHandles = agentHandle
-    ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'extraction' }), ids: visibleExtractions.map((r) => r.id) })
-    : undefined;
   return (
     <section ref={sectionRef} className="settings-section settings-section-card memory-records-section">
       <div className="memory-management-panel">
@@ -68,110 +236,45 @@ export function MemoryList({
             <h4>{t('Saved memory')}</h4>
             <p className="hint">{t('Saved facts, preferences, and project context available to future chats.')}</p>
           </div>
-          <div className="memory-management-counts">
-            <span className="memory-source-badge">{entries.length} {t('saved')}</span>
-            {visibleExtractions.length > 0 ? (
-              <span className="memory-source-badge">
-                {visibleExtractions.length} {visibleExtractions.length === 1 ? t('extraction') : t('extractions')}
-              </span>
-            ) : null}
-          </div>
+          <MemoryListCounts savedCount={entries.length} extractionCount={visibleExtractions.length} />
         </div>
 
         <div className="library-toolbar is-row">
-          <div className="library-filters">
-            <button
-              type="button"
-              className={`filter-pill${filter === 'all' ? ' active' : ''}`}
-              onClick={() => onFilterChange('all')}
-              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'filter-all', role: 'button', label: t('All') }) })}
-            >
-              {t('All')}
-              <span className="filter-pill-count">{entries.length + visibleExtractions.length}</span>
-            </button>
-            {TYPES.map((type) => {
-              const count = entries.filter((e) => e.type === type).length;
-              if (count === 0 && filter !== type) return null;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  className={`filter-pill${filter === type ? ' active' : ''}`}
-                  onClick={() => onFilterChange(type)}
-                  {...agentHandleProps({}, { base: agentHandle, ...({ action: `filter-${type}`, role: 'button', label: typeLabel[type] }) })}
-                >
-                  {typeLabel[type]}
-                  <span className="filter-pill-count">{count}</span>
-                </button>
-              );
-            })}
-          </div>
+          <MemoryFilterPills
+            entries={entries}
+            extractionCount={visibleExtractions.length}
+            filter={filter}
+            onFilterChange={onFilterChange}
+            agentHandle={agentHandle}
+          />
           <div className="memory-management-actions">
             {visibleExtractions.length > 0 ? (
-              <button
-                type="button"
-                className="ghost memory-clear-extractions"
-                onClick={() => onClearExtractions()}
-                title={t('Clear extraction history')}
-                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'clear-extractions', role: 'button', label: t('Clear extraction history') }) })}
-              >
-                <Icon name="close" size={12} />
-                <span>{t('Clear')}</span>
-              </button>
-            ) : null}
-            {visibleExtractions.length > 0 ? (
-              <button
-                type="button"
-                className="ghost memory-refresh-extractions"
-                onClick={() => onRefreshExtractions()}
-                disabled={isRefreshing}
-                title={t('Refresh')}
-                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'refresh-extractions', role: 'button', label: t('Refresh') }) })}
-              >
-                <Icon name="refresh" size={12} className={isRefreshing ? 'icon-spin' : ''} />
-                <span>{isRefreshing ? t('Refreshing') : t('Refresh')}</span>
-              </button>
+              <MemoryExtractionActions
+                onClearExtractions={onClearExtractions}
+                onRefreshExtractions={onRefreshExtractions}
+                isRefreshing={isRefreshing}
+                agentHandle={agentHandle}
+              />
             ) : null}
           </div>
         </div>
 
         <div className="library-content memory-unified-list">
           {unifiedMemoryCount === 0 ? (
-            // Empty state: one clear "no rows yet" line and a one-sentence
-            // primer that explains the mechanism (talk in chat, fact gets
-            // extracted) with a single example.
-            <div className="library-empty">
-              <p className="library-empty-title">{t('No saved memories yet')}</p>
-              <p className="library-empty-hint">
-                {t('Tell the assistant a fact in chat — e.g.')} <code>{t('I prefer dark mode')}</code>{' '}
-                {t('— and it will be saved here automatically.')}
-              </p>
-            </div>
+            <MemoryListEmpty />
           ) : (
-            <>
-              {filtered.map((entry, index) => (
-                <MemoryEntryCard
-                  key={entry.id}
-                  entry={entry}
-                  previewId={previewId}
-                  previewBody={previewBody}
-                  onOpenPreview={onOpenPreview}
-                  onStartEdit={onStartEdit}
-                  onDelete={onDeleteEntry}
-                  {...(entryHandles?.[index] ? { agentHandle: entryHandles[index] } : {})}
-                />
-              ))}
-              {visibleExtractions.map((record, index) => (
-                <MemoryExtractionCard
-                  key={record.id}
-                  record={record}
-                  nowClock={nowClock}
-                  onOpenPreview={onOpenPreview}
-                  onDelete={onDeleteExtraction}
-                  {...(extractionHandles?.[index] ? { agentHandle: extractionHandles[index] } : {})}
-                />
-              ))}
-            </>
+            <MemoryListRows
+              filtered={filtered}
+              visibleExtractions={visibleExtractions}
+              previewId={previewId}
+              previewBody={previewBody}
+              nowClock={nowClock}
+              onOpenPreview={onOpenPreview}
+              onStartEdit={onStartEdit}
+              onDeleteEntry={onDeleteEntry}
+              onDeleteExtraction={onDeleteExtraction}
+              agentHandle={agentHandle}
+            />
           )}
         </div>
       </div>

@@ -1,6 +1,8 @@
 import { useT } from '../../../i18n/index.js';
 import { useWiredResourceRowList } from '../hooks/useResourceRowList.js';
 import { ResourceRowListView } from './ResourceRowListView.js';
+import { rowListHeaderProps } from './resourceRowListProps.js';
+import { translatedErrorLabelProps } from './translatedErrorLabelProps.js';
 import type { ResourceRowListDependencies } from '../../ports.js';
 import type { ResourceMetric, ResourceRowItem, ResourceStatusOption, ResourceStatusToneMap } from '../../types.js';
 
@@ -57,18 +59,14 @@ export function ResourceRowList<TRow extends ResourceRowItem>({
 
   return (
     <ResourceRowListView
-      {...(eyebrow !== undefined ? { eyebrow } : {})}
+      {...rowListHeaderProps({ t }, { eyebrow, lede, createLabel, onCreate })}
       title={title}
-      {...(lede !== undefined ? { lede } : {})}
       metrics={metrics}
       metricsAriaLabel={t('Summary')}
-      {...(createLabel !== undefined || onCreate ? { createLabel: createLabel ?? t('New') } : {})}
-      {...(onCreate ? { onCreate } : {})}
       loading={list.loading}
       error={list.error}
-      {...(list.error ? { errorLabel: t(list.error) } : {})}
       actionError={list.actionError}
-      {...(list.actionError ? { actionErrorLabel: t(list.actionError) } : {})}
+      {...translatedErrorLabelProps({ t, error: list.error, actionError: list.actionError })}
       sectionLabel={t('Your items')}
       loadingLabel={t('Loading…')}
       emptyTitle={t('Nothing here yet')}

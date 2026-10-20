@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_SRC_DOC_CSP,
   buildLazySrcDocTransport,
@@ -193,12 +193,19 @@ describe('splice helpers', () => {
     }
   });
 
-  it('injectBeforeHeadEnd falls back to a regex replace when <head> is open but never closed', () => {
+  it('injectBeforeHeadEnd falls back to the parsed opener when <head> is open but never closed', () => {
     // No `</head>` anywhere (so the lastIndexOf search misses), but a real
-    // `<head>` opening tag is present — takes the regex-replace path rather
+    // `<head>` opening tag is present — reuses the parsed opener rather
     // than falling through to the DOMParser branch at all.
     const out = injectBeforeHeadEnd('<html><head><meta charset="utf-8"></html>', '<X/>');
     expect(out).toBe('<html><head><X/><meta charset="utf-8"></html>');
+  });
+
+  it('injectBeforeHeadEnd uses the parsed opener past fake heads and quoted delimiters', () => {
+    const doc = '<html><!-- <head> --><head data-note=">"><meta charset="utf-8"></html>';
+    expect(injectBeforeHeadEnd(doc, '<meta data-probe>')).toBe(
+      '<html><!-- <head> --><head data-note=">"><meta data-probe><meta charset="utf-8"></html>',
+    );
   });
 
   it('injectBeforeHeadEnd measures the search limit from the full doc length when there is no <body> at all', () => {
@@ -337,10 +344,9 @@ describe('buildSrcDoc', () => {
     expect(buildSrcDoc('<p>hi</p>', { lazyTransport: true })).toBe(buildLazySrcDocTransport());
   });
 
-  it('injects the base href/sandbox shim/focus guard into <body> when a full document has no <head> at all', () => {
+  it('injects the base href/sandbox shim/focus guard into the implicit head when no <head> is authored', () => {
     // A full document (starts with <html>, so buildSrcDoc passes it through
-    // unwrapped) that omits <head> entirely exercises each injector's
-    // "<body> but no <head>" fallback branch.
+    // unwrapped) must still receive all safety tags before its body content.
     const doc = buildSrcDoc('<html><body>Hi</body></html>', {
       baseHref: 'https://example.com/artifact/',
       previewFocusGuard: true,
@@ -350,22 +356,18 @@ describe('buildSrcDoc', () => {
     expect(doc).toContain('data-jini-preview-focus-guard');
   });
 
-  it('injects the sandbox shim/focus guard into <body> when there is no <head> and no baseHref (so nothing upstream synthesizes one)', () => {
-    // `injectBaseHref`'s own "no <head>" fallback wraps an <html> tag in a
-    // synthesized `<head>...</head>`, which — when baseHref *is* set — means
-    // by the time injectSandboxShim/injectPreviewFocusGuard run, the doc
-    // already has a <head> after all. Omitting baseHref here is the only way
-    // to reach their own independent "<body> but no <head>" branch.
+  it('injects the sandbox shim/focus guard into the implicit head without a baseHref', () => {
+    // Safety insertion cannot depend on a host base URL supplying a head.
     const doc = buildSrcDoc('<html><body>Hi</body></html>', { previewFocusGuard: true });
     expect(doc).not.toContain('<base href');
     expect(doc).toContain('data-jini-sandbox-shim');
     expect(doc).toContain('data-jini-preview-focus-guard');
   });
 
-  it('prepends the base href/sandbox shim/focus guard when a full document has neither <head> nor <body>', () => {
+  it('injects the base href/sandbox shim/focus guard after the doctype when no head or body is authored', () => {
     // Starts with <!doctype so buildSrcDoc treats it as a full document and
     // passes it through unwrapped, but the fragment itself has no <head> or
-    // <body> tag anywhere — the last-resort "neither" fallback branch.
+    // <body> tag anywhere; the safety tags must precede the plain content.
     const doc = buildSrcDoc('<!doctype html>just plain content, no head or body tags', {
       baseHref: 'https://example.com/other/',
       previewFocusGuard: true,
@@ -440,5 +442,385 @@ describe('canActivateSrcDocTransport', () => {
 
   it('refuses to re-activate the same HTML twice', () => {
     expect(canActivateSrcDocTransport({ ...base, activatedHtml: base.srcDoc })).toBe(false);
+  });
+});
+
+describe('buildSrcDoc byte-for-byte output pins', () => {
+  const marker: SrcDocBridge = {
+    id: 'marker',
+    inject: (doc, ctx) => doc.replace('</body>', `<i data-ctx="${String(ctx.baseHref)}|${String(ctx.extra)}"></i></body>`),
+  };
+
+  it('pins a bare fragment with default options', () => {
+    expect(buildSrcDoc('<p>hi</p>')).toMatchInlineSnapshot(`
+      "<!doctype html>
+      <html>
+        <head><script data-jini-sandbox-shim>(function(){
+        function makeStore(){
+          var data = {};
+          var api = {
+            getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+            setItem: function(k, v){ data[k] = String(v); },
+            removeItem: function(k){ delete data[k]; },
+            clear: function(){ data = {}; },
+            key: function(i){ return Object.keys(data)[i] || null; }
+          };
+          Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+          return api;
+        }
+        function tryShim(name){
+          var works = false;
+          try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+          catch (_) { works = false; }
+          if (works) return;
+          try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+          catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+        }
+        tryShim('localStorage');
+        tryShim('sessionStorage');
+        document.addEventListener('click', (e) => {
+          if (!e.target || !(e.target instanceof Element)) return;
+          var link = e.target.closest('a[href]');
+          if (!link) return;
+          var href = link.getAttribute('href');
+          if (href === null) return;
+          var isAnchor = href.startsWith('#') || href === '';
+          if (isAnchor) {
+            e.preventDefault();
+            if (href === '' || href === '#') {
+              window.scrollTo({ top: 0 });
+              history.replaceState(null, '', ' ');
+            } else {
+              var targetId = href.slice(1);
+              var target = targetId ? document.getElementById(targetId) : null;
+              if (target) {
+                target.scrollIntoView();
+                location.hash === href && history.replaceState(null, '', ' ');
+                location.hash = href;
+              }
+            }
+          } else if (link.getAttribute('target') === '_blank') {
+            e.preventDefault();
+            let safe = false;
+            try {
+              var url = new URL(href, location.href);
+              safe =
+                url.protocol === 'http:' ||
+                url.protocol === 'https:' ||
+                url.protocol === 'mailto:';
+            } catch (_) {}
+            safe && window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        });
+      })();</script><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data:; style-src 'unsafe-inline'; img-src * data: blob:; font-src * data:; media-src * data: blob:; connect-src *; frame-src *; child-src *; object-src 'none'; base-uri 'none'; form-action 'none';">
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+        </head>
+        <body><p>hi</p><script data-jini-srcdoc-transport-activation>(function(){
+        window.addEventListener('message', function(ev){
+          // Only the embedding host may replace this document; nested frames are untrusted.
+          if (ev.source !== window.parent) return;
+          var data = ev && ev.data;
+          if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
+          document.open();
+          document.write(data.html);
+          document.close();
+        });
+      })();</script></body>
+      </html>"
+    `);
+  });
+
+  it('pins a full document with title, base href, focus guard, custom CSP and a bridge', () => {
+    expect(
+      buildSrcDoc('<!doctype html><html><head><title>Q3: Plan</title></head><body><p>x</p></body></html>', {
+        baseHref: '/a/b/',
+        previewFocusGuard: true,
+        csp: "default-src 'self' \"q\"",
+        bridges: [marker],
+        bridgeContext: { extra: 'e' },
+      }),
+    ).toMatchInlineSnapshot(`
+      "<!doctype html><html><head><script data-jini-preview-focus-guard>(function(){
+        var lastTrustedInputAt = 0;
+        function userActivated(){
+          return Date.now() - lastTrustedInputAt < 1000;
+        }
+        function markTrustedInput(event){
+          if (event && event.isTrusted) lastTrustedInputAt = Date.now();
+        }
+        document.addEventListener('pointerdown', function(event){
+          markTrustedInput(event);
+        }, true);
+        document.addEventListener('keydown', function(event){
+          markTrustedInput(event);
+        }, true);
+        try {
+          var nativeWindowFocus = window.focus && window.focus.bind(window);
+          Object.defineProperty(window, 'focus', {
+            configurable: true,
+            writable: true,
+            value: function(){
+              if (userActivated() && nativeWindowFocus) return nativeWindowFocus();
+            }
+          });
+        } catch (_) {}
+        try {
+          var nativeElementFocus = HTMLElement.prototype.focus;
+          Object.defineProperty(HTMLElement.prototype, 'focus', {
+            configurable: true,
+            writable: true,
+            value: function(options){
+              if (userActivated()) return nativeElementFocus.call(this, options);
+            }
+          });
+        } catch (_) {}
+      })();</script><script data-jini-sandbox-shim>(function(){
+        function makeStore(){
+          var data = {};
+          var api = {
+            getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+            setItem: function(k, v){ data[k] = String(v); },
+            removeItem: function(k){ delete data[k]; },
+            clear: function(){ data = {}; },
+            key: function(i){ return Object.keys(data)[i] || null; }
+          };
+          Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+          return api;
+        }
+        function tryShim(name){
+          var works = false;
+          try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+          catch (_) { works = false; }
+          if (works) return;
+          try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+          catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+        }
+        tryShim('localStorage');
+        tryShim('sessionStorage');
+        document.addEventListener('click', (e) => {
+          if (!e.target || !(e.target instanceof Element)) return;
+          var link = e.target.closest('a[href]');
+          if (!link) return;
+          var href = link.getAttribute('href');
+          if (href === null) return;
+          var isAnchor = href.startsWith('#') || href === '';
+          if (isAnchor) {
+            e.preventDefault();
+            if (href === '' || href === '#') {
+              window.scrollTo({ top: 0 });
+              history.replaceState(null, '', ' ');
+            } else {
+              var targetId = href.slice(1);
+              var target = targetId ? document.getElementById(targetId) : null;
+              if (target) {
+                target.scrollIntoView();
+                location.hash === href && history.replaceState(null, '', ' ');
+                location.hash = href;
+              }
+            }
+          } else if (link.getAttribute('target') === '_blank') {
+            e.preventDefault();
+            let safe = false;
+            try {
+              var url = new URL(href, location.href);
+              safe =
+                url.protocol === 'http:' ||
+                url.protocol === 'https:' ||
+                url.protocol === 'mailto:';
+            } catch (_) {}
+            safe && window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        });
+      })();</script><base href="/a/b/"><meta http-equiv="Content-Security-Policy" content="default-src 'self' &quot;q&quot;"><title>Q3- Plan</title></head><body><p>x</p><i data-ctx="/a/b/|e"></i><script data-jini-srcdoc-transport-activation>(function(){
+        window.addEventListener('message', function(ev){
+          // Only the embedding host may replace this document; nested frames are untrusted.
+          if (ev.source !== window.parent) return;
+          var data = ev && ev.data;
+          if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
+          document.open();
+          document.write(data.html);
+          document.close();
+        });
+      })();</script></body></html>"
+    `);
+  });
+
+  it('pins csp:false with an empty bridge list', () => {
+    expect(buildSrcDoc('<html><body>b</body></html>', { csp: false, bridges: [] })).toMatchInlineSnapshot(`
+      "<html><script data-jini-sandbox-shim>(function(){
+        function makeStore(){
+          var data = {};
+          var api = {
+            getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+            setItem: function(k, v){ data[k] = String(v); },
+            removeItem: function(k){ delete data[k]; },
+            clear: function(){ data = {}; },
+            key: function(i){ return Object.keys(data)[i] || null; }
+          };
+          Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+          return api;
+        }
+        function tryShim(name){
+          var works = false;
+          try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+          catch (_) { works = false; }
+          if (works) return;
+          try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+          catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+        }
+        tryShim('localStorage');
+        tryShim('sessionStorage');
+        document.addEventListener('click', (e) => {
+          if (!e.target || !(e.target instanceof Element)) return;
+          var link = e.target.closest('a[href]');
+          if (!link) return;
+          var href = link.getAttribute('href');
+          if (href === null) return;
+          var isAnchor = href.startsWith('#') || href === '';
+          if (isAnchor) {
+            e.preventDefault();
+            if (href === '' || href === '#') {
+              window.scrollTo({ top: 0 });
+              history.replaceState(null, '', ' ');
+            } else {
+              var targetId = href.slice(1);
+              var target = targetId ? document.getElementById(targetId) : null;
+              if (target) {
+                target.scrollIntoView();
+                location.hash === href && history.replaceState(null, '', ' ');
+                location.hash = href;
+              }
+            }
+          } else if (link.getAttribute('target') === '_blank') {
+            e.preventDefault();
+            let safe = false;
+            try {
+              var url = new URL(href, location.href);
+              safe =
+                url.protocol === 'http:' ||
+                url.protocol === 'https:' ||
+                url.protocol === 'mailto:';
+            } catch (_) {}
+            safe && window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        });
+      })();</script><body>b<script data-jini-srcdoc-transport-activation>(function(){
+        window.addEventListener('message', function(ev){
+          // Only the embedding host may replace this document; nested frames are untrusted.
+          if (ev.source !== window.parent) return;
+          var data = ev && ev.data;
+          if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
+          document.open();
+          document.write(data.html);
+          document.close();
+        });
+      })();</script></body></html>"
+    `);
+  });
+
+  it('pins an empty-string csp as no CSP meta', () => {
+    expect(buildSrcDoc('<html><head></head><body></body></html>', { csp: '' })).toMatchInlineSnapshot(`
+      "<html><head><script data-jini-sandbox-shim>(function(){
+        function makeStore(){
+          var data = {};
+          var api = {
+            getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+            setItem: function(k, v){ data[k] = String(v); },
+            removeItem: function(k){ delete data[k]; },
+            clear: function(){ data = {}; },
+            key: function(i){ return Object.keys(data)[i] || null; }
+          };
+          Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+          return api;
+        }
+        function tryShim(name){
+          var works = false;
+          try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+          catch (_) { works = false; }
+          if (works) return;
+          try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+          catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+        }
+        tryShim('localStorage');
+        tryShim('sessionStorage');
+        document.addEventListener('click', (e) => {
+          if (!e.target || !(e.target instanceof Element)) return;
+          var link = e.target.closest('a[href]');
+          if (!link) return;
+          var href = link.getAttribute('href');
+          if (href === null) return;
+          var isAnchor = href.startsWith('#') || href === '';
+          if (isAnchor) {
+            e.preventDefault();
+            if (href === '' || href === '#') {
+              window.scrollTo({ top: 0 });
+              history.replaceState(null, '', ' ');
+            } else {
+              var targetId = href.slice(1);
+              var target = targetId ? document.getElementById(targetId) : null;
+              if (target) {
+                target.scrollIntoView();
+                location.hash === href && history.replaceState(null, '', ' ');
+                location.hash = href;
+              }
+            }
+          } else if (link.getAttribute('target') === '_blank') {
+            e.preventDefault();
+            let safe = false;
+            try {
+              var url = new URL(href, location.href);
+              safe =
+                url.protocol === 'http:' ||
+                url.protocol === 'https:' ||
+                url.protocol === 'mailto:';
+            } catch (_) {}
+            safe && window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        });
+      })();</script></head><body><script data-jini-srcdoc-transport-activation>(function(){
+        window.addEventListener('message', function(ev){
+          // Only the embedding host may replace this document; nested frames are untrusted.
+          if (ev.source !== window.parent) return;
+          var data = ev && ev.data;
+          if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
+          document.open();
+          document.write(data.html);
+          document.close();
+        });
+      })();</script></body></html>"
+    `);
+  });
+
+  it('pins the lazy transport shell regardless of html', () => {
+    expect(buildSrcDoc('<p>ignored</p>', { lazyTransport: true, csp: 'x' })).toBe(buildLazySrcDocTransport());
+  });
+});
+
+describe('head/body splicers without a usable DOMParser', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('injectBeforeHeadEnd prepends when DOMParser does not exist', () => {
+    vi.stubGlobal('DOMParser', undefined);
+    expect(injectBeforeHeadEnd('<p>frag</p>', '<X/>')).toBe('<X/><p>frag</p>');
+  });
+
+  it('injectBeforeBodyEnd appends when DOMParser does not exist', () => {
+    vi.stubGlobal('DOMParser', undefined);
+    expect(injectBeforeBodyEnd('<p>frag</p>', '<X/>')).toBe('<p>frag</p><X/>');
+  });
+
+  it('injectBeforeHeadEnd serializes the parsed document unchanged when it has no head element', () => {
+    class HeadlessDOMParser {
+      parseFromString(): Document {
+        const parsed = document.implementation.createHTMLDocument('');
+        parsed.documentElement.removeChild(parsed.head);
+        return parsed;
+      }
+    }
+    vi.stubGlobal('DOMParser', HeadlessDOMParser);
+    expect(injectBeforeHeadEnd('<p>frag</p>', '<X/>')).toBe('<!doctype html>\n<html><body></body></html>');
   });
 });

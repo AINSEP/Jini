@@ -61,7 +61,9 @@ export interface BuildSrcDocOptions {
 export const DEFAULT_SRC_DOC_CSP =
   "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data:; style-src 'unsafe-inline'; img-src * data: blob:; font-src * data:; media-src * data: blob:; connect-src *; frame-src *; child-src *; object-src 'none'; base-uri 'none'; form-action 'none';";
 
-/** Resolve the existing default/disabled/custom policy contract without changing caller options. */
+/** Resolve the existing default/disabled/custom policy contract without changing caller options.
+ * An empty custom string injects no policy, just like `false`.
+ */
 function resolveContentSecurityPolicy({ csp }: Pick<BuildSrcDocOptions, 'csp'>): string | null {
   if (csp === false) return null;
   return csp === true || csp === undefined ? DEFAULT_SRC_DOC_CSP : csp;
@@ -172,17 +174,8 @@ export function injectBeforeHeadEnd(doc: string, payload: string): string {
   const limit = bodyStart >= 0 ? bodyStart : lower.length;
   const idx = lower.lastIndexOf('</head>', limit - 1);
   if (idx >= 0) return doc.slice(0, idx) + payload + doc.slice(idx);
-  if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (m) => `${m}${payload}`);
-  if (typeof DOMParser !== 'undefined') {
-    try {
-      const parsed = new DOMParser().parseFromString(doc, 'text/html');
-      if (parsed.head) parsed.head.insertAdjacentHTML('beforeend', payload);
-      return serializeHtmlDocument(parsed);
-    } catch {
-      /* fall through to prepend */
-    }
-  }
-  return payload + doc;
+  if (/<head[^>]*>/i.test(doc)) return injectAfterHeadOpen(doc, payload);
+  return injectViaDomParser({ doc, payload, section: 'head' }) ?? payload + doc;
 }
 
 /** Splice `payload` right before the real `</body>` (the last one before `</html>`). See {@link injectBeforeHeadEnd}. */
@@ -192,16 +185,27 @@ export function injectBeforeBodyEnd(doc: string, payload: string): string {
   const limit = htmlEnd >= 0 ? htmlEnd : lower.length;
   const idx = lower.lastIndexOf('</body>', limit - 1);
   if (idx >= 0) return doc.slice(0, idx) + payload + doc.slice(idx);
-  if (typeof DOMParser !== 'undefined') {
-    try {
-      const parsed = new DOMParser().parseFromString(doc, 'text/html');
-      if (parsed.body) parsed.body.insertAdjacentHTML('beforeend', payload);
-      return serializeHtmlDocument(parsed);
-    } catch {
-      /* fall through to append */
-    }
+  return injectViaDomParser({ doc, payload, section: 'body' }) ?? doc + payload;
+}
+
+/**
+ * DOMParser fallback shared by the head/body splicers for fragments with no
+ * textual insertion point. Returns `null` when `DOMParser` is unavailable or
+ * throws, so the caller falls through to its own prepend/append.
+ */
+function injectViaDomParser(
+  { doc, payload, section }: { doc: string; payload: string; section: 'head' | 'body' },
+  _options: Record<string, never> = {},
+): string | null {
+  if (typeof DOMParser === 'undefined') return null;
+  try {
+    const parsed = new DOMParser().parseFromString(doc, 'text/html');
+    parsed[section]?.insertAdjacentHTML('beforeend', payload);
+    return serializeHtmlDocument(parsed);
+  } catch {
+    /* fall through to the caller's prepend/append */
+    return null;
   }
-  return doc + payload;
 }
 
 function injectSrcdocTransportActivationBridge(doc: string): string {
