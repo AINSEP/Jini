@@ -42,6 +42,13 @@ describe('save', () => {
     config.tab = 2;
     expect(session.bindings.get('binding-2')?.config).toStrictEqual({ tab: 1 });
   });
+  test('the stored form ids are a copy the plugin cannot change afterwards', async () => {
+    const session = open();
+    const formIds = ['contact'];
+    await session.port.save({ ...DRAFT, formIds });
+    formIds.push('quote');
+    expect(session.bindings.get('binding-2')?.formIds).toStrictEqual(['contact']);
+  });
   test('the surface\'s own binding is updated in place through its id', async () => {
     const session = open();
     await expect(session.port.save({ ...DRAFT, bindingId: 'ours-1', adapterId: 'acme-notes', formIds: ['contact', 'quote'] }))
