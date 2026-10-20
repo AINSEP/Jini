@@ -19,19 +19,10 @@ export function useShareImageWarning({ value, previewUrl, api }: {
   const currentUrl = useRef(previewUrl);
   currentUrl.current = previewUrl;
   const [decoded, setDecoded] = useState<{ url: string; width?: number; height?: number; failed?: boolean } | null>(null);
-  const [inspection, setInspection] = useState<{ url: string; byteSize?: number | null; error?: { key: string; vars?: Record<string, string | number> } } | null>(null);
+  const [inspection, setInspection] = useState<Inspection | null>(null);
   useEffect(() => {
     const inspect = api.inspectShareImage;
-    if (!previewUrl || !inspect) return;
-    // Browser origin, rather than the public site's alias: a cross-origin HEAD cannot establish
-    // that an otherwise loadable external image is missing when the server omits CORS headers.
-    const location = globalThis.location;
-    if (!location) return;
-    try {
-      if (new URL(previewUrl, location.href).origin !== location.origin) return;
-    } catch {
-      return;
-    }
+    if (!previewUrl || !inspect || !isBrowserSameOrigin({ url: previewUrl })) return;
     const controller = new AbortController();
     let active = true;
     const timeout = setTimeout(() => {
@@ -40,14 +31,7 @@ export function useShareImageWarning({ value, previewUrl, api }: {
       setInspection({ url: previewUrl, error: { key: 'The share image check timed out after 10 seconds.' } });
     }, 10_000);
     inspect.call(api, { url: previewUrl }, { signal: controller.signal }).then(({ status, byteSize }) => {
-      if (!active) return;
-      if (status === 404 || status === 410) {
-        setInspection({ url: previewUrl, error: { key: 'The share image is missing (HTTP {status}).', vars: { status } } });
-      } else if (status < 200 || status >= 300) {
-        setInspection({ url: previewUrl, error: { key: 'The share image could not be checked (HTTP {status}).', vars: { status } } });
-      } else {
-        setInspection({ url: previewUrl, byteSize });
-      }
+      if (active) setInspection(inspectionFromResponse({ url: previewUrl, status, byteSize }));
     }).catch((error: unknown) => {
       if (!active) return;
       const detail = error instanceof Error ? error.message : String(error);
@@ -55,20 +39,59 @@ export function useShareImageWarning({ value, previewUrl, api }: {
     }).finally(() => { clearTimeout(timeout); });
     return () => { active = false; clearTimeout(timeout); controller.abort(); };
   }, [previewUrl, api]);
-  const source = decoded?.url === previewUrl ? decoded : null;
-  const checked = inspection?.url === previewUrl ? inspection : null;
-  const error = checked?.error;
+  const source = stateForUrl({ state: decoded, url: previewUrl });
+  const checked = stateForUrl({ state: inspection, url: previewUrl });
   return {
-    naturalWidth: source?.width, naturalHeight: source?.height,
-    warning: shareImageWarning({ value, previewUrl, width: source?.width, height: source?.height, previewFailed: source?.failed, byteSize: checked?.byteSize,
-      error: error ? interpolate({ template: t(error.key, error.vars), vars: error.vars ?? {} }) : undefined }, { t }),
+    naturalWidth: source.width, naturalHeight: source.height,
+    warning: shareImageWarning({ value, previewUrl, width: source.width, height: source.height, previewFailed: source.failed, byteSize: checked.byteSize,
+      error: translatedInspectionError({ error: checked.error }, { t }) }, { t }),
     onPreviewLoad: ({ currentTarget }) => {
-      const url = currentTarget.getAttribute('src');
-      if (url && url === currentUrl.current) setDecoded({ url, width: currentTarget.naturalWidth, height: currentTarget.naturalHeight });
+      const url = currentPreviewSrc({ image: currentTarget, currentUrl: currentUrl.current });
+      if (url) setDecoded({ url, width: currentTarget.naturalWidth, height: currentTarget.naturalHeight });
     },
     onPreviewError: ({ currentTarget }) => {
-      const url = currentTarget.getAttribute('src');
-      if (url && url === currentUrl.current) setDecoded({ url, failed: true });
+      const url = currentPreviewSrc({ image: currentTarget, currentUrl: currentUrl.current });
+      if (url) setDecoded({ url, failed: true });
     },
   };
+}
+
+/** URL-keyed state for the current preview only; a prior choice's state reads as nothing known. */
+function stateForUrl<S extends { url: string }>({ state, url }: { state: S | null; url: string | null }, _optional: Record<string, never> = {}): Partial<S> {
+  return state?.url === url ? state : {};
+}
+
+type InspectionError = { key: string; vars?: Record<string, string | number> };
+type Inspection = { url: string; byteSize?: number | null; error?: InspectionError };
+
+/** Whether `url` resolves to the browser's own origin; `false` outside a browser or for an unparseable URL. */
+function isBrowserSameOrigin({ url }: { url: string }, _optional: Record<string, never> = {}): boolean {
+  // Browser origin, rather than the public site's alias: a cross-origin HEAD cannot establish
+  // that an otherwise loadable external image is missing when the server omits CORS headers.
+  const location = globalThis.location;
+  if (!location) return false;
+  try {
+    return new URL(url, location.href).origin === location.origin;
+  } catch {
+    return false;
+  }
+}
+
+/** A HEAD response as inspection state: 404/410 is a missing file, any other non-2xx an unchecked
+ * one, and a 2xx carries the reported byte size. */
+function inspectionFromResponse({ url, status, byteSize }: { url: string; status: number; byteSize: number | null }, _optional: Record<string, never> = {}): Inspection {
+  if (status === 404 || status === 410) return { url, error: { key: 'The share image is missing (HTTP {status}).', vars: { status } } };
+  if (status < 200 || status >= 300) return { url, error: { key: 'The share image could not be checked (HTTP {status}).', vars: { status } } };
+  return { url, byteSize };
+}
+
+/** The inspection error's copy, translated at render so a language switch re-renders it. */
+function translatedInspectionError({ error }: { error: InspectionError | undefined }, { t }: { t: SeoTranslator }): string | undefined {
+  return error ? interpolate({ template: t(error.key, error.vars), vars: error.vars ?? {} }) : undefined;
+}
+
+/** The preview image's `src` when it is still the current selection's; `null` for a stale event. */
+function currentPreviewSrc({ image, currentUrl }: { image: HTMLImageElement; currentUrl: string | null }, _optional: Record<string, never> = {}): string | null {
+  const url = image.getAttribute('src');
+  return url && url === currentUrl ? url : null;
 }
