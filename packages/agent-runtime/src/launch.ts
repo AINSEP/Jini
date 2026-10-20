@@ -61,28 +61,39 @@ export function applyAgentLaunchEnv({ env, launch }: { env: NodeJS.ProcessEnv; l
   // toolchain dirs; tests pass [] for determinism.
   const toPrepend = [...(nodeBinDir ? [nodeBinDir] : []), ...launch.childPathPrepend];
   if (toPrepend.length === 0 && appendPathDirs.length === 0) return env;
-  // Case-insensitive key lookup — Windows uses 'Path', not 'PATH'. Using
-  // env.PATH directly would be undefined on Windows, yielding a
-  // one-entry PATH that contains only toPrepend and discards all system
-  // paths. Find the actual key name so we update in place rather than
-  // adding a conflicting duplicate key.
-  const pathKey = Object.keys(env).find((k) => k.toLowerCase() === 'path') ?? 'PATH';
+  const pathKey = pathEnvKey(env);
   const existing = typeof env[pathKey] === 'string' ? (env[pathKey] as string) : '';
-  const normalize = (p: string) => {
-    const trimmed = p.replace(/[/\\]+$/, '');
-    return process.platform === 'win32' ? trimmed.toLowerCase() : trimmed;
-  };
   const existingParts = existing.split(delimiter).filter((e) => e.length > 0);
+  return { ...env, [pathKey]: dedupePathEntries([...toPrepend, ...existingParts, ...appendPathDirs]).join(delimiter) };
+}
+
+// Case-insensitive key lookup — Windows uses 'Path', not 'PATH'. Using
+// env.PATH directly would be undefined on Windows, yielding a
+// one-entry PATH that contains only toPrepend and discards all system
+// paths. Find the actual key name so we update in place rather than
+// adding a conflicting duplicate key.
+function pathEnvKey(env: NodeJS.ProcessEnv): string {
+  return Object.keys(env).find((k) => k.toLowerCase() === 'path') ?? 'PATH';
+}
+
+function normalizePathEntry(p: string): string {
+  const trimmed = p.replace(/[/\\]+$/, '');
+  return process.platform === 'win32' ? trimmed.toLowerCase() : trimmed;
+}
+
+// Keep the first spelling of each directory (trailing separators ignored,
+// case-insensitive on Windows).
+function dedupePathEntries(entries: string[]): string[] {
   const seen = new Set<string>();
   const merged: string[] = [];
-  for (const entry of [...toPrepend, ...existingParts, ...appendPathDirs]) {
-    const n = normalize(entry);
+  for (const entry of entries) {
+    const n = normalizePathEntry(entry);
     if (!seen.has(n)) {
       seen.add(n);
       merged.push(entry);
     }
   }
-  return { ...env, [pathKey]: merged.join(delimiter) };
+  return merged;
 }
 
 function tryResolveCodexNativeBinary(wrapperPath: string): {
@@ -153,14 +164,19 @@ function codexNativePackageSuffix(): string {
   return `${process.platform}-${process.arch}`;
 }
 
+const CODEX_NATIVE_TARGET_TRIPLES: ReadonlyMap<string, string> = new Map([
+  ['darwin-arm64', 'aarch64-apple-darwin'],
+  ['darwin-x64', 'x86_64-apple-darwin'],
+  ['linux-arm64', 'aarch64-unknown-linux-musl'],
+  ['linux-x64', 'x86_64-unknown-linux-musl'],
+  ['win32-arm64', 'aarch64-pc-windows-msvc'],
+  ['win32-x64', 'x86_64-pc-windows-msvc'],
+]);
+
+// Unmapped platform/arch pairs fall back to the npm package suffix itself.
 function codexNativeTargetTriple(): string {
-  if (process.platform === 'darwin' && process.arch === 'arm64') return 'aarch64-apple-darwin';
-  if (process.platform === 'darwin' && process.arch === 'x64') return 'x86_64-apple-darwin';
-  if (process.platform === 'linux' && process.arch === 'arm64') return 'aarch64-unknown-linux-musl';
-  if (process.platform === 'linux' && process.arch === 'x64') return 'x86_64-unknown-linux-musl';
-  if (process.platform === 'win32' && process.arch === 'arm64') return 'aarch64-pc-windows-msvc';
-  if (process.platform === 'win32' && process.arch === 'x64') return 'x86_64-pc-windows-msvc';
-  return `${process.platform}-${process.arch}`;
+  const suffix = codexNativePackageSuffix();
+  return CODEX_NATIVE_TARGET_TRIPLES.get(suffix) ?? suffix;
 }
 
 function looksLikeCodexNodeWrapper(filePath: string): boolean {

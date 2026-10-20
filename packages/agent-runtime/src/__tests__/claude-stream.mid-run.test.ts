@@ -66,3 +66,44 @@ describe('Claude interrupted segments', () => {
     ]);
   });
 });
+
+// Characterization pins (L174), green on the pre-refactor code.
+describe('Claude stream characterization', () => {
+  function harness() {
+    const events: ClaudeStreamEvent[] = [];
+    const handler = createClaudeStreamHandler({ onEvent: event => events.push(event) }, { nowMs: () => 0 });
+    return { events, handler, feed: (obj: unknown) => handler.feed({ chunk: `${JSON.stringify(obj)}\n` }) };
+  }
+
+  it('reports the model named by a message_start', () => {
+    const h = harness();
+    h.feed({ type: 'stream_event', event: { type: 'message_start', message: { id: 'm1', model: 'claude-opus-5' } } });
+    expect(h.events).toEqual([{ type: 'status', label: 'model', model: 'claude-opus-5' }]);
+  });
+
+  it('reports the model named by an assistant wrapper', () => {
+    const h = harness();
+    h.feed({ type: 'assistant', message: { id: 'm1', model: 'claude-sonnet-5', content: [] } });
+    expect(h.events).toEqual([{ type: 'status', label: 'model', model: 'claude-sonnet-5' }]);
+  });
+
+  it('bills message_delta usage of an id-less message to that anonymous message', () => {
+    const h = harness();
+    h.feed({ type: 'stream_event', event: { type: 'message_start', message: { usage: { input_tokens: 10 } } } });
+    h.feed({ type: 'stream_event', event: { type: 'message_delta', usage: { output_tokens: 40 } } });
+    h.feed({ type: 'stream_event', event: { type: 'message_start', message: { usage: { input_tokens: 5 } } } });
+    h.feed({ type: 'stream_event', event: { type: 'message_delta', delta: { usage: { output_tokens: 7 } } } });
+    h.handler.flush();
+    expect(h.events.filter(event => event.type === 'usage')).toEqual([
+      { type: 'usage', usage: { input_tokens: 15, output_tokens: 47 }, costUsd: null, durationMs: 0, stopReason: null },
+    ]);
+  });
+
+  it('ignores a message_delta with neither usage nor a delta object', () => {
+    const h = harness();
+    h.feed({ type: 'stream_event', event: { type: 'message_start', message: { id: 'm1' } } });
+    h.feed({ type: 'stream_event', event: { type: 'message_delta', delta: 'end_turn' } });
+    h.handler.flush();
+    expect(h.events).toEqual([]);
+  });
+});
