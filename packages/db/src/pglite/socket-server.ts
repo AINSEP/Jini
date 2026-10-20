@@ -273,17 +273,7 @@ class Connection {
       if (this.buffer.length < size) return undefined;
       const bytes = this.buffer.subarray(0, size);
       this.buffer = this.buffer.subarray(size);
-      if (code === SSL_REQUEST_CODE || code === GSSENC_REQUEST_CODE) {
-        this.socket.write("N");
-        return "skip";
-      }
-      if (code === CANCEL_REQUEST_CODE) {
-        this.close();
-        return undefined;
-      }
-      if (code !== PROTOCOL_3) throw new Error(`unsupported protocol ${code}`);
-      this.started = true;
-      return { bytes, startup: true };
+      return this.startupMessage({ bytes, code });
     }
     if (this.buffer.length < 5) return undefined;
     const size = 1 + this.buffer.readInt32BE(1);
@@ -291,6 +281,23 @@ class Connection {
     const bytes = this.buffer.subarray(0, size);
     this.buffer = this.buffer.subarray(size);
     return { bytes, startup: false };
+  }
+
+  private startupMessage(
+    { bytes, code }: { bytes: Buffer; code: number },
+    _optional = {}
+  ): { bytes: Buffer; startup: boolean } | "skip" | undefined {
+    if (code === SSL_REQUEST_CODE || code === GSSENC_REQUEST_CODE) {
+      this.socket.write("N");
+      return "skip";
+    }
+    if (code === CANCEL_REQUEST_CODE) {
+      this.close();
+      return undefined;
+    }
+    if (code !== PROTOCOL_3) throw new Error(`unsupported protocol ${code}`);
+    this.started = true;
+    return { bytes, startup: true };
   }
 
   private execute(message: { bytes: Buffer; startup: boolean }): Promise<void> {

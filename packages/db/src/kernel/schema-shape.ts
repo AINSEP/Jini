@@ -45,18 +45,7 @@ async function sqliteShape(kernel: StorageKernel<unknown>): Promise<SchemaShape>
     const columns = await kernel.query<{ name: string; type: string; notnull: number; dflt_value: string | null; pk: number }>(
       sql`SELECT name, type, "notnull", dflt_value, pk FROM pragma_table_info(${object.name}) ORDER BY cid`
     );
-    const indexes = await kernel.query<{ name: string; unique: number; origin: string; partial: number }>(
-      sql`SELECT name, "unique", origin, partial FROM pragma_index_list(${object.name}) ORDER BY name`
-    );
-    const indexTexts: string[] = [];
-    for (const index of indexes) {
-      const cols = await kernel.query<{ name: string | null }>(sql`SELECT name FROM pragma_index_info(${index.name}) ORDER BY seqno`);
-      const definition = objects.find((o) => o.type === "index" && o.name === index.name)?.sql;
-      const where = index.partial ? ` WHERE ${squash(definition).replace(/^.*? WHERE /i, "")}` : "";
-      // Auto-named indexes (UNIQUE/PRIMARY KEY in the table text) are identified by what they cover.
-      const label = index.origin === "c" ? index.name : `(${index.origin})`;
-      indexTexts.push(`${label} ${index.unique ? "UNIQUE " : ""}(${cols.map((c) => c.name).join(", ")})${where}`);
-    }
+    const indexTexts = await sqliteIndexTexts({ kernel, tableName: object.name, objects });
     const fks = await kernel.query<{ id: number; table: string; from: string; to: string | null; on_update: string; on_delete: string }>(
       sql`SELECT id, "table", "from", "to", on_update, on_delete FROM pragma_foreign_key_list(${object.name}) ORDER BY id, seq`
     );
@@ -77,6 +66,29 @@ async function sqliteShape(kernel: StorageKernel<unknown>): Promise<SchemaShape>
     };
   }
   return { tables, others: others.sort() };
+}
+
+async function sqliteIndexTexts(
+  { kernel, tableName, objects }: {
+    kernel: StorageKernel<unknown>;
+    tableName: string;
+    objects: readonly { type: string; name: string; sql: string | null }[];
+  },
+  _optional = {}
+): Promise<string[]> {
+  const indexes = await kernel.query<{ name: string; unique: number; origin: string; partial: number }>(
+    sql`SELECT name, "unique", origin, partial FROM pragma_index_list(${tableName}) ORDER BY name`
+  );
+  const indexTexts: string[] = [];
+  for (const index of indexes) {
+    const cols = await kernel.query<{ name: string | null }>(sql`SELECT name FROM pragma_index_info(${index.name}) ORDER BY seqno`);
+    const definition = objects.find((o) => o.type === "index" && o.name === index.name)?.sql;
+    const where = index.partial ? ` WHERE ${squash(definition).replace(/^.*? WHERE /i, "")}` : "";
+    // Auto-named indexes (UNIQUE/PRIMARY KEY in the table text) are identified by what they cover.
+    const label = index.origin === "c" ? index.name : `(${index.origin})`;
+    indexTexts.push(`${label} ${index.unique ? "UNIQUE " : ""}(${cols.map((c) => c.name).join(", ")})${where}`);
+  }
+  return indexTexts;
 }
 
 async function postgresShape(kernel: StorageKernel<unknown>): Promise<SchemaShape> {

@@ -154,15 +154,7 @@ function ownedByOtherUser(uid: number): boolean {
 export function ensurePrivateDir(dir: string, optional: { privateParent?: boolean } = {}): void {
   const parent = dirname(resolve(dir));
   if (optional.privateParent ?? dirname(parent) === "/tmp") {
-    try {
-      mkdirSync(parent, { mode: 0o700 });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    }
-    const stat = lstatSync(parent);
-    if (!stat.isDirectory() || ownedByOtherUser(stat.uid) || (stat.mode & 0o077) !== 0) {
-      throw new Error(`refusing socket parent ${parent}: not a 0700 directory owned by this user`);
-    }
+    ensurePrivateParent({ parent });
   }
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const stat = lstatSync(dir);
@@ -170,6 +162,18 @@ export function ensurePrivateDir(dir: string, optional: { privateParent?: boolea
     throw new Error(`refusing socket dir ${dir}: not a directory owned by this user`);
   }
   chmodSync(dir, 0o700);
+}
+
+function ensurePrivateParent({ parent }: { parent: string }, _optional = {}): void {
+  try {
+    mkdirSync(parent, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+  const stat = lstatSync(parent);
+  if (!stat.isDirectory() || ownedByOtherUser(stat.uid) || (stat.mode & 0o077) !== 0) {
+    throw new Error(`refusing socket parent ${parent}: not a 0700 directory owned by this user`);
+  }
 }
 
 function pidAlive(pid: number): boolean {

@@ -246,6 +246,32 @@ async function fingerprint(kernel: StorageKernel<unknown>, table: CatalogTable):
   return `${row!.n}:${row!.sum}`;
 }
 
+async function addConstraints(
+  { target, constraints }: { target: StorageKernel<unknown>; constraints: readonly CatalogConstraint[] },
+  _optional = {}
+): Promise<void> {
+  for (const constraint of constraints) {
+    await target.execute(
+      sql`ALTER TABLE ${tableRef({ schema: constraint.schema, name: constraint.table })} ADD CONSTRAINT ${sql.ref(constraint.name)} ${sql.raw(constraint.definition)}`
+    );
+  }
+}
+
+async function advanceIdentityCounters(
+  { target, tables }: { target: StorageKernel<unknown>; tables: readonly CatalogTable[] },
+  _optional = {}
+): Promise<void> {
+  // Identity counters past the copied ids, or the first insert after the move collides.
+  for (const table of tables) {
+    for (const column of table.columns.filter((c) => c.identity !== "")) {
+      await target.execute(
+        sql`SELECT setval(pg_get_serial_sequence(${quotedName(table)}, ${column.name}),
+                          COALESCE((SELECT max(${sql.ref(column.name)}) FROM ${tableRef(table)}), 0) + 1, false)`
+      );
+    }
+  }
+}
+
 /**
  * Copies every table of `source` into `target` (see this file's header). Call it with both at head
  * and the target empty ({@link nonEmptyTables}); the ledgers are checked here first.
@@ -295,11 +321,7 @@ async function copyPgStoreInternal(
       await target.execute(sql`CREATE TABLE ${tableRef(table)} (${sql.join(table.columns.map(columnDdl))})`);
     }
     const createdConstraints = sourceConstraints.filter((c) => createdIds.has(`${c.schema}.${c.table}`));
-    for (const constraint of createdConstraints.filter((c) => c.type !== "f")) {
-      await target.execute(
-        sql`ALTER TABLE ${tableRef({ schema: constraint.schema, name: constraint.table })} ADD CONSTRAINT ${sql.ref(constraint.name)} ${sql.raw(constraint.definition)}`
-      );
-    }
+    await addConstraints({ target, constraints: createdConstraints.filter((c) => c.type !== "f") });
     for (const index of sourceIndexes.filter((i) => createdIds.has(`${i.schema}.${i.table}`))) {
       await target.execute(sql.raw(index.definition));
     }
@@ -310,20 +332,8 @@ async function copyPgStoreInternal(
       report.push({ table: qualified(table), rows, created: createdIds.has(qualified(table)) });
     }
 
-    for (const fk of [...foreignKeys, ...createdConstraints.filter((c) => c.type === "f")]) {
-      await target.execute(
-        sql`ALTER TABLE ${tableRef({ schema: fk.schema, name: fk.table })} ADD CONSTRAINT ${sql.ref(fk.name)} ${sql.raw(fk.definition)}`
-      );
-    }
-    // Identity counters past the copied ids, or the first insert after the move collides.
-    for (const table of sourceTables) {
-      for (const column of table.columns.filter((c) => c.identity !== "")) {
-        await target.execute(
-          sql`SELECT setval(pg_get_serial_sequence(${quotedName(table)}, ${column.name}),
-                            COALESCE((SELECT max(${sql.ref(column.name)}) FROM ${tableRef(table)}), 0) + 1, false)`
-        );
-      }
-    }
+    await addConstraints({ target, constraints: [...foreignKeys, ...createdConstraints.filter((c) => c.type === "f")] });
+    await advanceIdentityCounters({ target, tables: sourceTables });
     for (const table of sourceTables) {
       const [a, b] = [await fingerprint(source, table), await fingerprint(target, table)];
       if (a !== b) throw new StoreCopyError(`table ${qualified(table)} did not verify after the copy: source ${a}, target ${b}`);

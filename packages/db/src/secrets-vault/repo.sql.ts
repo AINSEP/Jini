@@ -116,18 +116,24 @@ export class SqlSecretsVaultRepo implements VaultRepoPort {
     // Sort identifiers in JS to avoid host database collation changing the memory contract.
     return rows.map(fromRow).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   }
+  private async assertLabelAvailable(
+    { record, existing, moved, scope }: { record: VaultRecord; existing: VaultRecord | null; moved: boolean; scope: VaultQuery },
+    _options: VaultOptions = {}
+  ): Promise<void> {
+    // Unchanged-label rotations need no uniqueness read; DB constraints still guard writes.
+    if (moved || existing?.label !== record.label) {
+      const duplicate = await this.kernel.run(db => this.scoped({ db, input: scope }).select("id")
+        .where("id", "!=", record.id).where("label", "=", record.label).limit(1).executeTakeFirst());
+      if (duplicate) throw new VaultError({ code: "conflict" });
+    }
+  }
   async put(input: { record: VaultRecord; expectedRevision: number | null }, _options: VaultOptions = {}): Promise<VaultRecord> {
     return this.write(input.record.workspaceId, async () => {
       const existing = await this.find(input.record);
       assertVaultReplacement({ ...input, existing });
       const scope = this.group(input.record);
-      // Unchanged-label rotations need no uniqueness read; DB constraints still guard writes.
       const moved = existing !== null && existing.provider !== input.record.provider;
-      if (moved || existing?.label !== input.record.label) {
-        const duplicate = await this.kernel.run(db => this.scoped({ db, input: scope }).select("id")
-          .where("id", "!=", input.record.id).where("label", "=", input.record.label).limit(1).executeTakeFirst());
-        if (duplicate) throw new VaultError({ code: "conflict" });
-      }
+      await this.assertLabelAvailable({ record: input.record, existing, moved, scope });
       const hasGroup = (existing !== null && !moved) || input.record.isDefault || Boolean(await this.kernel.run(db =>
         this.scoped({ db, input: scope }).select("id").limit(1).executeTakeFirst()));
       const saved = { ...input.record, isDefault: input.record.isDefault || !hasGroup };
