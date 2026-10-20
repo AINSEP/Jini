@@ -21,6 +21,7 @@ const DECLARED: AdminSurfaceCapabilityDeclarations = {
 };
 const UNDECLARED_CONNECTION = "This admin surface does not declare connection 'other', so its handlers cannot use it. Declare it in the surface's connections.";
 const NO_ACTOR = 'Account actions need a signed-in admin. Open the surface from an authenticated admin page and retry.';
+const NO_TOKEN_ACTOR = 'Connection access needs a signed-in admin. Open the surface from an authenticated admin page and retry.';
 
 function open(optional: { readonly actorId?: string | null; readonly pluginId?: string; readonly live?: () => boolean } = {}) {
   const fake = createFakeSurfaceHost({ config: { ACME_APP_ID: 'app-123', ACME_OTHER: 'not-declared' }, status: { connectionRef: 'ref-must-not-leak' } });
@@ -94,6 +95,11 @@ describe('connections: only declared ones, account actions only for an admin', (
     const session = open({ actorId: null });
     await expect(call(session)).rejects.toThrow(NO_ACTOR);
     expect(session.log.calls).toEqual([]);
+  });
+  test('getAccessToken refuses without a signed-in admin and the host issues no token', async () => {
+    const session = open({ actorId: null });
+    await expect(session.capabilities.connections.getAccessToken({ connectionId: 'account' })).rejects.toThrow(NO_TOKEN_ACTOR);
+    expect(session.log.tokenRequests).toEqual([]);
   });
   test('an undeclared start parameter, a non-string value or an unknown action is refused before the host sees it', async () => {
     const session = open();
@@ -237,7 +243,8 @@ describe('plugin state and public config', () => {
   test('a token obtained in an EARLIER call of the same generation is never stored (was reported, now fixed)', async () => {
     const issued = new Set<string>();
     const fake = createFakeSurfaceHost({ config: {}, status: {} });
-    const session = () => openAdminSurfaceCapabilitySession({ capabilities: fake.port({ pluginId: PLUGIN, workspaceId: WORKSPACE_ID }), isLive: () => true, declared: DECLARED, issued });
+    const session = () => openAdminSurfaceCapabilitySession({ capabilities: fake.port({ pluginId: PLUGIN, workspaceId: WORKSPACE_ID }), isLive: () => true, declared: DECLARED, issued },
+      { actorId: 'admin-1' });
     const token = await session().capabilities.connections.getAccessToken({ connectionId: 'account' });
     await expect(session().capabilities.state.set({ key: 'kept', value: token })).rejects.toThrow(STATE_CREDENTIAL_MESSAGE);
     expect(fake.state.size).toBe(0);

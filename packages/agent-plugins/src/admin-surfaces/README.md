@@ -151,7 +151,11 @@ config) is issued by a host server route with `createAdminSurfaceBootstrap({ sur
 (a fixed one-minute lifetime) and served with `adminSurfaceBootstrapHeaders()`
 (`Cache-Control: no-store`, `Pragma: no-cache`, `nosniff`). The host page passes it inside `init`;
 the client's `bootstrap()` returns `data` only until `expiresAt`. Never put a refresh token or any
-long-lived secret in bootstrap data.
+long-lived secret in bootstrap data. `getAccessToken` is refused unless the context carries a
+signed-in admin (`principalId`), so a route without one never mints a token for a frame. The
+one-minute lifetime is enforced only by the frame's client: the access token itself stays valid at
+the provider until its own expiry (often an hour). Disabling the plugin or a product does not recall
+a token already handed to an open frame; disconnecting does, through the provider's revocation.
 
 ## Surface side
 
@@ -242,7 +246,7 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 | port | methods | Jini checks |
 |---|---|---|
 | `http`, `limiter`, `artifacts` | as for executable tools | revocation |
-| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, status, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel, lastSignInAttempt }` (`lastSignInAttempt`: `{ code, nextAction }` or `null`) | declared connection; token noted for the result/error scans; `lastSignInAttempt` keeps only `code` and `nextAction`, and becomes `null` unless both are lowercase hyphenated codes (≤ 64) |
+| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, status, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel, lastSignInAttempt }` (`lastSignInAttempt`: `{ code, nextAction }` or `null`) | declared connection; `getAccessToken` only for a signed-in admin; token noted for the result/error scans; `lastSignInAttempt` keeps only `code` and `nextAction`, and becomes `null` unless both are lowercase hyphenated codes (≤ 64) |
 | | `begin({ connectionId, action: 'connect' \| 'reconnect' \| 'switch' \| 'add-scopes' }, { scopeSetIds?, startParams? })` → `{ authorizationUrl, attemptId, expiresAt }`; the host starts the API connection with intent `ADMIN_SURFACE_ACTION_INTENTS[action]` | declared connection and start parameters, string values ≤ 2048, ≤ 16 scope-set ids, a signed-in admin (`principalId`) |
 | | `confirmSwitch`, `cancelSwitch` → status; `disconnect` → status + `revocation: 'confirmed' \| 'pending' \| 'not-needed'` | declared connection, a signed-in admin |
 | | `takeCallbackFields({ connectionId, attemptId })` → declared fields or `null` | declared connection, opaque attempt id, undeclared fields dropped |

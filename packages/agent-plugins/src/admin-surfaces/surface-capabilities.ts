@@ -192,10 +192,23 @@ function requireActor(actorId: string | undefined): void {
   if (actorId === undefined) throw new Error('Account actions need a signed-in admin. Open the surface from an authenticated admin page and retry.');
 }
 
+/**
+ * A token is handed out (to a handler, and through bootstrap data to the frame) only for a signed-in
+ * admin: a route without one must not mint a bearer token a frame keeps until it expires. Disabling
+ * the plugin cannot recall a token already handed out; disconnecting revokes it at the provider.
+ */
+function requireTokenActor(actorId: string | undefined): void {
+  if (actorId === undefined) throw new Error('Connection access needs a signed-in admin. Open the surface from an authenticated admin page and retry.');
+}
+
 /** The read side: a token (noted for the scans) and token-free status. */
-function readConnections({ gate, host, declared }: ConnectionsInput): Pick<AdminSurfaceConnections, 'getAccessToken' | 'status' | 'takeCallbackFields'> {
+function readConnections({ gate, host, declared, actorId }: ConnectionsInput): Pick<AdminSurfaceConnections, 'getAccessToken' | 'status' | 'takeCallbackFields'> {
   return {
-    getAccessToken: gate.guard(async ({ connectionId }) => gate.noteToken({ token: await host.getAccessToken({ connectionId: declaredConnection(declared, connectionId).id }) })),
+    getAccessToken: gate.guard(async ({ connectionId }) => {
+      const { id } = declaredConnection(declared, connectionId);
+      requireTokenActor(actorId);
+      return gate.noteToken({ token: await host.getAccessToken({ connectionId: id }) });
+    }),
     status: gate.guard(async ({ connectionId }) => {
       const { id } = declaredConnection(declared, connectionId);
       return toStatus(id, await host.status({ connectionId: id }));
