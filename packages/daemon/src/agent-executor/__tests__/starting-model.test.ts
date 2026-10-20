@@ -36,6 +36,29 @@ it.each(['acp-json-rpc', 'pi-rpc'])('fails an empty %s result despite the transp
 });
 
 describe('starting-model launch agreement', () => {
+  it('uses the definition selected synchronously at run call time after a registry replacement', async () => {
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    let registered = def();
+    let lookups = 0;
+    const args: string[][] = [];
+    const executor = createAgentExecutor({ lifecycle }, {
+      getAgentDef: () => { lookups++; return registered; },
+      resolveAgentLaunch: () => launch,
+      ensureAgentCapabilities: async () => {},
+      applyAgentLaunchEnv: ({ env }) => env,
+      createCommandInvocation: ({ command, args }) => ({ command, args: [...(args ?? [])], windowsVerbatimArguments: false }),
+      spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('Fixture stops before a real process'); }) as unknown as typeof nodeSpawn,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'registry-replacement' });
+    const pending = executor.run({ runId: run.id, agentId: registered.id, cwd: '/workspace', prompt: 'hello' });
+    // Replace the registry entry in the caller's same turn, before any launch continuation resumes.
+    registered = { ...def(), buildArgs: () => ['--replacement'] };
+    expect(lookups).toBe(1);
+    await expect(pending).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+    expect(args).toEqual([['--model', 'cli-pinned']]);
+    expect(lookups).toBe(1);
+  });
+
   it('passes the resolved default into the native model-selection flag', async () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const agent = def(); const args: string[][] = [];
@@ -122,4 +145,32 @@ it.each(['default', 'native-routing-alias'])('trusted parity leaves default or e
   await expect(executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' },
     { cliParity: true, nativeToolAccess: true, permissionMode: 'bypass', model })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
   expect(selections).toBe(0); expect(args).toEqual([model === 'default' ? [] : ['--model', model]]);
+});
+
+it.each([false, true])('W5 forwards launch-scoped discovery context and declared env (parity %s)', async cliParity => {
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const agent = def();
+  agent.env = { ENABLE_TOOL_SEARCH: 'false', DECLARED: 'default' };
+  const contexts: unknown[] = [];
+  const spawnEnvs: unknown[] = [];
+  const executor = createAgentExecutor({ lifecycle }, {
+    hostEnv: {}, getAgentDef: () => agent, resolveAgentLaunch: () => launch,
+    resolveModelForLaunch: async ({ context }) => {
+      contexts.push(context);
+      return { model: 'selected', catalog: await fixtureModelDiscovery.discoverModels({ context }),
+        resolution: { status: 'resolved', id: 'selected', source: 'rpc', resolvedAt: '2026-10-06T00:00:00.000Z', launchFingerprint: 'fixture' } };
+    },
+    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
+    spawn: ((_command: string, _args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
+      spawnEnvs.push(options.env); throw new Error('Stop before process creation');
+    }) as unknown as typeof nodeSpawn,
+  });
+  const { run } = await lifecycle.start({ contextRef: 'w5-model-context' });
+  await expect(executor.run({ runId: run.id, agentId: agent.id, prompt: 'hello', cwd: '/workspace' }, {
+    cliParity, permissionMode: 'bypass', model: 'default', resumeSessionId: 'prior', newSessionId: 'new',
+    settingSources: [], settings: '{}', env: { DECLARED: 'override' },
+  })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+  expect(contexts).toEqual(cliParity ? [] : [{ executable: '/fake', cwd: '/workspace', env: { ENABLE_TOOL_SEARCH: 'false', DECLARED: 'override' }, resumeSessionId: 'prior', settingSources: [], settings: '{}' }]);
+  expect(spawnEnvs).toEqual([cliParity ? { DECLARED: 'override' } : { ENABLE_TOOL_SEARCH: 'false', DECLARED: 'override' }]);
+  expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('failed');
 });

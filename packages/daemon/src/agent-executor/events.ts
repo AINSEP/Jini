@@ -662,24 +662,17 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
           if (translation.kind === 'agent') {
             const receipt = modelReceipt(translation.payload);
             if (receipt) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: receipt } }));
-            if (translation.sessionId !== undefined) capturedSessionId = translation.sessionId;
-            if (!bridgeChecked && translation.payload.type === 'status' && translation.payload.label === 'initializing') {
-              bridgeChecked = true;
-              const bridgeStatus = unavailableJiniBridgeStatus({ rawEvent: rawEvent });
-              if (bridgeStatus !== undefined) {
-                stopForUnavailableBridge(translation.payload, bridgeStatus);
-                return;
-              }
-            }
-            if (translation.payload.type === 'tool_use') {
-              pendingToolUse = { id: translation.payload.id, name: translation.payload.name, input: translation.payload.input };
-              toolCallSeen = true;
-            } else if (
-              (translation.payload.type === 'text_delta' || translation.payload.type === 'thinking_delta') &&
-              translation.payload.delta.length > 0
-            ) {
-              userVisibleOutputSeen = true;
-            }
+            applyAgentTranslationSideEffects({ payload: translation.payload, sessionId: translation.sessionId, sink: {
+              onSessionId: ({ sessionId }) => { capturedSessionId = sessionId; },
+              onToolCall: () => {
+                // A tool signal always carries the tool_use variant; retain its full input for continuation.
+                if (translation.payload.type !== 'tool_use') return;
+                pendingToolUse = { id: translation.payload.id, name: translation.payload.name, input: translation.payload.input };
+                toolCallSeen = true;
+              },
+              onUserVisibleOutput: () => { userVisibleOutputSeen = true; },
+            } });
+            if (rejectUnavailableBridge({ payload: translation.payload, rawEvent }, {})) return;
             enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: statusWithChildIdentity({ payload: translation.payload, childPid: ctx.child.pid }, {}) } }));
           } else if (translation.kind === 'error') {
             enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
@@ -687,6 +680,18 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
             handleTurnEnd(translation.stopReason);
           }
         });
+
+  function rejectUnavailableBridge({ payload, rawEvent }: { payload: RunAgentPayload; rawEvent: Record<string, unknown> }, _options = {}): boolean {
+    if (!bridgeChecked && payload.type === 'status' && payload.label === 'initializing') {
+      bridgeChecked = true;
+      const bridgeStatus = unavailableJiniBridgeStatus({ rawEvent });
+      if (bridgeStatus !== undefined) {
+        stopForUnavailableBridge(payload, bridgeStatus);
+        return true;
+      }
+    }
+    return false;
+  }
 
   /**
    * Ends a run whose CLI started without the `jini` bridge: emits the init status and a
@@ -827,20 +832,25 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       // classifier may prevent the terminal transition below — see each helper's own doc.
       await cleanupStagedFilesSafely(ctx);
       const status = await output.settle({ status: bridgeUnavailable ? 'failed' : classifyRunCloseStatus({ cancelRequested, code }, { signal }) });
-      // A bridge failure is not resumable: resuming would start the same CLI with the same bridge.
-      const resumable =
-        status === 'failed' && !bridgeUnavailable && classifyFailure !== undefined
-          ? await classifyFailureSafely(ctx, classifyFailure, {
-              runId,
-              agentId: def.id,
-              code,
-              signal: signal ?? null,
-              sideEffects: { userVisibleOutputSeen, toolCallSeen },
-            })
-          : false;
+      const resumable = await resolveChildResumable({ status, code, signal }, {});
       await lifecycle.finish({ runId, status, code, signal: signal ?? null, resumable }, { ...(capturedSessionId !== undefined ? { sessionRef: capturedSessionId } : {}) });
     })();
   });
+
+  async function resolveChildResumable(
+    { status, code, signal }: { status: string; code: number | null; signal: NodeJS.Signals | null }, _options = {},
+  ): Promise<boolean> {
+    // A bridge failure is not resumable: resuming would start the same CLI with the same bridge.
+    return status === 'failed' && !bridgeUnavailable && classifyFailure !== undefined
+      ? await classifyFailureSafely(ctx, classifyFailure, {
+          runId,
+          agentId: def.id,
+          code,
+          signal: signal ?? null,
+          sideEffects: { userVisibleOutputSeen, toolCallSeen },
+        })
+      : false;
+  }
 
   /**
    * A mid-run message: first an `interrupt` control request on the still-open stdin, so the agent
@@ -985,6 +995,23 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
   readonly classifyFailure: ClassifyFailure | undefined;
 }
 
+/** Preserve ACP's distinction between absent fields and explicitly supplied empty values. */
+function acpSessionOptions({ ctx }: { ctx: WireAcpLifecycleContext }, _options = {}): Parameters<typeof attachAcpSession>[1] {
+  return {
+    cwd: ctx.cwd,
+    ...(ctx.cliParity ? { cliParity: true, stageTimeoutMs: 0 } : {}),
+    ...(ctx.permissionMode !== undefined ? { permissionMode: ctx.permissionMode } : {}),
+    ...(ctx.model !== undefined ? { model: ctx.model } : {}),
+    ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}),
+    ...(ctx.envFormat !== undefined ? { envFormat: ctx.envFormat } : {}),
+    // Spread-when-present rather than always: passing `mcpServers: []` is not the same as passing
+    // nothing for every downstream ACP agent, and "no bridge configured" must stay byte-identical
+    // to before this field existed.
+    ...(ctx.mcpServers !== undefined && ctx.mcpServers.length > 0 ? { mcpServers: [...ctx.mcpServers] } : {}),
+    ...(ctx.onPermissionRequest !== undefined ? { onPermissionRequest: ctx.onPermissionRequest } : {}),
+  };
+}
+
 /**
  * Wires an ACP child to a run. Unlike the JSON-stream path, ACP owns the
  * prompt protocol and reports its parsed events through `attachAcpSession`'s
@@ -1080,11 +1107,7 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
       if (event === 'error') {
         enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translateAcpError(payload) } }));
       }
-    } }, { cwd: ctx.cwd, ...(ctx.cliParity ? { cliParity: true, stageTimeoutMs: 0 } : {}), ...(ctx.permissionMode !== undefined ? { permissionMode: ctx.permissionMode } : {}), ...(ctx.model !== undefined ? { model: ctx.model } : {}), ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}), ...(ctx.envFormat !== undefined ? { envFormat: ctx.envFormat } : {}),
-    // Spread-when-present rather than always: passing `mcpServers: []` is not the same as passing
-    // nothing for every downstream ACP agent, and "no bridge configured" must stay byte-identical
-    // to before this field existed.
-    ...(ctx.mcpServers !== undefined && ctx.mcpServers.length > 0 ? { mcpServers: [...ctx.mcpServers] } : {}), ...(ctx.onPermissionRequest !== undefined ? { onPermissionRequest: ctx.onPermissionRequest } : {}) });
+    } }, acpSessionOptions({ ctx }, {}));
   return controller;
 }
 

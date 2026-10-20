@@ -456,6 +456,19 @@ export function computeChildEnv({ spawnEnv, mcpBridge }: { readonly spawnEnv: No
   return systemPromptEnvOverrides === undefined ? claudeConfigDirApplied : { ...claudeConfigDirApplied, ...systemPromptEnvOverrides };
 }
 
+/** Session fields use the same nonempty-string rule as the CLI buildArgs boundary. */
+function sessionRuntimeContext(
+  { resumeSessionId, newSessionId }: { resumeSessionId?: string | null | undefined; newSessionId?: string | undefined }, _options = {},
+): Pick<RuntimeContext, 'resumeSessionId' | 'newSessionId'> {
+  // Matches claude.ts buildArgs' own `typeof x === 'string' && x` truthiness check, so an empty
+  // string or explicit `null` (no resume target yet) is treated as absent here too, rather than
+  // manufacturing a context that carries a session field the def would ignore anyway.
+  return {
+    ...(typeof resumeSessionId === 'string' && resumeSessionId.length > 0 ? { resumeSessionId } : {}),
+    ...(typeof newSessionId === 'string' && newSessionId.length > 0 ? { newSessionId } : {}),
+  };
+}
+
 /**
  * Phase 6b: the `RuntimeContext` `buildArgs` receives — `undefined` unless a file, bridge path, or
  * session id was staged. Pure.
@@ -469,29 +482,15 @@ export function computeChildEnv({ spawnEnv, mcpBridge }: { readonly spawnEnv: No
  */
 export function computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcpBridge }: { readonly preparedPromptFile: PreparedPromptFile | null; readonly preparedLogFile: PreparedAgentLogFile | null; readonly mcpBridge: McpBridgeDelivery | null }, { resumeSessionId, newSessionId }: { readonly resumeSessionId?: string | null; readonly newSessionId?: string } = {}
 ): RuntimeContext | undefined {
-  // Matches claude.ts buildArgs' own `typeof x === 'string' && x` truthiness check, so an empty
-  // string or explicit `null` (no resume target yet) is treated as absent here too, rather than
-  // manufacturing a context that carries a session field the def would ignore anyway.
-  const hasResumeSessionId = typeof resumeSessionId === 'string' && resumeSessionId.length > 0;
-  const hasNewSessionId = typeof newSessionId === 'string' && newSessionId.length > 0;
-  if (
-    !preparedPromptFile
-    && !preparedLogFile
-    && mcpBridge?.kind !== 'claude-mcp-json'
-    && !hasResumeSessionId
-    && !hasNewSessionId
-  ) {
-    return undefined;
-  }
-  return {
+  const context: RuntimeContext = {
     ...(preparedPromptFile ? { promptFilePath: preparedPromptFile.path } : {}),
     ...(preparedLogFile ? { agentLogFilePath: preparedLogFile.path } : {}),
     // Safe to pass before the file exists: `writeMcpJsonForRun` runs after buildArgs but still
     // before spawn, so the path is real by the time the child process starts.
     ...(mcpBridge?.kind === 'claude-mcp-json' ? { mcpJsonPath: mcpBridge.mcpJsonPath } : {}),
-    ...(hasResumeSessionId ? { resumeSessionId } : {}),
-    ...(hasNewSessionId ? { newSessionId } : {}),
+    ...sessionRuntimeContext({ resumeSessionId, newSessionId }, {}),
   };
+  return Object.keys(context).length === 0 ? undefined : context;
 }
 
 /**
@@ -509,6 +508,27 @@ function computeSystemPromptOverlay(
   });
 }
 
+type AgentBuildInput = Parameters<typeof buildAgentBuildArgsOptions>[0]['input'];
+
+/** Native policy forwarding also enforces parity's permission and tool-access prerequisites. */
+function nativeBuildOptions({ input, permissionMode }: { input: AgentBuildInput; permissionMode: 'restricted' | 'bypass' }, _options = {}): RuntimeBuildOptions {
+  return {
+    ...(input.nativeToolAccess !== undefined ? { nativeToolAccess: input.nativeToolAccess } : {}),
+    ...(input.nativeCapabilities ? { nativeCapabilities: input.nativeCapabilities } : {}),
+    ...(input.cliParity === true && permissionMode === 'bypass' && input.nativeToolAccess !== false ? { cliParity: true } : {}),
+  };
+}
+
+/** Preserve explicit empty restrictions and settings: they have meaning to the native CLI. */
+function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = {}): RuntimeBuildOptions {
+  return {
+    ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
+    ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
+    ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
+    ...(input.settings !== undefined ? { settings: input.settings } : {}),
+  };
+}
+
 /** Phase 9a: the def's `buildArgs` 4th argument. Historically omitted when every override was absent;
  * that let defs silently enable auto-approval. Always supply the validated restricted default now. Pure. */
 export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'nativeToolAccess' | 'nativeCapabilities' | 'cliParity' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings'>; readonly systemPromptOverlay: string | null | undefined }
@@ -522,16 +542,36 @@ export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { rea
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
     permissionMode,
-    ...(input.nativeToolAccess !== undefined ? { nativeToolAccess: input.nativeToolAccess } : {}),
-    ...(input.nativeCapabilities ? { nativeCapabilities: input.nativeCapabilities } : {}),
-    ...(input.cliParity === true && permissionMode === 'bypass' && input.nativeToolAccess !== false ? { cliParity: true } : {}),
-    ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
-    ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
-    ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
-    ...(input.settings !== undefined ? { settings: input.settings } : {}),
+    ...nativeBuildOptions({ input, permissionMode }, {}),
+    ...settingsBuildOptions({ input }, {}),
     ...(hasOverlay ? { systemPromptOverlay } : {}),
   };
-  return Object.keys(options).length === 0 ? undefined : options;
+  return options;
+}
+
+function hasSystemPromptOverlay(args: { overlay: string | null | undefined }, _options = {}): args is { overlay: string } {
+  return typeof args.overlay === 'string' && args.overlay.length > 0;
+}
+
+function appendFlagOverlay({ defId, systemPromptDelivery, overlay, prompt }: {
+  defId: string; systemPromptDelivery: Extract<NonNullable<RuntimeAgentDef['systemPromptDelivery']>, { strategy: 'append-flag' }>;
+  overlay: string; prompt: string;
+}, { state }: { state?: AgentRuntimeState | undefined } = {}): SystemPromptOverlayDelivery {
+  const capabilityKey = systemPromptDelivery.capabilityKey;
+  // `!== false`, not a truthiness check: mirrors `claude.ts`'s own pre-existing
+  // `agentCapabilities.get('claude') || {}` gate exactly (moved here, not changed) — an
+  // undetected/never-probed capability defaults to allowed, and only an EXPLICIT `false` (the
+  // `--help` probe ran and did not find the flag) withholds it. `capabilityKey === undefined`
+  // (e.g. `pi`'s existing `--append-system-prompt`, trusted unconditionally) always passes, same
+  // as an absent key.
+  const capabilityOk = capabilityKey === undefined || (state?.capabilities ?? agentCapabilities).get(defId)?.[capabilityKey] !== false;
+  return { promptPrefix: '', prompt, extraArgs: capabilityOk ? [systemPromptDelivery.flag, overlay] : [], envOverrides: {} };
+}
+
+function isContinuingOverlaySession({ resumesSessionViaCli, resumesSessionViaAcpLoad, resumeSessionId }: Pick<Parameters<typeof resolveSystemPromptOverlayDelivery>[0], 'resumesSessionViaCli' | 'resumesSessionViaAcpLoad' | 'resumeSessionId'>, _options = {}): boolean {
+  return (resumesSessionViaCli === true || resumesSessionViaAcpLoad === true) &&
+    typeof resumeSessionId === 'string' &&
+    resumeSessionId.length > 0;
 }
 
 /**
@@ -586,21 +626,14 @@ export function resolveSystemPromptOverlayDelivery(input: {
   readonly prompt: string;
   readonly resumeSessionId: string | null | undefined;
 }, { state }: { state?: AgentRuntimeState } = {}): SystemPromptOverlayDelivery {
-  const { defId, systemPromptDelivery, resumesSessionViaCli, resumesSessionViaAcpLoad, overlay, prompt, resumeSessionId } = input;
-  if (typeof overlay !== 'string' || overlay.length === 0) {
+  const { defId, systemPromptDelivery, resumesSessionViaCli, resumesSessionViaAcpLoad, prompt, resumeSessionId } = input;
+  if (!hasSystemPromptOverlay(input, {})) {
     return { promptPrefix: '', prompt, extraArgs: [], envOverrides: {} };
   }
+  const overlay = input.overlay;
 
   if (systemPromptDelivery?.strategy === 'append-flag') {
-    const capabilityKey = systemPromptDelivery.capabilityKey;
-    // `!== false`, not a truthiness check: mirrors `claude.ts`'s own pre-existing
-    // `agentCapabilities.get('claude') || {}` gate exactly (moved here, not changed) — an
-    // undetected/never-probed capability defaults to allowed, and only an EXPLICIT `false` (the
-    // `--help` probe ran and did not find the flag) withholds it. `capabilityKey === undefined`
-    // (e.g. `pi`'s existing `--append-system-prompt`, trusted unconditionally) always passes, same
-    // as an absent key.
-    const capabilityOk = capabilityKey === undefined || (state?.capabilities ?? agentCapabilities).get(defId)?.[capabilityKey] !== false;
-    return { promptPrefix: '', prompt, extraArgs: capabilityOk ? [systemPromptDelivery.flag, overlay] : [], envOverrides: {} };
+    return appendFlagOverlay({ defId, systemPromptDelivery, overlay, prompt }, { state });
   }
 
   if (systemPromptDelivery?.strategy === 'env-var') {
@@ -624,11 +657,7 @@ export function resolveSystemPromptOverlayDelivery(input: {
     return { promptPrefix: '', prompt, extraArgs: [], envOverrides: {} };
   }
 
-  const isContinuingExistingSession =
-    (resumesSessionViaCli === true || resumesSessionViaAcpLoad === true) &&
-    typeof resumeSessionId === 'string' &&
-    resumeSessionId.length > 0;
-  if (isContinuingExistingSession) {
+  if (isContinuingOverlaySession({ resumesSessionViaCli, resumesSessionViaAcpLoad, resumeSessionId }, {})) {
     return { promptPrefix: '', prompt, extraArgs: [], envOverrides: {} };
   }
 
@@ -815,6 +844,39 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
   }
 }
 
+type MutableRunInput = { -readonly [K in keyof AgentExecutorRunInput]: AgentExecutorRunInput[K] };
+
+/** Only include declared capability restrictions; absence has a distinct downstream contract. */
+function nativeCapabilityInput({ input }: { input: AgentExecutorRunInput }, _options = {}) {
+  return { ...(input.nativeCapabilities !== undefined ? { nativeCapabilities: input.nativeCapabilities } : {}) };
+}
+
+/** Model discovery consumes the exact spawn environment and caller-supplied settings. */
+function launchModelContext({ input, launch, spawnEnv }: { input: AgentExecutorRunInput; launch: ConfirmedAgentLaunchResolution; spawnEnv: NodeJS.ProcessEnv }, _options = {}) {
+  return {
+    executable: launch.launchPath, cwd: input.cwd, env: spawnEnv,
+    ...(input.model && input.model !== 'default' ? { model: input.model } : {}),
+    ...(input.resumeSessionId ? { resumeSessionId: input.resumeSessionId } : {}),
+    ...(input.settingSources ? { settingSources: input.settingSources } : {}),
+    ...(input.settings ? { settings: input.settings } : {}),
+  };
+}
+
+/** Paths are available only after staging; retain the strategy gate for instructions files. */
+function stagedChildEnvOptions({ def, preparedCodexHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides }: {
+  def: RuntimeAgentDef; preparedCodexHome: PreparedCodexHome | null; preparedClaudeConfigDir: PreparedClaudeConfigDir | null;
+  preparedSystemPromptOverlayFile: PreparedSystemPromptOverlayFile | null; systemPromptEnvOverrides: Readonly<Record<string, string>>;
+}, _options = {}) {
+  return {
+    ...(preparedCodexHome === null ? {} : { codexHomeDir: preparedCodexHome.path }),
+    systemPromptEnvOverrides,
+    ...(preparedSystemPromptOverlayFile && def.systemPromptDelivery?.strategy === 'config-instructions-file'
+      ? { stagedInstructionsFile: { varName: def.systemPromptDelivery.varName, path: preparedSystemPromptOverlayFile.path } }
+      : {}),
+    ...(preparedClaudeConfigDir === null ? {} : { claudeConfigDir: preparedClaudeConfigDir.path }),
+  };
+}
+
 /**
  * Creates the `AgentExecutor` reference implementation: an in-process
  * `RunLifecycle` driver over real (by default) `@jini-ai/agent-runtime`
@@ -906,44 +968,29 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     return deliver ? deliver(text, imageContents) : 'not-running';
   }
 
-  /**
-   * `AgentExecutor.run()` — see that interface method's own doc for the
-   * public contract. Implementation note on shape: every guard below
-   * returns `failBeforeSpawn(...)` directly (a `Promise<never>`, valid
-   * wherever `Promise<void>` is expected) rather than `await`-then-`return`,
-   * so each failure path reads as a single, obviously-terminal statement.
-   * @param input - `{runId, agentId, prompt, cwd, model?, reasoning?, imagePaths?, extraAllowedDirs?, uploadRoot?, env?}` — `runId` must already be `lifecycle.start()`-ed.
-   * @throws {@link AgentExecutorError} — see index.ts module doc's Invariant; never a bare `Error`.
-   * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
-   * @overallScore 100/100
-   */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings"> = {}): Promise<void> {
-  const input: { -readonly [K in keyof AgentExecutorRunInput]: AgentExecutorRunInput[K] } = { ...requiredArgs, ...optionalArgs, permissionMode: optionalArgs.permissionMode ?? 'restricted' };
+  /** Validates launch input and selects the definition synchronously before yielding. */
+  async function prepareRunContext({ requiredArgs, optionalArgs }: {
+    requiredArgs: Parameters<AgentExecutor['run']>[0]; optionalArgs: NonNullable<Parameters<AgentExecutor['run']>[1]>;
+  }, _options = {}): Promise<ResolvedDefAndFormat & { input: MutableRunInput }> {
+    const input: MutableRunInput = { ...requiredArgs, ...optionalArgs, permissionMode: optionalArgs.permissionMode ?? 'restricted' };
     if (input.permissionMode !== 'restricted' && input.permissionMode !== 'bypass') {
       return failBeforeSpawn({ runId: input.runId, code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' });
     }
-    const { def, streamFormat } = await resolveDefAndStreamFormat({ input: { runId: input.runId, agentId: input.agentId }, deps: { getAgentDef: getAgentDefFn, failBeforeSpawn } }
-    );
+    // Lookup runs before the first await so a subsequent registry replacement cannot change this run's definition.
+    const resolved = await resolveDefAndStreamFormat({ input, deps: { getAgentDef: getAgentDefFn, failBeforeSpawn } });
+    return { input, ...resolved };
+  }
 
-    // Computed once, before anything downstream ever looks at "the prompt" or "the allowed
-    // dirs" — a no-op (`{prompt: input.prompt, extraAllowedDirs: input.extraAllowedDirs}`,
-    // literally unchanged) unless `def.imageDelivery === 'prompt-path'` AND `input.imagePaths`
-    // is non-empty, so this can never affect a 'native'-delivery def (ACP, pi-rpc, qoder) or a
-    // run with no attachments. See `image-prompt-delivery.ts`'s own doc for the full mechanism;
-    // every use of `input.prompt`/`input.extraAllowedDirs` below that reflects what the CLI
-    // actually receives reads `imageDelivery.*` instead — the two ACP/pi-rpc `wire*Lifecycle`
-    // calls further down deliberately keep reading `input.prompt` verbatim, since those two
-    // defs' own native protocol already delivers the image and must never also get this
-    // treatment (the double-delivery hazard this mechanism exists to avoid).
+  async function enforceNativeToolPolicy({ input, def }: { input: MutableRunInput; def: RuntimeAgentDef }, _options = {}) {
     // Never silently ignore a host's locked native-tool policy on another CLI.
     // Parity cannot override an explicit lock or a restricted run.
     input.cliParity = input.cliParity === true && input.permissionMode === 'bypass' && input.nativeToolAccess !== false;
     if ((input.nativeToolAccess !== undefined && !input.cliParity || Object.values(input.nativeCapabilities ?? {}).some(value => value === false)) && def.supportsNativeToolAccess !== true) {
       return failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: 'This CLI has no native-tool policy and audit adapter. Choose a CLI with native-tool policy support.' });
     }
-    const imageDelivery = await resolveImageDeliveryAndArgvBudget({ input: { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs }, deps: { failBeforeSpawn } }
-    );
+  }
 
+  function resolveRunOverlay({ input, def, imageDelivery }: { input: AgentExecutorRunInput; def: RuntimeAgentDef; imageDelivery: ImagePromptDelivery }, _options = {}) {
     // Phase 8, hoisted deliberately above EVERY step that writes or sends the prompt. Four
     // different channels carry a prompt in this driver, and they do not all run at the same point:
     // the `promptViaFile` staging below writes its file BEFORE `buildArgs`, `buildArgs` itself runs
@@ -962,10 +1009,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // because every `PromptAugmenter.systemOverlay()` implementation this seam has today wants the
     // same overlay on every turn, not a first-turn-only one; a caller that needs finer-grained turn
     // numbering can track it itself and ignore this arg.
-    const preStagingRuntimeContext = computeRuntimeContext({ preparedPromptFile: null, preparedLogFile: null, mcpBridge: null }, {
-      ...(input.resumeSessionId === undefined ? {} : { resumeSessionId: input.resumeSessionId }),
-      ...(input.newSessionId === undefined ? {} : { newSessionId: input.newSessionId }),
-    });
+    const preStagingRuntimeContext = computeRuntimeContext({ preparedPromptFile: null, preparedLogFile: null, mcpBridge: null }, sessionRuntimeContext(input, {}));
     const systemPromptOverlay = computeSystemPromptOverlay(promptAugmenter, def.id, preStagingRuntimeContext);
     const overlayDelivery = resolveSystemPromptOverlayDelivery({
       defId: def.id,
@@ -977,6 +1021,10 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       resumeSessionId: preStagingRuntimeContext?.resumeSessionId,
     }, options.runtimeState ? { state: options.runtimeState } : {});
 
+    return { systemPromptOverlay, overlayDelivery };
+  }
+
+  async function resolveRunLaunch({ input, def }: { input: AgentExecutorRunInput; def: RuntimeAgentDef }, _options = {}) {
     // The def's own declared env (e.g. claude's `ENABLE_TOOL_SEARCH=false`) is a default the run's
     // env can override. Detection already spawns with it (`detection.ts`); without this the run
     // spawn silently dropped it. Declared by the def itself, so it never widens SEC-001's allowlist.
@@ -988,6 +1036,10 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     );
 
     const spawnEnv = applyAgentLaunchEnvFn({ env: { ...resolvedEnv }, launch });
+    return { launch, spawnEnv };
+  }
+
+  async function selectRunModel({ input, def, launch, spawnEnv }: { input: MutableRunInput; def: RuntimeAgentDef; launch: ConfirmedAgentLaunchResolution; spawnEnv: NodeJS.ProcessEnv }, _options = {}) {
     // Locked runs pin the picker's concrete ID before any prompt is sent. Trusted parity keeps
     // the CLI's own configured default and effort, without requiring discovery to succeed.
     if (input.cliParity && input.model === 'default') delete input.model;
@@ -995,19 +1047,187 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     if (!input.cliParity) {
       try {
         const selectModel = options.resolveModelForLaunch ?? ((input: Parameters<typeof resolveModelForLaunch>[0]) => resolveModelForLaunch(input, options.runtimeState ? { deps: getRuntimeModelDiscoveryDeps({ state: options.runtimeState }) } : {}));
-        const selection = await selectModel({ def, context: {
-          executable: launch.launchPath, cwd: input.cwd, env: spawnEnv,
-          ...(input.model && input.model !== 'default' ? { model: input.model } : {}),
-          ...(input.resumeSessionId ? { resumeSessionId: input.resumeSessionId } : {}),
-          ...(input.settingSources ? { settingSources: input.settingSources } : {}),
-          ...(input.settings ? { settings: input.settings } : {}),
-        } });
+        const selection = await selectModel({ def, context: launchModelContext({ input, launch, spawnEnv }, {}) });
         input.model = selection.model;
         modelCatalog = selection.catalog;
       } catch {
         return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: pick a concrete model; the starting model could not be resolved for this launch.' });
       }
     }
+    return modelCatalog;
+  }
+
+  function bridgeProbeEntryForRun({ mcpBridge }: { mcpBridge: McpBridgeDelivery | null }, _options = {}) {
+    // probeMcpBridge itself strips the run credential and swaps in a diagnostic run id.
+    return mcpBridge?.kind === 'claude-mcp-json' && mcpJsonInjection?.probeOnFailure !== false
+      ? mcpBridge.serverEntry
+      : undefined;
+  }
+
+  function wireRunInput({ input, def, streamFormat, child, modelCatalog, cleanupStagedFiles, writtenMcpJsonPath, mcpBridge }: {
+    input: AgentExecutorRunInput; def: RuntimeAgentDef; streamFormat: SupportedStreamFormat; child: ChildProcess;
+    modelCatalog: ModelCatalogSnapshot | undefined; cleanupStagedFiles: () => Promise<void>;
+    writtenMcpJsonPath: string | undefined; mcpBridge: McpBridgeDelivery | null;
+  }, _options = {}) {
+    const formatForStdin = { streamFormat };
+    const stdinHandle = isStdinDrivenFormat(formatForStdin)
+      ? wireChildLifecycle({
+          ...(input.model ? { startingModel: input.model } : {}),
+          ...(modelCatalog ? { modelCatalog } : {}),
+          runId: input.runId,
+          def,
+          streamFormat: formatForStdin.streamFormat,
+          child,
+          lifecycle,
+          listProcessSnapshots: listProcessSnapshotsFn,
+          collectProcessTreePids: collectProcessTreePidsFn,
+          stopProcesses: stopProcessesFn,
+          onCleanupFailure: onCleanupFailureFn,
+          cleanupStagedFiles,
+          journal,
+          continuation,
+          classifyFailure,
+          bufferedStdoutMaxBytes,
+          expectsJiniBridge: writtenMcpJsonPath !== undefined,
+          bridgeProbeEntry: bridgeProbeEntryForRun({ mcpBridge }, {}),
+          probeMcpBridge: options.probeMcpBridge ?? probeMcpBridge,
+        })
+      : null;
+
+    // Registered with the lifecycle wiring above, before the spawn-confirmation await, so a child
+    // that closes immediately never leaves a stale entry behind.
+    const runId = input.runId;
+    liveRunInputs.set(runId, stdinHandle ? stdinHandle.sendUserMessage : async () => 'unsupported');
+    child.once('close', () => liveRunInputs.delete(runId));
+    return stdinHandle;
+  }
+
+  async function dispatchAcpPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, mcpBridge, overlayDelivery }: {
+    input: AgentExecutorRunInput; def: RuntimeAgentDef; child: ChildProcess; modelCatalog: ModelCatalogSnapshot | undefined;
+    cleanupStagedFiles: () => Promise<void>; releaseStagedResources: () => Promise<void>;
+    mcpBridge: McpBridgeDelivery | null; overlayDelivery: SystemPromptOverlayDelivery;
+  }, _options = {}) {
+    await runAcpDispatch({ input: {
+        runId: input.runId,
+        agentId: def.id,
+        child,
+    // `overlayDelivery.promptPrefix` applied to `input.prompt`, NOT `overlayDelivery.prompt`:
+    // this call site deliberately sends the raw input prompt rather than the image-delivery
+    // rewrite (see `resolveImageDeliveryAndArgvBudget`'s call site above — an ACP def delivers
+    // images natively and must never also get `'prompt-path'`'s appended paths), and the prefix
+    // is the part of the overlay decision that applies to whatever prompt text a transport was
+    // already sending. `''` for `reasonix` (env-var) and any resumed ACP session, so those keep
+    // sending byte-identical text and never receive the overlay twice.
+        prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
+        cwd: input.cwd,
+        permissionMode: input.permissionMode,
+        cliParity: input.cliParity,
+        model: input.model,
+        ...(modelCatalog ? { modelCatalog } : {}),
+        imagePaths: input.imagePaths ?? [],
+        envFormat: def.acpMcpEnvFormat,
+        mcpBridge,
+      }, deps: {
+        lifecycle,
+        attachAcpSession: attachAcpSessionFn,
+        onPermissionRequest: options.acpPermissionHandler,
+        listProcessSnapshots: listProcessSnapshotsFn,
+        collectProcessTreePids: collectProcessTreePidsFn,
+        stopProcesses: stopProcessesFn,
+        onCleanupFailure: onCleanupFailureFn,
+        cleanupStagedFiles,
+        journal,
+        classifyFailure,
+        releaseStagedResources,
+        failBeforeSpawn,
+      } }
+    );
+  }
+
+  async function dispatchPiPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, overlayDelivery }: {
+    input: AgentExecutorRunInput; def: RuntimeAgentDef; child: ChildProcess; modelCatalog: ModelCatalogSnapshot | undefined;
+    cleanupStagedFiles: () => Promise<void>; releaseStagedResources: () => Promise<void>;
+    overlayDelivery: SystemPromptOverlayDelivery;
+  }, _options = {}) {
+    await runPiRpcDispatch({ input: {
+        runId: input.runId,
+        agentId: def.id,
+        child,
+        // Same reasoning as the ACP call site above. `pi` declares an `'append-flag'` strategy,
+        // so its prefix is `''` and this stays byte-identical to the raw prompt — the overlay
+        // rides `--append-system-prompt` instead, exactly once.
+        prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
+        cwd: input.cwd,
+        model: input.model,
+        ...(modelCatalog ? { modelCatalog } : {}),
+        imagePaths: input.imagePaths ?? [],
+        uploadRoot: input.uploadRoot,
+      }, deps: {
+        lifecycle,
+        attachPiRpcSession: attachPiRpcSessionFn,
+        listProcessSnapshots: listProcessSnapshotsFn,
+        collectProcessTreePids: collectProcessTreePidsFn,
+        stopProcesses: stopProcessesFn,
+        onCleanupFailure: onCleanupFailureFn,
+        cleanupStagedFiles,
+        journal,
+        classifyFailure,
+        releaseStagedResources,
+        failBeforeSpawn,
+      } }
+    );
+  }
+
+  function dispatchStdinPrompt({ input, def, child, overlayDelivery, imageDelivery, stdinHandle }: {
+    input: AgentExecutorRunInput; def: RuntimeAgentDef; child: ChildProcess; overlayDelivery: SystemPromptOverlayDelivery;
+    imageDelivery: ImagePromptDelivery; stdinHandle: StdinCloseHandle | null;
+  }, _options = {}) {
+    // The overlay reaches stdin only for a def that declares stdin as its prompt transport. The
+    // four `plain`-format defs that do not (`aider`/`antigravity`/`deepseek` put the prompt in
+    // argv, `grok-build` in a staged file) are still written to and closed here exactly as before,
+    // because this driver always spawns with `stdio: ['pipe','pipe','pipe']` and their CLIs need
+    // the EOF — but their prompt already carried the overlay through argv or the staged file, so
+    // sending the overlaid text here too would deliver it twice. This is the one place the
+    // resolver's own `''`-prefix rule is not sufficient on its own: those four defs are on the
+    // fallback strategy, so their prefix is genuinely non-empty; what makes stdin the wrong
+    // channel for them is the def's declared transport, not the strategy.
+    const stdinPrompt = def.promptViaStdin === true ? overlayDelivery.prompt : imageDelivery.prompt;
+    if (input.imageContents !== undefined) stdinHandle!.imageContents = input.imageContents;
+    writePromptToStdin(def, child, stdinPrompt, stdinHandle!);
+  }
+
+  /**
+   * `AgentExecutor.run()` — see that interface method's own doc for the
+   * public contract. Implementation note on shape: every guard below
+   * returns `failBeforeSpawn(...)` directly (a `Promise<never>`, valid
+   * wherever `Promise<void>` is expected) rather than `await`-then-`return`,
+   * so each failure path reads as a single, obviously-terminal statement.
+   * @param input - `{runId, agentId, prompt, cwd, model?, reasoning?, imagePaths?, extraAllowedDirs?, uploadRoot?, env?}` — `runId` must already be `lifecycle.start()`-ed.
+   * @throws {@link AgentExecutorError} — see index.ts module doc's Invariant; never a bare `Error`.
+   * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
+   * @overallScore 100/100
+   */
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings"> = {}): Promise<void> {
+    const { input, def, streamFormat } = await prepareRunContext({ requiredArgs, optionalArgs }, {});
+
+    // Computed once, before anything downstream ever looks at "the prompt" or "the allowed
+    // dirs" — a no-op (`{prompt: input.prompt, extraAllowedDirs: input.extraAllowedDirs}`,
+    // literally unchanged) unless `def.imageDelivery === 'prompt-path'` AND `input.imagePaths`
+    // is non-empty, so this can never affect a 'native'-delivery def (ACP, pi-rpc, qoder) or a
+    // run with no attachments. See `image-prompt-delivery.ts`'s own doc for the full mechanism;
+    // every use of `input.prompt`/`input.extraAllowedDirs` below that reflects what the CLI
+    // actually receives reads `imageDelivery.*` instead — the two ACP/pi-rpc `wire*Lifecycle`
+    // calls further down deliberately keep reading `input.prompt` verbatim, since those two
+    // defs' own native protocol already delivers the image and must never also get this
+    // treatment (the double-delivery hazard this mechanism exists to avoid).
+    await enforceNativeToolPolicy({ input, def }, {});
+    const imageDelivery = await resolveImageDeliveryAndArgvBudget({ input: { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs }, deps: { failBeforeSpawn } }
+    );
+
+    const { systemPromptOverlay, overlayDelivery } = resolveRunOverlay({ input, def, imageDelivery }, {});
+
+    const { launch, spawnEnv } = await resolveRunLaunch({ input, def }, {});
+    const modelCatalog = await selectRunModel({ input, def, launch, spawnEnv }, {});
     // Fill the def's `--help` capability gate before `buildArgs` reads it. Without this, only a
     // host that happened to call `detectAgents` in THIS process ever had the gate filled, so e.g.
     // `claude` never got `--include-partial-messages` (no streamed text). Probes once per binary;
@@ -1099,10 +1319,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const mcpBridge = await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
     );
 
-    const runtimeContext = computeRuntimeContext({ preparedPromptFile: preparedPromptFile, preparedLogFile: preparedLogFile, mcpBridge: mcpBridge }, {
-      ...(input.resumeSessionId === undefined ? {} : { resumeSessionId: input.resumeSessionId }),
-      ...(input.newSessionId === undefined ? {} : { newSessionId: input.newSessionId }),
-    }
+    const runtimeContext = computeRuntimeContext({ preparedPromptFile: preparedPromptFile, preparedLogFile: preparedLogFile, mcpBridge: mcpBridge }, sessionRuntimeContext(input, {})
     );
 
     // A `runtimeLock` def's buildArgs mutates process-global state its own CLI reads back at
@@ -1144,7 +1361,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // points at a real file. Skipped entirely for the other four mechanisms and whenever no bridge
     // was resolved at all. `writtenMcpJsonPath` is set only once the write actually happens, so
     // `cleanupStagedFiles` knows there is a live-token file to remove afterward.
-    writtenMcpJsonPath = await writeMcpJsonIfNeeded({ input: { runId: input.runId, cwd: input.cwd, nativeToolAccess: input.nativeToolAccess, ...(input.nativeCapabilities !== undefined ? { nativeCapabilities: input.nativeCapabilities } : {}), def, mcpBridge }, deps: { mcpJsonInjection, releaseStagedResources, failBeforeSpawn } }
+    writtenMcpJsonPath = await writeMcpJsonIfNeeded({ input: { runId: input.runId, cwd: input.cwd, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge }, deps: { mcpJsonInjection, releaseStagedResources, failBeforeSpawn } }
     );
 
     // Mechanism 5 of 5's one effect — stage this run's scratch `CODEX_HOME` directory. Skipped
@@ -1152,7 +1369,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `codex.ts`'s `buildArgs` needs no argv change for this (CODEX_HOME is an env var, not a flag),
     // so — unlike the `.mcp.json` staging above — this can run after `buildArgs` with no ordering
     // constraint of its own; it is placed here only to keep the two staging steps adjacent.
-    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...(input.nativeCapabilities !== undefined ? { nativeCapabilities: input.nativeCapabilities } : {}), def, mcpBridge }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
+    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
     );
     // Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stage this run's scratch
     // `CLAUDE_CONFIG_DIR` directory. Unconditional for a `claude`-id run (unlike CODEX_HOME above,
@@ -1181,15 +1398,9 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `McpBridgeDelivery`'s `'codex-toml'` variant doc for why it cannot be pre-computed the way
     // `'claude-mcp-json'`'s deterministic path is). Nothing between the old, earlier call site and
     // here ever read `childEnv`, so moving the call cost nothing.
-    const childEnv = computeChildEnv({ spawnEnv: spawnEnv, mcpBridge: mcpBridge }, {
-      ...(preparedCodexHome === null ? {} : { codexHomeDir: preparedCodexHome.path }),
-      systemPromptEnvOverrides,
-      ...(preparedSystemPromptOverlayFile && def.systemPromptDelivery?.strategy === 'config-instructions-file'
-        ? { stagedInstructionsFile: { varName: def.systemPromptDelivery.varName, path: preparedSystemPromptOverlayFile.path } }
-        : {}),
-      ...(preparedClaudeConfigDir === null ? {} : { claudeConfigDir: preparedClaudeConfigDir.path }),
-    }
-    );
+    const childEnv = computeChildEnv({ spawnEnv, mcpBridge }, stagedChildEnvOptions({
+      def, preparedCodexHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides,
+    }, {}));
 
     // Post-buildArgs guard for argv-bound defs whose resolved binary is a
     // Windows .cmd/.bat shim or a direct .exe: a prompt under the raw byte
@@ -1220,39 +1431,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // all emits no `'exit'`, and is covered instead by `releaseStagedResources` on the reject path.
     child.once('exit', releaseRuntimeLock);
 
-    const formatForStdin = { streamFormat };
-    const stdinHandle = isStdinDrivenFormat(formatForStdin)
-      ? wireChildLifecycle({
-          ...(input.model ? { startingModel: input.model } : {}),
-          ...(modelCatalog ? { modelCatalog } : {}),
-          runId: input.runId,
-          def,
-          streamFormat: formatForStdin.streamFormat,
-          child,
-          lifecycle,
-          listProcessSnapshots: listProcessSnapshotsFn,
-          collectProcessTreePids: collectProcessTreePidsFn,
-          stopProcesses: stopProcessesFn,
-          onCleanupFailure: onCleanupFailureFn,
-          cleanupStagedFiles,
-          journal,
-          continuation,
-          classifyFailure,
-          bufferedStdoutMaxBytes,
-          expectsJiniBridge: writtenMcpJsonPath !== undefined,
-          // probeMcpBridge itself strips the run credential and swaps in a diagnostic run id.
-          bridgeProbeEntry: mcpBridge?.kind === 'claude-mcp-json' && mcpJsonInjection?.probeOnFailure !== false
-            ? mcpBridge.serverEntry
-            : undefined,
-          probeMcpBridge: options.probeMcpBridge ?? probeMcpBridge,
-        })
-      : null;
-
-    // Registered with the lifecycle wiring above, before the spawn-confirmation await, so a child
-    // that closes immediately never leaves a stale entry behind.
+    const stdinHandle = wireRunInput({ input, def, streamFormat, child, modelCatalog, cleanupStagedFiles, writtenMcpJsonPath, mcpBridge }, {});
     const runId = input.runId;
-    liveRunInputs.set(runId, stdinHandle ? stdinHandle.sendUserMessage : async () => 'unsupported');
-    child.once('close', () => liveRunInputs.delete(runId));
 
     try {
       await confirmChildSpawned({ input: { runId: input.runId, def, child }, deps: { releaseStagedResources, failBeforeSpawn } });
@@ -1270,87 +1450,12 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     );
 
     if (streamFormat === 'acp-json-rpc') {
-      await runAcpDispatch({ input: {
-          runId: input.runId,
-          agentId: def.id,
-          child,
-      // `overlayDelivery.promptPrefix` applied to `input.prompt`, NOT `overlayDelivery.prompt`:
-      // this call site deliberately sends the raw input prompt rather than the image-delivery
-      // rewrite (see `resolveImageDeliveryAndArgvBudget`'s call site above — an ACP def delivers
-      // images natively and must never also get `'prompt-path'`'s appended paths), and the prefix
-      // is the part of the overlay decision that applies to whatever prompt text a transport was
-      // already sending. `''` for `reasonix` (env-var) and any resumed ACP session, so those keep
-      // sending byte-identical text and never receive the overlay twice.
-          prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
-          cwd: input.cwd,
-          permissionMode: input.permissionMode,
-          cliParity: input.cliParity,
-          model: input.model,
-          ...(modelCatalog ? { modelCatalog } : {}),
-          imagePaths: input.imagePaths ?? [],
-          envFormat: def.acpMcpEnvFormat,
-          mcpBridge,
-        }, deps: {
-          lifecycle,
-          attachAcpSession: attachAcpSessionFn,
-          onPermissionRequest: options.acpPermissionHandler,
-          listProcessSnapshots: listProcessSnapshotsFn,
-          collectProcessTreePids: collectProcessTreePidsFn,
-          stopProcesses: stopProcessesFn,
-          onCleanupFailure: onCleanupFailureFn,
-          cleanupStagedFiles,
-          journal,
-          classifyFailure,
-          releaseStagedResources,
-          failBeforeSpawn,
-        } }
-      );
-      return;
+      return dispatchAcpPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, mcpBridge, overlayDelivery }, {});
     }
-
     if (streamFormat === 'pi-rpc') {
-      await runPiRpcDispatch({ input: {
-          runId: input.runId,
-          agentId: def.id,
-          child,
-          // Same reasoning as the ACP call site above. `pi` declares an `'append-flag'` strategy,
-          // so its prefix is `''` and this stays byte-identical to the raw prompt — the overlay
-          // rides `--append-system-prompt` instead, exactly once.
-          prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
-          cwd: input.cwd,
-          model: input.model,
-          ...(modelCatalog ? { modelCatalog } : {}),
-          imagePaths: input.imagePaths ?? [],
-          uploadRoot: input.uploadRoot,
-        }, deps: {
-          lifecycle,
-          attachPiRpcSession: attachPiRpcSessionFn,
-          listProcessSnapshots: listProcessSnapshotsFn,
-          collectProcessTreePids: collectProcessTreePidsFn,
-          stopProcesses: stopProcessesFn,
-          onCleanupFailure: onCleanupFailureFn,
-          cleanupStagedFiles,
-          journal,
-          classifyFailure,
-          releaseStagedResources,
-          failBeforeSpawn,
-        } }
-      );
-      return;
+      return dispatchPiPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, overlayDelivery }, {});
     }
-
-    // The overlay reaches stdin only for a def that declares stdin as its prompt transport. The
-    // four `plain`-format defs that do not (`aider`/`antigravity`/`deepseek` put the prompt in
-    // argv, `grok-build` in a staged file) are still written to and closed here exactly as before,
-    // because this driver always spawns with `stdio: ['pipe','pipe','pipe']` and their CLIs need
-    // the EOF — but their prompt already carried the overlay through argv or the staged file, so
-    // sending the overlaid text here too would deliver it twice. This is the one place the
-    // resolver's own `''`-prefix rule is not sufficient on its own: those four defs are on the
-    // fallback strategy, so their prefix is genuinely non-empty; what makes stdin the wrong
-    // channel for them is the def's declared transport, not the strategy.
-    const stdinPrompt = def.promptViaStdin === true ? overlayDelivery.prompt : imageDelivery.prompt;
-    if (input.imageContents !== undefined) stdinHandle!.imageContents = input.imageContents;
-    writePromptToStdin(def, child, stdinPrompt, stdinHandle!);
+    dispatchStdinPrompt({ input, def, child, overlayDelivery, imageDelivery, stdinHandle }, {});
   }
 
   return { run, sendUserMessage };

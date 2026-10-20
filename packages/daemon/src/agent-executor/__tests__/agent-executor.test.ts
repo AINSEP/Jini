@@ -7034,3 +7034,68 @@ describe('AgentExecutor — model receipts', () => {
     ]);
   });
 });
+
+// Written against the pre-W5 callback and close handler, before extracting their decisions.
+describe('W5 stream and ACP lifecycle characterization', () => {
+  it.each([
+    { type: 'text', value: '', visible: false },
+    { type: 'text', value: 'answer', visible: true },
+    { type: 'thinking', value: '', visible: false },
+    { type: 'thinking', value: 'plan', visible: true },
+  ])('records parser output side effects without treating empty deltas as output: %j', async ({ type, value, visible }) => {
+    const classifyFailure = vi.fn((_context: Parameters<ClassifyFailure>[0]) => true);
+    const { lifecycle, executor, child } = createHarness({ def: createFakeDef({ streamFormat: 'claude-stream-json' }), classifyFailure });
+    const { run } = await lifecycle.start({ contextRef: 'w5-deltas' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
+    child.stdout.emit('data', `${JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: `${type}_delta`, [type]: value } } })}\n`);
+    child.emit('close', 1, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+    expect(classifyFailure.mock.calls[0]![0].sideEffects).toEqual({ userVisibleOutputSeen: visible, toolCallSeen: false });
+  });
+
+  it('captures tool and session signals, errors and ignored frames before failed close', async () => {
+    const classifyFailure = vi.fn((_context: Parameters<ClassifyFailure>[0]) => false);
+    const { lifecycle, executor, child } = createHarness({ classifyFailure });
+    const { run } = await lifecycle.start({ contextRef: 'w5-signals' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
+    child.stdout.emit('data', [
+      { type: 'thread.started', thread_id: 'thread-w5' },
+      { type: 'item.started', item: { id: 'tool-w5', type: 'command_execution', command: 'pwd' } },
+      { type: 'error', message: 'fixture failure' },
+      { type: 'unknown' },
+    ].map(frame => JSON.stringify(frame)).join('\n') + '\n');
+    child.emit('close', 1, 'SIGTERM');
+    await lifecycle.waitForTerminal({ runId: run.id });
+    expect(classifyFailure.mock.calls[0]![0]).toMatchObject({ code: 1, signal: 'SIGTERM', sideEffects: { userVisibleOutputSeen: false, toolCallSeen: true } });
+    const events = await collectEvents(lifecycle, run.id);
+    expect(events).toContainEqual(expect.objectContaining({ kind: 'error', payload: { message: 'fixture failure' } }));
+    expect(events.at(-1)).toMatchObject({ kind: 'end', payload: { sessionRef: 'thread-w5', resumable: false } });
+  });
+
+  it.each([{}, { model: 'chosen', imagePaths: ['/image.png'] }])('keeps ACP optional launch fields absent or forwarded: %j', async fields => {
+    const { lifecycle, executor, child, attachCalls } = createAcpHarness({ def: { acpMcpEnvFormat: 'map' } });
+    const { run } = await lifecycle.start({ contextRef: 'w5-acp-options' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' }, fields);
+    expect(attachCalls[0]).toMatchObject({ prompt: 'hello', cwd: '/work', permissionMode: 'restricted', envFormat: 'map', imagePaths: fields.imagePaths });
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+  });
+});
+
+it('a failed prompt cleanup skips later staged log cleanup (reported, not fixed)', async () => {
+  // Existing sequential cleanup stops at its first rejection; later sensitive staged files remain.
+  const promptCleanup = vi.fn(async () => { throw new Error('fixture prompt cleanup failure'); });
+  const logCleanup = vi.fn(async () => {});
+  const { lifecycle, executor, child, onCleanupFailure } = createHarness({
+    def: createFakeDef({ promptViaFile: true, needsAgentLogFile: true }),
+    preparePromptFileForAgent: async () => ({ path: '/scratch/prompt', cleanup: promptCleanup }),
+    prepareAgentLogFile: async () => ({ path: '/scratch/log', cleanup: logCleanup }),
+  });
+  const { run } = await lifecycle.start({ contextRef: 'w5-cleanup-short-circuit' });
+  await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
+  child.emit('close', 1, null);
+  expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('failed');
+  expect(promptCleanup).toHaveBeenCalledTimes(1);
+  expect(logCleanup).not.toHaveBeenCalled();
+  expect(onCleanupFailure).toHaveBeenCalledWith(expect.objectContaining({ phase: 'staged-file-cleanup' }));
+});
