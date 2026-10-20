@@ -89,7 +89,7 @@ export function pointInPolygon(point: Point, polygon: readonly Point[]): boolean
 }
 
 /** The rect's 4 corners, clockwise from its top-left. */
-function rectCorners(rect: Rect): [Point, Point, Point, Point] {
+function rectCorners({ rect }: { rect: Rect }): [Point, Point, Point, Point] {
   const x2 = rect.x + rect.width;
   const y2 = rect.y + rect.height;
   return [
@@ -101,23 +101,23 @@ function rectCorners(rect: Rect): [Point, Point, Point, Point] {
 }
 
 /** Is `point` inside `rect`, border included? */
-function rectHoldsPoint(rect: Rect, point: Point): boolean {
+function rectHoldsPoint({ rect, point }: { rect: Rect; point: Point }): boolean {
   return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
 }
 
 /** Does segment `from`→`to` cross any of the 4 edges (top, right, bottom, left) of the rect with these `corners`? */
-function segmentCrossesRectEdges(from: Point, to: Point, corners: readonly Point[]): boolean {
+function segmentCrossesRectEdges({ from, to, corners }: { from: Point; to: Point; corners: readonly Point[] }): boolean {
   return corners.some((corner, index) => lineIntersectsLine(from, to, corner, corners[(index + 1) % corners.length]!));
 }
 
 /** Does the polyline `points` pass through `rect`, either by a point
  *  landing inside it or a segment crossing one of its 4 edges? */
 export function pathIntersectsRect(points: readonly Point[], rect: Rect): boolean {
-  const corners = rectCorners(rect);
+  const corners = rectCorners({ rect });
   return points.some((point, index) => {
-    if (rectHoldsPoint(rect, point)) return true;
+    if (rectHoldsPoint({ rect, point })) return true;
     const next = points[index + 1];
-    return next !== undefined && segmentCrossesRectEdges(point, next, corners);
+    return next !== undefined && segmentCrossesRectEdges({ from: point, to: next, corners });
   });
 }
 
@@ -140,5 +140,5 @@ export function lassoSelectionHitsRect(input: LassoHitTestInput): boolean {
   if (!closedLoop) return false;
   const center: Point = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   if (pointInPolygon(center, points)) return true;
-  return rectCorners(rect).some((corner) => pointInPolygon(corner, points));
+  return rectCorners({ rect }).some((corner) => pointInPolygon(corner, points));
 }
