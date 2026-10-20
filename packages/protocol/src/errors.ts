@@ -86,6 +86,21 @@ export interface DecodedApiError {
   requestId?: string;
 }
 
+function decodeApiErrorRecord(
+  { record, error }: { record: Record<string, unknown>; error: Record<string, unknown> },
+  { fallbackMessage = 'request failed' }: { fallbackMessage?: string } = {},
+): DecodedApiError {
+  // Share/import routes use a flat code/message envelope; keep legacy string-error precedence.
+  const message = error === record ? (typeof record.error === 'string' ? record.error : record.message) : error.message;
+  return {
+    message: typeof message === 'string' ? message : fallbackMessage,
+    ...(typeof error.code === 'string' ? { code: error.code } : {}),
+    ...(error.details !== undefined ? { details: error.details } : {}),
+    ...(typeof error.retryable === 'boolean' ? { retryable: error.retryable } : {}),
+    ...(typeof error.requestId === 'string' ? { requestId: error.requestId } : {}),
+  };
+}
+
 /** Decode legacy string errors and canonical nested errors without stringifying arbitrary objects.
  * @param requiredArgs - Untrusted parsed response body.
  * @param optionalArgs - Caller-owned fallback copy (for example one containing the HTTP status).
@@ -101,13 +116,5 @@ export function decodeApiError(
   const nested = record.error;
   const error = nested !== null && typeof nested === 'object' && !Array.isArray(nested)
     ? nested as Record<string, unknown> : record;
-  // Share/import routes use a flat code/message envelope; keep legacy string-error precedence.
-  const message = error === record ? (typeof record.error === 'string' ? record.error : record.message) : error.message;
-  return {
-    message: typeof message === 'string' ? message : fallbackMessage,
-    ...(typeof error.code === 'string' ? { code: error.code } : {}),
-    ...(error.details !== undefined ? { details: error.details } : {}),
-    ...(typeof error.retryable === 'boolean' ? { retryable: error.retryable } : {}),
-    ...(typeof error.requestId === 'string' ? { requestId: error.requestId } : {}),
-  };
+  return decodeApiErrorRecord({ record, error }, { fallbackMessage });
 }
