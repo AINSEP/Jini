@@ -18,7 +18,7 @@ claude-segment-usage 32/25, detection 23/19, model-discovery 34/24, qoder-stream
 | L045 | pending | | | | |
 | L059 | dispatched 01:30Z | | | | |
 | L174 | pending | | | | |
-| L198 | dispatched 01:30Z | | | | |
+| L198 | MERGED 0f6c99be | 88dca258, c6667314 | 18/16 → ≤10/≤10 (0 violations) | 100/100/100 (34 tests; needs `--coverage.exclude=__none__`) | eslint 0, tsc ok, tests green; markup proof 864 old-vs-new renders identical (temp test deleted) |
 | L283 | pending | | | | |
 
 ## Timings
@@ -26,4 +26,5 @@ claude-segment-usage 32/25, detection 23/19, model-discovery 34/24, qoder-stream
 - Baseline: all 66 lot test files green on unmodified tree (1449 passed, 1 pre-existing skip). agent-runtime tsc clean.
 - Round 1 dispatched 01:30Z.
 ## Problems
+- L198: BubbleScene test resolves react from the root `node_modules/.pnpm/node_modules` hoist dir (template is not a workspace member); template tsc only checked against a remotion stub.
 ## Next
