@@ -12,8 +12,8 @@ Baseline (unmodified tree): `tsc --noEmit -p packages/chat` clean; temp eslint (
 | L072 | store/runtime | 28/25 (history-tools assistant_chat_read) | | | | running |
 | L076 | embed-widget | 24/31 (fetch-sse startRun arrow) | | | | running |
 | L081 | chat-pane/components | 32/22 (ChatPane / AgentRuntimePicker) | | | | running |
-| L098 | react (files) | 27/35 (message-blocks interleaveMessageBlocks) | | | | running |
-| L120 | store/legacy | 31/24 (messages.ts arrow) | | | | queued |
+| L098 | react (files) | 27/35 (message-blocks interleaveMessageBlocks) | 10/10 | 100/100/100 | b3dcd5c9, 028d8986 | merged ✓ (eslint 0, tsc ok, 41 tests) |
+| L120 | store/legacy | 31/24 (messages.ts arrow) | | | | running |
 | L150 | react/hooks | 15/17 | | | | queued |
 | L168 | core/run-events | 18/16 (chunkEvent) | | | | queued |
 | L184 | server | 14/13 (recover decide) | | | | queued |
