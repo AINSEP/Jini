@@ -97,7 +97,8 @@ function toBinding(gate: AgentPluginCapabilityGate, binding: AdminSurfaceDeliver
  */
 export function guardDeliveryBindings(
   required: { readonly gate: AgentPluginCapabilityGate; readonly host: AdminSurfaceDeliveryBindings } & Allowlists,
-  optional: { readonly actorId?: string } = {},
+  // `| undefined`: the session forwards its own optional actor as is.
+  optional: { readonly actorId?: string | undefined } = {},
 ): AdminSurfaceDeliveryBindings {
   const { gate, host } = required;
   const forActor = <A extends unknown[], R>(call: (...args: A) => Promise<R>) => gate.guard(async (...args: A) => {
