@@ -7,7 +7,7 @@
  * never received it). Action and schema checks here are an early refusal for the person using the
  * surface; the server-side dispatcher repeats them because a host route can be called directly.
  */
-import { validateAdminSurfaceActionValue } from './action-schema.js';
+import { exceedsAdminSurfacePayloadLimit, validateAdminSurfaceActionValue } from './action-schema.js';
 import type { AdminSurfaceDescriptor } from './descriptor.js';
 import {
   ADMIN_SURFACE_PROTOCOL, ADMIN_SURFACE_PROTOCOL_VERSION, SANDBOXED_FRAME_ORIGIN,
@@ -38,7 +38,6 @@ export type AdminSurfaceMessageVerdict =
   | { readonly ok: false; readonly refused: string; readonly response: AdminSurfaceActionResponse };
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
-const MAX_PAYLOAD_CHARS = 64 * 1024;
 
 function isRequestEnvelope(data: unknown): data is AdminSurfaceActionRequest {
   if (typeof data !== 'object' || data === null) return false;
@@ -53,10 +52,6 @@ function hasRequestFields(message: Readonly<Record<string, unknown>>): boolean {
 }
 
 /** Character length of the payload as JSON, or Infinity when it is not JSON-serializable. */
-function payloadSize(payload: unknown): number {
-  try { return JSON.stringify(payload)?.length ?? Infinity; } catch { return Infinity; }
-}
-
 /** Which transport check `event` fails for `mount`, or `null` when it is this mount's well-formed request. */
 function transportRefusal(event: AdminSurfaceMessageEvent, mount: AdminSurfaceMountRecord): string | null {
   if (event.origin !== (mount.expectedOrigin ?? SANDBOXED_FRAME_ORIGIN)) return 'origin-mismatch';
@@ -77,7 +72,7 @@ export function validateAdminSurfaceMessage(required: { readonly event: AdminSur
   const refuse = (code: string, message: string) => ({ ok: false as const, refused: code, response: adminSurfaceActionResponse({ request, outcome: { ok: false, error: { code, message, retryable: false } } }) });
   const action = mount.descriptor.actions.find((declared) => declared.name === request.action);
   if (action === undefined) return refuse('action-undeclared', 'This surface did not declare that action.');
-  if (payloadSize(request.payload) > MAX_PAYLOAD_CHARS) return refuse('invalid-payload', 'The request is too large.');
+  if (exceedsAdminSurfacePayloadLimit({ payload: request.payload })) return refuse('invalid-payload', 'The request is too large.');
   const violation = validateAdminSurfaceActionValue({ schema: action.input, value: request.payload });
   if (violation !== null) return refuse('invalid-payload', `The request does not match the action's input: ${violation}.`);
   return { ok: true, request };
