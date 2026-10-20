@@ -999,7 +999,7 @@ async function resolvePostContentRenderContext(
  * ONE id-else-slug lookup, via the identical visibility guard ({@link findPublishedPostById}/
  * {@link findPublishedPostBySlug}), rather than two copies that could drift apart.
  *
- * Non-throwing: `null` means "not found, not visible, or the ref carries neither key" — the same
+ * Non-throwing: `null` means "not found or not visible" — the same
  * REQ-27 degrade-to-placeholder contract every resolver in this registry follows.
  *
  * @complexity O(1) — one guarded repo lookup (by id or by slug, never both), no iteration.
@@ -1013,10 +1013,9 @@ async function findPublishedPostByRef(
   if (ref.id !== null) {
     return host.posts.findPublishedPostById({ deps: { repo: postRepo }, input: { workspaceId: context.workspaceId, id: ref.id } });
   }
-  if (ref.slug !== null) {
-    return host.posts.findPublishedPostBySlug({ deps: { repo: postRepo }, input: { workspaceId: context.workspaceId, slug: ref.slug } });
-  }
-  return null;
+  // `slug` is non-null here: both callers (`resolvePostTypeEmbeds`, `resolveOneContentEmbed`) return
+  // before calling this when `ref.id ?? ref.slug` is null, so an id-less ref always carries a slug.
+  return host.posts.findPublishedPostBySlug({ deps: { repo: postRepo }, input: { workspaceId: context.workspaceId, slug: ref.slug! } });
 }
 
 /**
