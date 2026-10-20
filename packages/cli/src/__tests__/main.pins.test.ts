@@ -106,6 +106,20 @@ describe('main pins: first-token aliases', () => {
     expect(r.out.join('')).toContain('run <start|list|get|cancel|watch>');
   });
 
+  it('a leading -h prints root usage even when an unknown command follows it', async () => {
+    const r = record();
+    await main({ argv: ['-h', 'bogus'] }, r.deps);
+    expect(r.out.join('')).toContain('jini <command>');
+    expect(r.exits).toEqual([]);
+  });
+
+  it('a leading --help prints root usage even when an unknown command follows it', async () => {
+    const r = record();
+    await main({ argv: ['--help', 'bogus'] }, r.deps);
+    expect(r.out.join('')).toContain('jini <command>');
+    expect(r.exits).toEqual([]);
+  });
+
   it('keeps the tokens after a leading --version for the version command', async () => {
     const r = record();
     await main({ argv: ['--version', '--daemon-url', 'http://127.0.0.1:6'] }, r.deps);
