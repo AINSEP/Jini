@@ -16,7 +16,7 @@
 | L152a | MERGED | e4c8ece4 | fn 13/11 → 9/7 (file worst 10/9) | trust.ts 100/100/100, no artifact lines (my run: 32 files, 593 tests) | eslint 0, tsc 0, tests ok no Errors line, guard 26 = base 26 (identical set) |
 | L152b | running | | 15/15 → | | |
 | L104 | running | | 23/26 → | | |
-| L113-L188-L203-L236 | running | | 23/42 → | | |
+| L113-L188-L203-L236 | MERGED | 96cb2b7d | client extractRelativeRefs 23/42→5/5 (file 6/7); serve 23/14→7/5; ask-choice 15/17→7/6; install planAgentInstall 16/0→4/1 (file 8/5) | 4 files 100/100/100 (my run: 15 files, 322 tests) | eslint 0, tsc 0, tests ok no Errors, guard = base |
 | L036a | MERGED | 23ee2630 | search-enricher 13/0→10/3; github-backend 11/0→4/0; github-client 11/11→6/5 | all 3 files 100/100/100 (my run: 8 files, 133 tests) | eslint 0, tsc 0, tests ok no Errors, guard = base |
 | L036b | running | | 39/25 → | | |
 
@@ -36,3 +36,10 @@
 - Checks removed: none. Messages changed: none.
 - Bug pinned: JSON `null` body → bare TypeError (2xx readManifest; non-2xx PR creation).
 - SECURITY: github-client encPath lets `..` segments through → manifestPath `../../../../user` resolves to /user on API host with token (PINNED); same for owner/repo `..` via enc/repoPath (not pinned); apiUrl override gets bearer token with no https/host check (host config); no response-size cap (relies on HttpClientPort); PRE-EXISTING literal `EC PRIVATE KEY` PEM in registry src/__tests__/github-backend.test.ts:8-25 (test CA fixture, not added this wave).
+### L113-L188-L203-L236 (subagent: ~185k tokens, 54 tool calls)
+- Commits f24a6ada 1a43bf05 4a13508a 5535d525 9da3eb5f f82352a0 c7902325 96cb2b7d. NOTE 1a43bf05 states 3/2 for extractRelativeRefs (actual 5/5; corrected in 5535d525's message).
+- Temp differentials: client.ts 20k inputs, install.ts 28.5k combos (incl. prototype slugs) — identical; deleted.
+- Over-engineering: client repeated isHtmlLike + per-candidate dir; serve 5 conditional spreads → definedOnly; install unused envKey param, opencode IIFE, genericMcpServersSnippet (== jsonEntry), cline/trae platform dup → editorUserDir; planAgentInstall switch → total AGENT_PLANNERS map + own-property slug guard (constructor/__proto__ still throw, pinned).
+- Check removed: ask-choice presentFallback `ticket !== undefined` before cleanup redeem. Proof: mint typed string, only package store always mints non-empty (pinned test), redeem(undefined) refused by contract. Coordinator: accepted — removal makes the invalidation unconditional (stricter), not an auth gate.
+- Message changed: serve.ts missing daemon URL → "no daemon URL resolved: <ENV> is unset or empty; the spawning Jini daemon must set it to its HTTP base URL." (old text advised flagUrl/discover/defaultUrl that this process lacks); pinned test updated.
+- SECURITY (pinned, reported not fixed): client.ts backslash `..\..\x` not split → passes root-escape check; install.ts relative APPDATA → relative config path; install.ts serverName starting with `-` goes into agent CLI argv (flag injection); install.ts hermes YAML snippet interpolates serverName/env keys unquoted (YAML injection); serve.ts bearer token still sent to remote plain-HTTP daemon URL (warn only).
