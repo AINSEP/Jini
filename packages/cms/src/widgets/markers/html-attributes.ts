@@ -138,7 +138,8 @@ const ASCII_WHITESPACE_OR_CONTROL_MAX_CODE_POINT = 0x20;
 function isUnsafeUrlValue(value: string): boolean {
   let stripped = "";
   for (const char of value) {
-    if ((char.codePointAt(0) ?? 0) > ASCII_WHITESPACE_OR_CONTROL_MAX_CODE_POINT) stripped += char;
+    // A `for...of` step always yields one whole code point, so `codePointAt(0)` is never undefined.
+    if (char.codePointAt(0)! > ASCII_WHITESPACE_OR_CONTROL_MAX_CODE_POINT) stripped += char;
   }
   stripped = stripped.toLowerCase();
   return stripped.startsWith("javascript:") || stripped.startsWith("vbscript:") || stripped.startsWith("data:");
@@ -191,7 +192,7 @@ function isUnsafeStyleValue(value: string, { styleContext }: { styleContext?: "s
 function classifyEmbedHtmlAttributeToken(name: string, value: string, options: { styleContext?: "stylesheet" } = {}): EmbedHtmlAttributeError | null {
   if (name.startsWith("on")) return { reason: "event-handler", attribute: name };
   if (isUnsafeUrlValue(value)) return { reason: "unsafe-url", attribute: name };
-  if (!isAllowedEmbedHtmlAttributeName({ name: name })) return { reason: "disallowed-name", attribute: name };
+  if (!isAllowedEmbedHtmlAttributeName({ name })) return { reason: "disallowed-name", attribute: name };
   if (name === "style" && isUnsafeStyleValue(value, options)) return { reason: "unsafe-style", attribute: name };
   return null;
 }
@@ -199,6 +200,20 @@ function classifyEmbedHtmlAttributeToken(name: string, value: string, options: {
 /** Matches one `name`, or one `name="value"`/`name='value'`/`name=value` pair — the same loose shape
  *  real HTML attribute syntax allows, ported unchanged from the admin's tokenizer. */
 const HTML_ATTRIBUTE_TOKEN = /([^\s="']+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s"']+)))?/g;
+
+/** The value of one {@link HTML_ATTRIBUTE_TOKEN} match: whichever of the double-quoted, single-quoted
+ *  or bare value groups matched, or `""` for a bare boolean name (`muted`). */
+function tokenValue(match: RegExpExecArray): string {
+  return match[2] ?? match[3] ?? match[4] ?? "";
+}
+
+/** The fail-closed result for a fragment the tokenizer could not parse: everything parsed so far is
+ *  discarded and the `malformed` entry is recorded last (see this file's header for why). */
+function malformedResult({ errors, fragment }: { errors: EmbedHtmlAttributeError[]; fragment: string }): ParsedEmbedHtmlAttributes {
+  const malformed: EmbedHtmlAttributeError = { reason: "malformed", attribute: fragment.trim() };
+  errors.push(malformed);
+  return { attributes: {}, errors, error: malformed };
+}
 
 /**
  * Parses free-text HTML attributes (`name="value" name2="value2"`, or a bare boolean `name`) into a
@@ -235,28 +250,18 @@ export function parseEmbedHtmlAttributes({ text }: { text: string }, options: { 
     // could not parse as a name (e.g. a stray quote) — the tokenizer has lost sync, so everything
     // parsed so far is discarded rather than trusted (see this file's header).
     const skipped = trimmed.slice(consumed, match.index);
-    if (skipped.trim() !== "") {
-      const malformed: EmbedHtmlAttributeError = { reason: "malformed", attribute: skipped.trim() };
-      errors.push(malformed);
-      return { attributes: {}, errors, error: malformed };
-    }
+    if (skipped.trim() !== "") return malformedResult({ errors, fragment: skipped });
     consumed = match.index + match[0].length;
 
-    const name = (match[1] ?? "").toLowerCase();
-    const value = match[2] ?? match[3] ?? match[4] ?? "";
+    // Group 1 (the name) is the one non-optional group in HTML_ATTRIBUTE_TOKEN, so it is always set.
+    const name = match[1]!.toLowerCase();
+    const value = tokenValue(match);
     const rejection = classifyEmbedHtmlAttributeToken(name, value, options);
-    if (rejection) {
-      errors.push(rejection);
-      continue;
-    }
-    attributes[name] = value;
+    if (rejection) errors.push(rejection);
+    else attributes[name] = value;
   }
 
   const trailing = trimmed.slice(consumed);
-  if (trailing.trim() !== "") {
-    const malformed: EmbedHtmlAttributeError = { reason: "malformed", attribute: trailing.trim() };
-    errors.push(malformed);
-    return { attributes: {}, errors, error: malformed };
-  }
+  if (trailing.trim() !== "") return malformedResult({ errors, fragment: trailing });
   return { attributes, errors, error: errors[0] ?? null };
 }
