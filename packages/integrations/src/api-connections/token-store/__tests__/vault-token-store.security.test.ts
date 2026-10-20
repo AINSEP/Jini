@@ -189,6 +189,22 @@ describe("credential install (sign-in write, no refresh lease)", () => {
   });
 });
 
+describe("credential install under sustained contention", () => {
+  it("gives up with write-conflict instead of writing over a row that keeps changing", async () => {
+    const f = createFixture();
+    await f.store().install({ key: KEY, tokens: tokenSet({ label: "first" }), generation: 1 });
+    // Every write by this store conflicts, as if another writer always got there first.
+    const contended: OAuthTokenVaultPort = {
+      get: input => f.vault.get(input), patchMeta: input => f.vault.patchMeta(input), delete: input => f.vault.delete(input),
+      put: async input => f.vault.put({ ...input, expectedRevision: (input.expectedRevision ?? 0) + 100 }),
+    };
+    const store = createVaultOAuthTokenStore({ vault: contended, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
+      readGeneration: async () => f.state.generation });
+    const error = await refusal(store.install({ key: KEY, tokens: tokenSet({ label: "contended" }), generation: 1 }));
+    expect([error.code, await f.store().load({ key: KEY })]).toEqual(["write-conflict", tokenSet({ label: "first" })]);
+  });
+});
+
 describe("reconnect-required and delete", () => {
   it("markNeedsReauth clears the sealed tokens and records only a fixed status", async () => {
     const f = createFixture();
