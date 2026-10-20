@@ -1,12 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n/index.js';
-import { validateSourceDraft } from '../../rules.js';
-import type { SourceConfigItem, SourceFieldSpec } from '../../types.js';
-import { SourceConfigListView } from './SourceConfigListView.js';
+import { I18nProvider } from '../../i18n/index.js';
+import { validateSourceDraft } from '../rules.js';
+import type { SourceConfigItem, SourceFieldSpec } from '../types.js';
+import { SourceConfigListView } from '../react/components/SourceConfigListView.js';
 import type { ComponentProps } from 'react';
-import type { SourceConfigListCapabilities } from '../hooks/useSourceConfigList.js';
+import type { SourceConfigListCapabilities } from '../react/hooks/useSourceConfigList.js';
 
 const URL_FIELD: SourceFieldSpec = { key: 'url', label: 'URL', kind: 'url', required: true };
 const FULL_CAPS: SourceConfigListCapabilities = { canRefresh: true, canSetTrust: true, canTest: true, canUpdate: true };
@@ -137,6 +137,48 @@ describe('SourceConfigListView', () => {
     await userEvent.click(screen.getByRole('button', { name: /^https:\/\/a\.example/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Test' }));
     expect(onTest).toHaveBeenCalledWith('a');
+  });
+
+  it('derives the add form handle as <agentHandle>-add from the list agentHandle', () => {
+    const { container } = render(<SourceConfigListView {...baseProps({ agentHandle: 'mcp' })} />);
+    expect(container.querySelector('form')?.getAttribute('data-agent-element')).toBe('mcp-add');
+  });
+
+  it('derives one item card handle per source as <agentHandle>-item-<id>', () => {
+    const sources: SourceConfigItem[] = [
+      { id: 'a', fields: { url: 'https://a.example' } },
+      { id: 'b', fields: { url: 'https://b.example' } },
+    ];
+    render(<SourceConfigListView {...baseProps({ sources, agentHandle: 'mcp' })} />);
+    const handles = screen.getAllByTestId('source-config-item-card').map((card) => card.getAttribute('data-agent-element'));
+    expect(handles).toEqual(['mcp-item-a', 'mcp-item-b']);
+  });
+
+  it("keeps the caller's explicit addForm.agentHandle over the derived <agentHandle>-add", () => {
+    const props = baseProps({ agentHandle: 'mcp' });
+    const { container } = render(<SourceConfigListView {...props} addForm={{ ...props.addForm, agentHandle: 'custom-add' }} />);
+    expect(container.querySelector('form')?.getAttribute('data-agent-element')).toBe('custom-add');
+  });
+
+  it('emits no data-agent markup on the add form or cards when no agentHandle is given', () => {
+    const sources: SourceConfigItem[] = [{ id: 'a', fields: { url: 'https://a.example' } }];
+    const { container } = render(<SourceConfigListView {...baseProps({ sources })} />);
+    expect(container.querySelector('[data-agent-element]')).toBeNull();
+  });
+
+  it("hands each card its own entry from testResults, keyed by the source's id", async () => {
+    const sources: SourceConfigItem[] = [{ id: 'a', fields: { url: 'https://a.example' } }];
+    render(<SourceConfigListView {...baseProps({ sources, testResults: { a: { ok: false, message: 'Timed out.' } } })} />);
+    await userEvent.click(screen.getByRole('button', { name: /^https:\/\/a\.example/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Timed out.');
+  });
+
+  it("wires the card's onUpdate to the list onUpdate with the source's id", async () => {
+    const sources: SourceConfigItem[] = [{ id: 'a', fields: { url: 'https://a.example' }, enabled: true }];
+    const onUpdate = vi.fn();
+    render(<SourceConfigListView {...baseProps({ sources, onUpdate })} />);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Enable https://a.example' }));
+    expect(onUpdate).toHaveBeenCalledWith('a', { enabled: false });
   });
 
   describe('i18n — custom title/subtitle/emptyMessage/loadError copy', () => {
