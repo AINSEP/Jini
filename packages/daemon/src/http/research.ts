@@ -99,9 +99,7 @@ import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createTavilyResearchProvider } from './research-tavily.adapter.js';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, err, mountJsonRoute, ok, validationError, type AdapterContext, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
 /** Matches OD's real `research/index.ts#searchResearch` query cap — see module doc. */
 const MAX_QUERY_LENGTH = 1000;
@@ -199,7 +197,7 @@ function validateRequestedProvider(rawProviders: unknown, providerId: string): R
   return ok({ value: null });
 }
 
-function parseResearchSearch(input: RouteInputContext, providerId = 'tavily'): Result<ResearchSearchRequest> {
+function parseResearchSearch(input: RouteInputContext, providerId: string): Result<ResearchSearchRequest> {
   if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
   const rawQuery = nonEmptyString(input.body.query);
   if (!rawQuery) return err({ error: validationError({ message: 'query must be a non-empty string' }, { issues: [{ path: 'query', message: 'required non-empty string' }] }) });
@@ -222,60 +220,76 @@ function synthesizeFallbackSummary(sources: readonly ResearchSource[]): string {
   return `(No provider summary; top snippets follow.)\n${lead}`;
 }
 
+/** The route-bound provider, else the host's `deps.provider`, else the built-in Tavily transport over `deps.fetch`. */
+function selectProvider(bound: ResearchProvider | undefined, deps: ResearchHttpDeps): ResearchProvider {
+  return bound ?? deps.provider ?? createTavilyResearchProvider({}, deps.fetch ? { fetch: deps.fetch } : {});
+}
+
+/** The host's resolver, else `TAVILY_API_KEY` for a `'tavily'` provider and no credentials for any other. */
+function credentialResolver(provider: ResearchProvider, deps: ResearchHttpDeps): NonNullable<ResearchHttpDeps['resolveCredentials']> {
+  return deps.resolveCredentials ?? (() => provider.id === 'tavily' ? defaultResolveCredentials({ env: deps.env ?? process.env }) : Promise.resolve({}));
+}
+
+/** Reports `error` to the host sink under a fresh correlation id and returns the generic SEC-005 public error. */
+function reportInternalError(deps: ResearchHttpDeps, error: unknown): ReturnType<typeof createApiError> {
+  const correlationId = randomUUID();
+  (deps.onInternalError ?? defaultInternalErrorSink)({ correlationId, error });
+  return createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId });
+}
+
+/** A copy of a provider failure with `apiKey` redacted from its message, name and stack, safe for the error sink. */
+function redactProviderError(error: unknown, apiKey: string): Error {
+  const redact = (input: string): string => redactSecrets({ input }, { exactSecrets: [apiKey] });
+  const safeError = new Error(redact(error instanceof Error ? error.message : String(error)));
+  if (error instanceof Error) {
+    safeError.name = redact(error.name);
+    if (error.stack === undefined) delete safeError.stack;
+    else safeError.stack = redact(error.stack);
+  }
+  return safeError;
+}
+
 /** Builds one route over a host-selected provider, preserving the default Tavily validation contract. */
 export function createResearchSearchRoute({ provider }: { provider?: ResearchProvider }, _optional: Record<string, never> = {}) {
   const providerId = provider?.id ?? 'tavily';
   return defineJsonRoute<ResearchSearchRequest, ResearchSearchResponse, ResearchHttpDeps>({
-  method: 'post', path: '/api/research/search', parse: (input) => parseResearchSearch(input, providerId), handle: async ({ input: request, deps }) => {
-    const selectedProvider = provider ?? deps.provider ?? createTavilyResearchProvider({}, deps.fetch ? { fetch: deps.fetch } : {});
-    const resolveCredentials = deps.resolveCredentials ?? (() => selectedProvider.id === 'tavily' ? defaultResolveCredentials({ env: deps.env ?? process.env }) : Promise.resolve({}));
-    const onInternalError = deps.onInternalError ?? defaultInternalErrorSink;
+    method: 'post', path: '/api/research/search', parse: (input) => parseResearchSearch(input, providerId), handle: async ({ input: request, deps }) => {
+      const selectedProvider = selectProvider(provider, deps);
 
-    let credentials: ResearchProviderCredentials;
-    try {
-      credentials = await resolveCredentials({ providerId: selectedProvider.id });
-    } catch (error) {
-      const correlationId = randomUUID();
-      onInternalError({ correlationId, error });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
-    }
-
-    const apiKey = credentials.apiKey;
-    if (!apiKey) {
-      return err({ error: createApiError({ code: 'NOT_CONFIGURED', message: `${selectedProvider.id} provider not configured` }) });
-    }
-
-    try {
-      const raw = await selectedProvider.search({ apiKey, credentials, request }, {});
-      // Matches OD's real `NO_RESEARCH_SOURCES` (404) — see module doc. Zero usable sources is a
-      // failure, not an empty success, even when the upstream Tavily call itself succeeded.
-      if (raw.sources.length === 0) {
-        return err({ error: createApiError({ code: 'NOT_FOUND', message: 'no sources found' }) });
+      let credentials: ResearchProviderCredentials;
+      try {
+        credentials = await credentialResolver(selectedProvider, deps)({ providerId: selectedProvider.id });
+      } catch (error) {
+        return err({ error: reportInternalError(deps, error) });
       }
-      const result: ResearchSearchResponse = {
-        query: request.query,
-        summary: raw.answer || synthesizeFallbackSummary(raw.sources),
-        sources: raw.sources,
-        provider: selectedProvider.id,
-        depth: 'shallow',
-        fetchedAt: Date.now(),
-      };
-      return ok({ value: result });
-    } catch (error) {
-      const correlationId = randomUUID();
-      // A host provider can throw transport text too; keep its configured key out of the sink.
-      const safeMessage = redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { exactSecrets: [apiKey] });
-      const safeError = new Error(safeMessage);
-      if (error instanceof Error) {
-        safeError.name = redactSecrets({ input: error.name }, { exactSecrets: [apiKey] });
-        if (error.stack === undefined) delete safeError.stack;
-        else safeError.stack = redactSecrets({ input: error.stack }, { exactSecrets: [apiKey] });
+
+      const apiKey = credentials.apiKey;
+      if (!apiKey) {
+        return err({ error: createApiError({ code: 'NOT_CONFIGURED', message: `${selectedProvider.id} provider not configured` }) });
       }
-      onInternalError({ correlationId, error: safeError });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+
+      try {
+        const raw = await selectedProvider.search({ apiKey, credentials, request }, {});
+        // Matches OD's real `NO_RESEARCH_SOURCES` (404) — see module doc. Zero usable sources is a
+        // failure, not an empty success, even when the upstream Tavily call itself succeeded.
+        if (raw.sources.length === 0) {
+          return err({ error: createApiError({ code: 'NOT_FOUND', message: 'no sources found' }) });
+        }
+        const result: ResearchSearchResponse = {
+          query: request.query,
+          summary: raw.answer || synthesizeFallbackSummary(raw.sources),
+          sources: raw.sources,
+          provider: selectedProvider.id,
+          depth: 'shallow',
+          fetchedAt: Date.now(),
+        };
+        return ok({ value: result });
+      } catch (error) {
+        // A host provider can throw transport text too; keep its configured key out of the sink.
+        return err({ error: reportInternalError(deps, redactProviderError(error, apiKey)) });
+      }
     }
-  }
-}, { requireSameOrigin: true });
+  }, { requireSameOrigin: true });
 }
 
 export const researchSearchRoute = createResearchSearchRoute({});
