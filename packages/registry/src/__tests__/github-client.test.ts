@@ -819,11 +819,25 @@ describe('GithubApiRegistryClient.createPublishPullRequest (pinned request/respo
     expect(error.message).toBe(`${alreadyExists.message} (HTTP 422)`);
   });
 
+  it('rejects an empty-string blob sha as missing', async () => {
+    const { http } = fakeHttp(router({ 'POST /repos/acme/registry/git/blobs': () => reply(201, { sha: '' }) }));
+    await expect(new GithubApiRegistryClient({ http }, { token: secretToken }).createPublishPullRequest(mutation)).rejects.toThrow(
+      'GitHub blob response did not include a sha.',
+    );
+  });
+
   it('rejects a 2xx PR response whose html_url is not a string', async () => {
     const { http } = fakeHttp(router({ 'POST /repos/acme/registry/pulls': () => reply(201, { html_url: 1 }) }));
     await expect(new GithubApiRegistryClient({ http }, { token: secretToken }).createPublishPullRequest(mutation)).rejects.toThrow(
       'GitHub pull request response did not include an html_url.',
     );
+  });
+
+  it('fails with an unattributed TypeError when a non-2xx PR creation body is JSON null (reported, not fixed)', async () => {
+    const { http } = fakeHttp(router({ 'POST /repos/acme/registry/pulls': () => reply(500, 'null') }));
+    const error = await rejectionOf(new GithubApiRegistryClient({ http }, { token: secretToken }).createPublishPullRequest(mutation));
+    expect(error).toBeInstanceOf(TypeError);
+    expect(error.message).toMatch(/Cannot read properties of null \(reading 'message'\)/);
   });
 
   it('never puts the token into any publish error message', async () => {
