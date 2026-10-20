@@ -1,5 +1,7 @@
 import { configuredPickerModel, pickerModelOptions, isConcretePickerModel } from './model-options.js';
 import type { ChatMessage } from '@jini-ai/chat';
+import { isTerminalRunStatus } from '../../../core/messages.js';
+import { acceptedInputEvent } from '../../../core/accepted-input.js';
 import type { UserTextRedaction } from '../../../core/user-text-redaction.js';
 
 import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection, TypedAnswerNotice } from './types.js';
@@ -249,7 +251,7 @@ export function isChatPaneQueueableBlocker({ blocker }: { blocker: ChatPaneSendB
  *
  * A surface is attributed to the newest call still open when it arrived — the same rule
  * `useExtEventGroups` uses to give a card its `call` — so an older call returning does not settle
- * it. Once its call returns (answered, expired, abandoned), typing is a next turn again.
+ * it. A terminal run, a later turn, a returned call or an accepted answer receipt closes it.
  *
  * @complexity O(e·c): e events in the newest message, c calls open at once (one or two in practice).
  */
@@ -262,8 +264,7 @@ export function isAwaitingTypedAnswer({ messages, toolName }: {
 
 /**
  * The tool-use id of the question {@link isAwaitingTypedAnswer} sees waiting, or `null` — the newest
- * one when several are open. The id lets the pane tell one question from the next: a draft typed
- * for a question stays tied to THAT question after it closes (see `useChatPane`'s held answer).
+ * one when several are open. Only an active assistant run can hold a question open.
  *
  * @complexity O(e·c), as {@link isAwaitingTypedAnswer}.
  */
@@ -272,29 +273,37 @@ export function findAwaitedTypedAnswerId({ messages, toolName }: {
   toolName: string;
 }): string | null {
   const newest = messages.at(-1);
-  if (newest?.role !== 'assistant') return null;
+  // MOVE: Missing tool_result is not evidence that a finished or unknown run still awaits input.
+  if (newest?.role !== 'assistant' || newest.runStatus === undefined || isTerminalRunStatus({ status: newest.runStatus })) return null;
   // Open call id -> whether it is the question tool. Insertion-ordered, so the last entry is the
   // newest call still open; a repeat id keeps its slot and only ORs in its name.
   const openCalls = new Map<string, boolean>();
   const awaited = new Set<string>();
+  const settled = new Set<string>();
   for (const event of newest.events ?? []) {
-    trackTypedAnswerEvent({ event, toolName, openCalls, awaited });
+    trackTypedAnswerEvent({ event, toolName, openCalls, awaited, settled });
   }
   return [...awaited].at(-1) ?? null;
 }
 
 /** Folds one event into {@link findAwaitedTypedAnswerId}'s open-call and awaited-question state. */
-function trackTypedAnswerEvent({ event, toolName, openCalls, awaited }: {
+function trackTypedAnswerEvent({ event, toolName, openCalls, awaited, settled }: {
   event: NonNullable<ChatMessage['events']>[number];
   toolName: string;
   openCalls: Map<string, boolean>;
   awaited: Set<string>;
+  settled: Set<string>;
 }): void {
-  if (event.kind === 'tool_use') openCalls.set(event.id, openCalls.get(event.id) === true || event.name === toolName);
-  if (event.kind === 'tool_result') {
-    openCalls.delete(event.toolUseId);
-    awaited.delete(event.toolUseId);
+  const receipt = acceptedInputEvent({ event });
+  const closedId = event.kind === 'tool_result' ? event.toolUseId : receipt?.data.toolUseId;
+  if (closedId !== undefined) {
+    settled.add(closedId);
+    openCalls.delete(closedId);
+    awaited.delete(closedId);
   }
+  // MOVE: Receipts are user bubbles, never a new surface owned by another open question.
+  if (receipt !== null) return;
+  if (event.kind === 'tool_use' && !settled.has(event.id)) openCalls.set(event.id, openCalls.get(event.id) === true || event.name === toolName);
   const owner = event.kind === 'ext' ? [...openCalls].at(-1) : undefined;
   if (owner?.[1] === true) awaited.add(owner[0]);
 }

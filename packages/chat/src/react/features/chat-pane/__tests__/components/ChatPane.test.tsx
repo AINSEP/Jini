@@ -7,6 +7,7 @@ import type { ChatMessage } from '@jini-ai/chat';
 import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@jini-ai/ui';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { ChatPane } from '../../components/ChatPane.js';
+import { createTypedAnswerPoster } from '../../create-typed-answer-poster.js';
 import { CHAT_PANE_STYLES } from '../../styles.js';
 import type { ChatPaneActivity, ChatPaneAgent, ChatPaneComposerHandle, DeliverTypedAnswer } from '../../types.js';
 
@@ -1103,18 +1104,15 @@ describe('ChatPane', () => {
     expect(screen.queryByRole('button', { name: 'Send as a new message' })).toBeNull();
   });
 
-  it('hands text typed while the agent waits on a question to deliverTypedAnswer, and shows why it was not sent', async () => {
+  it('automatically sends a stale question answer as a normal message once, without an error notice', async () => {
     const transport = createFakeChatTransport();
-    const typed: string[] = [];
+    const post = vi.fn(async () => new Response(null, { status: 409 }));
     render(
       <ChatPane
         transport={transport}
         agents={agents}
         initialDraft="ship the post"
-        deliverTypedAnswer={Object.assign(async ({ text }: { text: string }) => {
-          typed.push(text);
-          return 'not-pending' as const;
-        }, { toolName: 'assistant_ask_choice' })}
+        deliverTypedAnswer={createTypedAnswerPoster({ baseUrl: '', fetch: post, toolName: 'assistant_ask_choice' })}
       />,
     );
 
@@ -1128,25 +1126,21 @@ describe('ChatPane', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'publish it' } });
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'That question is no longer waiting for an answer, so your message was not sent.',
-    );
-    expect(typed).toEqual(['publish it']);
-    expect(screen.getByRole('textbox')).toHaveValue('publish it');
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(''));
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledWith('/api/mcp-ui/tool-calls', expect.objectContaining({
+      body: JSON.stringify({ toolName: 'assistant_ask_choice', params: { __typedAnswer: 'publish it' } }),
+    }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Send as a new message' })).toBeNull();
     expect(transport.calls).toHaveLength(1);
-
-    // The closed question's answer reaches a new run only by the notice's explicit button.
-    act(() => {
-      transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false });
-      transport.finish();
-    });
-    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('no longer waiting'));
-    expect(transport.calls).toHaveLength(1);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Send as a new message' }));
+    expect(screen.getAllByText('publish it')).toHaveLength(1);
+    act(() => transport.finish());
     await waitFor(() => expect(transport.calls).toHaveLength(2));
     expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('publish it');
+    expect(screen.getAllByText('publish it')).toHaveLength(1);
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'ArrowUp', selectionStart: 0, selectionEnd: 0 });
+    expect(screen.getByRole('textbox')).toHaveValue('publish it');
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });

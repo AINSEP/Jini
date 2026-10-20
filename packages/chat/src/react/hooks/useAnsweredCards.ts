@@ -7,11 +7,14 @@
  * clear the activity line and countdown. The receipt owns the bubble once it arrives.
  */
 import { useCallback, useMemo, useState } from 'react';
+import { isTerminalRunStatus, type ChatRunStatus } from '../../core/messages.js';
 import { acceptedInputEvent } from '../../core/accepted-input.js';
 import type { ExtEventGroup } from './useExtEventGroups.js';
 import type { AgentEvent, IsAnsweredCard } from '../../core/index.js';
 
 export interface AnsweredCards {
+  /** Live rendering state; a terminal run overrides a stale streaming prop. */
+  runStreaming: boolean;
   /** Whether the slot's card was answered. */
   isAnswered(slot: string): boolean;
   /** Records the slot's card as answered. Idempotent. */
@@ -27,11 +30,15 @@ export interface AnsweredCards {
 /**
  * @param slotOf - Maps an ext event to its render slot (`extEventSlot`).
  * @param events - Accepted-input-projected events, including persisted or optimistic answer receipts.
+ * @param runStreaming - Host streaming state, constrained by the message's runStatus.
+ * @param runStatus - Persisted run lifecycle, including terminal status on reload.
  * @param groups - Groups carrying their original tool id; equal answer text is never identity.
  * @returns Slot lookups and an idempotent delivery recorder; only that recorder changes React state.
  * @complexity O(events + groups) projection, O(1) lookups; O(events + answered cards) space.
  */
-export function useAnsweredCards({ slotOf, events = [], groups = [] }: {
+export function useAnsweredCards({ slotOf, events = [], groups = [], runStreaming, runStatus }: {
+  runStreaming: boolean;
+  runStatus: ChatRunStatus | undefined;
   slotOf: (card: { name: string; data: unknown }) => string;
   events?: readonly AgentEvent[];
   groups?: readonly ExtEventGroup[];
@@ -58,5 +65,7 @@ export function useAnsweredCards({ slotOf, events = [], groups = [] }: {
   const answerText = useCallback((slot: string) => recorded.get(slot) ?? answered.get(slot), [answered, recorded]);
   const isRecorded = useCallback((slot: string) => recorded.has(slot), [recorded]);
   const isAnsweredCard = useCallback<IsAnsweredCard>((card) => isAnswered(slotOf(card)), [isAnswered, slotOf]);
-  return { isAnswered, markAnswered, isAnsweredCard, answerText, isRecorded };
+  // MOVE: Finished runs must keep orphaned questions closed even when the host still reports streaming.
+  return { isAnswered, markAnswered, isAnsweredCard, answerText, isRecorded,
+    runStreaming: runStreaming && runStatus !== undefined && !isTerminalRunStatus({ status: runStatus }) };
 }

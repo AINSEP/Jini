@@ -21,8 +21,8 @@ const UNANSWERED_RESULT = /\b(expired|abandoned|did not respond|run ended)\b/i;
  * A held-open question (the tool shows the card and waits) is over once its tool call returns, and
  * dead once its run ends without that return. Its first document stays on screen either way, so
  * without this an expired, answered or orphaned question still looked answerable (host stuck-chat
- * investigation, 2026-09-27). Only a card still showing that FIRST document closes: a tool that sent
- * a follow-up document for the same `ui://` URI (an outcome after the answer) keeps showing it.
+ * investigation, 2026-09-27). A completed tool's follow-up document for the same `ui://` URI remains
+ * visible as its outcome; repeated documents without a tool result cannot reopen an orphaned question.
  *
  * The labels are read from the call's result text, so they are a best guess for a producer this
  * package has not seen; the card is closed either way, which is the property that matters.
@@ -33,8 +33,10 @@ function settledLabel(
   runStreaming: boolean,
   documentsForUri: number,
 ): string | undefined {
-  if (call === undefined || documentsForUri > 1) return undefined;
+  if (call === undefined) return undefined;
+  // MOVE: Replayed surface documents cannot keep an orphaned question live after its run ends.
   if (call.result === undefined) return runStreaming ? undefined : t('This question expired');
+  if (documentsForUri > 1) return undefined;
   return UNANSWERED_RESULT.test(call.result.content) ? t('This question expired') : t('Answered');
 }
 

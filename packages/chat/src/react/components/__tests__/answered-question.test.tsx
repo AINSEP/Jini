@@ -6,6 +6,7 @@ import { MCP_UI_MIME_TYPE } from '@jini-ai/ui/mcp-ui';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
 import { acceptedInputUserEvent } from '../../../core/accepted-input.js';
 import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';
+import { MessageList } from '../MessageList.js';
 import { MessageRow } from '../MessageRow.js';
 import { registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
 
@@ -108,6 +109,46 @@ describe('answered questions in the transcript', () => {
     expect(bubbles(view.container)).toEqual(['A26 UCLA']);
     expect(screen.getAllByRole('button', { name: 'Choose A26' })).toHaveLength(1);
     expect(view.container.textContent).toContain('Waiting for your answer');
+  });
+
+  it.each(['succeeded', 'failed', 'canceled'] as const)('closes an unanswered %s run on reload even with a stale streaming prop', (runStatus) => {
+    register();
+    const persisted = { ...message(openEvents()), runStatus };
+    const view = render(<MessageRow message={persisted} runStreaming />);
+    expect(screen.queryByRole('button', { name: 'Choose A26' })).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('This question expired');
+    expect(bubbles(view.container)).toEqual([]);
+    view.unmount();
+    render(<MessageRow message={JSON.parse(JSON.stringify(persisted))} />);
+    expect(screen.queryByRole('button', { name: 'Choose A26' })).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('This question expired');
+  });
+
+  it('does not reopen a question without evidence of an active run', () => {
+    register();
+    const unknownRun: ChatMessage = { id: 'unknown', role: 'assistant', content: '', events: openEvents() };
+    render(<MessageRow message={unknownRun} runStreaming />);
+    expect(screen.queryByRole('button', { name: 'Choose A26' })).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('This question expired');
+  });
+
+  it('keeps an unanswered question closed when its surface was replayed more than once', () => {
+    register();
+    const events = openEvents();
+    render(<MessageRow message={message([...events, events[1]!])} />);
+    expect(screen.queryByRole('button', { name: 'Choose A26' })).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('This question expired');
+  });
+
+  it('closes a question superseded by a later turn while that next turn is streaming', () => {
+    register();
+    render(<MessageList isStreaming messages={[
+      message(openEvents(), true),
+      { id: 'next-user', role: 'user', content: 'Continue' },
+      { id: 'next-assistant', role: 'assistant', content: 'Continuing', runStatus: 'running' },
+    ]} />);
+    expect(screen.queryByRole('button', { name: 'Choose A26' })).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('This question expired');
   });
 
   it('does not interpret expiry as a user decline', () => {

@@ -341,7 +341,7 @@ function AssistantMessageRow({
   const messageUsage = useMessageUsage({ message, ...(usageSummary === undefined ? {} : { summary: usageSummary }) });
   const timeline = useToolTimeline({ events: message.events }, { runStreaming, runSucceeded });
   const extGroups = useExtEventGroups({ events: message.events }, { slotOf: (name, data) => registry.slot({ name, data }) });
-  const answeredCards = useAnsweredCards({ slotOf: registry.slot, events: message.events ?? [], groups: extGroups });
+  const answeredCards = useAnsweredCards({ slotOf: registry.slot, events: message.events ?? [], groups: extGroups, runStreaming, runStatus: message.runStatus });
 
   const terminalNotice = terminalMessageNotice({ message }, {});
   const visibleContent = stripArtifact({ content: message.content });
@@ -379,7 +379,7 @@ function AssistantMessageRow({
     const node = renderer({
       name: group.name,
       events: group.events,
-      runStreaming,
+      runStreaming: answeredCards.runStreaming,
       runSucceeded,
       awaitingAnswer,
       runId: message.runId,

@@ -319,7 +319,7 @@ describe('isAwaitingTypedAnswer', () => {
   const surface: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } };
   const askCall: AgentEvent = { kind: 'tool_use', id: 'call-1', name: toolName, input: {} };
   const confirmCall: AgentEvent = { kind: 'tool_use', id: 'call-2', name: 'content_post_delete', input: {} };
-  const assistant = (events: AgentEvent[]): ChatMessage => ({ id: 'a1', role: 'assistant', content: '', events });
+  const assistant = (events: AgentEvent[]): ChatMessage => ({ id: 'a1', role: 'assistant', content: '', runStatus: 'running', events });
   const user: ChatMessage = { id: 'u1', role: 'user', content: 'hi' };
 
   it('is true while a surface raised inside a tool call is still waiting on that call', () => {
@@ -369,10 +369,26 @@ describe('findAwaitedTypedAnswerId', () => {
   const toolName = 'assistant_ask_choice';
   const surface: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } };
   const ask = (id: string): AgentEvent => ({ kind: 'tool_use', id, name: toolName, input: {} });
-  const assistant = (events: AgentEvent[]): ChatMessage => ({ id: 'a1', role: 'assistant', content: '', events });
+  const assistant = (events: AgentEvent[]): ChatMessage => ({ id: 'a1', role: 'assistant', content: '', runStatus: 'running', events });
 
-  it('names the waiting question, so a draft typed for it stays tied to it after it closes', () => {
+  it('names the waiting question while its run is active', () => {
     expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface])], toolName })).toBe('call-1');
+  });
+
+  it.each(['succeeded', 'failed', 'canceled'] as const)('closes unanswered questions on a %s run', (runStatus) => {
+    expect(findAwaitedTypedAnswerId({ messages: [{ ...assistant([ask('call-1'), surface]), runStatus }], toolName })).toBeNull();
+  });
+
+  it('requires an active run and ignores a question superseded by a later turn', () => {
+    const unknownRun: ChatMessage = { id: 'unknown', role: 'assistant', content: '', events: [ask('call-1'), surface] };
+    expect(findAwaitedTypedAnswerId({ messages: [unknownRun], toolName })).toBeNull();
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface]), { id: 'next', role: 'user', content: 'next turn' }], toolName })).toBeNull();
+  });
+
+  it('closes on an accepted answer receipt before tool_result, even if the CLI repeats the call', () => {
+    const receipt: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'answer:call-1', text: 'Declined', toolUseId: 'call-1' } };
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface, receipt, ask('call-1'), surface])], toolName })).toBeNull();
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface, receipt, ask('call-2'), surface])], toolName })).toBe('call-2');
   });
 
   it('names the newest of two waiting questions, and null once nothing waits', () => {
@@ -388,6 +404,7 @@ describe('isTypedAnswerTurn', () => {
     id: 'a1',
     role: 'assistant',
     content: '',
+    runStatus: 'running',
     events: [
       { kind: 'tool_use', id: 'call-1', name: toolName, input: {} },
       { kind: 'ext', name: 'mcp-ui', data: {} },

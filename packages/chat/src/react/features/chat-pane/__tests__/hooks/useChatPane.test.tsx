@@ -855,24 +855,19 @@ describe('useChatPane', () => {
       expect(transport.calls).toHaveLength(1);
     });
 
-    it('drops the text with a notice when the question already closed (consumed or expired) — no queue, no new run', async () => {
+    it('automatically queues a not-pending answer once as a normal message', async () => {
       const deliverer = fakeDeliverer(async () => 'not-pending');
       const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
-
       act(() => result.current.composer.setDraft('publish it now'));
-      await act(() => result.current.send());
-
+      await act(async () => { await Promise.all([result.current.send(), result.current.send()]); });
       expect(deliverer.texts).toEqual(['publish it now']);
-      expect(result.current.queuedPrompt).toBeNull();
-      expect(result.current.typedAnswerNotice).toBe('not-pending');
-      // Left in the composer: not sent anywhere, and nothing the person typed is lost.
-      expect(result.current.composer.draft).toBe('publish it now');
-
-      await act(async () => {
-        transport.finish();
-      });
-      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
-      expect(transport.calls).toHaveLength(1);
+      expect(result.current.queuedPrompt).toBe('publish it now');
+      expect(result.current.typedAnswerNotice).toBeNull();
+      expect(result.current.composer.draft).toBe('');
+      act(() => transport.finish());
+      await waitFor(() => expect(transport.calls).toHaveLength(2));
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('publish it now');
+      expect(result.current.conversation.messages.filter(m => m.role === 'user' && m.content === 'publish it now')).toHaveLength(1);
     });
 
     it('reports a failed or throwing delivery without queueing the text behind the run', async () => {
@@ -910,24 +905,43 @@ describe('useChatPane', () => {
       expect(result.current.queuedPrompt).toBeNull();
     });
 
-    it('clears the notice on the next send and on reset', async () => {
-      let outcome: Delivery = 'not-pending';
+    it('clears a failed delivery notice on the next send and on reset', async () => {
+      let outcome: Delivery = 'failed';
       const deliverer = fakeDeliverer(async () => outcome);
-      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
-
+      const { result, transport } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
       act(() => result.current.composer.setDraft('publish it now'));
       await act(() => result.current.send());
-      expect(result.current.typedAnswerNotice).toBe('not-pending');
-
+      expect(result.current.typedAnswerNotice).toBe('failed');
       outcome = 'delivered';
       await act(() => result.current.send());
       expect(result.current.typedAnswerNotice).toBeNull();
-
       outcome = 'failed';
-      act(() => result.current.composer.setDraft('again'));
+      act(() => {
+        transport.emit({ kind: 'tool_use', id: 'ask-2', name: 'assistant_ask_choice', input: {} });
+        transport.emit({ kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/2' } });
+        result.current.composer.setDraft('again');
+      });
       await act(() => result.current.send());
       expect(result.current.typedAnswerNotice).toBe('failed');
       act(() => result.current.reset());
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+
+    it.each(['succeeded', 'failed', 'canceled'] as const)('sends a normal message after reloading an unanswered %s run', async (runStatus) => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({
+        transport, agents, initialDraft: 'new request', deliverTypedAnswer: deliverer.deliver,
+        initialMessages: [{ id: 'saved', role: 'assistant', content: '', runId: 'finished', runStatus, events: [
+          { kind: 'tool_use', id: 'ask-1', name: deliverer.deliver.toolName, input: {} },
+          { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } },
+        ] }],
+      }));
+      await act(() => result.current.send());
+      expect(deliverer.texts).toEqual([]);
+      expect(transport.reattachCalls).toEqual([]);
+      expect(transport.calls).toHaveLength(1);
+      expect(transport.calls[0]?.input.history.at(-1)?.content).toBe('new request');
       expect(result.current.typedAnswerNotice).toBeNull();
     });
 
@@ -969,75 +983,51 @@ describe('useChatPane', () => {
       expect(result.current.composer.draft).toBe('');
     });
 
-    it('keeps a rejected answer out of the ordinary send path after the run ends: Enter again starts no run', async () => {
-      const deliverer = fakeDeliverer(async () => 'not-pending');
-      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
-
-      act(() => result.current.composer.setDraft('use option B'));
-      await act(() => result.current.send());
-      expect(result.current.typedAnswerNotice).toBe('not-pending');
-
-      act(() => {
-        transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false });
-      });
-      await act(async () => {
-        transport.finish();
-      });
-      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
-
-      await act(() => result.current.send());
-
-      expect(transport.calls).toHaveLength(1);
-      expect(result.current.queuedPrompt).toBeNull();
-      expect(result.current.typedAnswerNotice).toBe('not-pending');
-      expect(result.current.composer.draft).toBe('use option B');
-    });
-
-    it('holds an answer typed while the question was open but sent after it closed — never queued as a new run', async () => {
+    it('sends normally when a run ends with an unanswered question and an existing draft', async () => {
       const deliverer = fakeDeliverer(async () => 'delivered');
       const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
-
-      act(() => result.current.composer.setDraft('use opt'));
-      act(() => {
-        transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false });
-      });
-      act(() => result.current.composer.setDraft('use option B'));
+      act(() => result.current.composer.setDraft('a new message'));
+      act(() => transport.finish());
+      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
       await act(() => result.current.send());
-
       expect(deliverer.texts).toEqual([]);
-      expect(result.current.queuedPrompt).toBeNull();
-      expect(result.current.typedAnswerNotice).toBe('not-pending');
-      expect(result.current.composer.draft).toBe('use option B');
-      await act(async () => {
-        transport.finish();
-      });
-      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
-      expect(transport.calls).toHaveLength(1);
+      expect(transport.calls).toHaveLength(2);
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('a new message');
+      expect(result.current.typedAnswerNotice).toBeNull();
     });
 
-    it('sends a held answer as an ordinary turn only through sendAsNewMessage', async () => {
-      const deliverer = fakeDeliverer(async () => 'not-pending');
+    it('queues text normally when the question closes while the person is typing', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
       const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
-
+      act(() => result.current.composer.setDraft('use opt'));
+      act(() => transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false }));
       act(() => result.current.composer.setDraft('use option B'));
       await act(() => result.current.send());
-      act(() => {
-        transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false });
-      });
-      await act(async () => {
-        transport.finish();
-      });
-      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
-
-      await act(() => result.current.sendAsNewMessage());
-
-      expect(transport.calls).toHaveLength(2);
-      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('use option B');
+      expect(deliverer.texts).toEqual([]);
+      expect(result.current.queuedPrompt).toBe('use option B');
       expect(result.current.typedAnswerNotice).toBeNull();
-      expect(result.current.composer.draft).toBe('');
+      act(() => transport.finish());
+      await waitFor(() => expect(transport.calls).toHaveLength(2));
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('use option B');
     });
 
-    it('releases the hold once the draft is cleared: the next text is an ordinary turn again', async () => {
+    it('preserves newer draft text when a late 409 falls back after the run finishes', async () => {
+      let release!: (outcome: Delivery) => void;
+      const deliverer = fakeDeliverer(() => new Promise<Delivery>(resolve => { release = resolve; }));
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+      act(() => result.current.composer.setDraft('use option B'));
+      let pending!: Promise<void>;
+      act(() => { pending = result.current.send(); });
+      act(() => { result.current.composer.setDraft('next draft'); transport.finish(); });
+      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
+      await act(async () => { release('not-pending'); await pending; });
+      await waitFor(() => expect(transport.calls).toHaveLength(2));
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('use option B');
+      expect(result.current.composer.draft).toBe('next draft');
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+
+    it('sends a fresh draft normally after a question closes', async () => {
       const deliverer = fakeDeliverer(async () => 'delivered');
       const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
 
@@ -1096,22 +1086,15 @@ describe('useChatPane', () => {
       }
     });
 
-    it('keeps a post-decline answer before and after tool_result until explicitly submitted as a new turn', async () => {
-      const deliverer = fakeDeliverer(async () => 'not-pending');
+    it('routes a message normally after a decline receipt, before tool_result', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
       const { result, transport } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+      act(() => transport.emit({ kind: 'ext', name: 'user_message', data: { id: 'answer:ask-1', text: 'Declined', toolUseId: 'ask-1' } }));
       act(() => result.current.composer.setDraft('use this instead'));
       await act(() => result.current.send());
-      expect(result.current.typedAnswerNotice).toBe('not-pending');
-      expect(result.current.composer.draft).toBe('use this instead');
-      act(() => transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: JSON.stringify({ submitted: false, reason: 'cancelled' }), isError: false }));
-      await act(() => result.current.send());
-      expect(deliverer.texts).toEqual(['use this instead']);
-      expect(transport.calls).toHaveLength(1);
-      expect(result.current.queuedPrompt).toBeNull();
-      await act(() => result.current.sendAsNewMessage());
+      expect(deliverer.texts).toEqual([]);
       expect(result.current.queuedPrompt).toBe('use this instead');
-      act(() => { result.current.composer.history?.navigate({ key: 'ArrowUp', text: '', selectionStart: 0, selectionEnd: 0 }); });
-      expect(result.current.composer.draft).toBe('use this instead');
+      expect(result.current.typedAnswerNotice).toBeNull();
       act(() => transport.finish());
       await waitFor(() => expect(transport.calls).toHaveLength(2));
       expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('use this instead');

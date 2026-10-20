@@ -22,9 +22,9 @@
  *
  * ## Why it resolves an outcome instead of throwing
  *
- * The pane must tell three cases apart and act differently on each, never by queueing the text as a
- * new run: 202 delivered it; 409 means nothing is waiting any more (answered, expired, or never
- * open); anything else is a failure the human can retry. A rejection would collapse the last two.
+ * The pane tells three cases apart: 202 delivered the answer; 409 means nothing is waiting and
+ * permits one ordinary-message fallback; other failures retain the draft for retry. A rejection
+ * would collapse the last two and risk resending an answer whose delivery was uncertain.
  */
 import { redactUserText, type UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
 import type { DeliverTypedAnswer, TypedAnswerDelivery } from './types.js';
