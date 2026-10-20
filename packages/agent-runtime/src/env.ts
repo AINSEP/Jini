@@ -36,52 +36,68 @@ function stripKeysCaseInsensitive(env: NodeJS.ProcessEnv, keysToStrip: readonly 
   }
 }
 
+/**
+ * AMR housekeeping. `execAgentFile` REPLACES the child environment (execFile with `env`
+ * set), so anything missing here is genuinely absent for the AMR CLI.
+ */
+function backfillAmrEnv({ env }: { env: NodeJS.ProcessEnv }): void {
+  // `vela model list` resolves its config home up front and exits
+  // non-zero with "$HOME is not defined" when HOME is unset. Backfill
+  // HOME from the OS so the authoritative catalog call is never silently
+  // decapitated by a missing home dir.
+  if (!env.HOME?.trim()) {
+    const home = os.homedir();
+    if (home) env.HOME = home;
+  }
+  if (!env.VELA_OPENCODE_BIN?.trim()) {
+    const opencodeBin = resolveAmrOpenCodeExecutable({  }, { env: env });
+    if (opencodeBin) env.VELA_OPENCODE_BIN = opencodeBin;
+  }
+}
+
+/**
+ * Strip the parent's server-identity keys and force project-config discovery off unless the
+ * caller already set the disable flag to a non-blank value.
+ */
+function isolateProjectConfig({ env, identityKeys, disableKey }: { env: NodeJS.ProcessEnv; identityKeys: readonly string[]; disableKey: string }): void {
+  stripKeysCaseInsensitive(env, identityKeys);
+  if (!env[disableKey]?.trim()) {
+    env[disableKey] = 'true';
+  }
+}
+
+/** Built-in per-agent housekeeping, applied before the host's `perAgentEnv` hook. */
+function applyAgentHousekeeping({ env, agentId }: { env: NodeJS.ProcessEnv; agentId: string }): void {
+  switch (agentId) {
+    case 'amr':
+      backfillAmrEnv({ env });
+      return;
+    case 'opencode':
+      // OpenCode is bun-based and, left to its defaults, walks up from its
+      // cwd to the nearest project root and runs `bun install` there at
+      // startup to set up local plugins. When that root is a pnpm workspace
+      // (the host's own repo, or a project nested inside it), the install
+      // replaces the pnpm `.pnpm` store with a bun `node_modules/.bun` +
+      // `bun.lock` and breaks the workspace. Disable project-config
+      // discovery (and its install) so OpenCode only honors the config
+      // injected via `OPENCODE_CONFIG_CONTENT`.
+      isolateProjectConfig({ env, identityKeys: ['OPENCODE', 'OPENCODE_PID', 'OPENCODE_RUN_ID', 'OPENCODE_SERVER_PASSWORD'], disableKey: 'OPENCODE_DISABLE_PROJECT_CONFIG' });
+      return;
+    case 'mimo':
+      // MiMo builds on the same toolchain as OpenCode and has the same
+      // workspace-corruption risk. Disable project-config discovery so MiMo
+      // only honors the config injected through `MIMOCODE_CONFIG_CONTENT`.
+      isolateProjectConfig({ env, identityKeys: ['MIMOCODE', 'MIMOCODE_PID', 'MIMOCODE_RUN_ID', 'MIMOCODE_SERVER_PASSWORD'], disableKey: 'MIMOCODE_DISABLE_PROJECT_CONFIG' });
+      return;
+  }
+}
+
 export function spawnEnvForAgent({ agentId, baseEnv }: { agentId: string; baseEnv: RuntimeEnvMap }, { configuredEnv = {}, systemProxyEnv = resolveSystemProxyEnv(), hooks = {} }: { configuredEnv?: unknown; systemProxyEnv?: RuntimeEnvMap; hooks?: SpawnEnvHooks } = {}
 ): NodeJS.ProcessEnv {
   const expandedConfiguredEnv = expandConfiguredEnv({ configuredEnv: configuredEnv });
   const env = mergeProxyAwareEnv(process.platform, systemProxyEnv, baseEnv, expandedConfiguredEnv);
 
-  if (agentId === 'amr') {
-    // `execAgentFile` REPLACES the child environment (execFile with `env`
-    // set), so anything missing here is genuinely absent for the AMR CLI.
-    // `vela model list` resolves its config home up front and exits
-    // non-zero with "$HOME is not defined" when HOME is unset. Backfill
-    // HOME from the OS so the authoritative catalog call is never silently
-    // decapitated by a missing home dir.
-    if (!env.HOME?.trim()) {
-      const home = os.homedir();
-      if (home) env.HOME = home;
-    }
-    if (!env.VELA_OPENCODE_BIN?.trim()) {
-      const opencodeBin = resolveAmrOpenCodeExecutable({  }, { env: env });
-      if (opencodeBin) env.VELA_OPENCODE_BIN = opencodeBin;
-    }
-  }
-
-  if (agentId === 'opencode') {
-    stripKeysCaseInsensitive(env, ['OPENCODE', 'OPENCODE_PID', 'OPENCODE_RUN_ID', 'OPENCODE_SERVER_PASSWORD']);
-    // OpenCode is bun-based and, left to its defaults, walks up from its
-    // cwd to the nearest project root and runs `bun install` there at
-    // startup to set up local plugins. When that root is a pnpm workspace
-    // (the host's own repo, or a project nested inside it), the install
-    // replaces the pnpm `.pnpm` store with a bun `node_modules/.bun` +
-    // `bun.lock` and breaks the workspace. Disable project-config
-    // discovery (and its install) so OpenCode only honors the config
-    // injected via `OPENCODE_CONFIG_CONTENT`.
-    if (!env.OPENCODE_DISABLE_PROJECT_CONFIG?.trim()) {
-      env.OPENCODE_DISABLE_PROJECT_CONFIG = 'true';
-    }
-  }
-
-  if (agentId === 'mimo') {
-    stripKeysCaseInsensitive(env, ['MIMOCODE', 'MIMOCODE_PID', 'MIMOCODE_RUN_ID', 'MIMOCODE_SERVER_PASSWORD']);
-    // MiMo builds on the same toolchain as OpenCode and has the same
-    // workspace-corruption risk. Disable project-config discovery so MiMo
-    // only honors the config injected through `MIMOCODE_CONFIG_CONTENT`.
-    if (!env.MIMOCODE_DISABLE_PROJECT_CONFIG?.trim()) {
-      env.MIMOCODE_DISABLE_PROJECT_CONFIG = 'true';
-    }
-  }
+  applyAgentHousekeeping({ env, agentId });
 
   const perAgentOverrides = hooks.perAgentEnv?.({ agentId: agentId, env: env });
   if (perAgentOverrides) Object.assign(env, perAgentOverrides);
