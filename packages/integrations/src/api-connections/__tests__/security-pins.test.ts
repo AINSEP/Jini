@@ -113,7 +113,7 @@ describe('token redaction', () => {
     const ref = await connect();
     await fetch(`${provider.origin}/revoke`, { method: 'POST', body: new URLSearchParams({ token: 'acme-rt-1' }) });
     h.clock.now += 3600_000;
-    const error = await h.service.getAccessToken({ connectionRef: ref }).catch((caught: unknown) => caught as Error);
+    const error = await h.service.getAccessToken({ connectionRef: ref }).then((): Error => new Error('expected a refusal'), (caught: unknown) => caught as Error);
     const chain = [error, error.cause, (error.cause as Error | undefined)?.cause].map(item => (item as Error | undefined)?.message ?? '');
     expect([(error as { code?: string }).code, chain.join(' ')]).toEqual(['reconnect-required', expect.not.stringMatching(/acme-(at|rt)-/)]);
   });
