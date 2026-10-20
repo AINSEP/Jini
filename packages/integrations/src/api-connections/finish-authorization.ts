@@ -81,11 +81,18 @@ async function commitConnect(deps: ApiConnectionServiceDeps, record: ApiConnecti
 
 async function stageSwitch(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, attempt: ApiConnectionAttempt,
   tokens: OAuthTokenSet, account: ApiConnectionAccount, grantedScopes: readonly string[]): Promise<void> {
-  await deps.tokens.install({ key: stagedTokenKey({ key: record.key }), tokens, generation: record.generation });
+  // Start refuses while a switch is staged; this catches one staged in the meantime.
+  if (record.staged !== null) {
+    throw new ApiConnectionError({ code: 'switch-in-progress',
+      message: 'Another account switch was staged while this sign-in ran. Confirm or cancel it, then switch again.' });
+  }
   const expiresAt = new Date(Date.parse(nowIso({ clock: deps.clock })) + ATTEMPT_TTL_MS).toISOString();
+  // Claim the staged slot on the record first: of two concurrent switches only the compare-and-set
+  // winner writes tokens, so the slot can never hold one account while the record names another.
   await writeRecord(deps, record, {
     staged: { account, grantedScopes: [...grantedScopes], actorId: attempt.actorId, generation: record.generation, expiresAt },
   });
+  await deps.tokens.install({ key: stagedTokenKey({ key: record.key }), tokens, generation: record.generation });
 }
 
 export async function finishAuthorization(

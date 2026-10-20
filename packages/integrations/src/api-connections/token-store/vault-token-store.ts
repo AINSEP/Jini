@@ -40,6 +40,8 @@ export interface VaultOAuthTokenStoreDeps {
  * require the lease; `install` is fenced by its generation instead. */
 export type VaultOAuthTokenStore = Required<OAuthTokenStore> & {
   install(requiredArgs: { readonly key: string; readonly tokens: OAuthTokenSet; readonly generation: number }): Promise<void>;
+  /** Tokens of any generation, owner-checked; only for a revocation call (see `ApiConnectionTokenStore`). */
+  loadForRevocation(requiredArgs: { readonly key: string }): Promise<OAuthTokenSet | null>;
   delete(requiredArgs: { readonly key: string }): Promise<void>;
 };
 
@@ -154,6 +156,13 @@ export function createVaultOAuthTokenStore(
       if (record === null || record.payload.generation !== generation) return null;
       observeLoad(key, generation);
       return record.payload.tokens;
+    },
+    // Generation-agnostic on purpose: a disconnect disables the credential by moving the
+    // generation, and only that disabled credential can still revoke the grant. Not recorded as a
+    // load, so it never feeds the refresh-lease decision.
+    async loadForRevocation({ key }) {
+      const record = await open(key);
+      return record?.payload.tokens ?? null;
     },
     async persist({ key, tokens }) {
       await fencedWrite(key, { status: "active", tokens: parseTokenSet({ value: tokens }) });

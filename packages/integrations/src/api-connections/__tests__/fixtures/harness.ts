@@ -42,6 +42,7 @@ export function memoryTokenStore(): ApiConnectionTokenStore & { entries: Map<str
   return {
     entries,
     async load({ key }) { return structuredClone(entries.get(key) ?? null); },
+    async loadForRevocation({ key }) { return structuredClone(entries.get(key) ?? null); },
     async persist({ key, tokens }) { entries.set(key, structuredClone(tokens)); },
     async install({ key, tokens }) { entries.set(key, structuredClone(tokens)); },
     async markNeedsReauth() { /* status lives in the record store */ },

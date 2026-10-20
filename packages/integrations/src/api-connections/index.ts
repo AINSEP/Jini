@@ -11,7 +11,7 @@ export type { ApiConnectionHooks, ApiConnectionRecordStore, ApiConnectionTokenSt
 export type { StartApiConnectionResult } from './authorization.js';
 export type { CompletedAuthorization } from './finish-authorization.js';
 export type { ApiConnectionStatusView } from './status.js';
-export type { ApiConnectionDisconnectResult, ApiConnectionRemoteRevocation } from './account-actions.js';
+export type { ApiConnectionDisconnectResult, ApiConnectionRemoteRevocation, ApiConnectionSwitchResult } from './account-actions.js';
 export type { ApiConnectionAccessTokens } from './access-token.js';
 export type {
   ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionBoundedField, ApiConnectionDescriptor,

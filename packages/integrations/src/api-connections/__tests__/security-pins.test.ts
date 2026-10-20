@@ -295,3 +295,96 @@ describe('characterization: account actions that must keep their behaviour (pinn
     expect(provider.revoked).toEqual([]);
   });
 });
+
+describe('revocation honesty against the real vault token store', () => {
+  let v: ReturnType<typeof buildVaultHarness>;
+  const finish = (callbackParams: Record<string, string>) =>
+    v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+  async function vaultConnect(account = 'alice') {
+    const { started, callbackParams } = await signIn(v, provider, { account });
+    await finish(callbackParams);
+    return started.connectionRef;
+  }
+  beforeEach(() => { v = buildVaultHarness(provider); });
+
+  it('disconnect calls the revoke hook once with the stored grant and reports confirmed', async () => {
+    const ref = await vaultConnect();
+    const result = await v.service.disconnect({ connectionRef: ref });
+    expect([result.status, result.remoteRevocation, provider.revoked]).toEqual(['disconnected', 'confirmed', ['acme-rt-1']]);
+  });
+  it('clears the local credential after a confirmed revocation', async () => {
+    const ref = await vaultConnect();
+    await v.service.disconnect({ connectionRef: ref });
+    const again = await v.service.disconnect({ connectionRef: ref });
+    expect([again.remoteRevocation, provider.revoked]).toEqual(['not-needed', ['acme-rt-1']]);
+  });
+  it('stays revocation-pending and serves no token when the revoke hook fails', async () => {
+    const ref = await vaultConnect();
+    provider.failRevocation = true;
+    const result = await v.service.disconnect({ connectionRef: ref });
+    expect([result.status, result.remoteRevocation, await v.tokens.load({ key: ref })]).toEqual(['revocation-pending', 'pending', null]);
+    await expect(v.service.getAccessToken({ connectionRef: ref })).rejects.toMatchObject({ code: 'revocation-pending' });
+  });
+  it('retries a pending revocation with the kept credential, then clears it', async () => {
+    const ref = await vaultConnect();
+    provider.failRevocation = true;
+    await v.service.disconnect({ connectionRef: ref });
+    provider.failRevocation = false;
+    const retried = await v.service.disconnect({ connectionRef: ref });
+    expect([retried.status, retried.remoteRevocation, provider.revoked]).toEqual(['disconnected', 'confirmed', ['acme-rt-1']]);
+  });
+  it('reports not-needed only when no credential is stored (the provider already rejected the grant)', async () => {
+    const ref = await vaultConnect();
+    await fetch(`${provider.origin}/revoke`, { method: 'POST', body: new URLSearchParams({ token: 'acme-rt-1' }) });
+    v.clock.now += 3600_000;
+    await expect(v.service.getAccessToken({ connectionRef: ref })).rejects.toMatchObject({ code: 'reconnect-required' });
+    const result = await v.service.disconnect({ connectionRef: ref });
+    expect([result.status, result.remoteRevocation, provider.revoked]).toEqual(['disconnected', 'not-needed', ['acme-rt-1']]);
+  });
+  it('disconnect also revokes a staged switch credential', async () => {
+    const ref = await vaultConnect('alice');
+    await finish((await signIn(v, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
+    const result = await v.service.disconnect({ connectionRef: ref });
+    expect([result.remoteRevocation, [...provider.revoked].sort()]).toEqual(['confirmed', ['acme-rt-1', 'acme-rt-2']]);
+  });
+  it('keeps a staged switch for a retry when cancelling cannot revoke it', async () => {
+    const ref = await vaultConnect('alice');
+    await finish((await signIn(v, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
+    provider.failRevocation = true;
+    const failed = await v.service.cancelSwitchAccount({ connectionRef: ref });
+    provider.failRevocation = false;
+    const retried = await v.service.cancelSwitchAccount({ connectionRef: ref });
+    expect([failed.remoteRevocation, failed.pendingSwitch?.accountId, retried.remoteRevocation, retried.pendingSwitch, provider.revoked])
+      .toEqual(['pending', 'bob', 'confirmed', null, ['acme-rt-2']]);
+  });
+});
+
+describe('paths that would discard a consented credential', () => {
+  it('refuses a new sign-in while an account switch waits, so the staged grant is never overwritten', async () => {
+    await connect('alice');
+    await complete((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
+    await expect(signIn(h, provider, { account: 'carol', intent: 'switch-account' })).rejects.toMatchObject({ code: 'switch-in-progress' });
+  });
+  it('refuses to stage a switch started before another one was staged, keeping the first staged', async () => {
+    const ref = await connect('alice');
+    const bob = await signIn(h, provider, { account: 'bob', intent: 'switch-account' });
+    const carol = await signIn(h, provider, { account: 'carol', intent: 'switch-account' });
+    await complete(bob.callbackParams);
+    await expect(complete(carol.callbackParams)).rejects.toMatchObject({ code: 'switch-in-progress' });
+    expect([(await h.service.getStatus({ connectionRef: ref })).pendingSwitch?.accountId, h.tokens.entries.get(`${ref}#staged`)?.accessToken])
+      .toEqual(['bob', 'acme-at-2']);
+  });
+  it('writes no staged tokens when another writer wins the record update', async () => {
+    const ref = await connect('alice');
+    const { callbackParams } = await signIn(h, provider, { account: 'bob', intent: 'switch-account' });
+    h.records.compareAndSet = async () => false;
+    await expect(complete(callbackParams)).rejects.toMatchObject({ code: 'storage-conflict' });
+    expect(h.tokens.entries.has(`${ref}#staged`)).toBe(false);
+  });
+  it('says the previous account was not revoked at the provider when a switch is confirmed', async () => {
+    const ref = await connect('alice');
+    await complete((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
+    const confirmed = await h.service.confirmSwitchAccount({ connectionRef: ref, actorId: 'actor-1' });
+    expect(confirmed.previousAccountRevocation).toBe('not-attempted');
+  });
+});

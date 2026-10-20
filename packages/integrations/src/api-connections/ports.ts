@@ -13,9 +13,14 @@ import type { ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionRecord } 
  * `persist` is the refresher's write (the store may require its refresh lease); `install` writes a
  * freshly issued sign-in or switch credential for `generation`, needs no lease, and must refuse
  * once the connection's live generation differs or a newer generation's tokens are stored.
+ * `load` must return null for tokens sealed under an older generation (that is how a disconnect
+ * disables a credential); `loadForRevocation` must return them anyway, because only the
+ * disabled credential can still revoke the grant. The engine passes its result to the plugin's
+ * revoke hook and nowhere else: never wire it into a refresher, tool or host read path.
  */
 export type ApiConnectionTokenStore = OAuthTokenStore & {
   install(requiredArgs: { readonly key: string; readonly tokens: OAuthTokenSet; readonly generation: number }): Promise<void>;
+  loadForRevocation(requiredArgs: { readonly key: string }): Promise<OAuthTokenSet | null>;
   delete(requiredArgs: { readonly key: string }): Promise<void>;
 };
 
@@ -39,6 +44,9 @@ export interface ApiConnectionHooks {
   resolveScopes(requiredArgs: { readonly scopeSetIds: readonly string[] }): Promise<readonly string[]>;
   /** Read the signed-in account with a freshly issued access token. */
   readAccount(requiredArgs: { readonly accessToken: string }): Promise<ApiConnectionAccount>;
-  /** Revoke the grant remotely. Throw when the provider did not confirm revocation. */
+  /**
+   * Revoke the grant remotely. Throw when the provider did not confirm revocation. A retry may
+   * send a token the provider already revoked: report that as success, not as a failure.
+   */
   revoke(requiredArgs: { readonly token: string }): Promise<void>;
 }

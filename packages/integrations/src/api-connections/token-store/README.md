@@ -15,7 +15,8 @@ const store = createVaultOAuthTokenStore({
   readGeneration,   // ({ key }) => Promise<number>; the host bumps it on disconnect/switch/reconnect
   clock,            // Clock from @jini-ai/core/primitives
 });
-// store: OAuthTokenStore (all optional lease methods implemented) & { install({ key, tokens, generation }), delete({ key }) }
+// store: OAuthTokenStore (all optional lease methods implemented)
+//        & { install({ key, tokens, generation }), loadForRevocation({ key }), delete({ key }) }
 const refresher = createTokenRefresher({ clock, sleep, port: { ...store, refresh } });
 ```
 
@@ -39,6 +40,7 @@ Also exported: `parseOAuthTokenVaultMeta` (the vault metadata parser), `OAuthTok
 | One refresher at a time, across processes | Lease in metadata, claimed with the vault's revision CAS; expires after 30 s so a crashed holder frees it. |
 | A late refresh cannot resurrect tokens | `persist`/`markNeedsReauth` require this instance's lease, re-read the live generation (must equal the one recorded at lease time) and the stored holder (must still be this lease) right before the CAS write. |
 | Old-account tokens are never served | `load` returns `null` for a payload sealed under an older generation. A lease is refused when a recent `load` saw a different generation than the live one. |
+| A disabled credential can still be revoked | `loadForRevocation` returns the sealed tokens of any generation (owner-checked) and is not recorded as a load. The service passes them only to the plugin's revoke hook. |
 | Rotation is durable before the lease is released | `persist` returns only after the vault write; the refresher releases afterwards. |
 | `invalid_grant` → reconnect required | `markNeedsReauth` clears the sealed tokens and sets `status: "reconnect-required"`; the reason string is not stored. |
 | A sign-in install is fenced without a lease | `install({ key, tokens, generation })` refuses (`stale-generation`) when the live generation is not `generation` or the stored payload is from a newer generation; a CAS conflict re-reads and retries up to 3 times (`write-conflict`). Recent loads do not block it, because its tokens are freshly issued rather than derived from a load. |
