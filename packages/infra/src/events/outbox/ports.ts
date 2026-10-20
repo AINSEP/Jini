@@ -64,5 +64,5 @@ export interface OutboxWorkerOptions {
   batchSize?: number;
   deliveryTimeoutMs?: number;
   claimLeaseMs?: number;
-  retryPolicyForEvent?: OutboxRetryPolicyResolver;
+  retryPolicyForEvent?: OutboxRetryPolicyResolver | undefined;
 }
