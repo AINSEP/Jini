@@ -409,5 +409,91 @@ it('reports the existing unresolved URL error through the executable boundary', 
     exit: () => { throw new Error('exit 1'); },
     createMcpToolServer: required => ({ run: async () => { await required.resolveBaseUrl(); } }),
   })).rejects.toThrow('exit 1');
-  expect(errors).toEqual(['jini-mcp: no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, supply a discover() probe, or provide defaultUrl.\n']);
+  expect(errors).toEqual(['jini-mcp: no daemon URL resolved: JINI_DAEMON_URL is unset or empty; the spawning Jini daemon must set it to its HTTP base URL.\n']);
+});
+
+describe('serve() — characterization pins (before refactor)', () => {
+  function captureOptions(env: NodeJS.ProcessEnv): { deps: ServeDeps & { errWritten: string[] }; seen: { options?: McpToolServerOptions } } {
+    const seen: { options?: McpToolServerOptions } = {};
+    const deps = makeDeps({
+      env,
+      createMcpToolServer: (_required, options) => {
+        if (options) seen.options = options;
+        return { run: async () => {} };
+      },
+    });
+    return { deps, seen };
+  }
+
+  it('refuses a JINI_DIAGNOSTIC_TOOL_IDS that is valid JSON but not an array', async () => {
+    const { deps } = captureOptions({ [RUN_ID_ENV_VAR]: 'run-1', JINI_DIAGNOSTIC_TOOL_IDS: '{"a":1}' });
+    await expect(serve({}, deps)).rejects.toMatchObject({ code: 1 });
+    expect(deps.errWritten).toEqual(['jini-mcp: JINI_DIAGNOSTIC_TOOL_IDS must be a JSON array of registered tool IDs\n']);
+  });
+
+  it('refuses a JINI_DIAGNOSTIC_TOOL_IDS array holding a non-string entry', async () => {
+    const { deps } = captureOptions({ [RUN_ID_ENV_VAR]: 'run-1', JINI_DIAGNOSTIC_TOOL_IDS: '["ok", 2]' });
+    await expect(serve({}, deps)).rejects.toMatchObject({ code: 1 });
+    expect(deps.errWritten).toEqual(['jini-mcp: JINI_DIAGNOSTIC_TOOL_IDS must be a JSON array of registered tool IDs\n']);
+  });
+
+  it('refuses malformed JINI_DIAGNOSTIC_TOOL_IDS JSON with the parser message', async () => {
+    const { deps } = captureOptions({ [RUN_ID_ENV_VAR]: 'run-1', JINI_DIAGNOSTIC_TOOL_IDS: '[' });
+    await expect(serve({}, deps)).rejects.toMatchObject({ code: 1 });
+    expect(deps.errWritten).toHaveLength(1);
+    expect(deps.errWritten[0]).toMatch(/^jini-mcp: .*JSON/);
+  });
+
+  it('omits diagnosticToolIds when the host supplies an empty array', async () => {
+    const { deps, seen } = captureOptions({ [RUN_ID_ENV_VAR]: 'run-1', JINI_DIAGNOSTIC_TOOL_IDS: '[]' });
+    await serve({}, deps);
+    expect(seen.options).not.toHaveProperty('diagnosticToolIds');
+  });
+
+  async function resolveWith(url: string | undefined): Promise<{ resolved: string; errors: string[] }> {
+    const errors: string[] = [];
+    let resolved = '';
+    const env: NodeJS.ProcessEnv = { [RUN_ID_ENV_VAR]: 'run' };
+    if (url !== undefined) env[DAEMON_URL_ENV_VAR] = url;
+    await serve({}, makeDeps({ env, writeErr: ({ text }) => { errors.push(text); },
+      createMcpToolServer: required => ({ run: async () => { resolved = await required.resolveBaseUrl(); } }),
+    }));
+    return { resolved, errors };
+  }
+
+  it('returns an unparseable daemon URL verbatim without warning', async () => {
+    expect(await resolveWith('not a url')).toEqual({ resolved: 'not a url', errors: [] });
+  });
+
+  it('does not warn for a remote HTTPS daemon URL', async () => {
+    expect(await resolveWith('https://user:pw@daemon.example')).toEqual({ resolved: 'https://user:pw@daemon.example', errors: [] });
+  });
+
+  it('does not warn for a loopback plain-HTTP daemon URL', async () => {
+    expect(await resolveWith('http://127.0.0.1:4111')).toEqual({ resolved: 'http://127.0.0.1:4111', errors: [] });
+  });
+
+  it('warns with the URL as given when a remote plain-HTTP URL carries no credentials', async () => {
+    expect(await resolveWith('http://daemon.example:4111')).toEqual({ resolved: 'http://daemon.example:4111', errors: [
+      'daemon URL http://daemon.example:4111 is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.',
+    ] });
+  });
+
+  it('still serves with a bearer credential against a remote plain-HTTP daemon, warning only (reported, not fixed)', async () => {
+    // The credential would travel in cleartext to a non-loopback host; the resolver only warns.
+    const errors: string[] = [];
+    let seen: McpToolServerOptions | undefined;
+    await serve({}, makeDeps({
+      env: { [RUN_ID_ENV_VAR]: 'run', [DAEMON_URL_ENV_VAR]: 'http://daemon.example', [DAEMON_TOKEN_ENV_VAR]: 'tok' },
+      writeErr: ({ text }) => { errors.push(text); },
+      createMcpToolServer: (required, options) => ({ run: async () => { seen = options; await required.resolveBaseUrl(); } }),
+    }));
+    expect(seen?.authHeaders).toEqual({ Authorization: 'Bearer tok' });
+    expect(errors).toEqual(['daemon URL http://daemon.example is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.']);
+  });
+
+  it('redacts a password-only userinfo from the warning', async () => {
+    const { errors } = await resolveWith('http://:pw@daemon.example');
+    expect(errors).toEqual(['daemon URL http://daemon.example/ is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.']);
+  });
 });
