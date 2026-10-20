@@ -109,10 +109,13 @@ function mergeExtraBody(body: Record<string, unknown>, cap: ModelCapability, pas
     if (def.default !== undefined) body[def.name] = def.default;
   }
   if (passthrough && cap.allowedPassthroughParameters?.length) {
-    const allow = new Set(cap.allowedPassthroughParameters);
-    for (const [k, v] of Object.entries(passthrough)) {
-      if (allow.has(k) && v !== undefined) body[k] = v;
-    }
+    applyAllowedPassthrough(body, new Set(cap.allowedPassthroughParameters), passthrough);
+  }
+}
+
+function applyAllowedPassthrough(body: Record<string, unknown>, allow: ReadonlySet<string>, passthrough: Readonly<Record<string, unknown>>): void {
+  for (const [k, v] of Object.entries(passthrough)) {
+    if (allow.has(k) && v !== undefined) body[k] = v;
   }
 }
 
@@ -130,93 +133,147 @@ function buildSeedanceContent(input: VideoBuildInput): Array<Record<string, unkn
   return content;
 }
 
+/** What every family body builder needs, resolved once by `buildVideoRequest`. */
+interface FamilyBodyArgs {
+  readonly cap: ModelCapability;
+  readonly input: VideoBuildInput;
+  readonly wireModel: string;
+  readonly seconds: number;
+  /** The reference image's data URL; undefined or empty means there is no reference. */
+  readonly referenceUrl: string | undefined;
+}
+
+/** `generate_audio` (only a real boolean) then `seed` (only a real number), in that wire order. */
+function audioAndSeed(input: VideoBuildInput): Record<string, unknown> {
+  return {
+    ...(typeof input.generateAudio === 'boolean' ? { generate_audio: input.generateAudio } : {}),
+    ...seedField(input),
+  };
+}
+
+function seedField(input: VideoBuildInput): Record<string, unknown> {
+  return typeof input.seed === 'number' ? { seed: input.seed } : {};
+}
+
+function buildSeedanceBody({ input, wireModel, seconds }: FamilyBodyArgs): Record<string, unknown> {
+  return {
+    model: wireModel,
+    prompt: input.prompt,
+    duration: seconds,
+    content: buildSeedanceContent(input),
+    resolution: snapResolutionToken({ resolution: input.resolution, size: input.size }),
+    ...(input.aspectRatio ? { ratio: input.aspectRatio } : {}),
+    ...audioAndSeed(input),
+  };
+}
+
+function buildWanBody({ input, wireModel, seconds, referenceUrl }: FamilyBodyArgs): Record<string, unknown> {
+  return {
+    model: wireModel,
+    input: {
+      prompt: input.prompt,
+      ...(referenceUrl ? { media: [{ type: 'first_frame', url: referenceUrl }] } : {}),
+    },
+    parameters: {
+      resolution: snapResolutionToken({ resolution: input.resolution, size: input.size }).toUpperCase(),
+      duration: seconds,
+      prompt_extend: true,
+      watermark: false,
+      ...(input.aspectRatio ? { aspect_ratio: input.aspectRatio } : {}),
+      ...seedField(input),
+    },
+  };
+}
+
+function buildVeoBody({ input, wireModel, seconds }: FamilyBodyArgs): Record<string, unknown> {
+  return {
+    model: wireModel,
+    prompt: input.prompt,
+    seconds,
+    size: snapVeoSize({ size: input.size }),
+    ...audioAndSeed(input),
+  };
+}
+
+function buildGenericBody({ cap, input, wireModel, seconds, referenceUrl }: FamilyBodyArgs): Record<string, unknown> {
+  const genericSize = snapSizeToSupported({ size: input.size, supported: cap.supportedSizes });
+  return {
+    model: wireModel,
+    prompt: input.prompt,
+    seconds: String(seconds),
+    ...(genericSize ? { size: genericSize } : {}),
+    ...(input.resolution ? { resolution: input.resolution } : {}),
+    ...(referenceUrl ? { input_reference: referenceUrl } : {}),
+    ...audioAndSeed(input),
+  };
+}
+
+const FAMILY_BODY_BUILDERS: Readonly<Record<MediaFamily, (args: FamilyBodyArgs) => Record<string, unknown>>> = {
+  seedance: buildSeedanceBody,
+  wan: buildWanBody,
+  veo: buildVeoBody,
+  generic: buildGenericBody,
+};
+
+/**
+ * An unrecognized `cap.family` (untyped host config) gets the generic body,
+ * as the original if/else chain's final `else` did. `Object.hasOwn` keeps a
+ * prototype key such as `"toString"` from resolving to a non-builder.
+ */
+function bodyBuilderFor(family: MediaFamily): (args: FamilyBodyArgs) => Record<string, unknown> {
+  return Object.hasOwn(FAMILY_BODY_BUILDERS, family) ? FAMILY_BODY_BUILDERS[family] : buildGenericBody;
+}
+
 /**
  * Builds the upstream video request body for a model. Pure: no fetch, no
  * auth. Caller: `POST \`${baseUrl}${pathSuffix}\`` with auth headers +
  * `JSON.stringify(body)`.
  */
 export function buildVideoRequest({ cap, input }: { cap: ModelCapability; input: VideoBuildInput }): BuiltVideoRequest {
-  const hasReference = Boolean(input.imageRef?.dataUrl);
-  const wireModel = resolveWireModel({ cap: cap, hasReference: hasReference });
-  const family = deriveVideoFamily({ wireModel: wireModel }, { cap: cap });
-  const seconds = snapDuration({ cap: cap, requested: input.durationSeconds });
+  const referenceUrl = input.imageRef?.dataUrl;
+  const hasReference = Boolean(referenceUrl);
+  const wireModel = resolveWireModel({ cap, hasReference });
+  const family = deriveVideoFamily({ wireModel }, { cap });
+  const seconds = snapDuration({ cap, requested: input.durationSeconds });
 
-  let body: Record<string, unknown>;
-  if (family === 'seedance') {
-    body = {
-      model: wireModel,
-      prompt: input.prompt,
-      duration: seconds,
-      content: buildSeedanceContent(input),
-      resolution: snapResolutionToken({ resolution: input.resolution, size: input.size }),
-    };
-    if (input.aspectRatio) body.ratio = input.aspectRatio;
-    if (typeof input.generateAudio === 'boolean') body.generate_audio = input.generateAudio;
-    if (typeof input.seed === 'number') body.seed = input.seed;
-  } else if (family === 'wan') {
-    const wanInput: Record<string, unknown> = { prompt: input.prompt };
-    if (hasReference) {
-      wanInput.media = [{ type: 'first_frame', url: input.imageRef!.dataUrl }];
-    }
-    const parameters: Record<string, unknown> = {
-      resolution: snapResolutionToken({ resolution: input.resolution, size: input.size }).toUpperCase(),
-      duration: seconds,
-      prompt_extend: true,
-      watermark: false,
-    };
-    if (input.aspectRatio) parameters.aspect_ratio = input.aspectRatio;
-    if (typeof input.seed === 'number') parameters.seed = input.seed;
-    body = { model: wireModel, input: wanInput, parameters };
-  } else if (family === 'veo') {
-    body = {
-      model: wireModel,
-      prompt: input.prompt,
-      seconds,
-      size: snapVeoSize({ size: input.size }),
-    };
-    if (typeof input.generateAudio === 'boolean') body.generate_audio = input.generateAudio;
-    if (typeof input.seed === 'number') body.seed = input.seed;
-  } else {
-    body = {
-      model: wireModel,
-      prompt: input.prompt,
-      seconds: String(seconds),
-    };
-    const genericSize = snapSizeToSupported({ size: input.size, supported: cap.supportedSizes });
-    if (genericSize) body.size = genericSize;
-    if (input.resolution) body.resolution = input.resolution;
-    if (hasReference) body.input_reference = input.imageRef!.dataUrl;
-    if (typeof input.generateAudio === 'boolean') body.generate_audio = input.generateAudio;
-    if (typeof input.seed === 'number') body.seed = input.seed;
-  }
-
+  const body = bodyBuilderFor(family)({ cap, input, wireModel, seconds, referenceUrl });
   mergeExtraBody(body, cap, input.passthrough);
 
   return { wireModel, family, pathSuffix: '/videos', contentType: 'application/json', body, hasReference };
+}
+
+/** The first value that is neither `undefined` nor `null` — a `??` chain over a list. */
+function firstPresent(...values: readonly unknown[]): unknown {
+  return values.find((v) => v !== undefined && v !== null);
+}
+
+/** `error.message` (object form), the string `error`, then `failure_reason`, then `message`. */
+function responseError(d: Record<string, unknown>): unknown {
+  const errorObj = d.error as Record<string, unknown> | string | undefined;
+  const fromObject = typeof errorObj === 'object' && errorObj ? errorObj.message : undefined;
+  const fromString = typeof errorObj === 'string' ? errorObj : undefined;
+  return firstPresent(fromObject, fromString, d.failure_reason, d.message);
+}
+
+function responseUrl(d: Record<string, unknown>, data: Record<string, unknown> | undefined): unknown {
+  const dataArray = Array.isArray(d.data) ? (d.data as Array<Record<string, unknown>>) : undefined;
+  const unsignedUrls = Array.isArray(d.unsigned_urls) ? (d.unsigned_urls as unknown[]) : undefined;
+  return firstPresent(d.video_url, d.url, d.output_url, data?.video_url, data?.url, dataArray?.[0]?.url, unsignedUrls?.[0]);
 }
 
 /** Best-effort normalization of an async-submit / poll response across vendor families. */
 export function normalizeVideoResponse({ raw }: { raw: unknown }): NormalizedVideoResponse {
   const d = (raw ?? {}) as Record<string, unknown>;
   const data = d.data as Record<string, unknown> | undefined;
-  const dataArray = Array.isArray(d.data) ? (d.data as Array<Record<string, unknown>>) : undefined;
-  const unsignedUrls = Array.isArray(d.unsigned_urls) ? (d.unsigned_urls as unknown[]) : undefined;
-
-  const id = d.id ?? d.task_id ?? data?.id ?? data?.task_id;
-  const status = d.status ?? data?.status;
-  const url =
-    d.video_url ?? d.url ?? d.output_url ?? data?.video_url ?? data?.url ?? dataArray?.[0]?.url ?? unsignedUrls?.[0];
-  const errorObj = d.error as Record<string, unknown> | string | undefined;
-  const error =
-    (typeof errorObj === 'object' && errorObj ? errorObj.message : undefined) ??
-    (typeof errorObj === 'string' ? errorObj : undefined) ??
-    d.failure_reason ??
-    d.message;
-
-  const result: { id?: string; status?: string; url?: string; error?: string } = {};
-  if (id !== undefined && id !== null) result.id = String(id);
-  if (status !== undefined && status !== null) result.status = String(status);
-  if (url !== undefined && url !== null) result.url = String(url);
-  if (error !== undefined && error !== null) result.error = String(error);
+  const fields = {
+    id: firstPresent(d.id, d.task_id, data?.id, data?.task_id),
+    status: firstPresent(d.status, data?.status),
+    url: responseUrl(d, data),
+    error: responseError(d),
+  };
+  const result: { -readonly [K in keyof NormalizedVideoResponse]: string } = {};
+  for (const key of Object.keys(fields) as (keyof typeof fields)[]) {
+    if (fields[key] !== undefined) result[key] = String(fields[key]);
+  }
   return result;
 }

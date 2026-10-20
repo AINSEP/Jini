@@ -9,7 +9,7 @@ import {
   snapSizeToSupported,
   snapVeoSize,
 } from '../video-request.js';
-import type { ModelCapability } from '../types.js';
+import type { MediaFamily, ModelCapability } from '../types.js';
 
 const SEEDANCE: ModelCapability = {
   id: 'seedance',
@@ -374,6 +374,14 @@ describe('buildVideoRequest — refactor pins (exact wire body incl. key order)'
         const req = buildVideoRequest({ cap: GENERIC, input: { prompt: 'p', imageRef: { dataUrl: '' } } });
         expect(req.hasReference).toBe(false);
         expect('input_reference' in req.body).toBe(false);
+    });
+    it('an unrecognized cap.family (untyped config) builds the generic body and reports the family as given', () => {
+        // Malformed-input fixture: MediaFamily is a closed union, so the bad value needs a cast.
+        for (const family of ['mystery', 'toString'] as unknown as MediaFamily[]) {
+            const req = buildVideoRequest({ cap: { ...VEO, family }, input: { prompt: 'p' } });
+            expect(req.family).toBe(family);
+            expect(req.body).toEqual({ model: 'veo-3.1-generate-preview', prompt: 'p', seconds: '4' });
+        }
     });
     it('returns the fixed path/content-type envelope', () => {
         const req = buildVideoRequest({ cap: VEO, input: { prompt: 'p' } });
