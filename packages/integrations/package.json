@@ -16,7 +16,8 @@
       "./media-providers": "node",
       "./media-providers/catalog": "universal",
       "./credentialed-http": "node",
-      "./webhooks": "node"
+      "./webhooks": "node",
+      "./api-connections": "node"
     }
   },
   "type": "module",
@@ -41,6 +42,11 @@
       "types": "./dist/webhooks/index.d.ts",
       "import": "./dist/webhooks/index.js",
       "default": "./dist/webhooks/index.js"
+    },
+    "./api-connections": {
+      "types": "./dist/api-connections/index.d.ts",
+      "import": "./dist/api-connections/index.js",
+      "default": "./dist/api-connections/index.js"
     }
   },
   "typesVersions": {
@@ -56,6 +62,9 @@
       ],
       "webhooks": [
         "./dist/webhooks/index.d.ts"
+      ],
+      "api-connections": [
+        "./dist/api-connections/index.d.ts"
       ]
     }
   },
@@ -87,7 +96,8 @@
   "peerDependencies": {
     "@jini-ai/db": "^0.3.0",
     "better-sqlite3": "^13.0.0",
-    "@jini-ai/platform": "^0.5.1"
+    "@jini-ai/platform": "^0.5.1",
+    "@jini-ai/oauth": "^0.2.2"
   },
   "peerDependenciesMeta": {
     "@jini-ai/db": {
@@ -98,6 +108,9 @@
     },
     "@jini-ai/platform": {
       "optional": true
+    },
+    "@jini-ai/oauth": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -107,6 +120,7 @@
     "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:*",
     "@jini-ai/platform": "workspace:*",
+    "@jini-ai/oauth": "workspace:*",
     "@jini-ai/agent-plugins": "workspace:*"
   }
 }

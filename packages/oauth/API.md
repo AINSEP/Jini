@@ -8,6 +8,7 @@ All entries use the Node runtime. Public operations take a required argument obj
 | `@jini-ai/oauth/testing` | Three independent memory store factories |
 | `@jini-ai/oauth/discovery-policy` | `createIssuerBoundDiscoveryPolicy`, `OAuthDiscoveryPolicy` |
 | `@jini-ai/oauth/dns-pinned-transport` | `createDnsPinnedOAuthTransport`, `DnsPinnedOAuthTransport`, `DnsPinnedOAuthTransportDeps` and DNS/address/dispatcher port types |
+| `@jini-ai/oauth/loopback-receiver` | `startLoopbackAuthorizationReceiver`, `MAX_CALLBACK_FIELDS`, `MAX_CALLBACK_FIELD_LENGTH`, `LoopbackAuthorizationReceiver`, `LoopbackAuthorizationResult`, `LoopbackReceiverOptions`, `LoopbackReceiverTimers` |
 
 The direct entries and root export the same implementations. The package depends on the kernel `@jini-ai/core`; hosts supply network policy, identity and persistence.
 
@@ -105,6 +106,15 @@ The lookup copies and validates every resolved address before returning any addr
 `redactOAuthUrls({ text, pattern, replacement })` preserves all unmatched bytes. Hosts own its pattern and replacement.
 
 `defaultOAuthMessages` supplies neutral reserved-parameter and registration-recovery copy. Pass `messages` in argument two of browser authorization or registration (including cached `getOrRegister`). Protocol identity is `clientDisplayName` (`client_name`), `softwareId`, and `redirectUris`; the obsolete prose-only `productName` option is removed.
+
+## Loopback receiver
+
+| Operation | Required args | Optional args |
+|---|---|---|
+| `startLoopbackAuthorizationReceiver` → `{ redirectUri, receive }` (`http://127.0.0.1:<port>/callback`) | `{}` | `callbackFields` (≤16), `timeoutMs` (default 10 min, ≤1 h), `signal`, `timers` |
+| `receiver.receive` → `{ code, fields }` | `expectedState` | — |
+
+`timers.after({ ms, run })` returns a cancellation closure. Failures are `OAuthError`: `OAUTH_INVALID_STATE`, `OAUTH_ACCESS_DENIED`, `OAUTH_PROVIDER_REJECTED`, `OAUTH_INVALID_REQUEST`, `OAUTH_AUTHORIZATION_CANCELLED`, `OAUTH_AUTHORIZATION_EXPIRED`. See the README section for the request rules.
 
 ## Memory adapters
 

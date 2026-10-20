@@ -11,18 +11,15 @@
  * does not catch handler errors itself — a subscriber that fails to catch its own errors would
  * break every OTHER subscriber to the same event, including the webhook fan-out).
  *
- * Deliberately duplicates the `'form.submission.received'` topic-name literal rather than
- * importing it from `./manifest` — see `types.ts`'s file header for why domain code never reads
- * the manifest back.
+ * Takes the `'form.submission.received'` topic name from `types.ts`, never from `./manifest` —
+ * see `FORM_SUBMISSION_RECEIVED_EVENT` there for why domain code never reads the manifest back.
  */
 import type { Logger } from "@jini-ai/core/primitives";
 /** Notification subscriber with host sender, mail and logging ports. Each recipient receives a stable per-submission dedup key; delivery and repository failures never block sibling subscribers. */
 import type { DomainEvent, EventBusPort } from "../core/index.js";
 import type { MailerPort,  EmailAddress } from "./ports.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";
-
-// Domain behavior owns its event contract; reading a host manifest back would invert dependency flow.
-const FORM_SUBMISSION_RECEIVED_TOPIC = "form.submission.received";
+import { FORM_SUBMISSION_RECEIVED_EVENT } from "./types.js";
 
 interface FormSubmissionReceivedPayload {
   workspaceId: string;
@@ -44,7 +41,7 @@ export async function registerFormNotifySubscriber(
   _optional: Record<string, never> = {},
 ): Promise<() => Promise<void>> {
   return deps.bus.subscribe<FormSubmissionReceivedPayload>(
-    { eventName: FORM_SUBMISSION_RECEIVED_TOPIC,
+    { eventName: FORM_SUBMISSION_RECEIVED_EVENT,
     handler: async (event: DomainEvent<FormSubmissionReceivedPayload>) => {
       try {
         const { workspaceId, formDefinitionId, submissionId } = event.payload;

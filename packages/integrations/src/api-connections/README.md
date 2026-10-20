@@ -1,0 +1,166 @@
+# API connections (`@jini-ai/integrations/api-connections`)
+
+## Purpose
+
+A provider plugin declares an OAuth connection ("sign in to this service"); this module runs the
+generic lifecycle for it: sign-in, status, reconnect, staged account switch, disconnect with
+remote revocation, and short-lived access tokens for the plugin's own API calls. It names no
+provider. Everything provider-specific (endpoints, extra authorization parameters, scope sets,
+reading the signed-in account, revocation) comes from the plugin's descriptor and hooks.
+
+The OAuth mechanics are reused from `@jini-ai/oauth`, not reimplemented:
+`beginAuthorizationCode` / `completeAuthorizationCode` (PKCE S256, redirect allowlist, callback
+error mapping, code exchange), `createTokenRefresher` and `refreshAccessToken`.
+
+## Public API
+
+| Export | What it is |
+|---|---|
+| `parseApiConnectionDescriptor({ value })` | Validates and freezes a plugin's untrusted declaration (ids, endpoints, bounded extra params, allowlisted start params and callback fields; OAuth parameter names are reserved). |
+| `createApiConnectionService(deps)` | One service per declared connection. Returns `start`, `complete`, `confirmSwitchAccount`, `cancelSwitchAccount`, `disconnect`, `getStatus`, `getAccessToken`. The connectionRef for a workspace is `deriveApiConnectionKey({ workspaceId, pluginId, connectionId })`, before or after it ever connected. |
+| `deriveApiConnectionKey({ workspaceId, pluginId, connectionId })` | The opaque key. It is also the public `connectionRef` and the token-store key. |
+| `createApiConnectionGenerationReader({ records })` | `readGeneration({ key })` for a generation-fenced token store (main and staged keys). |
+| `ApiConnectionError` | Every refusal; branch on `code`, show `message` (it says what to do next and never carries tokens). |
+
+Ports (`ports.ts`), all injected:
+
+- `ApiConnectionTokenStore = OAuthTokenStore & { install({ key, tokens, generation }), loadForRevocation({ key }), delete({ key }) }` —
+  secret storage (a vault). `persist` is the refresher's write and may require the store's refresh
+  lease; `install` is the sign-in / switch write: no lease, refused once the live generation differs
+  from `generation` or a newer generation's tokens are stored. `load` returns null for tokens of an
+  older generation (that is what disables a credential on disconnect); `loadForRevocation` returns
+  them anyway, owner-checked, because only that disabled credential can still revoke the grant. The
+  engine hands its result to the revoke hook and nothing else; never wire it into a refresher, tool
+  or host read path. The bundled vault token store (`createVaultOAuthTokenStore`) implements all of
+  them, so a host needs no wrapper of its own.
+- `ApiConnectionRecordStore` — non-secret metadata: `read`, `compareAndSet({ key, expectedRevision, record })`,
+  `putAttempt`, `takeAttempt` (atomic consume-once). Attempts hold a short-lived PKCE verifier:
+  keep them out of logs and exports.
+- `ApiConnectionHooks` (the plugin) — `resolveScopes({ scopeSetIds })`, `readAccount({ accessToken })`,
+  `revoke({ token })` (throw unless the provider confirmed; a retry may resend a token the provider
+  already revoked, so treat "token already invalid" as success).
+
+## Client kind vs auth method
+
+`deps.clientKind` says how the app is registered; `deps.client.authMethod` says how it
+authenticates at the token endpoint. They are separate because some providers give installed
+apps a client secret that is not confidential:
+
+| `clientKind` | Meaning | Rules it selects |
+|---|---|---|
+| `public` | Installed app: PKCE, loopback callback, re-consent replaces the whole token set | `authorizationParams.public`; a same-account exchange without a refresh token replaces the set |
+| `confidential` | Hosted server that keeps its secret | `authorizationParams.confidential`; a same-account exchange without a refresh token keeps the stored one |
+
+A `public` client may use `client_secret_post` / `client_secret_basic`; its secret is still a
+secret: it stays in the host's server-side config, is sent only to the token endpoint, and never
+appears in attempts, records, stored tokens, status, results or error messages. A `confidential`
+client with `authMethod: 'none'` is refused at construction (`configuration-invalid`).
+
+## How it behaves
+
+- **Attempts** are stored, expire after 10 minutes, are consumed before any check (a probe burns
+  the state it guessed) and are bound to workspace, actor, plugin connection, requested scopes,
+  the exact callback URL, the credential generation and the starting browser (`browserBinding`,
+  below). Every mismatch is the same `invalid-attempt`.
+- **Grant check**: every requested scope must be granted, otherwise nothing is stored
+  (`scope-not-granted`). A token response without `scope` means "as requested" (RFC 6749 §5.1).
+- **Credential install** is fenced: the record first moves to a new generation in
+  `reconnect-required`, then tokens are written, then the record becomes `connected`. A crash in
+  between leaves "reconnect required", never a record that disagrees with its token.
+- **Reconnect** (`intent: 'connect'`) keeps the same `connectionRef` and must sign in as the same
+  account (`account-mismatch` otherwise). A same-account exchange that omits a refresh token keeps
+  the stored one; every other part of the set is replaced. A sign-in of either client kind that
+  would end up with no refresh token (first connect, switch, or nothing valid stored) is refused
+  with `offline-access-required` before anything is written: it could not renew access once the
+  access token expires.
+- **Forced consent (hosted)**: some providers issue a refresh token only on the first consent per
+  account and client, so the same account connected in a second workspace, or reconnected after a
+  lost grant, would get none. A `confidential` start therefore adds the descriptor's
+  `forceConsentParams` whenever nothing renewable is stored for the account it signs in: a first
+  connect, any switch, or a reconnect whose record is not `connected` or whose stored tokens are
+  unreadable or hold no refresh token. A reconnect with a renewable credential stored does not.
+- **Switch account** (`intent: 'switch-account'`) stages the new tokens and identity; nothing
+  changes until the same actor calls `confirmSwitchAccount`. Bindings that froze an account pass
+  `getAccessToken({ connectionRef }, { expectedAccountId })` and get `account-changed` instead of
+  silently using the new account. While a switch is staged every new sign-in is refused
+  (`switch-in-progress`), so a consented staged credential is never overwritten or orphaned
+  unrevoked; the record claims the staged slot before its tokens are written. Signing in as the
+  account already connected is refused (`account-unchanged`, "use reconnect"): the staged copy
+  would share the live grant, so cancelling it would revoke the live credential.
+- **Confirmed switch** returns the new status view and never revokes the previous account's
+  grant at the provider (revoking it could cut off the same account connected elsewhere
+  through the same client) and its local tokens are replaced. Hosts say so and link the provider's
+  account-access page. A same-account reconnect never revokes either: the new tokens share the grant.
+- **Cancel switch** revokes the staged credential; when the provider does not confirm, the switch
+  stays staged (`remoteRevocation: 'pending'`) and cancelling again retries.
+- **Disconnect** stops use first (new generation, `revocation-pending`: no token is served or
+  refreshed from then on), then revokes the live credential and any staged one through the hook,
+  deleting each only after the hook returned. All confirmed (or nothing stored) → `disconnected`.
+  Any failure → stays `revocation-pending` with the disabled credential kept, `remoteRevocation:
+  'pending'` (show "Disconnected locally; revocation pending" and the provider's account-access
+  page); calling `disconnect` again retries. `not-needed` means no credential was stored.
+  A failure is recorded as a fixed diagnostic code, `revocationFailure` on the record and the status
+  view (`provider-unreachable` / `provider-refused` when the revoke hook's error carries that
+  `code`, `unclassified` otherwise, `credential-unreadable` for the case below); hook and provider
+  text is never stored. A confirmed revocation, a successful cancel or a new sign-in clears it. A sign-in
+  is refused while revocation is pending. A stored credential this host can no longer read (it was
+  sealed for another OAuth client id, or is malformed) is deleted locally and reported `pending`
+  with status `disconnected`: nothing is left to retry with, so the person removes the access on
+  the provider's account page, and a new sign-in is allowed.
+- **Access tokens** are served only for `connected` records; a rejected refresh moves the record
+  to `reconnect-required`. The record is read again after the token: a switch, disconnect or
+  reconnect that landed in between refuses the call (`account-changed`, the status code, or
+  `storage-conflict`; a retry sees the new state) instead of serving another credential.
+
+## How a provider plugin uses it
+
+```ts
+const descriptor = parseApiConnectionDescriptor({ value: plugin.manifest.connection });
+const service = createApiConnectionService({
+  descriptor, client, clientKind: runtime === 'desktop' ? 'public' : 'confidential', appOptions: { clientDisplayName, softwareId, redirectUris },
+  hooks: plugin.connectionHooks, records, tokens, fetchFn, guard, clock, randomBytesFn, sleep,
+});
+// `state` and `browserBinding` are host-only; `attemptId` is what plugin code may hold.
+const { authorizationUrl, connectionRef, state, attemptId, browserBinding } = await service.start(
+  { workspaceId, actorId, intent: 'connect', scopeSetIds: enabledModules, redirectUri });
+// ...hand browserBinding to the starting browser (see "Browser binding"); it returns to redirectUri...
+const done = await service.complete({ workspaceId, actorId, redirectUri, callbackParams,
+  browserBinding: bindingTheCallbackBrowserCarried ?? '' }); // done.attemptId === attemptId
+const accessToken = await service.getAccessToken({ connectionRef, workspaceId });
+```
+
+Descriptor extension points: `authorizationParams.public` / `.confidential` (fixed extra
+parameters per client kind, e.g. a forced consent prompt for installed apps or incremental-grant
+flags for hosted ones), `forceConsentParams` (added to a hosted start only when nothing renewable
+is stored, e.g. a forced consent prompt), `startParams` (names a caller may set for one sign-in, e.g. a selection
+mode) and `callbackFields` (extra fields a provider returns after consent; returned in
+`complete(...).callbackFields` only after the exchange succeeded, and still to be verified by the
+plugin through the provider's API before being trusted).
+
+## Browser binding (host contract)
+
+`start` returns `browserBinding`: 32 random bytes, base64url (43 characters). The attempt stores
+only its SHA-256, and `complete` requires the value back and compares it in constant time; a
+missing (`''`) or different binding burns the attempt with `invalid-attempt`. It stops a forwarded
+authorization URL: without it, anyone able to start a sign-in could send their URL to someone
+else, and that person's consent would land in the starter's workspace, because a callback route
+that cannot read the session learns the workspace and actor from the attempt itself.
+
+- **Hosted (the session cookie is not sent on the provider's redirect, e.g. `SameSite=Strict`):**
+  the response that starts the sign-in sets the binding as the host's own cookie,
+  `HttpOnly; Secure; SameSite=Lax; Path=<the callback path>; Max-Age=600` (the attempt's 10
+  minutes). `Lax` is sent on the provider's top-level cross-site GET redirect; `Strict` is not.
+  The callback route reads that cookie and passes it as `browserBinding` (`''` when absent), then
+  clears it. Use one cookie name per attempt, or one name whose newest value wins, so two tabs
+  signing in at once fail closed, never across attempts.
+- **Desktop loopback:** the host that starts the sign-in is the one whose receiver gets the
+  callback, so it keeps the binding in memory next to `state` and passes it straight back.
+- Never put it in the authorization URL, a frame, plugin code, logs, status or an error message.
+
+## Host responsibilities
+
+Authorize the caller for a workspace before any call and pass that `workspaceId` with every
+`connectionRef` (`getAccessToken`, `getStatus`, `disconnect`, `confirmSwitchAccount`,
+`cancelSwitchAccount`); the service refuses a ref whose record belongs to another workspace,
+plugin or connection with the same `connection-not-found`. Seal tokens at rest, make
+`compareAndSet` and `takeAttempt` atomic, and pass the exact callback URL a request arrived on.

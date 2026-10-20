@@ -108,10 +108,39 @@ Catalog format) that this package does not implement.
 | `./lifecycle/yauzl` | node | `createYauzlAgentPluginArchiveReader({ yauzl })`; the host supplies the optional peer library. |
 | `./folder-zip` | universal | `zipFolderFiles({ files, maxBytes })`: packs picked folder `File`s into one stored-mode, binary-safe `.zip` `File` (the admin "Upload a folder" encoder). |
 | `./folder-zip/node` | node | `zipLocalFolder({ path, maxBytes })`: the same encoder over a local folder; refuses symlinks/special files, bounds entries and bytes. |
+| `./admin-surfaces` | universal | Plugin-owned admin surfaces: the contribution definition (host-named file), sandboxed-iframe/CSP/bootstrap helpers, the host-page message gate and the server-side action dispatcher. See "Admin surfaces" below. |
+| `./admin-surfaces/client` | universal | `createAdminSurfaceClient(...)`: the self-contained surface-side protocol client a plugin's UI imports or copies. |
 | `./ui-ux-design/*` | — | Raw files of the bundled `ui-ux-design` plugin — static JSON/Markdown, not run through the TS build. |
 
 The universal root handles structural validation. The separate Node lifecycle entry implements
 local archive installation and host-owned activation policy; it does not implement remote catalog discovery.
+
+## Admin surfaces
+
+A plugin can ship its own admin UI as static files the host renders in an
+`<iframe sandbox="allow-scripts">` (never `allow-same-origin`). The surface has no server access:
+it posts `action-request` messages, the host page checks origin (`"null"` for a sandboxed frame),
+frame window, per-mount nonce, declared action and input schema, and forwards the request to a host
+route whose dispatcher runs a host-provided handler. Full format, protocol and API:
+[`src/admin-surfaces/README.md`](src/admin-surfaces/README.md).
+
+Contribution file (the host names it, e.g. `<product>-admin-surfaces.json`, and passes it to
+`defineAdminSurfaceContribution({ filename })`):
+
+```json
+{ "schemaVersion": 1, "surfaces": [ {
+  "id": "connection-settings", "title": "Connection settings",
+  "entry": "surface/index.html", "files": ["surface/app.mjs"],
+  "actions": [ { "name": "save-selection", "input": { "type": "object", "properties": { "resourceId": { "type": "string" } }, "required": ["resourceId"] } } ],
+  "csp": { "connect-src": ["https://api.example.com"] }
+} ] }
+```
+
+Messages (all carry `protocol: "jini.admin-surface", version: 1`):
+`init { mountId, bootstrap? }` host → frame once; `action-request { mountId, requestId, action, payload }`
+frame → host; `action-response { mountId, requestId, ok, result | error: { code, message, retryable } }`
+host → frame. Bootstrap data is short-lived (`expiresAt`, one minute) and served with
+`Cache-Control: no-store`.
 
 ## Not this package: `@jini-ai/plugins` (`./host`)
 

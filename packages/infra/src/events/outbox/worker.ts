@@ -1,5 +1,5 @@
 import { nowIso } from '@jini-ai/core/primitives';
-import type { EventEnvelope, OutboxClaim, OutboxRecord, OutboxWorkerArgs, OutboxWorkerOptions, Scheduler } from './ports.js';
+import type { EventEnvelope, OutboxClaim, OutboxRecord, OutboxRetryPolicy, OutboxWorkerArgs, OutboxWorkerOptions, Scheduler } from './ports.js';
 import { computeOutboxBackoffMs, MAX_OUTBOX_ATTEMPTS, resolvePolicy } from './policy.js';
 import type { ResolvedPolicy } from './policy.js';
 
@@ -10,11 +10,71 @@ function addMs(iso: string, delayMs: number): string { return new Date(Date.pars
 function claim(row: OutboxRecord): OutboxClaim {
   return { id: row.id, ...(row.claimToken === undefined ? {} : { claimToken: row.claimToken }) };
 }
-function failureStatus(row: OutboxRecord): 'pending' | 'failed' {
-  return row.attempts >= MAX_OUTBOX_ATTEMPTS ? 'failed' : 'pending';
+const DEFAULT_RETRY_POLICY: OutboxRetryPolicy = { maxAttempts: MAX_OUTBOX_ATTEMPTS, backoffMs: computeOutboxBackoffMs };
+type FailurePlan = { delayMs: number; nextStatus: 'pending' | 'failed' };
+
+function failureStatus(required: { row: OutboxRecord; retry: OutboxRetryPolicy }): 'pending' | 'failed' {
+  return required.row.attempts >= required.retry.maxAttempts ? 'failed' : 'pending';
 }
 function report<Event extends EventEnvelope>(required: { args: OutboxWorkerArgs<Event>; message: string; error: unknown }): void {
   try { required.args.logger.error({ message: required.message }, { error: required.error }); } catch { /* Reporter cannot kill a background delivery. */ }
+}
+function reportPolicyFailure<Event extends EventEnvelope>(required: { args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; error: unknown }): void {
+  report({ args: required.args, error: required.error,
+    message: `[outbox-worker] the retry policy for outbox event "${required.row.event.name}" (${required.row.id}) failed; using the default policy for this row` });
+}
+
+/**
+ * Picks the row's retry policy once per claim. Host resolver code runs inside the worker, so a
+ * resolver that throws or returns an invalid cap must not reject the batch: that would leave this
+ * row (and every later row in the batch) processing until the lease expires, and fail the same way
+ * on every reclaim. Falling back to the default policy is the smallest choice that still records
+ * an outcome and still terminates: at worst the row gets the bounded default schedule and cap.
+ */
+function retryPolicyFor<Event extends EventEnvelope>(required: {
+  args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; policy: ResolvedPolicy;
+}): OutboxRetryPolicy {
+  try {
+    const custom = required.policy.retryPolicyForEvent?.({ event: required.row.event });
+    if (custom === undefined) return DEFAULT_RETRY_POLICY;
+    if (!Number.isSafeInteger(custom.maxAttempts) || custom.maxAttempts < 1) {
+      throw new RangeError(`maxAttempts ${String(custom.maxAttempts)} is not a positive integer; fix the host retry-policy resolver`);
+    }
+    return custom;
+  } catch (error) {
+    reportPolicyFailure({ ...required, error });
+    return DEFAULT_RETRY_POLICY;
+  }
+}
+
+function planWith(required: { row: OutboxRecord; retry: OutboxRetryPolicy; random: () => number; error: unknown }): FailurePlan {
+  const { row, retry, error } = required;
+  const delayMs = retry.backoffMs({ attempts: row.attempts, random: required.random, error });
+  if (!Number.isFinite(delayMs) || delayMs < 0) throw new RangeError(`retry delay ${delayMs}ms is not finite and nonnegative; fix the host retry policy`);
+  const terminal = failureStatus({ row, retry }) === 'failed' || retry.retryable?.({ error }) === false;
+  return { delayMs, nextStatus: terminal ? 'failed' : 'pending' };
+}
+
+/**
+ * Next delay and status for a failed attempt. A custom policy whose backoff or retryable throws, or
+ * yields a non-finite or negative delay, falls back to the default plan for the same reason as
+ * {@link retryPolicyFor}. The default plan itself is not guarded, so its historical behaviour
+ * (including the RangeError for host randomness outside 0..1) is unchanged.
+ *
+ * Why this is a second fallback rather than one shared with {@link retryPolicyFor}: the two run at
+ * different moments with different inputs. The resolver runs once per claim, before publishing,
+ * because the over-cap seal needs the cap; `backoffMs` and `retryable` can only run after a failure,
+ * because they take that failure's error. No single up-front check can validate both.
+ */
+function failurePlan<Event extends EventEnvelope>(required: {
+  args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; retry: OutboxRetryPolicy; error: unknown;
+}): FailurePlan {
+  const { args, row, retry, error } = required;
+  if (retry !== DEFAULT_RETRY_POLICY) {
+    try { return planWith({ row, retry, random: args.random, error }); }
+    catch (policyError) { reportPolicyFailure({ args, row, error: policyError }); }
+  }
+  return planWith({ row, retry: DEFAULT_RETRY_POLICY, random: args.random, error });
 }
 
 /**
@@ -44,9 +104,9 @@ async function settleWithin(required: { publishing: Promise<PublishOutcome>; sch
  * @complexity O(1) beyond the two port calls it may make.
  */
 async function recordOutcome<Event extends EventEnvelope>(required: {
-  args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; outcome: PublishOutcome;
+  args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; outcome: PublishOutcome; retry: OutboxRetryPolicy;
 }): Promise<void> {
-  const { args, row, outcome } = required;
+  const { args, row, outcome, retry } = required;
   let error: unknown;
   if (outcome.ok) {
     try { await args.outbox.markDelivered(claim(row)); return; }
@@ -60,9 +120,10 @@ async function recordOutcome<Event extends EventEnvelope>(required: {
   // backoff exists. The floor is 15s (`computeOutboxBackoffMs` at `attempts = 1`, `random = 0`)
   // and the bus is in-process, so this needs a pathologically slow handler to bite; it is fixed
   // because the correct anchor costs one clock read, not because it was observed in the wild.
-  const nextAttemptAt = addMs(nowIso({ clock: args.clock }), computeOutboxBackoffMs({ attempts: row.attempts, random: args.random }));
+  const plan = failurePlan({ args, row, retry, error });
+  const nextAttemptAt = addMs(nowIso({ clock: args.clock }), plan.delayMs);
   await args.outbox.markFailed({ ...claim(row), error: error instanceof Error ? error.message : 'unknown outbox error',
-    nextAttemptAt, nextStatus: failureStatus(row) });
+    nextAttemptAt, nextStatus: plan.nextStatus });
 }
 
 /**
@@ -85,19 +146,24 @@ async function recordOutcome<Event extends EventEnvelope>(required: {
  */
 async function recordOverrun<Event extends EventEnvelope>(required: {
   args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; publishing: Promise<PublishOutcome>; policy: ResolvedPolicy;
+  retry: OutboxRetryPolicy;
 }): Promise<void> {
-  const { args, row, publishing, policy } = required;
+  const { args, row, publishing, policy, retry } = required;
   try {
+    // Only the cap decides this status; `retry.retryable` (consulted by `planWith`) is deliberately
+    // not asked. A timeout is not the handler's error: the handler is still running and may yet
+    // succeed, and its real outcome replaces this record through `recordOutcome`, which does apply
+    // `retryable`. Asking the classifier now would judge an error the handler never produced.
     await args.outbox.markFailed({ ...claim(row),
       error: `delivery of outbox event "${row.event.name}" (${row.id}) timed out after ${policy.deliveryTimeoutMs}ms`,
-      nextAttemptAt: addMs(nowIso({ clock: args.clock }), policy.claimLeaseMs), nextStatus: failureStatus(row) });
+      nextAttemptAt: addMs(nowIso({ clock: args.clock }), policy.claimLeaseMs), nextStatus: failureStatus({ row, retry }) });
   } finally {
     // Attached only after the timeout record settles, so a publish that settles meanwhile is still
     // written LAST. The captured publish outcome never rejects, so this chain never produces an unhandled
     // rejection on its own; a `recordOutcome` failure is caught and reported instead of
     // thrown, because nothing here is awaited by the caller.
     // The original adapter has no fence. Tokens, where supported, prevent stale late writes.
-    void publishing.then(outcome => recordOutcome({ args, row, outcome })).catch(error => {
+    void publishing.then(outcome => recordOutcome({ args, row, outcome, retry })).catch(error => {
       report({ args, message: `[outbox-worker] could not record the late outcome of outbox event "${row.event.name}" (${row.id})`, error });
     });
   }
@@ -106,8 +172,8 @@ async function recordOverrun<Event extends EventEnvelope>(required: {
 /**
  * Publishes one claimed row and records its outcome.
  *
- * A row whose `attempts` already exceeds `MAX_OUTBOX_ATTEMPTS` is sealed as `"failed"` without being
- * published (2026-09-14). A failed attempt at the cap seals the row, so the only way past the cap is
+ * A row whose `attempts` already exceeds its retry policy's `maxAttempts` (`MAX_OUTBOX_ATTEMPTS` by
+ * default) is sealed as `"failed"` without being published (2026-09-14). A failed attempt at the cap seals the row, so the only way past the cap is
  * a claim that expired with no recorded outcome: its claimer died mid-delivery, possibly because a
  * handler crashed the process. Publishing it again could repeat that crash on every lease expiry.
  *
@@ -117,7 +183,8 @@ async function deliver<Event extends EventEnvelope>(required: {
   args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; policy: ResolvedPolicy;
 }): Promise<void> {
   const { args, row, policy } = required;
-  if (row.attempts > MAX_OUTBOX_ATTEMPTS) {
+  const retry = retryPolicyFor(required);
+  if (row.attempts > retry.maxAttempts) {
     await args.outbox.markFailed({ ...claim(row),
       error: `claimed ${row.attempts} times; the last claim expired with no recorded outcome (its claimer likely died mid-delivery)`,
       nextAttemptAt: nowIso({ clock: args.clock }), nextStatus: 'failed' });
@@ -133,11 +200,13 @@ async function deliver<Event extends EventEnvelope>(required: {
   const publishing: Promise<PublishOutcome> = Promise.resolve().then(() => args.bus.publish({ event: row.event }))
     .then(() => ({ ok: true as const }), error => ({ ok: false as const, error }));
   const outcome = await settleWithin({ publishing, scheduler: args.scheduler, timeoutMs: policy.deliveryTimeoutMs });
-  if (outcome === TIMED_OUT) { await recordOverrun({ args, row, publishing, policy }); return; }
-  await recordOutcome({ args, row, outcome });
+  if (outcome === TIMED_OUT) { await recordOverrun({ args, row, publishing, policy, retry }); return; }
+  await recordOutcome({ args, row, outcome, retry });
 }
 
-/** Claim and deliver a bounded batch. Delivery is at least once, with six attempts and capped backoff.
+/** Claim and deliver a bounded batch. Delivery is at least once, with six attempts and capped backoff
+ * unless the host's optional `retryPolicyForEvent` resolver gives an event its own cap, backoff and
+ * terminal errors (see {@link retryPolicyFor}); every other event keeps the defaults below.
  *
  * Reliability bridge: synchronous command writes enqueue persisted events, while this worker
  * owns retry policy for asynchronous side effects. Hosts provide storage and their subscribed bus;

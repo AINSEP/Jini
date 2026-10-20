@@ -109,6 +109,8 @@ test("minimal registry covers only requested kinds and rejects unknown/invalid p
   assert.equal(isCopyableKind["personal-execution"], false);
   assert.equal(isCopyableKind["mcp-auth"], false);
   assert.equal(isCopyableKind["mcp-env"], false);
+  // API-connection tokens are bound to one workspace sign-in; copying them to another site must be refused.
+  assert.equal(isCopyableKind["api-connection"], false);
   assert.equal(typeof SecretsVaultService.prototype.copyToSite, "function");
 });
 

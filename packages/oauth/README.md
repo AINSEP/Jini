@@ -107,7 +107,7 @@ Refreshes are single-flight per refresher instance. A lease loser waits through 
 
 ## Error and grant contracts
 
-`new OAuthError({ code, message, operatorAction }, { cause, providerErrorCode, retryAfterSeconds })` separates required recovery guidance from optional metadata. Omit absent optional fields under `exactOptionalPropertyTypes`. `isOAuthError({ value })` narrows the argument object's `value`. `OAuthError` carries `code`, `operatorAction`, `retryable`, optional `providerErrorCode`, and optional `retryAfterSeconds`. Only `OAUTH_AUTHORIZATION_PENDING` and `OAUTH_SLOW_DOWN` are retryable. Code exchange, registration and refresh each make one attempt. Provider `error_description` is never placed in operator-facing errors. Token responses use absolute expiry, `null` for absent refresh tokens/expiry, and normalized scopes.
+`new OAuthError({ code, message, operatorAction }, { cause, providerErrorCode, retryAfterSeconds })` separates required recovery guidance from optional metadata. Omit absent optional fields under `exactOptionalPropertyTypes`. `isOAuthError({ value })` narrows the argument object's `value`. `OAuthError` carries `code`, `operatorAction`, `retryable`, optional `providerErrorCode`, and optional `retryAfterSeconds`. Only `OAUTH_AUTHORIZATION_PENDING` and `OAUTH_SLOW_DOWN` are retryable. `OAUTH_AUTHORIZATION_CANCELLED` and `OAUTH_AUTHORIZATION_EXPIRED` come only from the loopback receiver. Code exchange, registration and refresh each make one attempt. Provider `error_description` is never placed in operator-facing errors. Token responses use absolute expiry, `null` for absent refresh tokens/expiry, and normalized scopes.
 
 `beginDeviceAuthorization` returns the secret device code separately from its display code/link and clamps expiry/interval values. `pollDeviceAuthorizationOnce` checks local expiry and makes at most one request. The app owns polling cadence, increasing the interval for `slow_down`, cancellation and UI.
 
@@ -117,7 +117,7 @@ Build/typecheck with `tsc -p tsconfig.json` / `tsc -p tsconfig.json --noEmit`. R
 
 ## Additional entries
 
-The root barrel retains all existing exports and also shares implementations with three direct Node entries:
+The root barrel retains all existing exports and also shares implementations with four direct Node entries:
 
 The DNS-pinned transport requires `OAuthDispatcherPort.dispatcher` to match Node's non-null `RequestInit['dispatcher']` type. Hosts supply a native Undici dispatcher; the transport forwards it through the existing `RequestInit` contract.
 
@@ -125,6 +125,7 @@ The DNS-pinned transport requires `OAuthDispatcherPort.dispatcher` to match Node
 |---|---|
 | `./discovery-policy` | `createIssuerBoundDiscoveryPolicy` and its metadata-policy port |
 | `./dns-pinned-transport` | `createDnsPinnedOAuthTransport`, transport result and DNS/address/dispatcher ports |
+| `./loopback-receiver` | `startLoopbackAuthorizationReceiver`, its receiver/result/options/timer types and field limits |
 
 Discovery defaults to `createIssuerBoundDiscoveryPolicy({})`: advertised issuers must match exactly and supplied endpoints must use HTTPS on that origin. An explicit `metadataPolicy: "none"` in the second object disables binding for a host that needs compatibility. Policy failures terminate discovery. Supply DNS, address policy, dispatcher construction, HTTP and URL guard ports to `createDnsPinnedOAuthTransport`, and call `close({})` at shutdown. Request inputs retain method/body/headers/cancellation; the adapter checks IP literals before fetch (Node skips DNS lookup for them) and forces its dispatcher and redirect refusal. Hosts own their native DNS and Undici dependencies.
 
@@ -133,3 +134,25 @@ The provider primitives preserve the existing fixed-issuer raw token and error c
 The main API now owns PKCE/state, fixed-issuer code exchange, refresh, URL redaction and pending storage. It depends on `@jini-ai/core`; clocks implement `nowMs()`. PKCE defaults to 32 bytes; `{ verifierBytes: 64 }` preserves provider verifier length. Grant results are normalized `OAuthTokenSet`; the redundant raw-wire API and subpath are removed. Hosts can replace reserved-parameter/registration prose with `defaultOAuthMessages` through the `messages` option. Registration wire identity remains `clientDisplayName`, `softwareId`, and `redirectUris`.
 
 Path-scoped issuer discovery fails after its path candidates by default. Set `allowOriginFallback: true` explicitly to try origin-wide metadata; issuer binding remains enabled. The explicit `allowLoopbackHttp` exception includes all IPv4 loopback and mapped IPv6 loopback literals and still invokes the host policy. Synchronous callback storage is an expiry option of `createPendingAuthorizationStore`; see API.md for the scheduler and capacity contract.
+
+## Installed-app loopback receiver
+
+Desktop hosts cannot register a fixed HTTPS callback, so the installed-app flow (RFC 8252 §7.3) sends the system browser back to `http://127.0.0.1:<port>/callback`. `startLoopbackAuthorizationReceiver` opens that listener on an ephemeral port and hands back its redirect URI. Starting and arming are separate because `beginAuthorizationCode` needs the redirect URI before it mints the state:
+
+```ts
+import { startLoopbackAuthorizationReceiver } from '@jini-ai/oauth/loopback-receiver';
+
+const abort = new AbortController();
+const receiver = await startLoopbackAuthorizationReceiver({}, {
+  path: '/callback', callbackFields: ['picked_ids'], signal: abort.signal, // timeoutMs defaults to 10 minutes
+});
+const started = await beginAuthorizationCode({ ...deps, redirectUri: receiver.redirectUri, options: { ...identity, redirectUris: [receiver.redirectUri] } });
+const callback = receiver.receive({ expectedState: started.state }); // arm before opening the browser
+await openSystemBrowser(started.authorizationUrl);
+const { code, fields } = await callback;                             // fields: only declared names that were present
+const tokens = await completeAuthorizationCode({ ...deps, params: { state: started.state, code } });
+```
+
+What it guarantees: it binds `127.0.0.1` only; it answers only requests whose `Host` is exactly that origin (DNS-rebinding defence); wrong paths, other methods, requests with a body, oversized headers (16 KiB, 64 headers) and requests before `receive` is armed are refused without consuming the slot. State is compared in constant time first. A request whose state does not match is answered with the static failure page and does not consume the slot, so a local process or a web page probing loopback ports cannot end the sign-in; the 16th such request ends it as `OAUTH_INVALID_STATE` (the timeout bounds the rest). The first request whose state matches consumes the slot whatever else it says: a provider `error` becomes a typed failure (`OAUTH_ACCESS_DENIED` for a declined consent, otherwise `OAUTH_PROVIDER_REJECTED`), then the code and declared fields are read. Repeated parameters, a missing or oversized code and declared fields over 4096 characters are `OAUTH_INVALID_REQUEST`. At most 16 fields may be declared and protocol names (`code`, `state`, `error`, `error_description`, `error_uri`, `iss`) cannot be. The browser always gets one of two static pages with `Content-Security-Policy: default-src 'none'` and `Cache-Control: no-store`; nothing from the request is echoed. The listener closes on the callback, on abort (`OAUTH_AUTHORIZATION_CANCELLED`) and on expiry (`OAUTH_AUTHORIZATION_EXPIRED`); the `receive` promise settles after the port is closed. Inject `timers: { after({ ms, run }) => cancel }` to drive expiry in tests.
+
+Extension point: a provider plugin needs nothing provider-specific here. It declares any extra callback field names (for example a picked resource id), and checks those fields against its own API after the code exchange; a field is never trusted on its own. The redirect URI is plain-HTTP loopback, so the `guard` given to `beginAuthorizationCode` must accept it.

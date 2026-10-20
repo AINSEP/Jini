@@ -18,8 +18,11 @@ export interface PluginRouteContribution {
   readonly method: string; readonly path: string; readonly access: PluginRouteAccess;
   readonly handler: (required: PluginRouteInput, optional?: Record<string, never>) => PluginRouteResult | void | Promise<PluginRouteResult | void>;
 }
+/** Declared change class. Only ever tightens host policy: `destructive` forces confirmation. */
+export type PluginToolEffect = 'read' | 'write' | 'destructive';
 export interface PluginToolContribution {
   readonly name: string; readonly description: string; readonly inputSchema: Readonly<Record<string, unknown>>;
+  readonly effect?: PluginToolEffect;
   readonly handler: (required: PluginInvocationContext & { readonly input: unknown }, optional?: Record<string, never>) => unknown | Promise<unknown>;
 }
 export interface PluginWidgetContribution {

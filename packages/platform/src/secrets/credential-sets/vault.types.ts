@@ -1,7 +1,7 @@
 import type { SealedSecret } from "../types.js";
 
 export const VAULT_KINDS = ["site-assistant", "personal-execution", "media-provider", "publish-peer",
-  "database-destination", "vendor", "source-control", "mcp-env", "mcp-auth"] as const;
+  "database-destination", "vendor", "source-control", "mcp-env", "mcp-auth", "api-connection"] as const;
 /** `custom` remains readable/replaceable until each workspace activates its data migration. */
 export type VaultKind = typeof VAULT_KINDS[number] | "custom";
 export type CredentialType = "vendor" | "custom";

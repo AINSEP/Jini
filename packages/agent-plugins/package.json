@@ -18,10 +18,13 @@
       "./lifecycle": "node",
       "./lifecycle/node": "node",
       "./lifecycle/yauzl": "node",
+      "./lifecycle/tools": "node",
       "./manifest": "universal",
       "./persistent-state": "node",
       "./folder-zip": "universal",
-      "./folder-zip/node": "node"
+      "./folder-zip/node": "node",
+      "./admin-surfaces": "universal",
+      "./admin-surfaces/client": "universal"
     },
     "isolation": {
       "entries": {
@@ -30,7 +33,9 @@
       },
       "shared": [
         "core/persistent-state.js",
-        "persistent-state.js"
+        "persistent-state.js",
+        "src/lifecycle/contribution-loader.ts",
+        "src/lifecycle/tools/capabilities.ts"
       ]
     }
   },
@@ -58,6 +63,11 @@
       "import": "./dist/lifecycle/yauzl-archive-reader.js",
       "default": "./dist/lifecycle/yauzl-archive-reader.js"
     },
+    "./lifecycle/tools": {
+      "types": "./dist/lifecycle/tools/index.d.ts",
+      "import": "./dist/lifecycle/tools/index.js",
+      "default": "./dist/lifecycle/tools/index.js"
+    },
     "./manifest": {
       "types": "./dist/lifecycle/manifest.d.ts",
       "import": "./dist/lifecycle/manifest.js",
@@ -77,6 +87,16 @@
       "types": "./dist/folder-zip-node.d.ts",
       "import": "./dist/folder-zip-node.js",
       "default": "./dist/folder-zip-node.js"
+    },
+    "./admin-surfaces": {
+      "types": "./dist/admin-surfaces/index.d.ts",
+      "import": "./dist/admin-surfaces/index.js",
+      "default": "./dist/admin-surfaces/index.js"
+    },
+    "./admin-surfaces/client": {
+      "types": "./dist/admin-surfaces/surface-client.d.ts",
+      "import": "./dist/admin-surfaces/surface-client.js",
+      "default": "./dist/admin-surfaces/surface-client.js"
     }
   },
   "files": [
@@ -108,18 +128,24 @@
     "@vitest/coverage-v8": "^2.1.9",
     "yazl": "^3.3.1",
     "@jini-ai/core": "^0.4.2",
-    "@jini-ai/platform": "^0.5.0"
+    "@jini-ai/platform": "^0.5.0",
+    "@cfworker/json-schema": "^4.1.1",
+    "@jini-ai/plugins": "workspace:^"
   },
   "peerDependencies": {
     "yauzl": "^3.4.0",
     "@jini-ai/core": "^0.4.3",
-    "@jini-ai/platform": "^0.5.3"
+    "@jini-ai/platform": "^0.5.3",
+    "@cfworker/json-schema": "^4.1.1"
   },
   "peerDependenciesMeta": {
     "yauzl": {
       "optional": true
     },
     "@jini-ai/platform": {
+      "optional": true
+    },
+    "@cfworker/json-schema": {
       "optional": true
     }
   }

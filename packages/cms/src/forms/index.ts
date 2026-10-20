@@ -15,3 +15,5 @@ export * from "./delete-submission.js";
 export * from "./duplicate-slug.js";
 export * from "./repo.memory.js";
 export * from "./field-registry.js";
+
+export * from "./delivery/index.js";
