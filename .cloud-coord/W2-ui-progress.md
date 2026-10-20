@@ -36,7 +36,7 @@ Lots are file-disjoint; no lot changes a public export, so lots are independent 
 | L122 | MERGED (32307e21) | 1 agent, 23 calls, 104k tok, 6 min | 38edb604 | recordNavigation 24/15, mergeHistoryEntry 22/13, normalizeBrowserAddress 13/13 → file worst 9/9 | 100/100/100 (was 98.65% branch); 58→95 tests | eslint 0, tsc 0, 140 tests green; coordinator re-derived equivalence of removed labelFromUrl fallback |
 | L127 | MERGED (51d293c0) | 1 agent, 31 calls, 116k tok, 6.7 min | b61c79cb 8960d87b | Codex 11/10→6/5; IntegrationsTab 33/23→10/4 | 100/100/100 both (Tab was 95.74% branch); 18→29 tests | eslint 0, tsc 0, 60 tests green; comment lines grew |
 | L132 | MERGED (259f28e9) | 1 agent, 10 calls, 76k tok, 3 min | 2c2ea6e4 | validateAdminTheme 29/26→6/5 | 100/100/100; new __tests__/theme/validation.test.ts (78 tests, exact messages) | eslint 0, tsc 0, 84 tests green; 400+ input differential (deleted) |
-| L133 | dispatched | | | | | |
+| L133 | MERGED (846a762a) | 1 agent, 40 calls, 112k tok, 9.2 min | e22080e0 d0cd8355 1b47ccfb | placeInfoTipBubble 17/16→7/6; handleKey 13/13→8/7; InfoTip 21/15→10/7 | 100/100/100 on 3 files; 40→83 tests | eslint 0, tsc 0, 222 tests green; removed `picked!==undefined` guard re-derived safe (current is clamped to matches.length) |
 
 ## Problems / notes
 - L091: label explicitly `undefined` falls back to default — untestable under exactOptionalPropertyTypes without a cast (noted, not an issue).
@@ -47,5 +47,6 @@ Lots are file-disjoint; no lot changes a public export, so lots are independent 
 - L117: f8b3b81a subject says 15->5/22->7; measured 8/10. BUG PINNED (reported, not fixed): duplicated allow-list action or duplicate <li> action → 'already ordered' check never passes → menu re-appended every MutationObserver tick. Export toast 5000 vs 2200 ms not pinned.
 - L127: IntegrationsTabProps.serverName doc says 'Required' but prop is optional (public; left). Sibling ClientPicker.tsx (out of scope) has same needless spread.
 - L089: BUG PINNED (reported, not fixed): WorkingDirPicker ArrowUp with focus on no menu item jumps to second-to-last item, not last. Quirk pinned: CustomSelect empty data-color-scheme="" hides legacy data-theme="dark". Subagent's '100% on all files' claim was false for select-popover.ts.
+- L133: e22080e0 message says 4/2, measured 7/6.
 
 ## Next
