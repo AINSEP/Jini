@@ -19,17 +19,33 @@ export interface UserDirectoryOptions {
  */
 export function resolveUserDataDirectories(
   { homeDir, appName }: { homeDir: string; appName: string },
-  { platform = process.platform, env = process.env, appDataDir, readText = (file) => readOptionalText({ file }), windowsDocuments = readWindowsDocuments }: UserDirectoryOptions = {},
+  options: UserDirectoryOptions = {},
 ): { appData: string; documents: string } {
+  const { platform, env, appDataDir, readText, windowsDocuments } = withNativeDefaults(options);
   const paths = platform === "win32" ? path.win32 : path.posix;
-  if (appDataDir !== undefined && (!appDataDir.trim() || !paths.isAbsolute(appDataDir))) throw new Error("appDataDir must be an absolute profile directory.");
-  if (platform === "win32") {
-    const personal = windowsDocuments();
-    const documents = personal?.replace(/%([^%]+)%/g, (match, key: string) => env[key] ?? match);
-    return { appData: appDataDir ?? paths.join(env.APPDATA ?? paths.join(homeDir, "AppData", "Roaming"), appName),
-      documents: documents ?? paths.join(homeDir, "Documents") };
-  }
+  assertProfileDirectory({ appDataDir, paths });
+  const context = { homeDir, appName, env, appDataDir, paths };
+  if (platform === "win32") return windowsDirectories(context, { windowsDocuments });
   if (platform === "darwin") return { appData: appDataDir ?? paths.join(homeDir, "Library", "Application Support", appName), documents: paths.join(homeDir, "Documents") };
+  return xdgDirectories(context, { readText });
+}
+function withNativeDefaults(
+  { platform = process.platform, env = process.env, appDataDir, readText = (file) => readOptionalText({ file }), windowsDocuments = readWindowsDocuments }: UserDirectoryOptions,
+) {
+  return { platform, env, appDataDir, readText, windowsDocuments };
+}
+function assertProfileDirectory({ appDataDir, paths }: { appDataDir: string | undefined; paths: path.PlatformPath }): void {
+  // A blank or whitespace-only value is never absolute, so one check refuses both.
+  if (appDataDir !== undefined && !paths.isAbsolute(appDataDir)) throw new Error("appDataDir must be an absolute profile directory.");
+}
+interface DirectoryContext { homeDir: string; appName: string; env: NodeJS.ProcessEnv; appDataDir: string | undefined; paths: path.PlatformPath; }
+/** Unknown %VARS% stay literal rather than collapsing to an unintended path. */
+function windowsDirectories({ homeDir, appName, env, appDataDir, paths }: DirectoryContext, { windowsDocuments }: { windowsDocuments: () => string | undefined }): { appData: string; documents: string } {
+  const documents = windowsDocuments()?.replace(/%([^%]+)%/g, (match, key: string) => env[key] ?? match);
+  return { appData: appDataDir ?? paths.join(env.APPDATA ?? paths.join(homeDir, "AppData", "Roaming"), appName),
+    documents: documents ?? paths.join(homeDir, "Documents") };
+}
+function xdgDirectories({ homeDir, appName, env, appDataDir, paths }: DirectoryContext, { readText }: { readText: (file: string) => string | undefined }): { appData: string; documents: string } {
   const userDirs = readText(paths.join(env.XDG_CONFIG_HOME ?? paths.join(homeDir, ".config"), "user-dirs.dirs"));
   const configured = /^XDG_DOCUMENTS_DIR="([^"\n]*)"/m.exec(userDirs ?? "")?.[1]?.replace(/\$HOME/g, homeDir);
   return { appData: appDataDir ?? paths.join(env.XDG_DATA_HOME ?? paths.join(homeDir, ".local", "share"), appName),
