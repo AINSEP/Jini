@@ -3,7 +3,7 @@
  * `.mjs` `handlerModule` that answers its declared actions and may provide its bootstrap data.
  *
  * Why it exists: without it a host can only answer a surface's actions with its own code, so a
- * provider plugin cannot ship a working settings or picker screen. Why it is safe to run plugin code
+ * provider plugin cannot ship a working settings or resource-chooser screen. Why it is safe to run plugin code
  * here: the module loads only through the lifecycle's one executable loader
  * (`defineExecutablePluginContribution`: active plugin, shipped digest, on-disk containment), it
  * receives the same host capability ports as an executable tool (never a raw secret), every call goes

@@ -30,7 +30,7 @@ const HANDLERS = `export default {
 };
 `;
 const SURFACES = JSON.stringify({ schemaVersion: 1, surfaces: [{
-  id: 'resource-picker', title: 'Pick a file', entry: 'surface/index.html', files: ['surface/app.mjs'], handlerModule: 'server/handlers.mjs',
+  id: 'resource-chooser', title: 'Choose a file', entry: 'surface/index.html', files: ['surface/app.mjs'], handlerModule: 'server/handlers.mjs',
   actions: [{ name: 'save-selection',
     input: { type: 'object', properties: { connectionRef: { type: 'string' }, resourceId: { type: 'string', maxLength: 128 } }, required: ['connectionRef', 'resourceId'] },
     result: { type: 'object', properties: { saved: { type: 'boolean' }, workspace: { type: 'string' } }, required: ['saved'] } }],
@@ -57,11 +57,11 @@ test('an acme-style plugin surface runs its own handler and bootstrap provider t
     if (!surface) throw new Error('the fixture surface was not admitted');
     expect(await readAdminSurfaceFile({ surface, path: 'server/handlers.mjs', readFile: ({ plugin, filename }) => readTrustedPluginFile(plugin, filename) })).toEqual({ ok: false, reason: 'not-declared' });
 
-    const context = { workspaceId: WORKSPACE_ID, principalId: 'admin-1', pluginId: 'acme-office', surfaceId: 'resource-picker' };
+    const context = { workspaceId: WORKSPACE_ID, principalId: 'admin-1', pluginId: 'acme-office', surfaceId: 'resource-chooser' };
     const bootstrap = createAdminSurfaceBootstrap({ surfaceId: surface.descriptor.id, data: await host.bootstrapData({ context }), nowMs: 1_000 });
-    expect(bootstrap).toEqual({ surfaceId: 'resource-picker', issuedAt: 1_000, expiresAt: 61_000, data: { accessToken: FAKE_TOKEN, appId: 'public-app-id' } });
+    expect(bootstrap).toEqual({ surfaceId: 'resource-chooser', issuedAt: 1_000, expiresAt: 61_000, data: { accessToken: FAKE_TOKEN, appId: 'public-app-id' } });
 
-    const dispatcher = createAdminSurfaceActionDispatcher({ descriptor: surface.descriptor, handlers: host.handlersFor({ pluginId: 'acme-office', surfaceId: 'resource-picker' }) });
+    const dispatcher = createAdminSurfaceActionDispatcher({ descriptor: surface.descriptor, handlers: host.handlersFor({ pluginId: 'acme-office', surfaceId: 'resource-chooser' }) });
     expect(await dispatcher.dispatch({ action: 'save-selection', payload: { connectionRef: 'conn-1', resourceId: 'file-42' }, context }))
       .toEqual({ ok: true, result: { saved: true, workspace: WORKSPACE_ID } });
     expect(log.tokenRequests).toEqual(['conn-1', 'conn-1']);
