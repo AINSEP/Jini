@@ -14,6 +14,10 @@ export const CONSENT_CSS = `
 .jini-consent summary{padding:.5rem 0}
 .jini-consent-category{display:flex;align-items:center;gap:.6rem;padding:.35rem 0;min-height:44px}
 .jini-consent-category input{width:1.15rem;height:1.15rem;accent-color:var(--jini-accent,#333)}
+#jini-consent[data-has-record="false"]:where([data-placement="bottom-bar"]){inset:auto 1rem 1rem;max-width:46rem}
+#jini-consent[data-has-record="false"]:where([data-placement="bottom-left"]){inset:auto auto 1rem 1rem;max-width:28rem}
+#jini-consent[data-has-record="false"]:where([data-placement="bottom-right"]){inset:auto 1rem 1rem auto;max-width:28rem}
+#jini-consent[data-has-record="false"]:where([data-placement="top-bar"]){inset:1rem 1rem auto;max-width:46rem}
 .jini-consent[data-has-record="true"]{inset:auto auto 1rem 1rem;max-width:min(46rem,calc(100vw - 2rem));max-height:none;overflow:visible;padding:0;border:0;background:none;box-shadow:none}
 .jini-consent[data-has-record="true"] .jini-consent-initial,.jini-consent[data-has-record="true"] #jini-consent-preferences>summary{display:none}
 .jini-consent .jini-consent-manage{margin:0}

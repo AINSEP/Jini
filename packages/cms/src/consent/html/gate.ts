@@ -246,7 +246,7 @@ export function gateConsentHtml({ html, config, record, regionMode, gpc, endpoin
   html = located.html;
   const { edits, startTagEnds } = gateDocument({ document }, options);
   const offsets = insertionOffsets({ document, startTagEnds });
-  edits.push({ start: offsets.head, end: offsets.head, text: renderConsentHead({ record, gpc, regionMode }, options) });
+  edits.push({ start: offsets.head, end: offsets.head, text: renderConsentHead({ record, gpc, regionMode, config }, options) });
   edits.push({ start: offsets.ui, end: offsets.ui, text: renderConsentUi({ config, record, regionMode, gpc, endpoint }) });
   edits.sort((a, b) => b.start - a.start);
   for (const edit of edits) html = html.slice(0, edit.start) + edit.text + html.slice(edit.end);

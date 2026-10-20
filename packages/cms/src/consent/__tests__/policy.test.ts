@@ -1,9 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { createConsentRecord, googleConsentSignals, readConsentRecord, resolveConsentChoices, resolveConsentRegion } from '../policy.js';
 import { CONSENT_MAX_AGE_MS, DENIED_CHOICES } from '../types.js';
 import { accepted, config, now } from './fixtures.js';
 
 describe('consent decisions', () => {
+  it('preserves string-valued public Google signal types', () => {
+    expectTypeOf<ReturnType<typeof googleConsentSignals>>().toEqualTypeOf<{
+      ad_storage: string; ad_user_data: string; ad_personalization: string; analytics_storage: string;
+      functionality_storage: string; personalization_storage: string; security_storage: string;
+    }>();
+  });
   it('uses opt-in for unknown/EU/UK and opt-out only for California; explicit modes win', () => {
     for (const region of [null, 'DE', 'GB', 'EU', 'US', 'CA', 'attacker']) expect(resolveConsentRegion({ configuredMode: 'auto', region })).toBe('opt-in');
     expect(resolveConsentRegion({ configuredMode: 'auto', region: ' us-ca ' })).toBe('opt-out');

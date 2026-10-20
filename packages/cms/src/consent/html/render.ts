@@ -1,5 +1,6 @@
 import { escapeHtml } from '@jini-ai/core/text';
-import { DENIED_CHOICES, type ConsentChoices, type ConsentConfig, type ConsentRecord, type ConsentRegionMode } from '../types.js';
+import { CONSENT_PLACEMENTS, DENIED_CHOICES, type ConsentChoices, type ConsentConfig, type ConsentRecord, type ConsentRegionMode } from '../types.js';
+import { compileConsentCss } from '../css.js';
 import { GOOGLE_CONSENT_SIGNAL_CATEGORIES, resolveConsentChoices } from '../policy.js';
 import { CONSENT_CLIENT } from './client.js';
 import { CONSENT_CSS } from './styles.js';
@@ -12,6 +13,17 @@ export function consentPolicyHref({ url }: { url: string }, _options = {}): stri
   catch { return null; }
 }
 
+/** Optional host links share the same URL validator and attribute/text encoding boundary.
+ * @complexity O(link text length); no authored markup reaches the output. */
+function policyLinks({ config }: { config: ConsentConfig }): string {
+  const e = (text: string) => escapeHtml({ text });
+  const href = consentPolicyHref({ url: config.privacyPolicyUrl });
+  const secondaryHref = consentPolicyHref({ url: config.secondaryLinkUrl ?? '' });
+  const privacy = href ? `<a href="${e(href)}">Privacy policy</a> · ` : '';
+  const secondary = secondaryHref && config.secondaryLinkLabel ? `<a href="${e(secondaryHref)}">${e(config.secondaryLinkLabel)}</a> · ` : '';
+  return privacy + secondary;
+}
+
 /** Render one accessible progressive form. Config text is always text, never trusted HTML.
  * Necessary cookies/default rejection work without JS. After a choice the form sits inside a
  * closed disclosure whose summary is a small corner control, so withdrawal stays one click away
@@ -19,16 +31,16 @@ export function consentPolicyHref({ url }: { url: string }, _options = {}): stri
 export function renderConsentUi({ config, record, regionMode, gpc, endpoint }: { config: ConsentConfig; record: ConsentRecord | null; regionMode: ConsentRegionMode; gpc: boolean; endpoint: string }, _options = {}): string {
   const e = (text: string) => escapeHtml({ text });
   const choices = resolveConsentChoices({ choices: record?.choices, gpc, regionMode });
-  const href = consentPolicyHref({ url: config.privacyPolicyUrl });
+  const placement = CONSENT_PLACEMENTS.includes(config.placement!) ? config.placement! : 'bottom-bar';
   const categories = (['necessary', 'functional', 'analytics', 'marketing'] as const).map(category => {
     const locked = category === 'necessary' || (gpc && (category === 'analytics' || category === 'marketing'));
     return `<label class="jini-consent-category"><input type="checkbox" name="${category}"${choices[category] ? ' checked' : ''}${locked ? ' disabled' : ''}>${category[0]!.toUpperCase() + category.slice(1)}${category === 'necessary' ? ' (always on)' : ''}</label>`;
   }).join('');
   const manage = record === null ? ['', ''] : [`<details class="jini-consent-manage"><summary class="jini-consent-pill">${e(config.preferencesLabel)}</summary><div class="jini-consent-panel">`, '</div></details>'];
-  return `<section id="jini-consent" class="jini-consent" data-has-record="${record !== null}" aria-label="Cookie preferences">
+  return `<section id="jini-consent" class="jini-consent" data-has-record="${record !== null}" data-placement="${placement}" aria-label="Cookie preferences">
 ${manage[0]}<div class="jini-consent-initial"><h2>${e(config.title)}</h2><p>${e(config.message)}</p>
 <p>${regionMode === 'opt-out' ? 'You may opt out of optional cookies at any time.' : 'Optional cookies and scripts stay paused until you agree.'}</p></div>
-${href ? `<a href="${e(href)}">Privacy policy</a> · ` : ''}<a href="#jini-consent-preferences" data-jini-do-not-sell>Do Not Sell or Share</a>
+${policyLinks({ config })}<a href="#jini-consent-preferences" data-jini-do-not-sell>Do Not Sell or Share</a>
 <p data-jini-gpc-note${gpc ? '' : ' hidden'}>Global Privacy Control is on. Analytics and marketing are disabled.</p>
 <form method="post" action="${e(endpoint)}"><input type="hidden" name="policyVersion" value="${e(config.policyVersion)}"><input type="hidden" name="gpc" value="${gpc ? '1' : '0'}">
 <p role="alert" data-jini-consent-error hidden></p>
@@ -77,10 +89,17 @@ function resourcePolicies({ origins }: { origins: ResourceOrigins }): Record<str
   return policies;
 }
 
+/** Validate at the style sink even when a host bypasses admin preview validation.
+ * @complexity O(bounded appearance bytes); raw CSS is never interpolated into HTML. */
+function consentStyle({ config, nonceAttr }: { config: ConsentConfig | undefined; nonceAttr: string }): string {
+  const appearance = compileConsentCss({ css: config?.customCss ?? '', tokens: config?.appearance ?? {} });
+  return `<style data-jini-consent-style${nonceAttr}>${CONSENT_CSS}${appearance.css}</style>`;
+}
+
 /** Bootstrap must be inserted before every site script; JSON cannot terminate its script element.
  * @throws Error when a resource or category origin is not an exact HTTP(S) origin.
  * @complexity O(config text length + origins). */
-export function renderConsentHead({ record, gpc, regionMode = 'opt-in' }: { record: ConsentRecord | null; gpc: boolean; regionMode?: ConsentRegionMode }, { nonce, runtimeToken, resourceOrigins, categoryOrigins }: { nonce?: string; runtimeToken?: string; resourceOrigins?: readonly string[]; categoryOrigins?: ConsentCategoryOrigins } = {}): string {
+export function renderConsentHead({ record, gpc, regionMode = 'opt-in', config }: { record: ConsentRecord | null; gpc: boolean; regionMode?: ConsentRegionMode; config?: ConsentConfig }, { nonce, runtimeToken, resourceOrigins, categoryOrigins }: { nonce?: string; runtimeToken?: string; resourceOrigins?: readonly string[]; categoryOrigins?: ConsentCategoryOrigins } = {}): string {
   const choices = resolveConsentChoices({ choices: record?.choices, gpc, regionMode });
   const gpcChoices = resolveConsentChoices({ choices: record?.choices, gpc: true, regionMode });
   const origins = validatedOrigins({ resourceOrigins, categoryOrigins });
@@ -89,5 +108,5 @@ export function renderConsentHead({ record, gpc, regionMode = 'opt-in' }: { reco
   // Each choice reloads, so restrictive policy can be removed only after a saved grant.
   const resourcePolicyMeta = choices.marketing ? '' : `<meta http-equiv="Content-Security-Policy" content="${escapeHtml({ text: resourcePolicy({ choices, origins }) })}">`;
   const nonceAttr = nonce === undefined ? '' : ` nonce="${escapeHtml({ text: nonce })}"`;
-  return `${resourcePolicyMeta}<style data-jini-consent-style${nonceAttr}>${CONSENT_CSS}</style><script type="application/json" id="jini-consent-config"${nonceAttr}>${state}</script><script data-jini-consent-runtime="${escapeHtml({ text: runtimeToken ?? '' })}"${nonceAttr}>${CONSENT_CLIENT}</script>`;
+  return `${resourcePolicyMeta}${consentStyle({ config, nonceAttr })}<script type="application/json" id="jini-consent-config"${nonceAttr}>${state}</script><script data-jini-consent-runtime="${escapeHtml({ text: runtimeToken ?? '' })}"${nonceAttr}>${CONSENT_CLIENT}</script>`;
 }

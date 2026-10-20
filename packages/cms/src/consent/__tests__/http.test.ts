@@ -6,7 +6,7 @@ import { createConsentFileRecords } from '../node/index.js';
 import { once } from 'node:events';
 import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
-import { registerConsentHttp, type ConsentHttpPorts } from '../express/index.js';
+import { registerConsentHttp, type ConsentHttpPorts, type ConsentHttpOptions } from '../express/index.js';
 import type { ConsentRecord } from '../types.js';
 import { accepted, config, now } from './fixtures.js';
 import { googleConsentSignals } from '../policy.js';
@@ -15,7 +15,7 @@ const inertText = 'This page could not be delivered with cookie preferences enfo
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const close of closers.splice(0)) await close(); });
 
-type SiteOptions = { pageHtml?: string; delivery?: 'live' | 'static'; saveFails?: boolean; readFails?: boolean; enabled?: boolean; allowed?: boolean; register?: Parameters<typeof registerConsentHttp>[1]; bodyless?: boolean };
+type SiteOptions = { pageHtml?: string; delivery?: NonNullable<ConsentHttpOptions['delivery']>; saveFails?: boolean; readFails?: boolean; enabled?: boolean; allowed?: boolean; register?: Parameters<typeof registerConsentHttp>[1]; bodyless?: boolean };
 async function site(options: SiteOptions = {}) {
   const { saveFails, readFails, enabled, allowed, delivery, register, bodyless, pageHtml } = { saveFails: false, readFails: false, enabled: true, allowed: true, delivery: 'live' as const, register: {}, bodyless: false, ...options };
   const records = new Map<string, ConsentRecord>();
@@ -176,6 +176,46 @@ describe('availability and delivery regressions', () => {
     expect(await response.text()).toBe('Static export requires cookie consent to be disabled. Review optional scripts before exporting.');
     const off = await site({ delivery: 'static', enabled: false });
     expect(await (await fetch(off.base)).text()).toBe(off.html);
+  });
+  it('resolves live/static delivery independently for each request on the same registration', async () => {
+    const requests: string[] = [];
+    const { base } = await site({ delivery: ({ request }) => {
+      requests.push(request.get('x-static-export') ?? 'live');
+      return request.get('x-static-export') === '1' ? 'static' : 'live';
+    } });
+    const live = await fetch(base);
+    expect(live.status).toBe(200); expect(await live.text()).toContain('<template data-jini-consent-script');
+    const exported = await fetch(base, { headers: { 'x-static-export': '1' } });
+    expect(exported.status).toBe(409); expect(await exported.text()).toBe('Static export requires cookie consent to be disabled. Review optional scripts before exporting.');
+    expect(await (await fetch(base)).text()).toContain('id="jini-consent"');
+    expect(requests).toEqual(['live', '1', 'live']);
+  });
+  it('does not resolve delivery for disabled sites, non-HTML responses or excluded routes', async () => {
+    const requests: string[] = [];
+    const delivery: NonNullable<SiteOptions['delivery']> = ({ request }) => { requests.push(request.path); return 'static'; };
+    const off = await site({ enabled: false, delivery });
+    expect(await (await fetch(off.base)).text()).toBe(off.html);
+    const on = await site({ delivery });
+    expect(await (await fetch(on.base + '/binary')).text()).toBe('binary');
+    expect(await (await fetch(on.base + '/admin')).text()).toBe(on.html);
+    expect(requests).toEqual([]);
+  });
+  it.each(['/', '/stream'])('resolves request delivery before overflow fallback: %s', async route => {
+    let calls = 0;
+    const { base } = await site({ register: { maxHtmlBytes: 16 }, delivery: ({ request }) => { calls++; return request.get('x-static-export') === '1' ? 'static' : 'live'; } });
+    const exported = await fetch(base + route, { headers: { 'x-static-export': '1' } });
+    expect(exported.status).toBe(409); expect(await exported.text()).toContain('Static export requires');
+    expect(calls).toBe(1);
+    const live = await fetch(base + route);
+    expect(live.status).toBe(200); expect(await live.text()).toBe(inertText);
+    expect(calls).toBe(2);
+  });
+  it('fails closed when the request delivery resolver throws', async () => {
+    const { base, failures } = await site({ delivery: () => { throw new Error('Delivery unavailable'); } });
+    const response = await fetch(base);
+    expect(await response.text()).toBe(inertText);
+    expect(response.headers.get('content-security-policy')).toContain("script-src 'none'");
+    expect(failures.map(entry => (entry.error as Error).message)).toContain('Delivery unavailable');
   });
   it('preserves a late non-HTML content type without invoking policy', async () => {
     const { base, ports, failures } = await site();

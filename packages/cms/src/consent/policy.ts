@@ -64,7 +64,8 @@ export function createConsentRecord({ fields, config, id, timestamp, regionMode,
 /** Each Consent Mode v2 signal follows one category; all advertising signals map to marketing.
  * The browser runtime receives this table so a locally reduced choice signals the same way. */
 export const GOOGLE_CONSENT_SIGNAL_CATEGORIES = Object.freeze({ ad_storage: 'marketing', ad_user_data: 'marketing', ad_personalization: 'marketing', analytics_storage: 'analytics', functionality_storage: 'functional', personalization_storage: 'marketing', security_storage: 'necessary' } as const);
-export type GoogleConsentSignals = Record<keyof typeof GOOGLE_CONSENT_SIGNAL_CATEGORIES, 'granted' | 'denied'>;
+/** Keep the original string-valued API for consumers that annotate or update signal payloads. */
+export type GoogleConsentSignals = Record<keyof typeof GOOGLE_CONSENT_SIGNAL_CATEGORIES, string>;
 
 /** This enqueues signals, never loads a Google tag. @complexity O(1). */
 export function googleConsentSignals({ choices }: { choices: ConsentChoices }, _options = {}): GoogleConsentSignals {

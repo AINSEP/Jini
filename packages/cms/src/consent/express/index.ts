@@ -72,7 +72,8 @@ function respondError(response: Response, status: number, error: string): void {
   response.status(status).json({ error });
 }
 
-type ConsentHttpOptions = { endpoint?: string; cookieName?: string; nonce?: string | ((required: { request: Request; response: Response }) => string | undefined); necessaryScripts?: ConsentGateOptions['necessaryScripts']; resourceOrigins?: ConsentGateOptions['resourceOrigins']; categoryOrigins?: ConsentGateOptions['categoryOrigins']; delivery?: 'live' | 'static'; maxHtmlBytes?: number };
+export type ConsentDelivery = 'live' | 'static';
+export type ConsentHttpOptions = { endpoint?: string; cookieName?: string; nonce?: string | ((required: { request: Request; response: Response }) => string | undefined); necessaryScripts?: ConsentGateOptions['necessaryScripts']; resourceOrigins?: ConsentGateOptions['resourceOrigins']; categoryOrigins?: ConsentGateOptions['categoryOrigins']; delivery?: ConsentDelivery | ((required: { request: Request }) => ConsentDelivery); maxHtmlBytes?: number };
 
 const UNAVAILABLE_CONFIG: ConsentConfig = { enabled: true, regionMode: 'opt-in', policyVersion: 'unavailable', privacyPolicyUrl: '', title: 'Cookie preferences', message: 'Optional content is paused while preferences are unavailable.', acceptLabel: 'Accept all', rejectLabel: 'Reject non-essential', preferencesLabel: 'Cookie preferences' };
 
@@ -158,7 +159,8 @@ async function prepareDelivery({ request, response, ports, state }: { request: R
   response.set('Cache-Control', 'private, no-store');
   response.vary('Cookie'); response.vary('Sec-GPC');
   response.removeHeader('Content-Length'); response.removeHeader('ETag');
-  if (delivery !== 'static') return policy;
+  const mode = typeof delivery === 'function' ? delivery({ request }) : delivery;
+  if (mode !== 'static') return policy;
   // Exported pages cannot POST a receipt. Refuse the export instead of publishing a broken theme.
   response.removeHeader('Content-Encoding');
   response.status(409).type('text/plain');

@@ -4,6 +4,19 @@ export type ConsentCategory = typeof CONSENT_CATEGORIES[number];
 export type ConsentChoices = Record<ConsentCategory, boolean>;
 export type ConsentRegionMode = 'opt-in' | 'opt-out';
 export type ConsentAction = 'accept' | 'reject' | 'save' | 'do-not-sell';
+export const CONSENT_PLACEMENTS = ['bottom-bar', 'bottom-left', 'bottom-right', 'top-bar'] as const;
+export type ConsentPlacement = typeof CONSENT_PLACEMENTS[number];
+
+/** Bounded first-visit appearance; colors are opaque hex and must meet 4.5:1 contrast. */
+export interface ConsentAppearanceTokens {
+  backgroundColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  borderRadius?: string;
+  padding?: string;
+  fontSize?: string;
+  maxWidth?: string;
+}
 
 /** Text/policy content belongs to the host, not the mechanism. */
 export interface ConsentConfig {
@@ -16,6 +29,11 @@ export interface ConsentConfig {
   acceptLabel: string;
   rejectLabel: string;
   preferencesLabel: string;
+  placement?: ConsentPlacement;
+  secondaryLinkLabel?: string;
+  secondaryLinkUrl?: string;
+  appearance?: ConsentAppearanceTokens;
+  customCss?: string;
 }
 
 /** Immutable evidence; no IP, user-agent, or principal identity is collected. */
