@@ -1,6 +1,6 @@
 # Admin surfaces (`@jini-ai/agent-plugins/admin-surfaces`)
 
-A plugin can ship its own small admin UI (a settings screen, a resource picker, a mapping editor)
+A plugin can ship its own small admin UI (a settings screen, a resource chooser, a mapping editor)
 without getting any access to the host's pages, cookies or server. The host renders the plugin's
 static files in a sandboxed iframe, and the plugin asks the host to do things through a small
 `postMessage` protocol. The host decides what runs: only actions the plugin declared, only with
