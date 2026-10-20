@@ -18,4 +18,11 @@ Setup: 140 s (pnpm install + build; integrations build fails as expected). Wave 
 ## Problems / notes
 - Baseline whole-package suite on unmodified tree (01:30 UTC): 144 files / 1689 tests pass, 119 s.
 
+- Final (01:40 UTC): `pnpm --filter @jini-ai/admin build` ok; whole package suite 151 files / 1910 tests PASS (baseline 144 / 1689, +7 files, +221 tests, 0 failures); `tsc --noEmit -p packages/admin` 0; eslint (cyc/cog ≤10) 0 on all 11 lot files.
+- Coverage note: some lot files hit 100% only when every test importing the file is included (scoped `--coverage.include`), not the lot's own new test file alone (L256, L247 hook).
+- Commit messages with wrong numbers (left, no force-push): 1a086535 (real 11→8), c300a265 (real 11/6→4/2).
+- Bugs pinned (reported, not fixed): unsafe-url hint always says "javascript:"; "HTTP 5000" parsed as 500 and retried; redirects status-filter conformance passes on empty list; source-control conformance leaks a row a port wrongly accepts inside a rejection check.
+- Cross-package: html-attributes name check is mirrored in @jini-ai/cms/media — fixing the hint bug needs both.
+
 ## Next
+Wave 2 admin complete. All 7 lots merged into cloud/w2-admin. Nothing to resume.
