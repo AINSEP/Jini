@@ -7,7 +7,7 @@ import { definition, fixture } from "./write-tool-fixture.js";
 function normalizer(f: ReturnType<typeof fixture>) {
   const normalize = f.registrations.find((r) => r.descriptor.id === "settings_set_value")!.normalizeInput;
   assert.ok(normalize, "settings_set_value must carry an input normalizer");
-  return (input: Record<string, unknown>) => normalize({ input });
+  return async (input: Record<string, unknown>) => normalize({ input });
 }
 
 test("input that already names a namespace passes through untouched", async () => {

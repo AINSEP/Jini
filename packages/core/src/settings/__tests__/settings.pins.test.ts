@@ -122,3 +122,9 @@ test("resolveDefinitionRaw returns a tombstoned row as stored", async () => {
   const repo = new InMemorySettingsRepo({ definitions: [definition({ status: "tombstone" })] });
   assert.equal((await resolveDefinitionRaw({ repo }, { ...coordinate, workspaceId: null }))?.status, "tombstone");
 });
+
+test("getEffective leaves a current-version value uncoerced even when a coercer is registered", async () => {
+  registerCoercer({ tag: "pins-current", fn: () => "coerced" });
+  const repo = new InMemorySettingsRepo({ definitions: [definition({ version: 2, coercionTag: "pins-current" })], globalValues: [value({ valueJson: "fresh", defVersion: 2 })] });
+  assert.deepEqual(await getEffective({ repo }, { ...coordinate, scopeContext: {} }), { value: "fresh", sourceLayer: "global", defVersion: 2 });
+});

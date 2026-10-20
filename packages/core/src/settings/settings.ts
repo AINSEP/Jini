@@ -243,32 +243,39 @@ export async function resolveDefinitionRaw(
   deps: { repo: SettingsRepoPort },
   input: { namespace: string; key: string; workspaceId: string | null }
 ): Promise<SettingDefinitionRecord | null> {
+  const found = await findInCallerOrPlatformPartition(deps.repo, input);
+  if (found?.status !== "alias") return found ?? null;
+  const cursor = aliasTarget(found, input);
+  if (!cursor) return null;
+  const target = await findInCallerOrPlatformPartition(deps.repo, cursor);
+  // An alias whose target is itself an alias is a chain deeper than one: absent.
+  return target?.status === "alias" ? null : target ?? null;
+}
+
+/** One alias hop only. A malformed target or a self-alias (the only cycle reachable in one hop)
+ * fails closed as absent (`null`) without a second lookup. The hop stays in the caller's workspace. O(1). */
+function aliasTarget(
+  alias: SettingDefinitionRecord,
+  input: { namespace: string; key: string; workspaceId: string | null }
+): { namespace: string; key: string; workspaceId: string | null } | null {
+  if (alias.aliasOfNamespace == null || alias.aliasOfKey == null) return null;
+  if (alias.aliasOfNamespace === input.namespace && alias.aliasOfKey === input.key) return null;
+  return { namespace: alias.aliasOfNamespace, key: alias.aliasOfKey, workspaceId: input.workspaceId };
+}
+
+/** One coordinate lookup: the caller's partition, then the platform (null) partition. O(1) repo calls (at most two). */
+async function findInCallerOrPlatformPartition(
+  repo: SettingsRepoPort,
+  cursor: { namespace: string; key: string; workspaceId: string | null }
+): Promise<SettingDefinitionRecord | null> {
   // Namespace fencing makes `site.*` (non-null workspace_id) and. See docs/decisions/DR-003-settings-ledger-invariants.md.
   // `core.*`/`theme.*` (null workspace_id) disjoint by construction, so a
   // caller resolving inside a workspace context may still be asking for a
   // platform definition. Try the caller's own partition first, then fall
   // back to the platform (null) partition.
-  const visited = new Set<string>();
-  let cursor = input;
-  for (let depth = 0; depth <= 1; depth++) {
-    const address = JSON.stringify([cursor.workspaceId, cursor.namespace, cursor.key]);
-    if (visited.has(address)) return null;
-    visited.add(address);
-    const found =
-      (await deps.repo.findActiveDefinition(cursor)) ??
-      (cursor.workspaceId !== null
-        ? await deps.repo.findActiveDefinition({ ...cursor, workspaceId: null })
-        : null);
-    if (!found) return null;
-    if (found.status !== "alias") return found;
-    if (depth === 1 || found.aliasOfNamespace == null || found.aliasOfKey == null) return null;
-    cursor = {
-      namespace: found.aliasOfNamespace,
-      key: found.aliasOfKey,
-      workspaceId: input.workspaceId,
-    };
-  }
-  return null;
+  const own = await repo.findActiveDefinition(cursor);
+  if (own || cursor.workspaceId === null) return own;
+  return repo.findActiveDefinition({ ...cursor, workspaceId: null });
 }
 
 /**
@@ -327,47 +334,39 @@ export async function getEffective(
   });
   if (!definition) return null;
 
-  const coerce = (value: JsonValue, defVersion: number): JsonValue => {
-    if (defVersion === definition.version) return value;
-    const coercer = coercers.get(definition.coercionTag ?? "identity") ?? coercers.get("identity")!;
-    return coercer({ value });
-  };
+  const hit = await firstSetLayer(deps.repo, definition.settingId, input.scopeContext);
+  if (hit) return { value: coerceToVersion(definition, hit.record), sourceLayer: hit.sourceLayer, defVersion: definition.version };
+  return { value: definition.defaultValue, sourceLayer: "default", defVersion: definition.version };
+}
 
+/** A value stored under an older definition version is coerced in memory (no write-back). O(1). */
+function coerceToVersion(definition: SettingDefinitionRecord, record: SettingValueRecord): JsonValue {
+  if (record.defVersion === definition.version) return record.valueJson;
+  const coercer = coercers.get(definition.coercionTag ?? "identity") ?? coercers.get("identity")!;
+  return coercer({ value: record.valueJson });
+}
+
+/**
+ * Precedence `user ?? workspace ?? global`; a `cleared` row is absent at its layer. The user layer
+ * needs both a workspace and a principal; the workspace layer needs a workspace.
+ * O(1): up to three repo reads, in precedence order, stopping at the first `set` row.
+ */
+async function firstSetLayer(
+  repo: SettingsRepoPort,
+  settingId: string,
+  scope: SettingScopeContext
+): Promise<{ record: SettingValueRecord; sourceLayer: "user" | "workspace" | "global" } | null> {
   // Every layer read below goes straight to the repo. See this module's cache header for why there
   // is no per-layer cache wrapping these three calls.
-  if (input.scopeContext.workspaceId && input.scopeContext.principalId) {
-    const workspaceId = input.scopeContext.workspaceId;
-    const principalId = input.scopeContext.principalId;
-    const userValue = await deps.repo.getUserValue({ workspaceId, principalId, settingId: definition.settingId });
-    if (userValue && userValue.state === "set") {
-      return {
-        value: coerce(userValue.valueJson, userValue.defVersion),
-        sourceLayer: "user",
-        defVersion: definition.version,
-      };
-    }
+  const { workspaceId, principalId } = scope;
+  if (workspaceId && principalId) {
+    const user = await repo.getUserValue({ workspaceId, principalId, settingId });
+    if (user?.state === "set") return { record: user, sourceLayer: "user" };
   }
-
-  if (input.scopeContext.workspaceId) {
-    const workspaceId = input.scopeContext.workspaceId;
-    const workspaceValue = await deps.repo.getWorkspaceValue({ workspaceId, settingId: definition.settingId });
-    if (workspaceValue && workspaceValue.state === "set") {
-      return {
-        value: coerce(workspaceValue.valueJson, workspaceValue.defVersion),
-        sourceLayer: "workspace",
-        defVersion: definition.version,
-      };
-    }
+  if (workspaceId) {
+    const workspace = await repo.getWorkspaceValue({ workspaceId, settingId });
+    if (workspace?.state === "set") return { record: workspace, sourceLayer: "workspace" };
   }
-
-  const globalValue = await deps.repo.getGlobalValue(definition.settingId);
-  if (globalValue && globalValue.state === "set") {
-    return {
-      value: coerce(globalValue.valueJson, globalValue.defVersion),
-      sourceLayer: "global",
-      defVersion: definition.version,
-    };
-  }
-
-  return { value: definition.defaultValue, sourceLayer: "default", defVersion: definition.version };
+  const global = await repo.getGlobalValue(settingId);
+  return global?.state === "set" ? { record: global, sourceLayer: "global" } : null;
 }
