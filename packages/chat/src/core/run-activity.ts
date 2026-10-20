@@ -135,6 +135,18 @@ function isAnswerCard(scan: Scan, name: string, data: unknown): boolean {
   return surfaceId === undefined || !scan.displayOnlySurfaces.has(surfaceId);
 }
 
+function scanStatus(
+  { scan, event, index }: { scan: Scan; event: Extract<AgentEvent, { kind: 'status' }>; index: number },
+  _optional: {} = {},
+): void {
+  if (event.code === 'api_retry') {
+    scan.retry = { index, data: event.data };
+  } else if (event.code === 'tool_progress') {
+    const seconds = numberField(event.data, 'elapsedSeconds');
+    if (seconds !== undefined) scan.progress = { index, seconds };
+  }
+}
+
 function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
   if (isVisible(event)) {
     scan.lastVisible = { index, kind: event.kind };
@@ -145,14 +157,66 @@ function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
     scan.open.push({ id: event.id, name: event.name, input: event.input, index });
   } else if (event.kind === 'tool_result') {
     scan.open = scan.open.filter((tool) => tool.id !== event.toolUseId);
-  } else if (event.kind === 'ext' && isAnswerCard(scan, event.name, event.data)) {
-    scan.lastCardIndex = index;
-  } else if (event.kind === 'status' && event.code === 'api_retry') {
-    scan.retry = { index, data: event.data };
-  } else if (event.kind === 'status' && event.code === 'tool_progress') {
-    const seconds = numberField(event.data, 'elapsedSeconds');
-    if (seconds !== undefined) scan.progress = { index, seconds };
+  } else if (event.kind === 'ext') {
+    if (isAnswerCard(scan, event.name, event.data)) scan.lastCardIndex = index;
+  } else if (event.kind === 'status') {
+    scanStatus({ scan, event, index });
   }
+}
+
+/** `{ a: 1, b: undefined }` → `{ a: 1 }`, so optional activity fields are absent rather than undefined. */
+function definedFields<T extends Record<string, unknown>>(
+  { fields }: { fields: T },
+  _optional: {} = {},
+): { [K in keyof T]?: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined)) as { [K in keyof T]?: Exclude<T[K], undefined> };
+}
+
+function retryingActivity({ data }: { data: unknown }, _optional: {} = {}): RunActivity {
+  return {
+    kind: 'retrying',
+    ...definedFields({
+      fields: {
+        attempt: numberField(data, 'attempt'),
+        maxAttempts: numberField(data, 'maxAttempts'),
+        service: stringField(data, 'service'),
+      },
+    }),
+  };
+}
+
+/** The signal while a tool call is open: a card waiting on the person, tool discovery, or the tool itself. */
+function openToolSignal(
+  { scan, newestOpen }: { scan: Scan; newestOpen: OpenTool },
+  _optional: {} = {},
+): Pick<RunActivityState, 'activity' | 'key'> {
+  if (scan.lastCardIndex > newestOpen.index) {
+    return { activity: { kind: 'awaiting-answer' }, key: `card:${scan.lastCardIndex}` };
+  }
+  const key = `tool:${newestOpen.id}`;
+  if (DISCOVERY_TOOL_NAMES.has(newestOpen.name)) return { activity: { kind: 'finding-tool' }, key };
+  const reported = scan.progress && scan.progress.index > newestOpen.index ? scan.progress.seconds : undefined;
+  return {
+    activity: {
+      kind: 'running-tool',
+      tool: humanizeToolName({ name: newestOpen.name }, { input: newestOpen.input }),
+      ...definedFields({ fields: { reportedSeconds: reported } }),
+    },
+    key,
+  };
+}
+
+function latestSignal({ scan }: { scan: Scan }, _optional: {} = {}): Pick<RunActivityState, 'activity' | 'key'> {
+  const lastVisibleIndex = scan.lastVisible?.index ?? -1;
+  if (scan.retry && scan.retry.index > lastVisibleIndex) {
+    return { activity: retryingActivity({ data: scan.retry.data }), key: `retry:${lastVisibleIndex}` };
+  }
+  const newestOpen = scan.open[scan.open.length - 1];
+  if (newestOpen) return openToolSignal({ scan, newestOpen });
+  if (scan.lastVisible?.kind === 'text') {
+    return { activity: { kind: 'writing' }, key: `writing:${lastVisibleIndex}` };
+  }
+  return { activity: { kind: 'thinking' }, key: `thinking:${lastVisibleIndex}` };
 }
 
 /**
@@ -171,48 +235,7 @@ export function deriveRunActivity(
 ): RunActivityState {
   const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, retry: null, progress: null, visibleCount: 0, displayOnlySurfaces: new Set(), isAnsweredCard };
   (events ?? []).forEach((event, index) => scanEvent(scan, event, index));
-  const visibleCount = scan.visibleCount;
-  const lastVisibleIndex = scan.lastVisible?.index ?? -1;
-
-  if (scan.retry && scan.retry.index > lastVisibleIndex) {
-    const data = scan.retry.data;
-    const attempt = numberField(data, 'attempt');
-    const maxAttempts = numberField(data, 'maxAttempts');
-    const service = stringField(data, 'service');
-    return {
-      activity: {
-        kind: 'retrying',
-        ...(attempt !== undefined ? { attempt } : {}),
-        ...(maxAttempts !== undefined ? { maxAttempts } : {}),
-        ...(service !== undefined ? { service } : {}),
-      },
-      key: `retry:${lastVisibleIndex}`,
-      visibleCount,
-    };
-  }
-  const newestOpen = scan.open[scan.open.length - 1];
-  if (newestOpen) {
-    if (scan.lastCardIndex > newestOpen.index) {
-      return { activity: { kind: 'awaiting-answer' }, key: `card:${scan.lastCardIndex}`, visibleCount };
-    }
-    if (DISCOVERY_TOOL_NAMES.has(newestOpen.name)) {
-      return { activity: { kind: 'finding-tool' }, key: `tool:${newestOpen.id}`, visibleCount };
-    }
-    const reported = scan.progress && scan.progress.index > newestOpen.index ? scan.progress.seconds : undefined;
-    return {
-      activity: {
-        kind: 'running-tool',
-        tool: humanizeToolName({ name: newestOpen.name }, { input: newestOpen.input }),
-        ...(reported !== undefined ? { reportedSeconds: reported } : {}),
-      },
-      key: `tool:${newestOpen.id}`,
-      visibleCount,
-    };
-  }
-  if (scan.lastVisible?.kind === 'text') {
-    return { activity: { kind: 'writing' }, key: `writing:${lastVisibleIndex}`, visibleCount };
-  }
-  return { activity: { kind: 'thinking' }, key: `thinking:${lastVisibleIndex}`, visibleCount };
+  return { ...latestSignal({ scan }), visibleCount: scan.visibleCount };
 }
 
 /**
