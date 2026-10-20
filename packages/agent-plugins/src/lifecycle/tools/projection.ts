@@ -13,7 +13,7 @@
  */
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { requireInputRecord, ToolInputError } from '@jini-ai/core';
-import { openCapabilitySession, REVOKED_MESSAGE, type AgentPluginToolCapabilitiesPort, type IssuedTokenMemory } from './capabilities.js';
+import { openCapabilitySession, REVOKED_MESSAGE, type AgentPluginToolCapabilitiesPort, type IssuedTokenMemories, type IssuedTokenMemory } from './capabilities.js';
 import type { LoadedAgentPluginTool } from './definition.js';
 import type { AgentPluginToolEffect } from './manifest.js';
 
@@ -50,6 +50,8 @@ export interface AgentPluginToolProjectionPorts {
   };
   readonly toolIdFor: (required: { readonly pluginId: string; readonly name: string }, optional?: Record<string, never>) => string;
   readonly capabilities: AgentPluginToolCapabilitiesPort;
+  /** The host's ONE token memory source, also passed to its admin-surface host (see `createIssuedTokenMemories`). */
+  readonly issuedTokens: IssuedTokenMemories;
 }
 
 interface AdmittedTool { readonly toolId: string; readonly loaded: LoadedAgentPluginTool; readonly validator: Validator }
@@ -143,6 +145,7 @@ function checkedResources(toolId: string, value: unknown): readonly string[] {
  * @param required.registry - Registry the host attached with `attachPluginContributionTools`.
  * @param required.toolIdFor - The contract's namespacing rule (`pluginToolIdFor`), so ids match the registry's.
  * @param required.capabilities - Host port building one call's capabilities.
+ * @param required.issuedTokens - Per-plugin token memory shared with the plugin's admin-surface handlers.
  * @complexity sync is O(t) tools plus schema compilation; disclosure lookup is O(1).
  */
 export function createAgentPluginToolProjection(required: AgentPluginToolProjectionPorts, _optional: Record<string, never> = {}) {
@@ -176,7 +179,7 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
   function generation(pluginId: string, tools: readonly AdmittedTool[]): ProjectedPlugin {
     let snapshot: AgentPluginToolSnapshot | undefined;
     const isLive = () => snapshot !== undefined && registry.list({}).includes(snapshot);
-    const issued: IssuedTokenMemory = new Set();
+    const issued = required.issuedTokens.forPlugin({ pluginId });
     snapshot = Object.freeze({ pluginId, sdk: INERT_SDK, routes: Object.freeze([]), widgets: Object.freeze([]),
       tools: Object.freeze(tools.map(tool => contractTool(tool, { isLive, issued }))) });
     return { snapshot, tools };

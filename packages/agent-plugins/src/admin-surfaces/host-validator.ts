@@ -26,8 +26,6 @@ export interface AdminSurfaceMountRecord {
   /** The frame's `contentWindow`; the event's `source` must be this exact object. */
   readonly frame: unknown;
   readonly descriptor: Pick<AdminSurfaceDescriptor, 'actions'>;
-  /** Defaults to "null", the origin of a frame sandboxed with `allow-scripts` only. */
-  readonly expectedOrigin?: string;
 }
 
 /** `ignored`: not addressed to this mount; drop silently. `refused`: this mount's request was invalid;
@@ -54,7 +52,8 @@ function hasRequestFields(message: Readonly<Record<string, unknown>>): boolean {
 /** Character length of the payload as JSON, or Infinity when it is not JSON-serializable. */
 /** Which transport check `event` fails for `mount`, or `null` when it is this mount's well-formed request. */
 function transportRefusal(event: AdminSurfaceMessageEvent, mount: AdminSurfaceMountRecord): string | null {
-  if (event.origin !== (mount.expectedOrigin ?? SANDBOXED_FRAME_ORIGIN)) return 'origin-mismatch';
+  // "null" is the origin of every frame sandboxed with `allow-scripts` only; nothing else may speak for a mount.
+  if (event.origin !== SANDBOXED_FRAME_ORIGIN) return 'origin-mismatch';
   if (event.source !== mount.frame) return 'source-mismatch';
   if (!isRequestEnvelope(event.data)) return 'not-an-action-request';
   return event.data.mountId === mount.mountId ? null : 'mount-mismatch';

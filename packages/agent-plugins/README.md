@@ -139,7 +139,7 @@ Contribution file (the host names it, e.g. `<product>-admin-surfaces.json`, and 
 Messages (all carry `protocol: "jini.admin-surface", version: 1`):
 `init { mountId, bootstrap? }` host → frame once; `action-request { mountId, requestId, action, payload }`
 frame → host; `action-response { mountId, requestId, ok, result | error: { code, message, retryable } }`
-host → frame. Bootstrap data is short-lived (`expiresAt`, at most 5 minutes) and served with
+host → frame. Bootstrap data is short-lived (`expiresAt`, one minute) and served with
 `Cache-Control: no-store`.
 
 ## Not this package: `@jini-ai/plugins` (`./host`)

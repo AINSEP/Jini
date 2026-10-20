@@ -67,13 +67,36 @@ export const WITHHELD_OUTPUT_MESSAGE = 'The plugin tool result was withheld beca
 export const WITHHELD_ERROR_MESSAGE = 'The plugin tool failed and its error was withheld because it contained a connection credential.';
 
 /**
- * Access tokens one plugin generation obtained, across all of its calls: plugin code that keeps a
- * token in module scope must not be able to return or store it in a later call unseen. Created once
- * per generation (projection `generation`, surface `admit`) and passed to every session it opens.
+ * Access tokens one plugin obtained, across all of its calls: plugin code that keeps a token in module
+ * scope must not be able to return or store it in a later call unseen.
  */
 export type IssuedTokenMemory = Set<string>;
 /** Newest tokens kept; access tokens are short-lived, so older ones matter less than bounded memory. */
 export const ISSUED_TOKEN_MEMORY_LIMIT = 64;
+
+/** The host's one source of token memories, passed to its tool projection AND its admin-surface host. */
+export interface IssuedTokenMemories {
+  forPlugin(required: { readonly pluginId: string }, optional?: Record<string, never>): IssuedTokenMemory;
+}
+
+/**
+ * One token memory per plugin, shared by every context that runs that plugin's code: its tools, its
+ * surface handlers and their state writes. Why per plugin and not per context or generation: those
+ * contexts can share module scope (a common lib module), and Node caches an imported module, so its
+ * scope outlives a re-sync; a memory per context or per generation would let a token obtained in one
+ * leave through the other. A host creates ONE and passes it to both seams.
+ * @complexity O(1) per lookup; space O(plugins * ISSUED_TOKEN_MEMORY_LIMIT).
+ */
+export function createIssuedTokenMemories(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): IssuedTokenMemories {
+  const byPlugin = new Map<string, IssuedTokenMemory>();
+  return Object.freeze({
+    forPlugin({ pluginId }: { readonly pluginId: string }): IssuedTokenMemory {
+      let issued = byPlugin.get(pluginId);
+      if (issued === undefined) byPlugin.set(pluginId, issued = new Set());
+      return issued;
+    },
+  });
+}
 
 /** Records `token` as newest, dropping the oldest beyond the limit. @complexity O(1) amortized. */
 function remember(issued: IssuedTokenMemory, token: string): void {
@@ -106,7 +129,7 @@ function errorProbe(error: unknown, depth: number): unknown {
  * the admin-surface session (`../../admin-surfaces/surface-capabilities.ts`), so both revoke and scan
  * the same way.
  * @param required.isLive - False once the contributing plugin's contributions are revoked.
- * @param required.issued - The plugin generation's token memory (see `IssuedTokenMemory`).
+ * @param required.issued - The plugin's token memory (see `createIssuedTokenMemories`).
  * @returns `guard` (wraps a capability so it refuses once revoked), `noteToken` (records a token the
  * call obtained), `mentionsToken`, and the `release` (result) and `sanitize` (error) gates.
  * @complexity O(1) to open; the scans are O(serialized size * remembered tokens).
@@ -123,7 +146,7 @@ export function openCapabilityGate(required: { readonly isLive: () => boolean; r
       return token;
     },
     mentionsToken: ({ value }: { readonly value: unknown }): boolean => mentionsToken(value, issued),
-    /** The result, unless it mentions a token this plugin generation obtained. */
+    /** The result, unless it mentions a token this plugin obtained. */
     release<T>({ value }: { readonly value: T }): T {
       if (mentionsToken(value, issued)) throw new Error(WITHHELD_OUTPUT_MESSAGE);
       return value;
@@ -171,7 +194,7 @@ export function guardStateReader(required: { readonly gate: AgentPluginCapabilit
  * Opens the capability session for one tool call.
  * @param required.capabilities - The host's capabilities for this call.
  * @param required.isLive - False once the contributing plugin's tools are revoked.
- * @param required.issued - The plugin generation's token memory, shared by all its calls.
+ * @param required.issued - The plugin's token memory, shared by all its calls and its surface handlers.
  * @returns Wrapped capabilities plus `release` (result gate) and `sanitize` (error gate).
  * @complexity O(1) to open; gates are O(serialized size).
  */

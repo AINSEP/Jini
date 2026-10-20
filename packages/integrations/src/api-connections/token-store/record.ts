@@ -7,7 +7,7 @@ import type { VaultMeta } from "@jini-ai/platform/secrets/credential-sets";
 import { OAuthTokenStoreError } from "./errors.js";
 
 /** Marks a vault row (metadata and sealed payload) as an OAuth token record. */
-export const OAUTH_TOKEN_RECORD_FORMAT = "oauth-token-set";
+const OAUTH_TOKEN_RECORD_FORMAT = "oauth-token-set";
 const PAYLOAD_VERSION = 1;
 
 /** Who a stored token set belongs to. Every read must match all four ids exactly. */

@@ -28,9 +28,10 @@ thrown.
 |---|---|
 | `defineAgentPluginToolContribution({ filename })` | the contribution definition; the host chooses the filename |
 | `parseAgentPluginToolsFile({ raw })` | the pure parser behind it |
-| `createAgentPluginToolProjection({ registry, toolIdFor, capabilities })` | `sync({ loaded, refusals })` and `describeAffectedResources({ toolId, input })` |
+| `createAgentPluginToolProjection({ registry, toolIdFor, capabilities, issuedTokens })` | `sync({ loaded, refusals })` and `describeAffectedResources({ toolId, input })` |
+| `createIssuedTokenMemories()` / `IssuedTokenMemories` | the per-plugin token memory; one per host, passed to the projection and the admin-surface host |
 | `AgentPluginToolCapabilities` / `AgentPluginToolCapabilitiesPort` | the host capability ports |
-| `openCapabilitySession` | the per-call revocation + credential gate (used by the projection) |
+| `WITHHELD_OUTPUT_MESSAGE` | the text a withheld result is replaced with, for hosts that recognize it |
 | `AgentPluginStateReader` / `AgentPluginStateValue` | the read-only view of a plugin's own state (`get` only) |
 
 ## The contribution file
@@ -111,8 +112,11 @@ The host passes `capabilities: ({ pluginId, workspaceId, principalId?, signal? }
   other capabilities.
 
 Per call, the projection wraps these so that every capability stops working once the plugin's tools
-are withdrawn, and a result or error that contains a token the plugin generation obtained (in this
-call or an earlier one; the newest 64 are remembered) is withheld.
+are withdrawn, and a result or error that contains a token the plugin obtained (in this call or an
+earlier one, by a tool or by one of its admin-surface handlers; the newest 64 are remembered) is
+withheld. The memory is per plugin, from `createIssuedTokenMemories()`, which the host creates once and
+passes to both the projection and `createAdminSurfaceHandlerHost`: a plugin's tools and handlers can
+share module scope, and Node keeps a module's scope across re-syncs.
 Those two gates are `openCapabilityGate({ isLive })` in `capabilities.ts`; the admin-surface session
 (`../../admin-surfaces/surface-capabilities.ts`) reuses it, so surface handlers revoke and scan the
 same way. Account actions (connect, switch, disconnect), writing plugin state and public config exist
@@ -128,7 +132,8 @@ store, scoped to that plugin and workspace.
 const definition = defineAgentPluginToolContribution({ filename: '<product>-agent-tools.json' });
 const contributions = createPluginContributionRegistry({});        // dedicated: keyed by plugin id
 attachPluginContributionTools({ contributions, registry: toolRegistry, isEnabled, resolveAuth, metadata });
-const projection = createAgentPluginToolProjection({ registry: contributions, toolIdFor: pluginToolIdFor, capabilities });
+const issuedTokens = createIssuedTokenMemories();                   // ONE per host, shared with the admin-surface host
+const projection = createAgentPluginToolProjection({ registry: contributions, toolIdFor: pluginToolIdFor, capabilities, issuedTokens });
 // On boot and on every activation change:
 const load = await lifecycle.loadPluginContributions({ workspaceId, definition }, { orderByPluginId: true });
 const { refusals } = projection.sync({ loaded: load.items, refusals: load.refusals });

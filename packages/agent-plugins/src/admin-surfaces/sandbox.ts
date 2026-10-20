@@ -9,11 +9,10 @@
  * choose routes.
  */
 import type { AdminSurfaceDescriptor } from './descriptor.js';
-import { ADMIN_SURFACE_SANDBOX, SANDBOXED_FRAME_ORIGIN, type AdminSurfaceBootstrap } from './protocol.js';
+import { ADMIN_SURFACE_SANDBOX, type AdminSurfaceBootstrap } from './protocol.js';
 
-/** Bootstrap data is meant to live for one render; a host may shorten this, never exceed it. */
-export const MAX_ADMIN_SURFACE_BOOTSTRAP_TTL_MS = 5 * 60_000;
-const DEFAULT_BOOTSTRAP_TTL_MS = 60_000;
+/** Bootstrap data is meant to live for one render: one minute, fixed so no host can lengthen it. */
+const BOOTSTRAP_TTL_MS = 60_000;
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
   html: 'text/html; charset=utf-8',
@@ -77,7 +76,7 @@ export function adminSurfaceFileHeaders(required: { readonly descriptor: Pick<Ad
   };
 }
 
-/** One rendered surface: the nonce its messages must echo and the origin they must come from.
+/** One rendered surface: the nonce its messages must echo (they must also come from origin "null").
  * @complexity O(1). */
 export function createAdminSurfaceMount(
   required: { readonly surfaceId: string },
@@ -85,18 +84,16 @@ export function createAdminSurfaceMount(
 ) {
   const randomBytes = optional.randomBytes ?? (({ length }) => globalThis.crypto.getRandomValues(new Uint8Array(length)));
   const mountId = Array.from(randomBytes({ length: 16 }), (byte) => byte.toString(16).padStart(2, '0')).join('');
-  return { surfaceId: required.surfaceId, mountId, expectedOrigin: SANDBOXED_FRAME_ORIGIN };
+  return { surfaceId: required.surfaceId, mountId };
 }
 
 /**
- * The envelope a host server returns for one surface render. Refuses a TTL above
- * {@link MAX_ADMIN_SURFACE_BOOTSTRAP_TTL_MS}: bootstrap data may include a short-lived access token.
+ * The envelope a host server returns for one surface render. Its lifetime is fixed at
+ * {@link BOOTSTRAP_TTL_MS}, not caller-chosen: bootstrap data may include a short-lived access token.
  * @complexity O(1).
  */
-export function createAdminSurfaceBootstrap<D>(required: { readonly surfaceId: string; readonly data: D; readonly nowMs: number }, optional: { readonly ttlMs?: number } = {}): AdminSurfaceBootstrap<D> {
-  const ttlMs = optional.ttlMs ?? DEFAULT_BOOTSTRAP_TTL_MS;
-  if (!(ttlMs > 0 && ttlMs <= MAX_ADMIN_SURFACE_BOOTSTRAP_TTL_MS)) throw new RangeError(`Admin surface bootstrap TTL must be between 1 and ${MAX_ADMIN_SURFACE_BOOTSTRAP_TTL_MS} ms; pass a shorter ttlMs.`);
-  return { surfaceId: required.surfaceId, issuedAt: required.nowMs, expiresAt: required.nowMs + ttlMs, data: required.data };
+export function createAdminSurfaceBootstrap<D>(required: { readonly surfaceId: string; readonly data: D; readonly nowMs: number }, _optional: Record<string, never> = {}): AdminSurfaceBootstrap<D> {
+  return { surfaceId: required.surfaceId, issuedAt: required.nowMs, expiresAt: required.nowMs + BOOTSTRAP_TTL_MS, data: required.data };
 }
 
 /** Headers for the bootstrap response: never stored by the browser or any intermediary cache.

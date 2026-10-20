@@ -20,8 +20,10 @@ const store = createVaultOAuthTokenStore({
 const refresher = createTokenRefresher({ clock, sleep, port: { ...store, refresh } });
 ```
 
-Also exported: `parseOAuthTokenVaultMeta` (the vault metadata parser), `OAuthTokenStoreError`
-(typed `code` + fixed `message` + `nextAction`), `OAUTH_TOKEN_RECORD_FORMAT`.
+Also exported from `@jini-ai/integrations/api-connections`: `parseOAuthTokenVaultMeta` (the vault
+metadata parser) and the `OAuthTokenStoreErrorCode` type. The store throws `OAuthTokenStoreError`
+(typed `code` + fixed `message` + `nextAction`); that class and the record format tag stay internal
+to this folder (`./index.ts`), so hosts read `code`, never `instanceof`.
 
 ## How it stores things
 

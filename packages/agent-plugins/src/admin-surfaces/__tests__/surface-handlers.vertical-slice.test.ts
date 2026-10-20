@@ -6,6 +6,7 @@
  * and one declared action runs plugin code with injected fake capabilities. No network.
  */
 import { expect, test } from 'vitest';
+import { createIssuedTokenMemories } from '../../lifecycle/tools/capabilities.js';
 import { createPluginContributionLoader } from '../../lifecycle/contribution-loader.js';
 import { findTrustedPluginPackages, importContainedModule, readTrustedPluginFile } from '../../lifecycle/__tests__/test-support.js';
 import { FAKE_TOKEN, installPlugin, WORKSPACE_ID, withWorkspace } from '../../lifecycle/tools/__tests__/support.js';
@@ -49,7 +50,7 @@ test('an acme-style plugin surface runs its own handler and bootstrap provider t
       importModule: ({ plugin, modulePath }) => importContainedModule(plugin, modulePath),
     });
     const { log, port } = createFakeSurfaceHost();
-    const host = createAdminSurfaceHandlerHost({ capabilities: port });
+    const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: port });
 
     const surfaces = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceContribution({ filename: FILENAME }) });
     const handlerLoad = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceHandlerContribution({ filename: FILENAME }) });

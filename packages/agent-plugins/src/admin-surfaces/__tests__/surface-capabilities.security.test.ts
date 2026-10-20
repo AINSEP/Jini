@@ -6,12 +6,12 @@
  * isolated per plugin and never stores an obtained token; disabling the plugin revokes every port.
  */
 import { describe, expect, test } from 'vitest';
-import { REVOKED_MESSAGE } from '../../lifecycle/tools/capabilities.js';
+import { REVOKED_MESSAGE, createIssuedTokenMemories } from '../../lifecycle/tools/capabilities.js';
 import { FAKE_TOKEN, WORKSPACE_ID } from '../../lifecycle/tools/__tests__/support.js';
 import {
-  ADMIN_SURFACE_ACTION_INTENTS, ADMIN_SURFACE_STATE_LIMITS, createAdminSurfaceActionDispatcher, createAdminSurfaceCallbackInbox, createAdminSurfaceHandlerHost, openAdminSurfaceCapabilitySession,
-  parseAdminSurfacesFile, STATE_CREDENTIAL_MESSAGE, type AdminSurfaceCapabilityDeclarations, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule,
+  ADMIN_SURFACE_ACTION_INTENTS, ADMIN_SURFACE_STATE_LIMITS, createAdminSurfaceActionDispatcher, createAdminSurfaceCallbackInbox, createAdminSurfaceHandlerHost, parseAdminSurfacesFile, type AdminSurfaceCapabilityDeclarations, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule,
 } from '../index.js';
+import { openAdminSurfaceCapabilitySession, STATE_CREDENTIAL_MESSAGE } from '../surface-capabilities.js';
 import { createFakeSurfaceHost } from './surface-support.js';
 
 const PLUGIN = 'acme-office';
@@ -155,16 +155,20 @@ describe('callback fields: once, by their owner, after a completed sign-in, decl
     expect(inbox.take({ ...key, workspaceId: 'other-workspace' })).toBeNull();
     expect(inbox.take(key)).toStrictEqual({ 'picked-id': 'res-1' });
   });
-  test('an expired deposit is gone, and a full inbox drops the oldest first', () => {
+  test('a deposit expires after the ten-minute sign-in attempt lifetime', () => {
     let now = 0;
-    const inbox = createAdminSurfaceCallbackInbox({ now: () => now }, { ttlMs: 100, maxEntries: 2 });
+    const inbox = createAdminSurfaceCallbackInbox({ now: () => now });
+    inbox.deposit({ ...key, attemptId: 'kept', fields: {} });
     inbox.deposit({ ...key, fields: { 'picked-id': 'old' } });
-    now = 100;
+    now = 10 * 60 * 1000 - 1;
+    expect(inbox.take({ ...key, attemptId: 'kept' })).toStrictEqual({});
+    now = 10 * 60 * 1000;
     expect(inbox.take(key)).toBeNull();
-    inbox.deposit({ ...key, attemptId: 'a1', fields: {} });
-    inbox.deposit({ ...key, attemptId: 'a2', fields: {} });
-    inbox.deposit({ ...key, attemptId: 'a3', fields: {} });
-    expect([inbox.take({ ...key, attemptId: 'a1' }), inbox.take({ ...key, attemptId: 'a2' }), inbox.take({ ...key, attemptId: 'a3' })]).toEqual([null, {}, {}]);
+  });
+  test('a full inbox (256 entries) drops the oldest first', () => {
+    const inbox = createAdminSurfaceCallbackInbox({ now: () => 0 });
+    for (let index = 0; index <= 256; index += 1) inbox.deposit({ ...key, attemptId: `a${index}`, fields: {} });
+    expect([inbox.take({ ...key, attemptId: 'a0' }), inbox.take({ ...key, attemptId: 'a1' }), inbox.take({ ...key, attemptId: 'a256' })]).toEqual([null, {}, {}]);
   });
   test('an attempt id outside the opaque-id shape is refused', async () => {
     await expect(open().capabilities.connections.takeCallbackFields({ connectionId: 'account', attemptId: 'a/../b' })).rejects.toThrow('The sign-in attempt id is not valid; start the sign-in again.');
@@ -243,7 +247,7 @@ describe('plugin isolation and revocation through the handler host', () => {
     const fake = createFakeSurfaceHost();
     const writer: AdminSurfaceHandlerModule = { actions: { save: async ({ capabilities, context: { pluginId } }) => { await capabilities.state.set({ key: 'selection', value: pluginId }); return {}; } } };
     const reader: AdminSurfaceHandlerModule = { actions: { save: async ({ capabilities }) => ({ empty: (await capabilities.state.get({ key: 'selection' })) === null }) } };
-    const host = createAdminSurfaceHandlerHost({ capabilities: fake.port });
+    const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: fake.port });
     host.sync({ loaded: [{ pluginId: 'plugin-a', descriptor: descriptorFor(), module: writer }, { pluginId: 'plugin-b', descriptor: descriptorFor(), module: reader }], refusals: [] });
     const dispatch = (pluginId: string) => createAdminSurfaceActionDispatcher({ descriptor: descriptorFor(), handlers: host.handlersFor({ pluginId, surfaceId: 'settings' }) })
       .dispatch({ action: 'save', payload: {}, context: context(pluginId) });
@@ -253,7 +257,7 @@ describe('plugin isolation and revocation through the handler host', () => {
 
   test('every port a module kept is revoked once the plugin is disabled', async () => {
     let kept: Parameters<AdminSurfaceHandlerModule['actions'][string]>[0]['capabilities'] | undefined;
-    const host = createAdminSurfaceHandlerHost({ capabilities: createFakeSurfaceHost().port });
+    const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: createFakeSurfaceHost().port });
     host.sync({ loaded: [{ pluginId: PLUGIN, descriptor: descriptorFor(), module: { actions: { save: async ({ capabilities }) => { kept = capabilities; return {}; } } } }], refusals: [] });
     await createAdminSurfaceActionDispatcher({ descriptor: descriptorFor(), handlers: host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }) }).dispatch({ action: 'save', payload: {}, context: context(PLUGIN) });
     host.sync({ loaded: [], refusals: [] });

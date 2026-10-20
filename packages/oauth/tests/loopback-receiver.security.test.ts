@@ -59,9 +59,9 @@ async function expectClosed(receiver: LoopbackAuthorizationReceiver): Promise<vo
 describe('binding', () => {
   test('listens on 127.0.0.1 with an ephemeral port and returns that redirect URI', async () => {
     const listen = vi.spyOn(Server.prototype, 'listen');
-    const receiver = await start({ path: '/oauth/done' });
+    const receiver = await start();
     expect(listen).toHaveBeenCalledWith(expect.objectContaining({ host: '127.0.0.1', port: 0 }), expect.any(Function));
-    expect(receiver.redirectUri).toMatch(/^http:\/\/127\.0\.0\.1:[1-9]\d*\/oauth\/done$/);
+    expect(receiver.redirectUri).toMatch(/^http:\/\/127\.0\.0\.1:[1-9]\d*\/callback$/);
   });
 });
 

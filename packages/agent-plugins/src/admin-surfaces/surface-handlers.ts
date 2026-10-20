@@ -14,7 +14,7 @@
  * one); it must match the surface's declared `bootstrap` schema and is never cached by the host.
  */
 import { defineExecutablePluginContribution, type LoadedPluginContribution, type PluginContributionDefinition } from '../lifecycle/contribution-loader.js';
-import type { IssuedTokenMemory } from '../lifecycle/tools/capabilities.js';
+import type { IssuedTokenMemories, IssuedTokenMemory } from '../lifecycle/tools/capabilities.js';
 import { openAdminSurfaceCapabilitySession, type AdminSurfaceCapabilities, type AdminSurfaceCapabilitiesPort } from './surface-capabilities.js';
 import { AdminSurfaceActionError, type AdminSurfaceActionHandler } from './action-dispatcher.js';
 import { validateAdminSurfaceActionValue, type AdminSurfaceActionSchema } from './action-schema.js';
@@ -114,7 +114,7 @@ interface AdmittedSurface {
   readonly loaded: LoadedAdminSurfaceHandlers;
   readonly handlers: Readonly<Record<string, AdminSurfaceActionHandler<AdminSurfaceHandlerContext>>>;
   readonly isLive: () => boolean;
-  /** Tokens this generation's calls obtained; module state can carry one from call to call. */
+  /** Tokens the plugin's calls obtained (tools included); module state can carry one from call to call. */
   readonly issued: IssuedTokenMemory;
 }
 
@@ -126,10 +126,11 @@ const keyOf = (pluginId: string, surfaceId: string) => `${pluginId}\u0000${surfa
  * `defineAdminSurfaceHandlerContribution` (on boot and on every activation change); a surface missing
  * from a load loses its handlers, and capabilities its module kept are revoked.
  * @param required.capabilities - Host port building one call's admin-surface capabilities.
+ * @param required.issuedTokens - Per-plugin token memory shared with the plugin's tool projection.
  * @returns `sync`, plus `handlersFor` and `bootstrapData` for the host's action dispatcher and bootstrap route.
  * @complexity sync is O(s + a) surfaces and actions; lookups are O(1).
  */
-export function createAdminSurfaceHandlerHost(required: { readonly capabilities: AdminSurfaceCapabilitiesPort }, _optional: Record<string, never> = {}) {
+export function createAdminSurfaceHandlerHost(required: { readonly capabilities: AdminSurfaceCapabilitiesPort; readonly issuedTokens: IssuedTokenMemories }, _optional: Record<string, never> = {}) {
   let admitted = new Map<string, AdmittedSurface>();
 
   /** One call's capability session, scoped to the loaded plugin and the route's workspace/principal. */
@@ -154,7 +155,7 @@ export function createAdminSurfaceHandlerHost(required: { readonly capabilities:
   /** A generation for one surface; live only while `admitted` holds this exact object. */
   function admit(key: string, loaded: LoadedAdminSurfaceHandlers): AdmittedSurface {
     const declared = loaded.descriptor.actions.filter((action) => Object.hasOwn(loaded.module.actions, action.name));
-    const self: AdmittedSurface = { loaded, handlers: {}, isLive: () => admitted.get(key) === self, issued: new Set() };
+    const self: AdmittedSurface = { loaded, handlers: {}, isLive: () => admitted.get(key) === self, issued: required.issuedTokens.forPlugin({ pluginId: loaded.pluginId }) };
     Object.assign(self.handlers, Object.fromEntries(declared.map((action) => [action.name, actionHandler(self, loaded.module.actions[action.name]!)])));
     return Object.freeze(self);
   }

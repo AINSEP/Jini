@@ -8,15 +8,16 @@ import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { createIssuedTokenMemories } from '../../lifecycle/tools/capabilities.js';
 import { createPluginContributionLoader } from '../../lifecycle/contribution-loader.js';
 import { findTrustedPluginPackages, importContainedModule, readTrustedPluginFile, setAgentPluginActivation } from '../../lifecycle/__tests__/test-support.js';
 import type { AdminSurfaceCapabilities } from '../surface-capabilities.js';
 import { createFakeSurfaceHost } from './surface-support.js';
 import { FAKE_TOKEN, installPlugin, WORKSPACE_ID, withWorkspace } from '../../lifecycle/tools/__tests__/support.js';
 import {
-  ADMIN_SURFACE_PLUGIN_DISABLED_MESSAGE, createAdminSurfaceActionDispatcher, createAdminSurfaceHandlerHost, defineAdminSurfaceHandlerContribution, parseAdminSurfacesFile, readAdminSurfaceFile,
-  type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule, type LoadedAdminSurfaceHandlers,
+  createAdminSurfaceActionDispatcher, createAdminSurfaceHandlerHost, defineAdminSurfaceHandlerContribution, parseAdminSurfacesFile, readAdminSurfaceFile, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule, type LoadedAdminSurfaceHandlers,
 } from '../index.js';
+import { ADMIN_SURFACE_PLUGIN_DISABLED_MESSAGE } from '../surface-handlers.js';
 
 const FILENAME = 'host-admin-surfaces.json';
 const PLUGIN = 'fixture-surface';
@@ -45,7 +46,7 @@ const saveModule = (save: AdminSurfaceHandlerModule['actions'][string]): AdminSu
 function hostFor(entries: readonly LoadedAdminSurfaceHandlers[]) {
   const scopes: string[] = [];
   const { log, port } = createFakeSurfaceHost();
-  const host = createAdminSurfaceHandlerHost({ capabilities: (scope) => { scopes.push(scope.pluginId); return port(scope); } });
+  const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: (scope) => { scopes.push(scope.pluginId); return port(scope); } });
   const { refusals } = host.sync({ loaded: entries, refusals: [] });
   return { host, refusals, scopes, log };
 }
@@ -284,7 +285,7 @@ describe('disabling the plugin revokes its handlers', () => {
     await withWorkspace(async (workspaceRoot) => {
       await installPlugin({ workspaceRoot, pluginId: PLUGIN, files: { [FILENAME]: surfacesFile(), 'surface/index.html': '<!doctype html>', 'surface/app.mjs': 'export {};',
         'server/handlers.mjs': 'export default { actions: { async save() { return { saved: true }; } } };\n' } });
-      const host = createAdminSurfaceHandlerHost({ capabilities: createFakeSurfaceHost().port });
+      const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: createFakeSurfaceHost().port });
       host.sync(await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition }).then(({ items, refusals }) => ({ loaded: items, refusals })));
       expect(Object.keys(host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }))).toEqual(['save']);
       await setAgentPluginActivation({ workspaceRoot, pluginId: PLUGIN, enabled: false, actor: 'test' }, { origin: 'bundled' });

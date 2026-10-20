@@ -8,7 +8,7 @@
 import { expect, test } from 'vitest';
 import { createPluginContributionRegistry, pluginToolIdFor } from '@jini-ai/plugins/host';
 import { createFakeSurfaceHost } from '../../../admin-surfaces/__tests__/surface-support.js';
-import { openCapabilitySession, REVOKED_MESSAGE, type AgentPluginToolCapabilities, type AgentPluginToolCapabilityScope } from '../capabilities.js';
+import { openCapabilitySession, REVOKED_MESSAGE, type AgentPluginToolCapabilities, type AgentPluginToolCapabilityScope, createIssuedTokenMemories } from '../capabilities.js';
 import type { LoadedAgentPluginTool } from '../definition.js';
 import { createAgentPluginToolProjection } from '../projection.js';
 import { fakeCapabilities, WORKSPACE_ID } from './support.js';
@@ -55,7 +55,7 @@ const reader = (pluginId: string): LoadedAgentPluginTool => ({
 
 function projected(fake: ReturnType<typeof createFakeSurfaceHost>, loaded: readonly LoadedAgentPluginTool[]) {
   const registry = createPluginContributionRegistry({});
-  const projection = createAgentPluginToolProjection({ registry, toolIdFor: pluginToolIdFor, capabilities: toolPort(fake) });
+  const projection = createAgentPluginToolProjection({ issuedTokens: createIssuedTokenMemories(), registry, toolIdFor: pluginToolIdFor, capabilities: toolPort(fake) });
   projection.sync({ loaded, refusals: [] });
   const call = (pluginId: string, workspaceId: string) => {
     const snapshot = registry.list({}).find((candidate) => candidate.pluginId === pluginId)!;

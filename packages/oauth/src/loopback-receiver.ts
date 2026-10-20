@@ -3,7 +3,7 @@
  * and an ephemeral port that catches a single authorization redirect from the system browser.
  *
  * It exists because a desktop host cannot register a fixed HTTPS callback; the authorization
- * server sends the browser back to `http://127.0.0.1:<port>/<path>` instead. The listener is the
+ * server sends the browser back to `http://127.0.0.1:<port>/callback` instead. The listener is the
  * only part of the grant that faces other local processes and web pages, so it is deliberately
  * narrow: one bound address, a pinned Host, one consumed callback, bounded headers, no body,
  * a declared-field allowlist and a static close page that never echoes the request.
@@ -22,7 +22,8 @@ export type { LoopbackAuthorizationResult } from './loopback-callback.js';
 export { MAX_CALLBACK_FIELDS, MAX_CALLBACK_FIELD_LENGTH } from './loopback-callback.js';
 
 const LOOPBACK_HOST = '127.0.0.1';
-const DEFAULT_PATH = '/callback';
+/** Fixed: the redirect URI is `http://127.0.0.1:<port>/callback`, so no caller-supplied path is ever routed. */
+const CALLBACK_PATH = '/callback';
 /** Matches the pending-authorization TTL: long enough for consent and MFA, short for an abandoned tab. */
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_HEADER_BYTES = 16 * 1024;
@@ -34,8 +35,6 @@ export interface LoopbackReceiverTimers {
 }
 
 export interface LoopbackReceiverOptions {
-    /** Callback path; the redirect URI is `http://127.0.0.1:<port><path>`. Default `/callback`. */
-    readonly path?: string;
     /** Extra query parameters the provider returns that the caller needs (e.g. a picked resource id). */
     readonly callbackFields?: readonly string[];
     readonly timeoutMs?: number;
@@ -104,10 +103,9 @@ function reply(res: ServerResponse, status: number, page: string): Promise<void>
  * closes it; the promise from `receive` settles only after the port is closed.
  */
 export async function startLoopbackAuthorizationReceiver(_requiredArgs: OAuthEmptyArgs, optionalArgs: LoopbackReceiverOptions = {}): Promise<LoopbackAuthorizationReceiver> {
-    const path = optionalArgs.path ?? DEFAULT_PATH;
     const callbackFields = optionalArgs.callbackFields ?? [];
     const timeoutMs = optionalArgs.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    assertLoopbackConfiguration({ path, callbackFields });
+    assertLoopbackConfiguration({ callbackFields });
     assertTimeout(timeoutMs);
     const { signal } = optionalArgs;
     if (signal?.aborted)
@@ -144,7 +142,7 @@ export async function startLoopbackAuthorizationReceiver(_requiredArgs: OAuthEmp
     server.on('request', (req: IncomingMessage, res: ServerResponse) => {
         const route = routeLoopbackRequest({
             request: { method: req.method, rawUrl: req.url, host: req.headers.host, hasBody: hasBody(req) },
-            expectedHost, path, armed: expectedState !== undefined && !consumed && !done,
+            expectedHost, path: CALLBACK_PATH, armed: expectedState !== undefined && !consumed && !done,
         });
         if (route.kind === 'ignore') {
             void reply(res, route.status, FAILED_PAGE);
@@ -162,7 +160,7 @@ export async function startLoopbackAuthorizationReceiver(_requiredArgs: OAuthEmp
     });
 
     return {
-        redirectUri: `http://${expectedHost}${path}`,
+        redirectUri: `http://${expectedHost}${CALLBACK_PATH}`,
         receive({ expectedState: state }) {
             if (expectedState !== undefined || state === '' || state.length > MAX_AUTHORIZATION_STATE_LENGTH)
                 return Promise.reject(new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message: 'the loopback receiver must be armed once with a non-empty state', operatorAction: 'Start the connection again from the connection settings.' }));

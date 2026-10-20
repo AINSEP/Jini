@@ -6,7 +6,7 @@
 export { parseAgentPluginToolsFile, type AgentPluginToolDescriptor, type AgentPluginToolEffect } from './manifest.js';
 export { defineAgentPluginToolContribution, type AgentPluginToolModule, type LoadedAgentPluginTool } from './definition.js';
 export {
-  openCapabilitySession, REVOKED_MESSAGE, WITHHELD_OUTPUT_MESSAGE, WITHHELD_ERROR_MESSAGE,
+  WITHHELD_OUTPUT_MESSAGE, createIssuedTokenMemories, type IssuedTokenMemories,
   type AgentPluginToolCapabilities, type AgentPluginToolCapabilitiesPort, type AgentPluginToolCapabilityScope,
   type AgentPluginHttpOptions, type AgentPluginLimitResult, type AgentPluginStateReader, type AgentPluginStateValue,
 } from './capabilities.js';
