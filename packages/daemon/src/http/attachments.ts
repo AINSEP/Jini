@@ -398,8 +398,12 @@ function hasAvifBrandAt(body: Uint8Array, offset: number): boolean {
 
 /** The `ftyp` box's declared end offset (big-endian size at bytes 0-3), clamped to the bytes
  * actually present so a truncated or size-inflating file can never push the brand scan past the
- * captured signature window. */
-function ftypBoxEnd(body: Uint8Array): number {
+ * captured signature window.
+ *
+ * Exported so its short-body bounds guard can be exercised directly: {@link hasAvifSignature}, its
+ * only caller, already requires 8 bytes before calling it, so no call through that path can reach
+ * the guard — but the guard is what keeps this function safe on its own and stays. */
+export function ftypBoxEnd({ body }: { readonly body: Uint8Array }, _optional: Record<string, never> = {}): number {
   if (body.length < FTYP_MAJOR_BRAND_OFFSET) return 0;
   const declared = ((body[0]! << 24) | (body[1]! << 16) | (body[2]! << 8) | body[3]!) >>> 0;
   return Math.min(declared, body.length);
@@ -423,7 +427,7 @@ export function hasAvifSignature({ body }: { readonly body: Uint8Array }, _optio
   if (!hasIsoBmffFtypTag(body)) return false;
   if (hasAvifBrandAt(body, FTYP_MAJOR_BRAND_OFFSET)) return true;
 
-  const boxEnd = ftypBoxEnd(body);
+  const boxEnd = ftypBoxEnd({ body });
   for (let index = 0; index < MAX_SCANNED_COMPATIBLE_BRANDS; index++) {
     const offset = FTYP_COMPATIBLE_BRANDS_OFFSET + index * 4;
     if (offset + 4 > boxEnd) return false;
@@ -1344,6 +1348,58 @@ export interface AttachmentUploadResponse {
 }
 
 /**
+ * The refusal for an upload that must not start, or `undefined` when it may. Both checks run before
+ * a slot is taken or a byte is written, and in this order: the limiter answers first, so a host at
+ * its upload budget never pays for diagnosing a misconfigured body parser.
+ */
+function refusalBeforeUpload(
+  { req, state, maxConcurrentUploads }: { readonly req: Request; readonly state: { readonly activeUploads: number }; readonly maxConcurrentUploads: number },
+): AttachmentRejectedError | undefined {
+  if (state.activeUploads >= maxConcurrentUploads) {
+    return new AttachmentRejectedError({ reason: 'too-many-concurrent-uploads', message: 'Too many attachment uploads are in progress' });
+  }
+  // Checked before a single byte is written: a drained stream would otherwise produce a zero-byte
+  // file and the misleading "attachment is empty". See this module's body-parser doc.
+  if (req.readableEnded) {
+    return new AttachmentRejectedError({ reason: 'attachment-body-consumed', message: `the request body was already consumed before ${ATTACHMENTS_ROUTE_PATH} received it — mount this route pack before any global body parser, or scope that parser to skip this path` });
+  }
+  return undefined;
+}
+
+/**
+ * The body of one admitted upload: prune, batch directory, bounded stream to disk, signature sniff,
+ * register, answer. Throws for the caller to map; the caller owns the slot and the `finally` tidy.
+ */
+async function storeAttachmentUpload(
+  { req, res, deps, batchId, name, maxAttachmentBytes }: { readonly req: Request; readonly res: Response; readonly deps: AttachmentsHttpDeps; readonly batchId: string; readonly name: string; readonly maxAttachmentBytes: number },
+): Promise<void> {
+  await deps.store.pruneExpired({});
+  const batchDirectory = await deps.store.createBatchDirectory({ batchId });
+  // A fresh UUID, never the client's filename. The extension is carried over (bounded) only
+  // because some agent runtimes decide how to read a file from its suffix.
+  const suffix = extname(name).slice(0, 12);
+  const path = resolve(batchDirectory, `${randomUUID()}${suffix}`);
+  const upload = await writeBoundedAttachmentBody({ request: req, filePath: path, maxBytes: maxAttachmentBytes });
+  if (upload.size === 0) {
+    await rm(path, { force: true });
+    sendApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'Attachment is empty' }) });
+    return;
+  }
+  const ownerId = deps.resolveOwnerId?.({ req });
+  const attachment = await deps.store.register({
+    input: {
+      batchId,
+      path,
+      name,
+      kind: detectAttachmentKind({ body: upload.signature }),
+      size: upload.size,
+      ...(ownerId === undefined ? {} : { ownerId }),
+    }
+  });
+  sendJson({ res, status: 201, body: { attachment } satisfies AttachmentUploadResponse });
+}
+
+/**
  * Handles one upload: rate-limit, batch directory, bounded stream to disk, signature sniff,
  * register. Exported so a host mounting its own path (or its own framework) can reuse the whole
  * body without re-deriving the ordering, which is load-bearing — see the `finally`.
@@ -1356,44 +1412,14 @@ export async function handleAttachmentUpload({ req, res, deps, state }: { readon
   const batchId = typeof req.query.batch === 'string' ? req.query.batch : '';
   // Every refusal below goes through `respondToUploadFailure`, so the reason -> status/code mapping
   // lives in exactly one place rather than being partly inlined here.
-  if (state.activeUploads >= maxConcurrentUploads) {
-    respondToUploadFailure(res, deps, new AttachmentRejectedError({ reason: 'too-many-concurrent-uploads', message: 'Too many attachment uploads are in progress' }
-    ), batchId, 'attachment-upload');
-    return;
-  }
-  // Checked before a single byte is written: a drained stream would otherwise produce a zero-byte
-  // file and the misleading "attachment is empty". See this module's body-parser doc.
-  if (req.readableEnded) {
-    respondToUploadFailure(res, deps, new AttachmentRejectedError({ reason: 'attachment-body-consumed', message: `the request body was already consumed before ${ATTACHMENTS_ROUTE_PATH} received it — mount this route pack before any global body parser, or scope that parser to skip this path` }
-    ), batchId, 'attachment-upload');
+  const refusal = refusalBeforeUpload({ req, state, maxConcurrentUploads });
+  if (refusal !== undefined) {
+    respondToUploadFailure(res, deps, refusal, batchId, 'attachment-upload');
     return;
   }
   state.activeUploads += 1;
   try {
-    await deps.store.pruneExpired({});
-    const batchDirectory = await deps.store.createBatchDirectory({ batchId });
-    // A fresh UUID, never the client's filename. The extension is carried over (bounded) only
-    // because some agent runtimes decide how to read a file from its suffix.
-    const suffix = extname(name).slice(0, 12);
-    const path = resolve(batchDirectory, `${randomUUID()}${suffix}`);
-    const upload = await writeBoundedAttachmentBody({ request: req, filePath: path, maxBytes: maxAttachmentBytes });
-    if (upload.size === 0) {
-      await rm(path, { force: true });
-      sendApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'Attachment is empty' }) });
-      return;
-    }
-    const ownerId = deps.resolveOwnerId?.({ req });
-    const attachment = await deps.store.register({
-      input: {
-        batchId,
-        path,
-        name,
-        kind: detectAttachmentKind({ body: upload.signature }),
-        size: upload.size,
-        ...(ownerId === undefined ? {} : { ownerId }),
-      }
-    });
-    sendJson({ res, status: 201, body: { attachment } satisfies AttachmentUploadResponse });
+    await storeAttachmentUpload({ req, res, deps, batchId, name, maxAttachmentBytes });
   } catch (error) {
     respondToUploadFailure(res, deps, error, batchId, 'attachment-upload');
   } finally {

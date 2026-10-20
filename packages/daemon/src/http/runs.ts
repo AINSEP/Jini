@@ -7,12 +7,21 @@ import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { createApiError, type RunProtocolEvent, type RunStatus } from '@jini-ai/protocol';
 import type { RunLifecycle, StartRunInput, Unsubscribe, UserMessageDelivery } from '../index.js';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { sendApiError } from '@jini-ai/http-kit';
-import { createSseChannel, requestedAfterCursor, sendRawApiError } from '@jini-ai/http-kit';
+import {
+  createSseChannel,
+  defineJsonRoute,
+  err,
+  mountJsonRoute,
+  ok,
+  requestedAfterCursor,
+  sendApiError,
+  sendRawApiError,
+  validationError,
+  type AdapterContext,
+  type Result,
+  type RouteInputContext,
+} from '@jini-ai/http-kit';
 import type { ServerResponse } from 'node:http';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
 /**
  * Diagnostic detail for an internal-error response the public API deliberately does not
@@ -142,6 +151,21 @@ export interface RunMessageResponse {
 /** Ceiling on one mid-run message, matching what a person can reasonably type or paste into a composer. */
 export const RUN_MESSAGE_MAX_CHARS = 100_000;
 
+/** Most attachment refs one mid-run message may carry. */
+const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+
+/** An opaque upload capability: `attachment:` then 1-128 word characters or dashes, nothing path-shaped. */
+function isAttachmentRef(ref: unknown): ref is string {
+  return typeof ref === 'string' && /^attachment:[\w-]{1,128}$/u.test(ref);
+}
+
+/** `attachmentIds` is optional; when present it must be an array of at most ten well-formed refs, or the whole message is refused. */
+function parseAttachmentIds(value: unknown): Result<readonly string[] | undefined> {
+  if (value === undefined) return ok({ value: undefined });
+  if (Array.isArray(value) && value.length <= MAX_ATTACHMENTS_PER_MESSAGE && value.every(isAttachmentRef)) return ok({ value });
+  return err({ error: validationError({ message: 'attachmentIds must contain at most 10 opaque attachment refs' }) });
+}
+
 function parseRunMessage(input: RouteInputContext): Result<RunMessageRequest> {
   const parsedRunId = parseRunId(input);
   if (!parsedRunId.ok) return parsedRunId;
@@ -153,12 +177,9 @@ function parseRunMessage(input: RouteInputContext): Result<RunMessageRequest> {
   if (text.length > RUN_MESSAGE_MAX_CHARS) {
     return err({ error: validationError({ message: `text must be at most ${RUN_MESSAGE_MAX_CHARS} characters` }, { issues: [{ path: 'text', message: 'too long' }] }) });
   }
-  const attachmentIds = input.body.attachmentIds;
-  if (attachmentIds !== undefined && (!Array.isArray(attachmentIds) || attachmentIds.length > 10
-    || attachmentIds.some(ref => typeof ref !== 'string' || !/^attachment:[\w-]{1,128}$/u.test(ref)))) {
-    return err({ error: validationError({ message: 'attachmentIds must contain at most 10 opaque attachment refs' }) });
-  }
-  return ok({ value: { runId: parsedRunId.value, text, ...(attachmentIds === undefined ? {} : { attachmentIds }) } });
+  const attachmentIds = parseAttachmentIds(input.body.attachmentIds);
+  if (!attachmentIds.ok) return attachmentIds;
+  return ok({ value: { runId: parsedRunId.value, text, ...(attachmentIds.value === undefined ? {} : { attachmentIds: attachmentIds.value }) } });
 }
 
 export interface RunListResponse {

@@ -53,6 +53,41 @@ export function describeInput({ input }: { readonly input: unknown }, _optional:
   } catch { return 'input: an unreadable object'; }
 }
 
+/** Forward only the channels the caller supplied; an explicit undefined key is never forwarded. */
+function forwardedOptions(
+  { signal, emitSurface }: { readonly signal?: AbortSignal | undefined; readonly emitSurface?: SurfaceEmitter | undefined },
+  _optional: Record<string, never> = {},
+): { signal?: AbortSignal; emitSurface?: SurfaceEmitter } {
+  return {
+    ...(signal === undefined ? {} : { signal }),
+    ...(emitSurface === undefined ? {} : { emitSurface }),
+  };
+}
+
+/** Label a thrown delegation by phase and value-free detail. */
+function thrownAttempt({ error }: { readonly error: unknown }, _optional: Record<string, never> = {}): { phase: ToolAttemptPhase; detail: string } {
+  if (!(error instanceof Error)) return { phase: 'failed', detail: typeof error };
+  // The boundary exposes no typed unknown-tool error. Wording drift loses only label
+  // precision, never the row or execution behavior; retain the error class, not its message.
+  return { phase: /unknown tool/i.test(error.message) ? 'unknown-tool' : 'failed', detail: error.name };
+}
+
+/** Settled details retain truncation or an errorId link, never error text or operator content. */
+function settledDetail(
+  { result, readErrorId }: { readonly result: ToolExecutionResult; readonly readErrorId: (args: { result: ToolExecutionResult }) => string | undefined },
+  options: ToolAuditOptions,
+): string | null {
+  if (result.truncated) return 'output truncated';
+  // Host error-ID metadata is optional observation, never part of execution success.
+  try {
+    const id = readErrorId({ result });
+    return id === undefined ? null : `errorId=${id}`;
+  } catch (error) {
+    reportSinkError(error, options);
+    return null;
+  }
+}
+
 export interface AuditedToolExecutor {
   execute(args: { principal: Principal; run: RunRef; toolId: string; input: unknown }, options?: { signal?: AbortSignal; emitSurface?: SurfaceEmitter }): Promise<ToolExecutionResult>;
   resumeConfirmation(args: { executionId: string; decision: ConfirmationDecision }, optional?: Record<string, never>): void;
@@ -76,29 +111,19 @@ export function withToolAttemptAudit(
       const base = { attemptId: deps.newAttemptId(), workspaceId: deps.workspaceId, runId: run.id, toolId, principalId: principal.id };
       await appendSafely({ ...base, executionId: null, phase: 'requested', at: deps.now(), detail: describeInput({ input }) }, deps, options);
       let result: ToolExecutionResult;
-      try { result = await deps.inner.execute({ principal, run, toolId, input }, {
-        ...(signal === undefined ? {} : { signal }),
-        ...(emitSurface === undefined ? {} : { emitSurface }),
-      }); }
+      try { result = await deps.inner.execute({ principal, run, toolId, input }, forwardedOptions({ signal, emitSurface })); }
       catch (error) {
-        // The boundary exposes no typed unknown-tool error. Wording drift loses only label
-        // precision, never the row or execution behavior; retain the error class, not its message.
-        const phase = error instanceof Error && /unknown tool/i.test(error.message) ? 'unknown-tool' : 'failed';
-        await appendSafely({ ...base, executionId: null, phase, at: deps.now(), detail: error instanceof Error ? error.name : typeof error }, deps, options);
+        const { phase, detail } = thrownAttempt({ error });
+        await appendSafely({ ...base, executionId: null, phase, at: deps.now(), detail }, deps, options);
         throw error;
       }
-      let detail: string | null = result.truncated ? 'output truncated' : null;
-      // Host error-ID metadata is optional observation, never part of execution success.
-      if (detail === null) {
-        try { const id = deps.readErrorId({ result }); if (id !== undefined) detail = `errorId=${id}`; }
-        catch (error) { reportSinkError(error, options); }
-      }
+      const detail = settledDetail({ result, readErrorId: deps.readErrorId }, options);
       await appendSafely({ ...base, executionId: result.executionId, phase: result.status, at: deps.now(), detail }, deps, options);
       return result;
     },
-    resumeConfirmation: ({ executionId, decision }) => deps.inner.resumeConfirmation({ executionId: executionId, decision: decision }),
+    resumeConfirmation: ({ executionId, decision }) => deps.inner.resumeConfirmation({ executionId, decision }),
     cancel: ({ executionId }) => deps.inner.cancel({ executionId }),
-    getAuditRecord: ({ executionId }) => deps.inner.getAuditRecord({ executionId: executionId }),
+    getAuditRecord: ({ executionId }) => deps.inner.getAuditRecord({ executionId }),
   };
 }
 

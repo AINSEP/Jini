@@ -49,12 +49,21 @@
  */
 import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { guardSameOrigin } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { sendApiError, statusForError } from '@jini-ai/http-kit';
-import { createSseChannel, type SseEvent } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import {
+  createSseChannel,
+  defineJsonRoute,
+  err,
+  guardSameOrigin,
+  mountJsonRoute,
+  ok,
+  sendApiError,
+  statusForError,
+  validationError,
+  type AdapterContext,
+  type Result,
+  type RouteInputContext,
+  type SseEvent,
+} from '@jini-ai/http-kit';
 
 // ---------------------------------------------------------------------------
 // Local structural mirrors of @jini-ai/memory's NoteStore/ExtractionLog/VerifyLog
@@ -143,6 +152,25 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Reads an optional string field: absent (`undefined`) passes through, anything else that is not a string — `null` included — is refused. */
+function readOptionalString(body: Record<string, unknown>, key: string): Result<string | undefined> {
+  const value = body[key];
+  if (value === undefined || typeof value === 'string') return ok({ value });
+  return err({ error: validationError({ message: `${key} must be a string when provided` }) });
+}
+
+/** Reads a required, non-empty string field, refusing with a per-field validation issue. */
+function readRequiredString(body: Record<string, unknown>, key: string): Result<string> {
+  const value = body[key];
+  if (typeof value === 'string' && value.length > 0) return ok({ value });
+  return err({ error: validationError({ message: `${key} is required` }, { issues: [{ path: key, message: 'required non-empty string' }] }) });
+}
+
+/** The `BAD_REQUEST` every mutating route answers when its store call throws, carrying the store's own message. */
+function storeFailure(error: unknown): Result<never> {
+  return err({ error: createApiError({ code: 'BAD_REQUEST', message: errorMessage(error) }) });
+}
+
 function parseIdParam(input: RouteInputContext): Result<string> {
   const id = input.params.id;
   return typeof id === 'string' && id.length > 0 ? ok({ value: id }) : err({ error: validationError({ message: 'id must be a non-empty path parameter' }) });
@@ -216,10 +244,9 @@ function parseUpdateTreeNode(input: RouteInputContext): Result<MemoryUpdateTreeN
   if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
   const patch: MemoryTreeNodePatch = {};
   for (const key of ['name', 'description', 'type', 'body'] as const) {
-    const value = input.body[key];
-    if (value === undefined) continue;
-    if (typeof value !== 'string') return err({ error: validationError({ message: `${key} must be a string when provided` }) });
-    (patch as Record<string, string>)[key] = value;
+    const value = readOptionalString(input.body, key);
+    if (!value.ok) return value;
+    if (value.value !== undefined) (patch as Record<string, string>)[key] = value.value;
   }
   return ok({ value: { id: parsedId.value, patch } });
 }
@@ -286,7 +313,7 @@ export const memoryWriteIndexRoute = defineJsonRoute<string, MemoryIndexResponse
       await deps.notes.writeIndex({ dataDir: deps.dataDir, body: index });
       return ok({ value: { index } });
     } catch (error) {
-      return err({ error: createApiError({ code: 'BAD_REQUEST', message: errorMessage(error) }) });
+      return storeFailure(error);
     }
   },
 }, { requireSameOrigin: true });
@@ -315,7 +342,7 @@ export const memoryWriteConfigRoute = defineJsonRoute<Partial<MemoryNoteStoreOpt
       const next = await deps.notes.writeConfig({ dataDir: deps.dataDir, patch });
       return ok({ value: { enabled: next.enabled } });
     } catch (error) {
-      return err({ error: createApiError({ code: 'BAD_REQUEST', message: errorMessage(error) }) });
+      return storeFailure(error);
     }
   },
 }, { requireSameOrigin: true });
@@ -400,27 +427,20 @@ export interface MemoryEntryResponse {
 
 function parseEntryInput(input: RouteInputContext): Result<MemoryEntryInput> {
   if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-  const { name, type } = input.body;
-  if (typeof name !== 'string' || name.length === 0) {
-    return err({ error: validationError({ message: 'name is required' }, { issues: [{ path: 'name', message: 'required non-empty string' }] }) });
-  }
-  if (typeof type !== 'string' || type.length === 0) {
-    return err({ error: validationError({ message: 'type is required' }, { issues: [{ path: 'type', message: 'required non-empty string' }] }) });
-  }
-  const description = input.body.description;
-  if (description !== undefined && typeof description !== 'string') {
-    return err({ error: validationError({ message: 'description must be a string when provided' }) });
-  }
-  const body = input.body.body;
-  if (body !== undefined && typeof body !== 'string') {
-    return err({ error: validationError({ message: 'body must be a string when provided' }) });
-  }
+  const name = readRequiredString(input.body, 'name');
+  if (!name.ok) return name;
+  const type = readRequiredString(input.body, 'type');
+  if (!type.ok) return type;
+  const description = readOptionalString(input.body, 'description');
+  if (!description.ok) return description;
+  const body = readOptionalString(input.body, 'body');
+  if (!body.ok) return body;
   return ok({
     value: {
-      name,
-      type,
-      ...(description === undefined ? {} : { description }),
-      ...(body === undefined ? {} : { body }),
+      name: name.value,
+      type: type.value,
+      ...(description.value === undefined ? {} : { description: description.value }),
+      ...(body.value === undefined ? {} : { body: body.value }),
     }
   });
 }
@@ -434,7 +454,7 @@ export const memoryCreateEntryRoute = defineJsonRoute<MemoryEntryInput, MemoryEn
       const entry = await deps.notes.upsertEntry({ dataDir: deps.dataDir, input });
       return ok({ value: { entry } });
     } catch (error) {
-      return err({ error: createApiError({ code: 'BAD_REQUEST', message: errorMessage(error) }) });
+      return storeFailure(error);
     }
   },
 }, { requireSameOrigin: true, successStatus: 201 });
@@ -471,7 +491,7 @@ export const memoryUpdateEntryRoute = defineJsonRoute<MemoryUpdateEntryInput, Me
       const entry = await deps.notes.upsertEntry({ dataDir: deps.dataDir, input: { ...input, id } });
       return ok({ value: { entry } });
     } catch (error) {
-      return err({ error: createApiError({ code: 'BAD_REQUEST', message: errorMessage(error) }) });
+      return storeFailure(error);
     }
   },
 }, { requireSameOrigin: true });
@@ -489,7 +509,7 @@ export const memoryDeleteEntryRoute = defineJsonRoute<string, MemoryDeleteEntryR
       await deps.notes.deleteEntry({ dataDir: deps.dataDir, id });
       return ok({ value: { ok: true } });
     } catch (error) {
-      return err({ error: createApiError({ code: 'BAD_REQUEST', message: errorMessage(error) }) });
+      return storeFailure(error);
     }
   },
 }, { requireSameOrigin: true });

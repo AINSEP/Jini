@@ -1167,3 +1167,378 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
     expect(onInternalError.mock.calls[0]![0].provider).toBe('anthropic');
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// Characterization pins written ahead of the code-health refactor of `model-proxy.ts`: every
+// parser refusal (exact message + issues), the transport defaults when no test seam is injected,
+// and the catch blocks' "headers already sent" fallbacks. They run against both the fixed routes
+// and the `:provider` catch-all, since each historically had its own copy of the run closures.
+// ---------------------------------------------------------------------------------------------
+
+const FIXED_ROUTE_BODIES = {
+  anthropic: validAnthropicBody,
+  openai: validOpenAiBody,
+  azure: validAzureBody,
+  google: validGoogleBody,
+  ollama: validOllamaBody,
+} as const;
+
+type PinProvider = keyof typeof FIXED_ROUTE_BODIES;
+const PIN_PROVIDERS = Object.keys(FIXED_ROUTE_BODIES) as PinProvider[];
+
+function badRequest(message: string, issuePath?: string, issueMessage?: string) {
+  return issuePath
+    ? { error: { code: 'BAD_REQUEST', message, details: { kind: 'validation', issues: [{ path: issuePath, message: issueMessage }] } } }
+    : { error: { code: 'BAD_REQUEST', message } };
+}
+
+async function callFixed(provider: PinProvider, body: unknown, deps: ModelProxyHttpDeps = {}) {
+  const res = makeSseRes();
+  await mount(deps).handlers[`POST /api/proxy/${provider}/stream`]!(makeReq(body), res);
+  return res;
+}
+
+async function callCatchAll(provider: string, body: unknown, deps: ModelProxyHttpDeps = {}, res = makeSseRes()) {
+  await mount(deps).handlers['POST /api/proxy/:provider/stream']!(makeParamReq({ provider }, body), res);
+  return res;
+}
+
+describe('model-proxy pins — shared request validation (every provider, both route shapes)', () => {
+  const commonRefusals: Array<[string, (base: Record<string, unknown>) => unknown, ReturnType<typeof badRequest>]> = [
+    ['a null body', () => null, badRequest('body must be a JSON object')],
+    ['an array body', () => [], badRequest('body must be a JSON object')],
+    ['a string body', () => 'hi', badRequest('body must be a JSON object')],
+    ['a missing apiKey', (b) => ({ ...b, apiKey: undefined }), badRequest('apiKey must be a non-empty string', 'apiKey', 'required non-empty string')],
+    ['a whitespace-only apiKey', (b) => ({ ...b, apiKey: '   ' }), badRequest('apiKey must be a non-empty string', 'apiKey', 'required non-empty string')],
+    ['a numeric apiKey', (b) => ({ ...b, apiKey: 42 }), badRequest('apiKey must be a non-empty string', 'apiKey', 'required non-empty string')],
+    ['apiKey and model both missing (apiKey reported first)', (b) => ({ ...b, apiKey: '', model: '' }), badRequest('apiKey must be a non-empty string', 'apiKey', 'required non-empty string')],
+    ['an empty model', (b) => ({ ...b, model: '' }), badRequest('model must be a non-empty string', 'model', 'required non-empty string')],
+    ['missing messages', (b) => ({ ...b, messages: undefined }), badRequest('messages must be a non-empty array', 'messages', 'required non-empty array')],
+    ['empty messages', (b) => ({ ...b, messages: [] }), badRequest('messages must be a non-empty array', 'messages', 'required non-empty array')],
+    ['non-array messages', (b) => ({ ...b, messages: { role: 'user' } }), badRequest('messages must be a non-empty array', 'messages', 'required non-empty array')],
+    ['a numeric baseUrl', (b) => ({ ...b, baseUrl: 5 }), badRequest('baseUrl must be a string when provided')],
+    ['a string temperature', (b) => ({ ...b, temperature: '0.5' }), badRequest('temperature must be a number when provided')],
+    ['a string maxTokens', (b) => ({ ...b, maxTokens: '5' }), badRequest('maxTokens must be a number when provided')],
+    ['a string maxToolTurns', (b) => ({ ...b, maxToolTurns: '3' }), badRequest('maxToolTurns must be a number when provided')],
+    ['an array extraHeaders', (b) => ({ ...b, extraHeaders: [] }), badRequest('extraHeaders must be an object when provided')],
+    ['a null extraHeaders', (b) => ({ ...b, extraHeaders: null }), badRequest('extraHeaders must be an object when provided')],
+  ];
+
+  const rows = PIN_PROVIDERS.flatMap((provider) =>
+    commonRefusals.flatMap(([label, build, expected]) => [
+      [provider, 'fixed', label, build, expected] as const,
+      [provider, 'catch-all', label, build, expected] as const,
+    ]),
+  );
+
+  it.each(rows)('%s (%s route) rejects %s with 400 and never calls fetch', async (provider, shape, _label, build, expected) => {
+    const body = build({ ...FIXED_ROUTE_BODIES[provider] });
+    const res = shape === 'fixed' ? await callFixed(provider, body) : await callCatchAll(provider, body);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expected);
+    expect(injectedFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('model-proxy pins — provider-specific request validation', () => {
+  const providerRefusals: Array<[PinProvider, string, Record<string, unknown>, ReturnType<typeof badRequest>]> = [
+    ['anthropic', 'a missing maxTokens', { maxTokens: undefined }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
+    ['anthropic', 'a zero maxTokens', { maxTokens: 0 }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
+    ['anthropic', 'a negative maxTokens', { maxTokens: -1 }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
+    ['anthropic', 'a NaN maxTokens', { maxTokens: Number.NaN }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
+    ['anthropic', 'an infinite maxTokens', { maxTokens: Number.POSITIVE_INFINITY }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
+    ['anthropic', 'a bad maxTokens ahead of a bad apiVersion', { maxTokens: 0, apiVersion: 5 }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
+    ['anthropic', 'a numeric apiVersion', { apiVersion: 5 }, badRequest('apiVersion must be a string when provided')],
+    ['anthropic', 'a numeric system', { system: 5 }, badRequest('system must be a string when provided')],
+    ['anthropic', 'a non-array tools', { tools: 'nope' }, badRequest('tools must be an array when provided')],
+    ['openai', 'a non-array tools', { tools: {} }, badRequest('tools must be an array when provided')],
+    ['azure', 'a missing baseUrl', { baseUrl: undefined }, badRequest('baseUrl must be a non-empty string', 'baseUrl', 'required non-empty string')],
+    ['azure', 'an empty baseUrl', { baseUrl: '' }, badRequest('baseUrl must be a non-empty string', 'baseUrl', 'required non-empty string')],
+    ['azure', 'a missing apiVersion', { apiVersion: undefined }, badRequest('apiVersion must be a non-empty string', 'apiVersion', 'required non-empty string')],
+    ['azure', 'a whitespace-only apiVersion', { apiVersion: '  ' }, badRequest('apiVersion must be a non-empty string', 'apiVersion', 'required non-empty string')],
+    ['azure', 'a numeric apiVersion', { apiVersion: 7 }, badRequest('apiVersion must be a non-empty string', 'apiVersion', 'required non-empty string')],
+    ['azure', 'a non-array tools', { tools: 'nope' }, badRequest('tools must be an array when provided')],
+    ['google', 'a numeric system', { system: 5 }, badRequest('system must be a string when provided')],
+    ['google', 'a non-array tools', { tools: 'nope' }, badRequest('tools must be an array when provided')],
+    ['google', 'a string maxOutputTokens', { maxOutputTokens: '9' }, badRequest('maxOutputTokens must be a number when provided')],
+    ['ollama', 'a non-array tools', { tools: 'nope' }, badRequest('tools must be an array when provided')],
+  ];
+
+  const rows = providerRefusals.flatMap(([provider, label, override, expected]) => [
+    [provider, 'fixed', label, override, expected] as const,
+    [provider, 'catch-all', label, override, expected] as const,
+  ]);
+
+  it.each(rows)('%s (%s route) rejects %s with 400', async (provider, shape, _label, override, expected) => {
+    const body = { ...FIXED_ROUTE_BODIES[provider], ...override };
+    const res = shape === 'fixed' ? await callFixed(provider, body) : await callCatchAll(provider, body);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expected);
+    expect(injectedFetch).not.toHaveBeenCalled();
+  });
+
+  // Azure's baseUrl check is truthiness-only (unlike apiVersion's trim check), so a whitespace-only
+  // baseUrl passes the parser and fails later inside the turn-runner as an 'error' SSE event.
+  it('azure accepts a whitespace-only baseUrl at parse time and fails inside the stream instead (reported, not fixed)', async () => {
+    const res = await callFixed('azure', { ...validAzureBody, baseUrl: '   ' });
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    const events = writtenEvents(res);
+    expect(events.map((e) => e.kind)).toEqual(['error', 'end']);
+    expect(injectedFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('model-proxy pins — the catch-all provider lookup', () => {
+  // `registry` is a plain object literal, so inherited keys like `constructor` resolve to a truthy
+  // value; only the recognized-provider set check keeps them from being dispatched.
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])('rejects the inherited object key %s as an unknown provider', async (provider) => {
+    const res = await callCatchAll(provider, validOpenAiBody);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'BAD_REQUEST', message: `unknown provider: ${provider}` } });
+    expect(injectedFetch).not.toHaveBeenCalled();
+  });
+
+  it('is case-sensitive about provider names', async () => {
+    const res = await callCatchAll('Anthropic', validAnthropicBody);
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'BAD_REQUEST', message: 'unknown provider: Anthropic' } });
+  });
+});
+
+describe('model-proxy pins — optional fields are forwarded only when present', () => {
+  it('does not forward an explicitly-undefined optional field, nor an unknown body field', async () => {
+    injectedFetch.mockResolvedValue(okResponse(sseBody(openAiChunk('ok'))));
+    await callFixed('openai', { ...validOpenAiBody, temperature: undefined, maxTokens: undefined, tools: undefined, stray: 'x' });
+    const sent = JSON.parse(injectedFetch.mock.calls[0]![0].init.body as string) as Record<string, unknown>;
+    expect(sent).not.toHaveProperty('temperature');
+    expect(sent).not.toHaveProperty('tools');
+    expect(sent).not.toHaveProperty('stray');
+  });
+
+  it('google never forwards the shared maxTokens field (only maxOutputTokens)', async () => {
+    injectedFetch.mockResolvedValue(okResponse(sseBody(googleChunk('ok'))));
+    await callFixed('google', { ...validGoogleBody, maxTokens: 77 });
+    const sent = injectedFetch.mock.calls[0]![0].init.body as string;
+    expect(sent).not.toContain('77');
+  });
+
+  it('anthropic forwards its required maxTokens as max_tokens', async () => {
+    injectedFetch.mockResolvedValue(okResponse(sseBody(anthropicChunk('ok'))));
+    await callFixed('anthropic', { ...validAnthropicBody, maxTokens: 321 });
+    const sent = JSON.parse(injectedFetch.mock.calls[0]![0].init.body as string) as Record<string, unknown>;
+    expect(sent.max_tokens).toBe(321);
+  });
+});
+
+describe('model-proxy pins — the real guarded transport is the default when no test seam is injected', () => {
+  // A real loopback HTTP server stands in for the upstream: loopback literals are the guard's
+  // documented carve-out, so the default `pinnedFetch` dials it without any DNS lookup. Nothing in
+  // these tests passes `fetchImpl`/`dnsLookup`, proving the production defaults are wired.
+  let server: import('node:http').Server;
+  let baseUrl = '';
+  const seen: Array<{ url: string; apiKeySeen: boolean }> = [];
+
+  beforeEach(async () => {
+    const http = await import('node:http');
+    seen.length = 0;
+    server = http.createServer((req, res) => {
+      const headerValues = Object.values(req.headers).flat().join(' ') + (req.url ?? '');
+      seen.push({ url: req.url ?? '', apiKeySeen: headerValues.includes('pin-key-value') });
+      res.writeHead(401, { 'content-type': 'text/plain' });
+      res.end('denied by pin server');
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address() as import('node:net').AddressInfo;
+    baseUrl = `http://127.0.0.1:${address.port}`;
+  });
+
+  afterEach(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  function rawMount(deps: ModelProxyHttpDeps) {
+    const app = makeApp();
+    registerModelProxyRoutes({ app: app as any, deps, adapter });
+    return app;
+  }
+
+  const rows = PIN_PROVIDERS.flatMap((provider) => [[provider, 'fixed'] as const, [provider, 'catch-all'] as const]);
+
+  it.each(rows)('%s (%s route) reaches the upstream through the default transport and streams its refusal', async (provider, shape) => {
+    const body = { ...FIXED_ROUTE_BODIES[provider], apiKey: 'pin-key-value', baseUrl };
+    const app = rawMount({});
+    const res = makeSseRes();
+    if (shape === 'fixed') {
+      await app.handlers[`POST /api/proxy/${provider}/stream`]!(makeReq(body), res);
+    } else {
+      await app.handlers['POST /api/proxy/:provider/stream']!(makeParamReq({ provider }, body), res);
+    }
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.apiKeySeen).toBe(true);
+    const kinds = writtenEvents(res).map((e) => e.kind);
+    expect(kinds.at(-2)).toBe('error');
+    expect(kinds.at(-1)).toBe('end');
+  });
+
+  it.each(rows)('%s (%s route) forwards an injected dnsLookup, so a hostname resolving to an internal IP is refused', async (provider, shape) => {
+    const internalLookup = async (_args: { hostname: string }) => [{ address: '10.0.0.1', family: 4 }];
+    const body = { ...FIXED_ROUTE_BODIES[provider], baseUrl: 'https://upstream.pin.example' };
+    const app = rawMount({ fetchImpl: injectedFetch, dnsLookup: internalLookup });
+    const res = makeSseRes();
+    if (shape === 'fixed') {
+      await app.handlers[`POST /api/proxy/${provider}/stream`]!(makeReq(body), res);
+    } else {
+      await app.handlers['POST /api/proxy/:provider/stream']!(makeParamReq({ provider }, body), res);
+    }
+    expect(injectedFetch).not.toHaveBeenCalled();
+    const events = writtenEvents(res);
+    expect(JSON.stringify(events[0]!.data)).toContain('Internal IPs blocked');
+    expect(events.at(-1)!.kind).toBe('end');
+  });
+});
+
+describe('model-proxy pins — executeTool wiring per provider', () => {
+  const toolRounds: Record<PinProvider, () => ReturnType<typeof okResponse>> = {
+    anthropic: () => okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'pin_tool', {}))),
+    openai: () => okResponse(sseBody(openAiToolCallChunk('call_1', 'pin_tool', '{}'))),
+    azure: () => okResponse(sseBody(openAiToolCallChunk('call_1', 'pin_tool', '{}'))),
+    google: () => okResponse(sseBody(googleFunctionCallChunk('pin_tool', {}))),
+    ollama: () => okResponse(ollamaBody(ollamaToolCallLine('pin_tool', {}), ollamaDoneLine())),
+  };
+  const depKey: Record<PinProvider, keyof ModelProxyHttpDeps> = {
+    anthropic: 'anthropicExecuteTool',
+    openai: 'openaiExecuteTool',
+    azure: 'azureExecuteTool',
+    google: 'googleExecuteTool',
+    ollama: 'ollamaExecuteTool',
+  };
+  const rows = PIN_PROVIDERS.flatMap((provider) => [[provider, 'fixed'] as const, [provider, 'catch-all'] as const]);
+
+  it.each(rows)('%s (%s route) calls only its own executeTool with the single call argument', async (provider, shape) => {
+    injectedFetch.mockResolvedValueOnce(toolRounds[provider]());
+    const own = vi.fn().mockRejectedValue(new Error('stop after first call'));
+    const others = vi.fn();
+    const deps: ModelProxyHttpDeps = Object.fromEntries(
+      PIN_PROVIDERS.map((p) => [depKey[p], p === provider ? own : others]),
+    );
+    const onInternalError = vi.fn();
+    const body = FIXED_ROUTE_BODIES[provider];
+    if (shape === 'fixed') await callFixed(provider, body, { ...deps, onInternalError });
+    else await callCatchAll(provider, body, { ...deps, onInternalError });
+    expect(own).toHaveBeenCalledTimes(1);
+    expect(own.mock.calls[0]).toHaveLength(1);
+    expect(others).not.toHaveBeenCalled();
+    expect(onInternalError.mock.calls[0]![0].provider).toBe(provider);
+  });
+});
+
+describe('model-proxy pins — catch-block fallbacks once headers are already committed', () => {
+  function throwingOriginOnce() {
+    vi.mocked(isLocalSameOrigin).mockImplementationOnce(() => {
+      throw new Error('origin check exploded');
+    });
+  }
+
+  it('fixed route: ends a response whose headers were already sent instead of writing JSON', async () => {
+    throwingOriginOnce();
+    const onInternalError = vi.fn();
+    const res = makeSseRes();
+    res.headersSent = true;
+    await mount({ onInternalError }).handlers['POST /api/proxy/openai/stream']!(makeReq(validOpenAiBody), res);
+    expect(onInternalError.mock.calls[0]![0].provider).toBe('openai');
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.end).toHaveBeenCalledOnce();
+  });
+
+  it('fixed route: leaves an already-ended response alone', async () => {
+    throwingOriginOnce();
+    const res = makeSseRes();
+    res.headersSent = true;
+    res.writableEnded = true;
+    await mount({ onInternalError: vi.fn() }).handlers['POST /api/proxy/openai/stream']!(makeReq(validOpenAiBody), res);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.end).not.toHaveBeenCalled();
+  });
+
+  it('fixed route: answers a pre-stream throw with a redacted 500 carrying the correlation id', async () => {
+    throwingOriginOnce();
+    const onInternalError = vi.fn();
+    const res = makeSseRes();
+    await mount({ onInternalError }).handlers['POST /api/proxy/google/stream']!(makeReq(validGoogleBody), res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    const { correlationId } = onInternalError.mock.calls[0]![0];
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: correlationId } });
+  });
+
+  it('catch-all: logs an unrecognized provider via console.error, never via the typed sink', async () => {
+    throwingOriginOnce();
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    const onInternalError = vi.fn();
+    const res = makeSseRes();
+    await callCatchAll('openrouter', validOpenAiBody, { onInternalError });
+    expect(onInternalError).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(String(consoleErrorSpy.mock.calls[0]![0])).toMatch(/^\[@jini-ai\/http-kit\] internal error \(model-proxy\/openrouter, correlationId=[0-9a-f-]{36}\)$/);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('catch-all: labels an empty provider param as "unknown" in the console line and answers 500', async () => {
+    throwingOriginOnce();
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    const res = makeSseRes();
+    await mount({ onInternalError: vi.fn() }).handlers['POST /api/proxy/:provider/stream']!(makeParamReq({}, validOpenAiBody), res);
+    expect(String(consoleErrorSpy.mock.calls[0]![0])).toContain('model-proxy/unknown,');
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json.mock.calls[0]![0].error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' });
+  });
+
+  it('catch-all: ends a response whose headers were already sent instead of writing JSON', async () => {
+    throwingOriginOnce();
+    const res = makeSseRes();
+    res.headersSent = true;
+    await callCatchAll('anthropic', validAnthropicBody, { onInternalError: vi.fn() }, res);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.end).toHaveBeenCalledOnce();
+  });
+
+  it('catch-all: leaves an already-ended response alone', async () => {
+    throwingOriginOnce();
+    const res = makeSseRes();
+    res.headersSent = true;
+    res.writableEnded = true;
+    await mount({ onInternalError: vi.fn() }).handlers['POST /api/proxy/:provider/stream']!(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.end).not.toHaveBeenCalled();
+  });
+
+  // A host sink that throws is re-invoked by the catch-all's outer catch, which throws again and
+  // escapes as a rejection — the unhandled-rejection class the outer catch exists to prevent.
+  it('catch-all: a throwing onInternalError escapes as a rejection after being called twice (reported, not fixed)', async () => {
+    const onInternalError = vi.fn(() => { throw new Error('sink exploded'); });
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    const res = makeSseRes();
+    // The catch-all's own origin check passes; the one inside runProxyStream throws.
+    vi.mocked(isLocalSameOrigin).mockReturnValueOnce(true).mockImplementationOnce(() => {
+      throw new Error('origin check exploded');
+    });
+    await expect(callCatchAll('anthropic', validAnthropicBody, { onInternalError }, res)).rejects.toThrow('sink exploded');
+    expect(onInternalError).toHaveBeenCalledTimes(2);
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+  });
+
+  it('fixed route: a throwing onInternalError escapes as a rejection (reported, not fixed)', async () => {
+    throwingOriginOnce();
+    const onInternalError = vi.fn(() => { throw new Error('sink exploded'); });
+    await expect(callFixed('ollama', validOllamaBody, { onInternalError })).rejects.toThrow('sink exploded');
+    expect(onInternalError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('model-proxy pins — azure required fields', () => {
+  it.each(['fixed', 'catch-all'] as const)('forwards the caller-supplied apiVersion into the deployment URL (%s route)', async (shape) => {
+    injectedFetch.mockResolvedValue(okResponse(sseBody(azureChunk('ok'))));
+    const body = { ...validAzureBody, apiVersion: '2025-01-01-preview' };
+    if (shape === 'fixed') await callFixed('azure', body);
+    else await callCatchAll('azure', body);
+    expect(injectedFetch.mock.calls[0]![0].url).toBe('http://127.0.0.1:8443/openai/deployments/my-deployment/chat/completions?api-version=2025-01-01-preview');
+  });
+});

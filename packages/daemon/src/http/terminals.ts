@@ -42,7 +42,8 @@ import { guardSameOrigin } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
 import { sendApiError, statusForError } from '@jini-ai/http-kit';
 import { createSseChannel, requestedAfterCursor, type SseEvent } from '@jini-ai/http-kit';
-import { denyAllWorkspaceRoots, resolveWorkspaceRoot, WorkspaceRootDeniedError, type WorkspaceRootResolver } from './workspace-root.js';
+import { denyAllWorkspaceRoots, type WorkspaceRootResolver } from './workspace-root.js';
+import { isRecord, readOptionalNonEmptyString, readOptionalNumber, resolveResourceRoot, withoutUndefined } from './resource-request.js';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
 /** Diagnostic detail for an internal-error response the public API deliberately does not disclose (SEC-005, matching `runs.ts`/`db-ops.ts`): a spawn failure (e.g. a missing/uncompiled native addon) can embed executable paths or host detail. */
@@ -67,10 +68,6 @@ export interface TerminalsHttpDeps {
   readonly resolveRoot?: WorkspaceRootResolver;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: TerminalsInternalErrorContext) => void;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Every one-off `terminal.create` tool call gets its own opaque `RunRef` — matching `db-ops.ts`'s `freshRun()`: these are single requests, not steps of a longer-lived agent run. */
@@ -106,36 +103,22 @@ export interface TerminalCreateRequest {
 }
 
 function parseTerminalCreate(input: RouteInputContext): Result<TerminalCreateRequest> {
-  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-  const resourceRef = input.body.resourceRef;
+  const body = input.body;
+  if (!isRecord(body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  const resourceRef = body.resourceRef;
   if (typeof resourceRef !== 'string' || resourceRef.length === 0) {
     return err({ error: validationError({ message: 'resourceRef is required' }, { issues: [{ path: 'resourceRef', message: 'required non-empty string' }] }) });
   }
-  const detail = input.body.detail;
-  if (detail !== undefined && (typeof detail !== 'string' || detail.length === 0)) {
-    return err({ error: validationError({ message: 'detail must be a non-empty string when provided' }) });
-  }
-  const cols = input.body.cols;
-  if (cols !== undefined && typeof cols !== 'number') {
-    return err({ error: validationError({ message: 'cols must be a number when provided' }) });
-  }
-  const rows = input.body.rows;
-  if (rows !== undefined && typeof rows !== 'number') {
-    return err({ error: validationError({ message: 'rows must be a number when provided' }) });
-  }
-  const shell = input.body.shell;
-  if (shell !== undefined && (typeof shell !== 'string' || shell.length === 0)) {
-    return err({ error: validationError({ message: 'shell must be a non-empty string when provided' }) });
-  }
-  return ok({
-    value: {
-      resourceRef,
-      ...(detail === undefined ? {} : { detail }),
-      ...(cols === undefined ? {} : { cols }),
-      ...(rows === undefined ? {} : { rows }),
-      ...(shell === undefined ? {} : { shell }),
-    }
-  });
+  // Checked in this fixed order: the first invalid field is the one reported.
+  const detail = readOptionalNonEmptyString({ body, field: 'detail' });
+  if (!detail.ok) return detail;
+  const cols = readOptionalNumber({ body, field: 'cols' });
+  if (!cols.ok) return cols;
+  const rows = readOptionalNumber({ body, field: 'rows' });
+  if (!rows.ok) return rows;
+  const shell = readOptionalNonEmptyString({ body, field: 'shell' });
+  if (!shell.ok) return shell;
+  return ok({ value: { resourceRef, ...withoutUndefined({ detail: detail.value, cols: cols.value, rows: rows.value, shell: shell.value }) } });
 }
 
 /**
@@ -146,23 +129,9 @@ function parseTerminalCreate(input: RouteInputContext): Result<TerminalCreateReq
  */
 export const terminalCreateRoute = defineJsonRoute<TerminalCreateRequest, TerminalSessionInfo, TerminalsHttpDeps>({
   method: 'post', path: '/api/terminals', parse: parseTerminalCreate, handle: async ({ input, deps }) => {
-    let cwd: string;
-    try {
-      cwd = await resolveWorkspaceRoot({ request: { resourceRef: input.resourceRef, ...(input.detail === undefined ? {} : { detail: input.detail }) } }, { resolver: deps.resolveRoot ?? denyAllWorkspaceRoots }
-      );
-    } catch (error) {
-      if (error instanceof WorkspaceRootDeniedError) {
-        return err({ error: createApiError({ code: 'NOT_FOUND', message: `resource "${input.resourceRef}" was not found` }) });
-      }
-      throw error;
-    }
-    const toolInput = {
-      resourceRef: input.resourceRef,
-      cwd,
-      ...(input.cols === undefined ? {} : { cols: input.cols }),
-      ...(input.rows === undefined ? {} : { rows: input.rows }),
-      ...(input.shell === undefined ? {} : { shell: input.shell }),
-    };
+    const root = await resolveResourceRoot({ resourceRef: input.resourceRef, detail: input.detail }, { resolver: deps.resolveRoot ?? denyAllWorkspaceRoots });
+    if (!root.ok) return root;
+    const toolInput = { resourceRef: input.resourceRef, cwd: root.value, ...withoutUndefined({ cols: input.cols, rows: input.rows, shell: input.shell }) };
     const result = await deps.toolExecutor.execute({ principal: deps.principal, run: freshRun(), toolId: TERMINAL_CREATE_TOOL_ID, input: toolInput });
     return toolResultToApiResult(deps, result);
   }

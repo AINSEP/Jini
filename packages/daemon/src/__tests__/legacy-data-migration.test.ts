@@ -20,6 +20,7 @@ import {
   migrateLegacyDataDirSync,
   promoteStaged,
   type LegacyDataMigrationConfig,
+  type LegacyFilesystemPort,
 } from '../legacy-data-migration.js';
 
 const config: LegacyDataMigrationConfig = {
@@ -425,5 +426,85 @@ describe('dataDirHasExistingPayload', () => {
     writeFile(path.join(dataDir, 'media-config.json'), '{"providers":{}}');
     writeFile(path.join(dataDir, 'artifacts', 'a1', 'final.html'), '<x/>');
     expect(dataDirHasExistingPayload({ dataDir: dataDir, config: config })).toEqual(['app.sqlite', 'media-config.json', 'artifacts']);
+  });
+});
+
+// Characterization pins taken on the pre-refactor migrator (code-health wave 3): exact outcome
+// reasons and log lines, so splitting migrateLegacyDataDirSync cannot drift them.
+describe('migrateLegacyDataDirSync outcome pins', () => {
+  let legacyDir: string;
+  let dataDir: string;
+
+  beforeEach(() => {
+    legacyDir = mkdtempSync(path.join(os.tmpdir(), 'jini-legacy-pin-'));
+    dataDir = mkdtempSync(path.join(os.tmpdir(), 'jini-data-pin-'));
+  });
+
+  afterEach(async () => {
+    await rm(legacyDir, { recursive: true, force: true });
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
+  it('reports the unconfigured noop reason', () => {
+    expect(migrateLegacyDataDirSync({ ...config, legacyDir: undefined, dataDir }, { logger: makeLogger() }))
+      .toEqual({ status: 'noop', reason: 'legacy data dir not configured' });
+  });
+
+  it('reports the same-dir noop reason after resolving relative spellings', () => {
+    expect(migrateLegacyDataDirSync({ ...config, legacyDir: path.join(dataDir, 'x', '..'), dataDir }, { logger: makeLogger() }))
+      .toEqual({ status: 'noop', reason: 'legacy data dir equals current data dir' });
+  });
+
+  it('reports the marker skip reason with a custom marker file even when the legacy dir is unusable', () => {
+    writeFile(path.join(dataDir, '.custom-marker'), '{}');
+    expect(migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { logger: makeLogger(), markerFile: '.custom-marker' }))
+      .toEqual({ status: 'skipped', reason: 'migration marker already present' });
+  });
+
+  it('refuses an unusable legacy dir with legacy_dir_invalid naming the proof entry', () => {
+    let caught: unknown;
+    try { migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { logger: makeLogger() }); } catch (error) { caught = error; }
+    expect(caught).toBeInstanceOf(LegacyMigrationError);
+    expect(caught).toMatchObject({ code: 'legacy_dir_invalid', message: `legacy data dir "${path.resolve(legacyDir)}" is not a usable legacy data dir (expected "app.sqlite" directly inside it).` });
+  });
+
+  it('refuses a populated data dir with data_dir_not_empty listing the clashing entries', () => {
+    seedLegacyDir(legacyDir);
+    writeFile(path.join(dataDir, 'app-config.json'), '{}');
+    writeFile(path.join(dataDir, 'artifacts', 'x'), 'x');
+    let caught: unknown;
+    try { migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { logger: makeLogger() }); } catch (error) { caught = error; }
+    expect(caught).toMatchObject({ code: 'data_dir_not_empty', message: expect.stringContaining('already contains payload entries (app-config.json, artifacts); refusing') });
+  });
+
+  it('logs start and plural completion lines, writes the default marker and removes the staging dir', () => {
+    seedLegacyDir(legacyDir);
+    const target = path.join(dataDir, 'nested-root');
+    const log = makeLogger();
+    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir: target }, { logger: log });
+    expect(result).toEqual({ status: 'migrated', reason: 'copied legacy payload', copied: config.payloadEntries });
+    expect(log.entries.map((e) => e.message)).toEqual([
+      `migrating legacy data from "${path.resolve(legacyDir)}" to "${target}"`,
+      `migration complete: copied 5 entries (${config.payloadEntries.join(', ')})`,
+    ]);
+    expect(JSON.parse(fs.readFileSync(path.join(target, '.migrated-from'), 'utf8'))).toMatchObject({ legacyDir: path.resolve(legacyDir) });
+    expect(fs.readdirSync(dataDir)).toEqual(['nested-root']);
+  });
+
+  it('passes the resolved dirs and marker name to an injected writeMarker', () => {
+    writeFile(path.join(legacyDir, 'app.sqlite'), 'fake');
+    const calls: { dataDir: string; legacyDir: string; markerFile: string }[] = [];
+    migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { logger: makeLogger(), markerFile: '.m', writeMarker: (args) => { calls.push(args); } });
+    expect(calls).toEqual([{ dataDir: path.resolve(dataDir), legacyDir: path.resolve(legacyDir), markerFile: '.m' }]);
+    expect(fs.existsSync(path.join(dataDir, '.m'))).toBe(false);
+  });
+
+  it('on a staging failure removes the staging dir and leaves the data dir untouched', () => {
+    seedLegacyDir(legacyDir);
+    const failing: LegacyFilesystemPort = { ...fs, cpSync: () => { throw new Error('copy failed'); } };
+    expect(() => migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { logger: makeLogger(), filesystem: failing }))
+      .toThrow('copy failed');
+    expect(fs.readdirSync(path.dirname(dataDir)).filter((name) => name.startsWith(`${path.basename(dataDir)}.migrate-`))).toEqual([]);
+    expect(fs.readdirSync(dataDir)).toEqual([]);
   });
 });

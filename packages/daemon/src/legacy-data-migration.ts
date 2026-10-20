@@ -229,6 +229,69 @@ function writeMarkerDefault({ dataDir, legacyDir, markerFile }: { dataDir: strin
   }
 }
 
+type MigrationPlan = { readonly legacyDir: string; readonly dataDir: string; readonly markerPath: string };
+
+/** Resolve both roots and decide the no-op/skip outcomes; a plan means migration must proceed. */
+function planMigration({ legacyDir: raw, dataDir: rawDataDir, markerFile }: { legacyDir: string | undefined; dataDir: string; markerFile: string }, fs: LegacyFilesystemPort): MigrateLegacyDataDirResult | MigrationPlan {
+  if (raw === undefined || raw.length === 0) {
+    return { status: 'noop', reason: 'legacy data dir not configured' };
+  }
+  const legacyDir = path.resolve(raw);
+  const dataDir = path.resolve(rawDataDir);
+
+  if (legacyDir === dataDir) {
+    return { status: 'noop', reason: 'legacy data dir equals current data dir' };
+  }
+
+  // Marker check runs before legacyDirHasPayload on purpose: once a
+  // migration has succeeded, the marker is the canonical "do not touch"
+  // signal, even if the legacy source is later moved or deleted.
+  const markerPath = path.join(dataDir, markerFile);
+  if (fs.existsSync(markerPath)) {
+    return { status: 'skipped', reason: 'migration marker already present' };
+  }
+  return { legacyDir, dataDir, markerPath };
+}
+
+/** Refuse loudly when the legacy source is unusable or the destination already holds payload. */
+function assertMigratable({ legacyDir, dataDir, config }: { legacyDir: string; dataDir: string; config: LegacyDataMigrationConfig }, fs: LegacyFilesystemPort): void {
+  if (!legacyDirHasPayload({ legacyDir: legacyDir, config }, { filesystem: fs })) {
+    throw new LegacyMigrationError({ code: 'legacy_dir_invalid', message: `legacy data dir "${legacyDir}" is not a usable legacy data dir (expected "${config.proofEntry}" directly inside it).` }
+    );
+  }
+
+  const existing = dataDirHasExistingPayload({ dataDir: dataDir, config }, { filesystem: fs });
+  if (existing.length > 0) {
+    throw new LegacyMigrationError({ code: 'data_dir_not_empty', message: `data dir "${dataDir}" already contains payload entries (${existing.join(', ')}); refusing to merge legacy data on top. Move the existing data aside or pick a fresh data root before retrying.` }
+    );
+  }
+}
+
+/** Stage, promote and mark; any failure removes promoted entries, the marker and the staging dir. */
+function stagePromoteAndMark({ plan, markerFile, payloadEntries, writeMarker }: {
+  plan: MigrationPlan; markerFile: string; payloadEntries: readonly string[]; writeMarker: MigrateLegacyDataDirOptions['writeMarker'];
+}, fs: LegacyFilesystemPort): string[] {
+  const { legacyDir, dataDir, markerPath } = plan;
+  fs.mkdirSync(path.dirname(dataDir), { recursive: true });
+  const stagingDir = path.join(path.dirname(dataDir), `${path.basename(dataDir)}.migrate-${process.pid}-${Date.now()}`);
+
+  let copied: string[];
+  let promoted: readonly string[] = [];
+  try {
+    copied = stagePayload(legacyDir, stagingDir, payloadEntries, fs);
+    promoted = promoteStaged({ stagingDir: stagingDir, dataDir: dataDir, entries: copied }, { filesystem: fs });
+    if (writeMarker) writeMarker({ dataDir, legacyDir, markerFile });
+    else writeMarkerDefault({ dataDir, legacyDir, markerFile }, fs);
+  } catch (err) {
+    rollbackPromoted(dataDir, promoted, fs);
+    fs.rmSync(markerPath, { force: true });
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    throw err;
+  }
+  fs.rmSync(stagingDir, { recursive: true, force: true });
+  return copied;
+}
+
 /**
  * One-shot, idempotent legacy data migrator. Synchronous so it can run at
  * module import time before a database connection opens. Throws
@@ -245,55 +308,13 @@ export function migrateLegacyDataDirSync(requiredArgs: Pick<MigrateLegacyDataDir
   const log = options.logger ?? { info: ({ message }: { message: string }) => console.log(`[jini-migrate] ${message}`) };
   const markerFile = options.markerFile ?? DEFAULT_MARKER_FILE;
 
-  const raw = options.legacyDir;
-  if (raw === undefined || raw.length === 0) {
-    return { status: 'noop', reason: 'legacy data dir not configured' };
-  }
-  const legacyDir = path.resolve(raw);
-  const dataDir = path.resolve(options.dataDir);
-
-  if (legacyDir === dataDir) {
-    return { status: 'noop', reason: 'legacy data dir equals current data dir' };
-  }
-
-  // Marker check runs before legacyDirHasPayload on purpose: once a
-  // migration has succeeded, the marker is the canonical "do not touch"
-  // signal, even if the legacy source is later moved or deleted.
-  const markerPath = path.join(dataDir, markerFile);
-  if (fs.existsSync(markerPath)) {
-    return { status: 'skipped', reason: 'migration marker already present' };
-  }
-
-  if (!legacyDirHasPayload({ legacyDir: legacyDir, config: options }, { filesystem: fs })) {
-    throw new LegacyMigrationError({ code: 'legacy_dir_invalid', message: `legacy data dir "${legacyDir}" is not a usable legacy data dir (expected "${options.proofEntry}" directly inside it).` }
-    );
-  }
-
-  const existing = dataDirHasExistingPayload({ dataDir: dataDir, config: options }, { filesystem: fs });
-  if (existing.length > 0) {
-    throw new LegacyMigrationError({ code: 'data_dir_not_empty', message: `data dir "${dataDir}" already contains payload entries (${existing.join(', ')}); refusing to merge legacy data on top. Move the existing data aside or pick a fresh data root before retrying.` }
-    );
-  }
+  const plan = planMigration({ legacyDir: options.legacyDir, dataDir: options.dataDir, markerFile }, fs);
+  if ('status' in plan) return plan;
+  const { legacyDir, dataDir } = plan;
+  assertMigratable({ legacyDir, dataDir, config: options }, fs);
 
   log.info({ message: `migrating legacy data from "${legacyDir}" to "${dataDir}"` });
-
-  fs.mkdirSync(path.dirname(dataDir), { recursive: true });
-  const stagingDir = path.join(path.dirname(dataDir), `${path.basename(dataDir)}.migrate-${process.pid}-${Date.now()}`);
-
-  let copied: string[];
-  let promoted: readonly string[] = [];
-  try {
-    copied = stagePayload(legacyDir, stagingDir, options.payloadEntries, fs);
-    promoted = promoteStaged({ stagingDir: stagingDir, dataDir: dataDir, entries: copied }, { filesystem: fs });
-    if (options.writeMarker) options.writeMarker({ dataDir, legacyDir, markerFile });
-    else writeMarkerDefault({ dataDir, legacyDir, markerFile }, fs);
-  } catch (err) {
-    rollbackPromoted(dataDir, promoted, fs);
-    fs.rmSync(markerPath, { force: true });
-    fs.rmSync(stagingDir, { recursive: true, force: true });
-    throw err;
-  }
-  fs.rmSync(stagingDir, { recursive: true, force: true });
+  const copied = stagePromoteAndMark({ plan, markerFile, payloadEntries: options.payloadEntries, writeMarker: options.writeMarker }, fs);
 
   log.info({ message: `migration complete: copied ${copied.length} entr${copied.length === 1 ? 'y' : 'ies'} (${copied.join(', ')})` });
   return { status: 'migrated', reason: 'copied legacy payload', copied };

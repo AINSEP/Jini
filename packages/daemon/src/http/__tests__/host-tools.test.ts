@@ -160,6 +160,12 @@ describe('probeMacBundle', () => {
     expect(await probeMacBundle({ name: 'Cursor', probeEnv: env })).toBeNull();
   });
 
+  it.each([['linux'], ['win32'], ['unknown']] as const)('never touches the filesystem on %s, even when a bundle path would exist (resolveEntry relies on this as its only darwin gate)', async (platform) => {
+    const access = vi.fn(async () => {});
+    expect(await probeMacBundle({ name: 'Cursor', probeEnv: probeEnv({ platform, access }) })).toBeNull();
+    expect(access).not.toHaveBeenCalled();
+  });
+
   it('finds a single-name bundle at the first candidate location', async () => {
     const env = probeEnv({ platform: 'darwin', exists: ['/Applications/Cursor.app'] });
     expect(await probeMacBundle({ name: 'Cursor', probeEnv: env })).toEqual({ name: 'Cursor', path: '/Applications/Cursor.app' });
@@ -633,5 +639,103 @@ describe('registerHostToolsRoutes — POST /api/resources/:resourceRef/open-in, 
     );
     expect(resolveRoot).toHaveBeenCalledWith({ request: { resourceRef: 'proj-1' } });
     expect(res.status).toHaveBeenCalledWith(409); // installed catalogue entry, not found on this fake machine
+  });
+});
+
+/**
+ * Characterization pins for `resolveEntry` / `openResourceInEditorRoute.handle` (SEC: the handle
+ * spawns a detached process with a resolver-chosen directory as argv). Pinned on the pre-refactor
+ * code so the complexity split is provably behaviour-identical: check order, exactly what reaches
+ * the resolver and the spawn, and the darwin bundle launch through the route.
+ */
+describe('resolveEntry / openResourceInEditorRoute.handle — characterization', () => {
+  type SpawnFn = NonNullable<Parameters<typeof launchHostTool>[1]>['spawnImpl'];
+  function recordingSpawn(): { spawnImpl: NonNullable<SpawnFn>; calls: Array<{ command: string; args: readonly string[]; options: unknown }> } {
+    const calls: Array<{ command: string; args: readonly string[]; options: unknown }> = [];
+    const spawnImpl = ((command: string, args: readonly string[], options: unknown) => {
+      calls.push({ command, args, options });
+      const child = Object.assign(new EventEmitter(), { unref: () => {} });
+      queueMicrotask(() => child.emit('spawn'));
+      return child;
+    }) as unknown as NonNullable<SpawnFn>; // malformed-on-purpose: a bare EventEmitter stands in for ChildProcess
+    return { spawnImpl, calls };
+  }
+
+  it('prefers the CLI shim over the mac bundle on darwin when both exist', async () => {
+    const entry: CatalogueEntry = { id: 'x', label: 'X', icon: 'x', command: 'xed', macOpenBundle: 'X' };
+    const env = probeEnv({ platform: 'darwin', env: { PATH: '/p' }, exists: ['/p/xed', '/Applications/X.app', '/usr/bin/open'] });
+    const resolved = expectAvailable(await resolveEntry({ entry }, { probeEnv: env }));
+    expect(resolved.resolvedPath).toBe('/p/xed');
+    expect(resolved.launch.command).toBe('/p/xed');
+    expect(resolved.launch.argsForDir({ workingDir: '/w' })).toEqual(['/w']);
+  });
+
+  it('passes the workingDir to a custom commandArgs and returns its result verbatim', async () => {
+    const commandArgs = vi.fn(({ workingDir }: { workingDir: string }) => ['--new-window', workingDir]);
+    const entry: CatalogueEntry = { id: 'x', label: 'X', icon: 'x', command: '/abs/xed', commandArgs };
+    const resolved = expectAvailable(await resolveEntry({ entry }, { probeEnv: probeEnv({ exists: ['/abs/xed'] }) }));
+    expect(resolved.launch.argsForDir({ workingDir: '/w' })).toEqual(['--new-window', '/w']);
+    expect(commandArgs).toHaveBeenCalledWith({ workingDir: '/w' });
+  });
+
+  it('does not probe for the open command until a bundle is found', async () => {
+    const access = vi.fn(async ({ path }: { path: string; mode: number }) => {
+      throw new Error(`ENOENT: ${path}`);
+    });
+    const entry: CatalogueEntry = { id: 'x', label: 'X', icon: 'x', macOpenBundle: 'X' };
+    expect(await resolveEntry({ entry }, { probeEnv: probeEnv({ platform: 'darwin', access }) })).toEqual({ available: false });
+    expect(access.mock.calls.map(([arg]) => arg.path)).not.toContain('/usr/bin/open');
+  });
+
+  it('checks the editor id before the platform, and both before the resolver runs', async () => {
+    const resolveRoot = vi.fn<WorkspaceRootResolver>(() => '/root');
+    const unknown = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'nope' }, deps: { resolveRoot, probeEnv: probeEnv({ platform: 'unknown' }) } });
+    expect(unknown).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'unknown editor: nope' } });
+    const wrongPlatform = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'finder' }, deps: { resolveRoot, probeEnv: probeEnv({ platform: 'unknown' }) } });
+    expect(wrongPlatform).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'Finder is not available on unknown' } });
+    expect(resolveRoot).not.toHaveBeenCalled();
+  });
+
+  it('passes no detail key to the resolver when detail is absent', async () => {
+    const resolveRoot = vi.fn<WorkspaceRootResolver>(() => '/root');
+    await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { resolveRoot, probeEnv: probeEnv({ env: { PATH: '/p' }, exists: ['/p/code'] }), spawnImpl: recordingSpawn().spawnImpl } });
+    expect(Object.keys(resolveRoot.mock.calls[0]![0].request)).toEqual(['resourceRef']);
+  });
+
+  it('never probes the filesystem or spawns when the resolver denies', async () => {
+    const access = vi.fn(async () => {});
+    const { spawnImpl, calls } = recordingSpawn();
+    await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { resolveRoot: () => undefined, probeEnv: probeEnv({ access }), spawnImpl } });
+    expect(access).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+  });
+
+  it('spawns the resolved CLI shim detached with the resolved directory as its only argument', async () => {
+    const { spawnImpl, calls } = recordingSpawn();
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { resolveRoot: () => '/work dir', probeEnv: probeEnv({ env: { PATH: '/p' }, exists: ['/p/code'] }), spawnImpl } });
+    expect(result).toEqual({ ok: true, value: { ok: true, editorId: 'vscode', path: '/work dir' } });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.command).toBe('/p/code');
+    expect(calls[0]!.args).toEqual(['/work dir']);
+    expect(calls[0]!.options).toMatchObject({ detached: true, stdio: 'ignore' });
+  });
+
+  it('launches a darwin bundle-only tool via `open -a <bundle> <dir>`', async () => {
+    const { spawnImpl, calls } = recordingSpawn();
+    const env = probeEnv({ platform: 'darwin', exists: ['/System/Applications/Utilities/Terminal.app', '/usr/bin/open'] });
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'terminal' }, deps: { resolveRoot: () => '/w', probeEnv: env, spawnImpl } });
+    expect(result).toEqual({ ok: true, value: { ok: true, editorId: 'terminal', path: '/w' } });
+    expect(calls.map(({ command, args }) => ({ command, args }))).toEqual([{ command: '/usr/bin/open', args: ['-a', 'Terminal', '/w'] }]);
+  });
+
+  it('passes an option-shaped resolver directory straight through as editor argv (reported, not fixed: no absolute-path or leading-dash check on the resolved root)', async () => {
+    const { spawnImpl, calls } = recordingSpawn();
+    await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { resolveRoot: () => '--install-extension=evil', probeEnv: probeEnv({ env: { PATH: '/p' }, exists: ['/p/code'] }), spawnImpl } });
+    expect(calls[0]!.args).toEqual(['--install-extension=evil']);
+  });
+
+  it('searches relative $PATH entries such as "." (reported, not fixed: a cwd-relative shim can shadow the real editor)', async () => {
+    const env = probeEnv({ env: { PATH: '.:/usr/bin' }, exists: ['./code', '/usr/bin/code'] });
+    expect(await probeCommandOnPath({ command: 'code', probeEnv: env })).toBe('./code');
   });
 });

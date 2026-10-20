@@ -1,5 +1,5 @@
 
-import type { Principal, ToolDescriptor, ToolRegistry } from "@jini-ai/core";
+import type { Principal, SurfaceEmitter, ToolDescriptor, ToolRegistry } from "@jini-ai/core";
 import type { ToolExecutionResult, ToolExecutor } from "../tool-executor.js";
 
 
@@ -313,6 +313,23 @@ function planRemedyCall(input: { remedyToolId: string; descriptor: ToolDescripto
   return { remedyToolId, carryForward, askFor };
 }
 
+/** Prefill keys that name a secret (or a carrier of one) — never accepted as card metadata. */
+const SECRET_SHAPED_PREFILL_KEY = /token|secret|password|authorization|env|headers|body|key/i;
+
+/** Whether one prefill entry is plain card metadata: a key the setup schema declares that does not
+ *  name a secret, holding a JSON primitive, and — for a string — a value neither the secret detector
+ *  nor the credential-free assertion rejects. */
+function isMetadataPrefillEntry(
+  { key, value, properties, deps }: { key: string; value: unknown; properties: Record<string, unknown>; deps: ToolFailureRecoveryDeps },
+): boolean {
+  if (!(key in properties) || SECRET_SHAPED_PREFILL_KEY.test(key)) return false;
+  if (!isJsonPrimitive(value)) return false;
+  if (typeof value !== "string") return true;
+  if (deps.containsSecret({ text: value })) return false;
+  try { deps.assertCredentialFreeField({ value, field: key }, {}); } catch { return false; }
+  return true;
+}
+
 /** Card schemas accept metadata only. Reject secret-shaped prefills before even asking. */
 function planCredentialSetup(
   { diagnostic, descriptor, deps }: { diagnostic: ActionableToolFailureDiagnostic; descriptor: ToolDescriptor | undefined; deps: ToolFailureRecoveryDeps }, _optional = {},
@@ -320,13 +337,8 @@ function planCredentialSetup(
   const shape = resolveRemedySchemaShape(descriptor);
   if (!shape || diagnostic.setupToolId !== diagnostic.remedyToolId || !diagnostic.prefill) return undefined;
   const prefill = diagnostic.prefill;
-  for (const [key, value] of Object.entries(prefill)) {
-    if (!(key in shape.properties) || /token|secret|password|authorization|env|headers|body|key/i.test(key)) return undefined;
-    if (!isJsonPrimitive(value) || (typeof value === "string" && deps.containsSecret({ text: value }))) return undefined;
-    if (typeof value === "string") {
-      try { deps.assertCredentialFreeField({ value, field: key }, {}); } catch { return undefined; }
-    }
-  }
+  const allMetadata = Object.entries(prefill).every(([key, value]) => isMetadataPrefillEntry({ key, value, properties: shape.properties, deps }));
+  if (!allMetadata) return undefined;
   if (shape.required.some(key => !(key in prefill))) return undefined;
   return { remedyToolId: diagnostic.remedyToolId, carryForward: prefill };
 }
@@ -386,11 +398,11 @@ function resolveRecoveryGate(input: {
   readonly diagnostic: ActionableToolFailureDiagnostic;
   readonly principal: Principal;
   readonly originalInput: unknown;
-  readonly registry: Pick<ToolRegistry, "list">;
   readonly result: ToolExecutionResult;
   readonly deps: ToolFailureRecoveryDeps;
 }): RecoveryGate {
-  const { diagnostic, principal, originalInput, registry, result, deps } = input;
+  const { diagnostic, principal, originalInput, result, deps } = input;
+  const { registry } = deps;
 
   const readOnlyRefusal = refuseNonReadOnlyDispatch({ principal, toolId: diagnostic.remedyToolId, registry, messages: deps.readOnlyMessages }, {});
   if (readOnlyRefusal !== null) return { attempt: false, outcome: { ...result, error: deps.formatReadOnlyRemedyRefusal({ refusal: readOnlyRefusal }) } };
@@ -435,6 +447,42 @@ function buildRemedyInput(plan: RemedyPlan, decision: Extract<RecoveryDecision, 
 }
 
 /**
+ * The remedy tool's input for an accepted gate, or `undefined` when the human did not give a usable
+ * go-ahead. A credential-setup diagnostic skips the recovery surface entirely: it goes directly to the
+ * masked card, which supplies its own human decision. Every other diagnostic asks first through the
+ * host-built recovery form.
+ */
+async function resolveRemedyInput(input: {
+  readonly plan: RemedyPlan;
+  readonly diagnostic: ActionableToolFailureDiagnostic;
+  readonly principal: Principal;
+  readonly emitSurface: SurfaceEmitter;
+  readonly signal: AbortSignal | undefined;
+  readonly deps: ToolFailureRecoveryDeps;
+}): Promise<Record<string, unknown> | undefined> {
+  const { plan, diagnostic, principal, emitSurface, signal, deps } = input;
+  // Credential setup goes directly to the masked card; it supplies its own human decision.
+  if (diagnostic.setupToolId) return { ...plan.carryForward };
+  const exchange = deps.surfaceExchanges.open({ binding: { toolId: deps.recoveryToolId, principalId: principal.id }, emit: emitSurface });
+  const ui = deps.buildRecoveryForm({ exchangeId: exchange.id, hint: diagnostic.hint, remedyToolId: diagnostic.remedyToolId, ...(plan.askFor ? { askFor: plan.askFor } : {}) }, {});
+  const decision = await collectRecoveryDecision({ exchange, ui, askForKey: plan.askFor?.key, signal });
+  // Declined, dismissed, expired, or a blank answer — the ORIGINAL failure is still the truth.
+  if (!decision.proceed) return undefined;
+  return buildRemedyInput(plan, decision);
+}
+
+/** Whether the remedy call actually applied its fix — see the two cases in the comments below. */
+function remedyApplied(remedyResult: ToolExecutionResult): boolean {
+  // The fix itself did not complete (denied, threw, timed out, ...) — nothing changed, so retrying
+  // the original would only reproduce the same failure.
+  if (remedyResult.status !== "completed") return false;
+  // The remedy RAN, but its own result says the fix was never actually applied (a declined,
+  // expired, or invalid human-gated write) — see {@link remedyReportedFailure}. "Completed" is not
+  // "succeeded"; retrying here would only reproduce the same failure.
+  return !remedyReportedFailure(remedyResult.output);
+}
+
+/**
  * Wraps `inner` with the generic ask -> apply -> retry-once recovery loop described in this file's
  * header. A drop-in `ToolExecutor` — every method other than `execute` delegates straight through,
  * matching `tool-executor-audit.ts`'s own `withToolAttemptAudit` shape.
@@ -465,19 +513,12 @@ export function withToolFailureRecovery({ inner, ...deps }: ToolFailureRecoveryD
       // `withReadOnlyToolConstraint` would refuse the dispatch below regardless — it is the
       // enforcement, and it does not depend on this check — but a refusal discovered THERE arrives
       // only after a human has already been asked to fill in a form whose answer is then thrown away.
-      const gate = resolveRecoveryGate({ diagnostic, principal, originalInput: input, registry: deps.registry, result, deps });
+      const gate = resolveRecoveryGate({ diagnostic, principal, originalInput: input, result, deps });
       if (!gate.attempt) return gate.outcome;
 
-      let remedyInput: Record<string, unknown> = { ...gate.plan.carryForward };
-      if (!diagnostic.setupToolId) {
-        const exchange = deps.surfaceExchanges.open({ binding: { toolId: deps.recoveryToolId, principalId: principal.id }, emit: emitSurface });
-        const ui = deps.buildRecoveryForm({ exchangeId: exchange.id, hint: diagnostic.hint, remedyToolId: diagnostic.remedyToolId, ...(gate.plan.askFor ? { askFor: gate.plan.askFor } : {}) }, {});
-        const decision = await collectRecoveryDecision({ exchange, ui, askForKey: gate.plan.askFor?.key, signal });
-        // Declined, dismissed, expired, or a blank answer — the ORIGINAL failure is still the truth.
-        if (!decision.proceed) return result;
-        remedyInput = buildRemedyInput(gate.plan, decision);
-      }
-      // Credential setup goes directly to the masked card; it supplies its own human decision.
+      const remedyInput = await resolveRemedyInput({ plan: gate.plan, diagnostic, principal, emitSurface, signal, deps });
+      // Declined, dismissed, expired, or a blank answer — the ORIGINAL failure is still the truth.
+      if (!remedyInput) return result;
 
       // ---- STRUCTURAL ONE-CYCLE GUARD ----
       // Both calls below go straight to `inner` — never back through this function or the object it
@@ -485,13 +526,8 @@ export function withToolFailureRecovery({ inner, ...deps }: ToolFailureRecoveryD
       // fed back into the scan above: that scan is written exactly once, above this comment, and
       // nothing here loops or recurses into it again. See this file's header.
       const remedyResult = await inner.execute({ ...required, toolId: diagnostic.remedyToolId, input: remedyInput }, optional);
-      // The fix itself did not complete (denied, threw, timed out, ...) — nothing changed, so retrying
-      // the original would only reproduce the same failure. Return the ORIGINAL result, untouched.
-      if (remedyResult.status !== "completed") return result;
-      // The remedy RAN, but its own result says the fix was never actually applied (a declined,
-      // expired, or invalid human-gated write) — see {@link remedyReportedFailure}. "Completed" is not
-      // "succeeded"; retrying here would only reproduce the same failure.
-      if (remedyReportedFailure(remedyResult.output)) return result;
+      // The fix was not applied (see `remedyApplied`) — return the ORIGINAL result, untouched.
+      if (!remedyApplied(remedyResult)) return result;
 
       // Retry the ORIGINAL call exactly once, with its exact original input. Whatever this returns —
       // success or a fresh failure — is this wrapper's final answer.
