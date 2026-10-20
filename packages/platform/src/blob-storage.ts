@@ -14,7 +14,7 @@
  * grouped and traversal-guarded underneath one.
  */
 import path from 'node:path';
-import { promises as fsp } from 'node:fs';
+import { promises as fsp, type Dirent } from 'node:fs';
 import { encodeS3PathSegment, signSigV4, type SigV4Credentials } from './aws-sigv4.js';
 
 /** Metadata for a single stored blob. */
@@ -86,23 +86,12 @@ export class LocalBlobStorage implements BlobStorage {
     const queue: string[] = [root];
     while (queue.length > 0) {
       const dir = queue.pop()!;
-      let entries;
-      try {
-        entries = await fsp.readdir(dir, { withFileTypes: true });
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
-        throw new StorageError('IO', `list failed: ${(err as Error).message}`);
-      }
+      const entries = await readDirEntries(dir);
+      if (!entries) return [];
       for (const entry of entries) {
         const abs = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          queue.push(abs);
-          continue;
-        }
-        if (!entry.isFile()) continue;
-        const stat = await fsp.stat(abs);
-        const rel = path.relative(root, abs).split(path.sep).join('/');
-        out.push({ path: rel, size: stat.size, mtimeMs: stat.mtimeMs });
+        if (entry.isDirectory()) queue.push(abs);
+        else if (entry.isFile()) out.push(await statListedFile(root, abs));
       }
     }
     return out;
@@ -134,9 +123,7 @@ export class LocalBlobStorage implements BlobStorage {
     }
     const normalized = normalizeRel(relpath);
     if (!normalized) throw new StorageError('TRAVERSAL', 'empty relpath');
-    if (normalized.split('/').some((seg) => seg === '..' || seg === '.')) {
-      throw new StorageError('TRAVERSAL', `unsafe relpath ${relpath}`);
-    }
+    assertNoDotSegments(normalized, relpath);
     return path.join(this.root, namespace, ...normalized.split('/'));
   }
 }
@@ -227,29 +214,13 @@ export class S3BlobStorage implements BlobStorage {
     let continuationToken: string | undefined;
     // Cap iterations so a hostile bucket can't loop forever.
     for (let pages = 0; pages < 1000; pages++) {
-      const params: Array<[string, string]> = [
-        ['list-type', '2'],
-        ['prefix', namespacePrefix],
-      ];
-      if (continuationToken) params.push(['continuation-token', continuationToken]);
-      params.sort((a, b) => a[0].localeCompare(b[0]));
-      const query = params.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+      const query = listObjectsV2Query(namespacePrefix, continuationToken);
       const res = await this.signedRequest({ method: 'GET', key: '', extraQuery: query });
       if (!res.ok) {
         throw new StorageError('IO', `S3 LIST ${namespacePrefix} → ${res.status} ${res.statusText}: ${await safeText(res)}`);
       }
-      const xml = await res.text();
-      const { entries, isTruncated, nextToken } = parseListBucketV2Xml(xml);
-      for (const e of entries) {
-        // Strip the per-bucket namespacePrefix to surface namespace-relative paths.
-        // `namespacePrefix` is `keyFor(namespace, '')`, which always includes at least the
-        // (non-empty, `keyFor`-validated) namespace segment and never a trailing slash — so it's
-        // always non-empty and the +1 separator always applies.
-        const relStart = namespacePrefix.length + 1;
-        const rel = e.key.slice(relStart).replace(/^\/+/, '');
-        if (!rel) continue; // skip the prefix marker itself
-        out.push({ path: rel, size: e.size, mtimeMs: e.lastModifiedMs });
-      }
+      const { entries, isTruncated, nextToken } = parseListBucketV2Xml(await res.text());
+      out.push(...toNamespaceRelative(entries, namespacePrefix));
       if (!isTruncated || !nextToken) break;
       continuationToken = nextToken;
     }
@@ -262,9 +233,7 @@ export class S3BlobStorage implements BlobStorage {
       throw new StorageError('TRAVERSAL', `invalid namespace ${namespace}`);
     }
     const normalized = relpath ? normalizeRel(relpath) : '';
-    if (normalized.split('/').some((seg) => seg === '..' || seg === '.')) {
-      throw new StorageError('TRAVERSAL', `unsafe relpath ${relpath}`);
-    }
+    assertNoDotSegments(normalized, relpath);
     const segments = [this.options.prefix?.replace(/^\/+|\/+$/g, ''), namespace, normalized].filter(
       (s): s is string => typeof s === 'string' && s.length > 0,
     );
@@ -278,20 +247,13 @@ export class S3BlobStorage implements BlobStorage {
 
   private async signedRequest(args: { method: string; key: string; body?: Buffer; extraQuery?: string }): Promise<Response> {
     const base = this.endpointBase();
-    const baseHost = new URL(base).host;
     // Path-style for endpoint overrides (typical for S3-compat services + MinIO test setups);
     // virtual-host-style when endpoint is omitted (default AWS S3).
-    let pathSegment: string;
-    const host = baseHost;
-    if (this.options.endpoint) {
-      const segments = [this.options.bucket, ...args.key.split('/').filter(Boolean).map(encodeS3PathSegment)];
-      pathSegment = '/' + segments.join('/');
-    } else {
-      const segments = args.key.split('/').filter(Boolean).map(encodeS3PathSegment);
-      pathSegment = segments.length === 0 ? '/' : '/' + segments.join('/');
-    }
+    const segments = args.key.split('/').filter(Boolean).map(encodeS3PathSegment);
+    if (this.options.endpoint) segments.unshift(this.options.bucket);
+    const pathSegment = '/' + segments.join('/');
 
-    const headers: Record<string, string> = { host };
+    const headers: Record<string, string> = { host: new URL(base).host };
     const body = args.body ?? Buffer.alloc(0);
     const now = this.options.now ? this.options.now() : new Date();
     signSigV4({
@@ -306,13 +268,69 @@ export class S3BlobStorage implements BlobStorage {
       now,
     });
 
-    const url = `${base.replace(/\/+$/, '')}${pathSegment}${args.extraQuery ? `?${args.extraQuery}` : ''}`;
+    // `endpointBase()` already strips trailing slashes, so no second trim is needed here.
+    const url = `${base}${pathSegment}${args.extraQuery ? `?${args.extraQuery}` : ''}`;
     const init: RequestInit = {
       method: args.method,
       headers,
       ...(args.body ? { body: args.body } : {}),
     };
     return this.fetchFn(url, init);
+  }
+}
+
+/** Builds the ListObjectsV2 query string with keys sorted, as SigV4's canonical query requires. */
+function listObjectsV2Query(prefix: string, continuationToken: string | undefined): string {
+  const params: Array<[string, string]> = [
+    ['list-type', '2'],
+    ['prefix', prefix],
+  ];
+  if (continuationToken) params.push(['continuation-token', continuationToken]);
+  params.sort((a, b) => a[0].localeCompare(b[0]));
+  return params.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+}
+
+/** Maps listed bucket keys to namespace-relative blob metadata, dropping the prefix marker itself. */
+function toNamespaceRelative(entries: ListBucketEntry[], namespacePrefix: string): BlobFileMeta[] {
+  // Strip the per-bucket namespacePrefix to surface namespace-relative paths.
+  // `namespacePrefix` is `keyFor(namespace, '')`, which always includes at least the
+  // (non-empty, `keyFor`-validated) namespace segment and never a trailing slash — so it's
+  // always non-empty and the +1 separator always applies.
+  const relStart = namespacePrefix.length + 1;
+  const out: BlobFileMeta[] = [];
+  for (const e of entries) {
+    const rel = e.key.slice(relStart).replace(/^\/+/, '');
+    if (!rel) continue; // skip the prefix marker itself
+    out.push({ path: rel, size: e.size, mtimeMs: e.lastModifiedMs });
+  }
+  return out;
+}
+
+/** `readdir` with file types; `null` when the directory does not exist (ENOENT).
+ * @throws {StorageError} `IO` for any other readdir failure.
+ */
+async function readDirEntries(dir: string): Promise<Dirent[] | null> {
+  try {
+    return await fsp.readdir(dir, { withFileTypes: true });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw new StorageError('IO', `list failed: ${(err as Error).message}`);
+  }
+}
+
+/** Stats a listed file and reports its path relative to `root` with forward slashes. */
+async function statListedFile(root: string, abs: string): Promise<BlobFileMeta> {
+  const stat = await fsp.stat(abs);
+  const rel = path.relative(root, abs).split(path.sep).join('/');
+  return { path: rel, size: stat.size, mtimeMs: stat.mtimeMs };
+}
+
+/** Refuses a normalized relpath containing a `.` or `..` segment.
+ * @throws {StorageError} `TRAVERSAL`, naming the caller's original `relpath`.
+ */
+function assertNoDotSegments(normalized: string, relpath: string): void {
+  if (normalized.split('/').some((seg) => seg === '..' || seg === '.')) {
+    throw new StorageError('TRAVERSAL', `unsafe relpath ${relpath}`);
   }
 }
 
