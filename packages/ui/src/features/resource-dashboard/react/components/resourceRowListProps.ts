@@ -19,13 +19,3 @@ export function rowListHeaderProps(
     ...(onCreate ? { createLabel: createLabel ?? t('New'), onCreate } : {}),
   };
 }
-
-/** Translated labels for the load failure and the row-action failure, forwarded only while each error is set. */
-export function rowListErrorLabelProps(
-  { t, error, actionError }: { t: Translate; error: string | null; actionError: string | null },
-): Pick<ResourceRowListViewProps, 'errorLabel' | 'actionErrorLabel'> {
-  return {
-    ...(error ? { errorLabel: t(error) } : {}),
-    ...(actionError ? { actionErrorLabel: t(actionError) } : {}),
-  };
-}

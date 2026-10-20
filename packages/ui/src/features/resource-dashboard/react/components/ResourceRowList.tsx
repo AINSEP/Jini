@@ -1,7 +1,8 @@
 import { useT } from '../../../i18n/index.js';
 import { useWiredResourceRowList } from '../hooks/useResourceRowList.js';
 import { ResourceRowListView } from './ResourceRowListView.js';
-import { rowListErrorLabelProps, rowListHeaderProps } from './resourceRowListProps.js';
+import { rowListHeaderProps } from './resourceRowListProps.js';
+import { translatedErrorLabelProps } from './translatedErrorLabelProps.js';
 import type { ResourceRowListDependencies } from '../../ports.js';
 import type { ResourceMetric, ResourceRowItem, ResourceStatusOption, ResourceStatusToneMap } from '../../types.js';
 
@@ -65,7 +66,7 @@ export function ResourceRowList<TRow extends ResourceRowItem>({
       loading={list.loading}
       error={list.error}
       actionError={list.actionError}
-      {...rowListErrorLabelProps({ t, error: list.error, actionError: list.actionError })}
+      {...translatedErrorLabelProps({ t, error: list.error, actionError: list.actionError })}
       sectionLabel={t('Your items')}
       loadingLabel={t('Loading…')}
       emptyTitle={t('Nothing here yet')}
