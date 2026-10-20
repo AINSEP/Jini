@@ -1,6 +1,6 @@
 import { createControllerStore } from '../../core/module/controller-store.js';
 import type { AgentPluginsApiPort } from '../ports.js';
-import type { AgentPluginsState, AgentPluginActivationInput, AgentPluginDisableRequest } from '../models.js';
+import type { AgentPluginSummary, AgentPluginsState, AgentPluginActivationInput, AgentPluginDisableRequest } from '../models.js';
 import { agentPluginSummary, AGENT_PLUGINS_READ, AGENT_PLUGINS_WRITE } from '../rules.js';
 import { agentPluginsMessagesEn as m } from '../messages.en.js';
 
@@ -11,18 +11,20 @@ export function createAgentPluginsController({ api, permissions = [] }: { api: A
   const canRead = () => !store.signal.aborted && grants.has(AGENT_PLUGINS_READ);
   const canWrite = () => canRead() && grants.has(AGENT_PLUGINS_WRITE);
   const rowFor = (id: string) => store.getSnapshot().plugins?.find(p => p.pluginId === id);
+  function acceptList({ plugins }: { plugins: readonly AgentPluginSummary[] }, _optional = {}) {
+    const rows = Object.freeze(plugins.map(row => agentPluginSummary({ row })));
+    const state = store.getSnapshot(), listed = (id: string | null | undefined) => rows.some(p => p.pluginId === id);
+    const pendingStillEnabled = rows.some(p => p.pluginId === state.pendingDisable?.pluginId && p.enabled);
+    store.set({ patch: { plugins: rows, inspectedId: listed(state.inspectedId) ? state.inspectedId : null, pendingDisable: pendingStillEnabled ? state.pendingDisable : null, expandedIds: state.expandedIds.filter(id => listed(id)) } });
+  }
   async function load(_required: Record<string, never>, _optional = {}) {
     if (!canRead()) return; const ticket = ++generation, version = revision;
     store.set({ patch: { loading: true, error: null } });
     try {
       const plugins = await api.list({}, { signal: store.signal });
       // Older reads cannot overwrite accepted writes; each updated row replaces itself once.
-      if (ticket !== generation || store.signal.aborted) return;
-      if (version === revision) {
-        const rows = Object.freeze(plugins.map(row => agentPluginSummary({ row })));
-        const state = store.getSnapshot();
-        store.set({ patch: { plugins: rows, inspectedId: rows.some(p => p.pluginId === state.inspectedId) ? state.inspectedId : null, pendingDisable: rows.some(p => p.pluginId === state.pendingDisable?.pluginId && p.enabled) ? state.pendingDisable : null, expandedIds: state.expandedIds.filter(id => rows.some(p => p.pluginId === id)) } });
-      }
+      // Disposal bumps generation, so a current ticket also means the store is not disposed.
+      if (ticket === generation && version === revision) acceptList({ plugins });
     } catch { if (ticket === generation) store.set({ patch: { error: m.loadError } }); }
     finally { if (ticket === generation) store.set({ patch: { loading: false } }); }
   }
@@ -36,11 +38,13 @@ export function createAgentPluginsController({ api, permissions = [] }: { api: A
       if (updated.pluginId !== input.pluginId) throw new Error('Invalid activation response');
       revision++;
       // No optimistic flip: independent rows always splice into the newest snapshot.
+      // rowFor found this row above and plugins is never reset to null, so the list exists here.
       const current = store.getSnapshot();
-      store.set({ patch: { plugins: Object.freeze((current.plugins ?? []).map(p => p.pluginId === updated.pluginId ? agentPluginSummary({ row: updated }) : p)) } });
+      store.set({ patch: { plugins: Object.freeze(current.plugins!.map(p => p.pluginId === updated.pluginId ? agentPluginSummary({ row: updated }) : p)) } });
       return true;
-    } catch { store.set({ patch: { actionError: m.actionError } }); return false; }
+    } catch { store.set({ patch: { actionError: m.actionError } }); }
     finally { store.set({ patch: { busyIds: store.getSnapshot().busyIds.filter(id => id !== input.pluginId) } }); }
+    return false;
   }
   return {
     getSnapshot: store.getSnapshot, subscribe: store.subscribe, load, setEnabled,

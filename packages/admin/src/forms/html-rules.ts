@@ -44,9 +44,23 @@ export function formatFormAnswer(
 ): string {
   if (value === undefined || value === null) return "";
   if (Array.isArray(value)) return value.map(item => formatFormAnswer({ value: item, options, type }, display)).join(", ");
-  if (typeof value === "boolean") return value ? display.yes ?? "Yes" : display.no ?? "No";
-  if (typeof value === "string" && type !== undefined && type in TEMPORAL_STYLES) return formatTemporal({ value, type }, display);
-  if (typeof value === "string") return options?.find(option => option.value === value)?.label ?? value;
+  if (typeof value === "boolean") return formatBoolean({ value }, display);
+  if (typeof value === "string") return formatText({ value, options, type }, display);
+  return formatOther({ value });
+}
+
+function formatBoolean({ value }: { value: boolean }, { yes = "Yes", no = "No" }: FormAnswerDisplay): string {
+  return value ? yes : no;
+}
+
+/** A temporal field's answer as a date; any other string as its choice label, or raw. */
+function formatText({ value, options, type }: { value: string; options?: AdminFormField["options"]; type?: string | undefined }, display: FormAnswerDisplay): string {
+  if (type !== undefined && type in TEMPORAL_STYLES) return formatTemporal({ value, type }, display);
+  return options?.find(option => option.value === value)?.label ?? value;
+}
+
+/** A file reference as its name and size; any other value as JSON or its string form. */
+function formatOther({ value }: { value: unknown }): string {
   const file = formAnswerFile({ value });
   if (file) return file.byteSize === undefined ? file.filename : `${file.filename} (${formatByteSize({ bytes: file.byteSize })})`;
   return typeof value === "object" ? JSON.stringify(value) : String(value);
@@ -113,33 +127,42 @@ function starterAttributes(field: AdminFormField, kind: StarterKind): string {
     constraints.filter(([, value]) => value != null && value !== "").map(([name, value]) => ` ${name}="${escapeHtml(String(value))}"`).join("");
 }
 
+type StarterInput = { field: AdminFormField; kind: StarterKind; label: string; attrs: string };
+
 /** One field's starter markup; every control comes from the registry kind, as the public render does. */
 function starterField(field: AdminFormField): string {
   const kind = kindOf(field.type);
-  const label = escapeHtml(field.label);
-  const attrs = starterAttributes(field, kind);
-  const options = field.options ?? [];
-  if (kind.control === "group") {
-    // One box per option under a shared name; the CMS collects them back into this choice field.
-    // Native `required` on every checkbox would demand ALL of them, so a checkbox group leaves it
-    // off (the server still enforces one-or-more); a radio group's `required` means "pick one".
-    const boxAttrs = kind.multiple ? starterAttributes({ ...field, required: false }, kind) : attrs;
-    const boxes = options.map((option) => `  <label><input type="${kind.htmlType}" ${boxAttrs} value="${escapeHtml(option.value)}"${isDefault(field, option.value) ? " checked" : ""}> ${escapeHtml(option.label)}</label>`);
-    return `<fieldset>\n  <legend>${label}</legend>\n${boxes.join("\n")}\n</fieldset>`;
-  }
-  if (kind.control === "select") {
-    const empty = kind.multiple ? [] : [`    <option value="">${escapeHtml(field.placeholder ?? "Choose an option")}</option>`];
-    const choices = options.map((option) => `    <option value="${escapeHtml(option.value)}"${isDefault(field, option.value) ? " selected" : ""}>${escapeHtml(option.label)}</option>`);
-    return `<label>${label}\n  <select ${attrs}${kind.multiple ? " multiple" : ""}>\n${[...empty, ...choices].join("\n")}\n  </select>\n</label>`;
-  }
-  if (kind.control === "textarea") return `<label>${label}\n  <textarea ${attrs}></textarea>\n</label>`;
-  if (kind.htmlType === "hidden") return `<input type="hidden" ${attrs} value="${escapeHtml(String(field.default ?? ""))}" aria-label="${label}">`;
-  if (kind.htmlType === "checkbox") {
-    const value = field.checkboxValue !== undefined ? ` value="${escapeHtml(field.checkboxValue)}"` : "";
-    const checked = field.default === true || (field.checkboxValue !== undefined && field.default === field.checkboxValue) ? " checked" : "";
-    return `<label><input type="checkbox"${field.type === "toggle" ? ' role="switch"' : ""} ${attrs}${value}${checked}> ${label}</label>`;
-  }
-  return `<label>${label}\n  <input type="${kind.htmlType}" ${attrs}>\n</label>`;
+  return starterRendererFor({ kind })({ field, kind, label: escapeHtml(field.label), attrs: starterAttributes(field, kind) });
+}
+
+function starterRendererFor({ kind }: { kind: StarterKind }): (input: StarterInput) => string {
+  if (kind.control === "group") return starterGroup;
+  if (kind.control === "select") return starterSelect;
+  if (kind.control === "textarea") return ({ label, attrs }) => `<label>${label}\n  <textarea ${attrs}></textarea>\n</label>`;
+  if (kind.htmlType === "hidden") return ({ field, label, attrs }) => `<input type="hidden" ${attrs} value="${escapeHtml(String(field.default ?? ""))}" aria-label="${label}">`;
+  if (kind.htmlType === "checkbox") return starterCheckbox;
+  return ({ label, attrs }) => `<label>${label}\n  <input type="${kind.htmlType}" ${attrs}>\n</label>`;
+}
+
+function starterGroup({ field, kind, label, attrs }: StarterInput): string {
+  // One box per option under a shared name; the CMS collects them back into this choice field.
+  // Native `required` on every checkbox would demand ALL of them, so a checkbox group leaves it
+  // off (the server still enforces one-or-more); a radio group's `required` means "pick one".
+  const boxAttrs = kind.multiple ? starterAttributes({ ...field, required: false }, kind) : attrs;
+  const boxes = (field.options ?? []).map((option) => `  <label><input type="${kind.htmlType}" ${boxAttrs} value="${escapeHtml(option.value)}"${isDefault(field, option.value) ? " checked" : ""}> ${escapeHtml(option.label)}</label>`);
+  return `<fieldset>\n  <legend>${label}</legend>\n${boxes.join("\n")}\n</fieldset>`;
+}
+
+function starterSelect({ field, kind, label, attrs }: StarterInput): string {
+  const empty = kind.multiple ? [] : [`    <option value="">${escapeHtml(field.placeholder ?? "Choose an option")}</option>`];
+  const choices = (field.options ?? []).map((option) => `    <option value="${escapeHtml(option.value)}"${isDefault(field, option.value) ? " selected" : ""}>${escapeHtml(option.label)}</option>`);
+  return `<label>${label}\n  <select ${attrs}${kind.multiple ? " multiple" : ""}>\n${[...empty, ...choices].join("\n")}\n  </select>\n</label>`;
+}
+
+function starterCheckbox({ field, label, attrs }: StarterInput): string {
+  const value = field.checkboxValue !== undefined ? ` value="${escapeHtml(field.checkboxValue)}"` : "";
+  const checked = field.default === true || (field.checkboxValue !== undefined && field.default === field.checkboxValue) ? " checked" : "";
+  return `<label><input type="checkbox"${field.type === "toggle" ? ' role="switch"' : ""} ${attrs}${value}${checked}> ${label}</label>`;
 }
 
 /**

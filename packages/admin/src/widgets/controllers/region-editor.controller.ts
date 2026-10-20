@@ -9,16 +9,17 @@ export interface WidgetRegionEditorState { area: AdminWidgetArea | null; placeme
 export function createWidgetRegionEditorController({ api, regionKey: initialKey }: { api: AdminWidgetsPort; regionKey: string }, { t = widgetsEnglish }: { t?: WidgetsTranslate | undefined } = {}) {
   const store = createControllerStore<WidgetRegionEditorState>({ initial: { area: null, placements: [], message: null, error: null, loading: true, saving: false } });
   let regionKey = initialKey, generation = 0;
+  const isLiveRead = ({ ticket }: { ticket: number }) => ticket === generation && !store.signal.aborted;
   async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
     const ticket = ++generation;
     store.set({ patch: { loading: true, error: null, saving: false } });
     try {
       const result = await api.getWidgetRegion({ regionKey }, { signal: store.signal });
-      if (ticket === generation && !store.signal.aborted) store.set({ patch: { area: result.area, placements: result.placements } });
+      if (isLiveRead({ ticket })) store.set({ patch: { area: result.area, placements: result.placements } });
     } catch (error) {
-      if (ticket === generation && !store.signal.aborted) store.set({ patch: { error: describeApiError({ e: widgetApiError({ error }) ?? error, fallback: t('failed to load region') }) } });
+      if (isLiveRead({ ticket })) store.set({ patch: { error: describeApiError({ e: widgetApiError({ error }) ?? error, fallback: t('failed to load region') }) } });
     } finally {
-      if (ticket === generation && !store.signal.aborted) store.set({ patch: { loading: false } });
+      if (isLiveRead({ ticket })) store.set({ patch: { loading: false } });
     }
   }
   function addPlacement({ widgetInstanceId }: { widgetInstanceId: string }, _optional: Record<string, never> = {}) {
@@ -37,13 +38,13 @@ export function createWidgetRegionEditorController({ api, regionKey: initialKey 
     let stale = false;
     try {
       const { area: saved } = await api.mutateWidgetRegionPlacements({ regionKey, baseVersion: area.version, placements: placements.map(p => ({ placementId: p.placementId, widgetEntryId: p.widgetEntryId, enabled: p.enabled })) }, { signal: store.signal });
-      stale = ticket !== generation || store.signal.aborted;
+      stale = !isLiveRead({ ticket });
       if (stale) return;
       store.set({ patch: { area: saved, message: t('Saved · version {version}').replace('{version}', String(saved.version)) } });
       // A stale save must never mint a read generation that supersedes the new region's load.
       void load();
     } catch (error) {
-      stale = ticket !== generation || store.signal.aborted;
+      stale = !isLiveRead({ ticket });
       if (!stale) store.set({ patch: { error: resolveWidgetRegionSaveError({ error }, { t }) } });
     } finally { if (!stale) store.set({ patch: { saving: false } }); }
   }

@@ -153,3 +153,38 @@ describe("createHttpFormsApi submissionFileUrl", () => {
     expect(api.submissionFileUrl).toBeUndefined();
   });
 });
+
+describe("formSubmissionRows fallbacks", () => {
+  it("labels an answer whose field was removed with the fallback, formatting it plainly", () => {
+    expect(formSubmissionRows({ data: { gone: true }, answerColumns: [] }, { unknownFieldLabel: "Removed" })).toEqual([
+      { key: "gone", label: "Removed", value: "Yes", file: null },
+    ]);
+  });
+
+  it("uses the default fallback label for a blank header, and formats plainly when a column has no formatter", () => {
+    const column = { key: "answer:blank", header: "  ", cell: () => "" };
+    expect(formSubmissionRows({ data: { blank: "x" }, answerColumns: [column] })).toEqual([
+      { key: "blank", label: "Unknown field", value: "x", file: null },
+    ]);
+  });
+});
+
+describe("formatFormAnswer scalars", () => {
+  it("shows a file answer without a size as its filename alone", () => {
+    expect(formatFormAnswer({ value: { mediaId: "m", filename: "a.pdf" } })).toBe("a.pdf");
+  });
+
+  it("shows file sizes in KB and MB", () => {
+    expect(formatFormAnswer({ value: { mediaId: "m", filename: "a", byteSize: 2048 } })).toBe("a (2 KB)");
+    expect(formatFormAnswer({ value: { mediaId: "m", filename: "a", byteSize: 1572864 } })).toBe("a (1.5 MB)");
+  });
+
+  it("shows a number as its digits and any other object as JSON", () => {
+    expect(formatFormAnswer({ value: 7 })).toBe("7");
+    expect(formatFormAnswer({ value: { a: 1 } })).toBe('{"a":1}');
+  });
+
+  it("treats a value equal to a temporal type name only by its field type", () => {
+    expect(formatFormAnswer({ value: "date", type: "text" })).toBe("date");
+  });
+});

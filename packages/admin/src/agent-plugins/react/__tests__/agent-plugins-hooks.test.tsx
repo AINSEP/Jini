@@ -123,6 +123,10 @@ describe('useAgentPluginPanel', () => {
     expect(mount(scope({ plugins: [] }).value).result.current).toMatchObject({ loading: false, empty: true });
   });
 
+  it('is neither loading nor empty once rows are listed', () => {
+    expect(mount(scope({ plugins: [off] }).value).result.current).toMatchObject({ loading: false, empty: false });
+  });
+
   it('describes rows with busy and expanded state', () => {
     const { result } = mount(scope({ plugins: [off, on], busyIds: ['second'], expandedIds: ['ui-ux-design'] }).value);
     expect(result.current.rows[0]).toMatchObject({ id: 'ui-ux-design', name: 'UI UX Design', enabled: false, stateLabel: 'Disabled', busy: false, expanded: true, canWrite: true,
@@ -181,7 +185,7 @@ describe('useAgentPluginsPage', () => {
     let first: ReturnType<typeof useAgentPluginsPage> | undefined;
     const props: ModulePageProps = { tabs, description: admin.describe().pages[0]!, ...(requestedTab ? { requestedTab } : {}), ...(onTabChange ? { onTabChange } : {}) };
     const view = renderHook(() => { const vm = useAgentPluginsPage(props); first ??= vm; return vm; }, { wrapper: portsWrapper(api) });
-    return { ...view, api, first: () => first! };
+    return { ...view, api, tabs, first: () => first! };
   }
   const loaded = (view: ReturnType<typeof mount>) => waitFor(() => expect(view.result.current.scope.snapshot?.plugins).not.toBeNull());
 
@@ -206,6 +210,12 @@ describe('useAgentPluginsPage', () => {
     expect(routed.result.current.activeId).toBe('marketplace');
     act(() => routed.result.current.onValueChange({ value: 'installed' }));
     expect(onTabChange).toHaveBeenCalledWith({ tab: 'installed' });
+  });
+
+  it('falls back to the first visible tab for an unknown requested tab', () => {
+    const view = mount({ requestedTab: 'missing' });
+    expect(view.result.current.activeId).toBe('installed');
+    expect(view.result.current.ActiveTab).toBe(view.tabs.installed);
   });
 
   it('opens and closes the inspector for a listed package', async () => {
@@ -233,10 +243,10 @@ describe('useAgentPluginsPage', () => {
   it('throws when the disable is refused, and before the controller exists', async () => {
     const api = createMemoryAgentPluginsApi({ plugins: [off, on] });
     const view = mount({ api: { ...api, setEnabled: async () => { throw new Error('locked'); } } });
-    await expect(view.first().confirm({})).rejects.toThrow('Activation was not updated');
+    await expect(view.first().confirm({})).rejects.toThrow('Activation was not updated for agent plugin (none pending): the disable was refused or failed; retry, or reload the list if it changed');
     expect(() => { view.first().closeInspector({}); view.first().cancel({}); }).not.toThrow();
     await loaded(view);
     act(() => view.result.current.scope.controller!.requestDisable({ pluginId: 'second', variant: 'disable' }));
-    await act(async () => { await expect(view.result.current.confirm({})).rejects.toThrow('Activation was not updated'); });
+    await act(async () => { await expect(view.result.current.confirm({})).rejects.toThrow('Activation was not updated for agent plugin second: the disable was refused or failed; retry, or reload the list if it changed'); });
   });
 });

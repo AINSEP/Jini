@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { useRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
-import { RowMenu, type RowMenuItem } from '../../components/RowMenu/RowMenu.js';
+import { RowMenu, type RowMenuItem } from '../RowMenu.js';
 
 function items(overrides: Partial<RowMenuItem>[] = []): RowMenuItem[] {
   const base: RowMenuItem[] = [
@@ -356,6 +356,25 @@ describe('RowMenu hook injection', () => {
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
     expect(fakeSelectItem).toHaveBeenCalledWith({ onSelect: list[0]?.onSelect });
+  });
+});
+
+describe('RowMenu before measurement', () => {
+  it('lays the open menu out offscreen and invisible until a position is measured', () => {
+    function useUnmeasuredRowMenu() {
+      return {
+        open: true, position: null, triggerRef: useRef<HTMLButtonElement>(null), menuRef: useRef<HTMLDivElement>(null),
+        itemRefs: useRef<Array<HTMLButtonElement | null>>([]), onTriggerClick: vi.fn(), onTriggerKeyDown: vi.fn(),
+        onMenuKeyDown: vi.fn(), selectItem: vi.fn(),
+      };
+    }
+    render(<RowMenu items={items()} triggerLabel='Actions for "My Post"' useRowMenu={useUnmeasuredRowMenu} />);
+    const menu = screen.getByRole('menu', { hidden: true });
+    expect(menu.style.visibility).toBe('hidden');
+    expect(menu.style.top).toBe('-9999px');
+    expect(menu.style.left).toBe('-9999px');
+    expect(menu.style.transform).toBe('');
+    expect(menu.className).toBe('row-menu-popup');
   });
 });
 

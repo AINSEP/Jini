@@ -1,10 +1,72 @@
 import { useId, useMemo, type ReactNode } from 'react';
 import { Sidebar } from '../components/Sidebar.js';
 import { useShellDrawer, useShellRoute } from './AdminShell.hooks.js';
-import { resolveAdminShellModel } from './model.js';
+import { resolveAdminShellModel, type AdminShellModel } from './model.js';
 import { useAdminShellSession } from './use-admin-shell-session.js';
 import { useAdminTheme } from './use-admin-theme.js';
-import type { AdminShellProps, AdminShellSlotArgs } from './types.js';
+import type { AdminShellAppearance } from './theme-ports.js';
+import type { AdminNavGroup } from '../../core/manifest/rules.js';
+import type {
+  AdminShellContext, AdminShellProps, AdminShellSession, AdminShellSessionController, AdminShellSessionState, AdminShellSlotArgs,
+} from './types.js';
+
+type ThemeOptions = NonNullable<Parameters<typeof useAdminTheme>[1]>;
+type GateState = Exclude<AdminShellSessionState, { readonly status: 'authenticated' }>;
+
+/** Copy only the theme props the host supplied, so absent ones keep the hook's own defaults. */
+function themeOptions(props: AdminShellProps): ThemeOptions {
+  return {
+    ...(props.theme ? { theme: props.theme } : {}),
+    ...(props.colorScheme ? { colorScheme: props.colorScheme } : {}),
+    ...(props.themeEnvironment ? { environment: props.themeEnvironment } : {}),
+    ...(props.themePreferenceStore ? { preferenceStore: props.themePreferenceStore } : {}),
+    ...(props.onColorSchemeChange ? { onColorSchemeChange: props.onColorSchemeChange } : {}),
+  };
+}
+
+/** Loading, login or session-error UI for every state except an authenticated one. */
+function renderSessionGate({ props, context, state, refresh }: {
+  readonly props: AdminShellProps; readonly context: AdminShellContext; readonly state: GateState; readonly refresh: () => Promise<void>;
+}): ReactNode {
+  if (state.status === 'checking') return <div className="boot-screen" role="status">{props.labels.loading}</div>;
+  if (state.status === 'anonymous') return props.slots.login({ context, refreshSession: refresh });
+  if (props.slots.sessionError) return props.slots.sessionError({ error: state.error, retry: refresh });
+  return <div role="alert"><p>{props.labels.sessionError}</p><button type="button" onClick={() => { void refresh(); }}>{props.labels.retry}</button></div>;
+}
+
+interface ShellView { readonly model: AdminShellModel; readonly slotArgs: AdminShellSlotArgs; readonly nav: readonly AdminNavGroup[] }
+
+/** Resolve the authenticated route, nav and slot arguments from the session's contributions. */
+function resolveShellView({ props, context, session, routePath, controller }: {
+  readonly props: AdminShellProps; readonly context: AdminShellContext; readonly session: AdminShellSession;
+  readonly routePath: string; readonly controller: AdminShellSessionController;
+}, { appearance }: { readonly appearance?: AdminShellAppearance | undefined }): ShellView {
+  const model = resolveAdminShellModel({ panels: props.panels, session, routePath, defaultPanelId: props.defaultPanelId },
+    { capabilities: props.capabilities ?? [] });
+  const slotArgs: AdminShellSlotArgs = {
+    context, session, route: model.route, logout: controller.logout, refreshSession: controller.refresh,
+    ...(appearance ? { appearance } : {}),
+  };
+  const nav = props.translateNav ? props.translateNav({ groups: model.nav }) : model.nav;
+  return { model, slotArgs, nav };
+}
+
+/** The manifest-driven sidebar: header slot, nav groups, rail toggle and footer slot. */
+function ShellSidebar({ props, view, open, id }: {
+  readonly props: AdminShellProps; readonly view: ShellView; readonly open: boolean; readonly id: string;
+}): ReactNode {
+  return (
+    <Sidebar activeId={view.model.route.panelId ?? ''} base={props.adminBase} open={open} id={id}
+      label={props.labels.navigation} railStorageKey={props.railStorageKey} railDefaultCollapsed={props.railDefaultCollapsed ?? false}>
+      {props.slots.sidebarHeader}
+      <Sidebar.Nav groups={view.nav} soonLabel={props.labels.soon} collapsibleGroups={props.collapsibleGroups ?? []} />
+      <Sidebar.Footer>
+        <Sidebar.RailToggle expandLabel={props.labels.expandSidebar} collapseLabel={props.labels.collapseSidebar} />
+        {props.slots.sidebarFooter?.(view.slotArgs)}
+      </Sidebar.Footer>
+    </Sidebar>
+  );
+}
 
 /**
  * A host-composed admin layout with manifest navigation and a session gate.
@@ -14,47 +76,24 @@ import type { AdminShellProps, AdminShellSlotArgs } from './types.js';
 export function AdminShell(props: AdminShellProps): ReactNode {
   const context = useMemo(() => ({ apiBase: props.apiBase, workspace: props.workspace }), [props.apiBase, props.workspace]);
   const session = useAdminShellSession({ port: props.session, context });
-  const appearance = useAdminTheme({ userId: session.state.status === 'authenticated' ? session.state.session.user.id : null, workspace: context.workspace }, {
-    ...(props.theme ? { theme: props.theme } : {}),
-    ...(props.colorScheme ? { colorScheme: props.colorScheme } : {}),
-    ...(props.themeEnvironment ? { environment: props.themeEnvironment } : {}),
-    ...(props.themePreferenceStore ? { preferenceStore: props.themePreferenceStore } : {}),
-    ...(props.onColorSchemeChange ? { onColorSchemeChange: props.onColorSchemeChange } : {}),
-  });
+  const appearance = useAdminTheme({ userId: session.state.status === 'authenticated' ? session.state.session.user.id : null, workspace: context.workspace },
+    themeOptions(props));
   const routePath = useShellRoute({ navigation: props.navigation, base: props.adminBase });
   const drawer = useShellDrawer({ routePath });
   const id = useId();
   const sidebarId = `${id}-sidebar`;
   const mainId = `${id}-main`;
 
-  if (session.state.status === 'checking') return <div className="boot-screen" role="status">{props.labels.loading}</div>;
-  if (session.state.status === 'anonymous') return props.slots.login({ context, refreshSession: session.refresh });
-  if (session.state.status === 'error') {
-    if (props.slots.sessionError) return props.slots.sessionError({ error: session.state.error, retry: session.refresh });
-    return <div role="alert"><p>{props.labels.sessionError}</p><button type="button" onClick={() => { void session.refresh(); }}>{props.labels.retry}</button></div>;
-  }
+  if (session.state.status !== 'authenticated') return renderSessionGate({ props, context, state: session.state, refresh: session.refresh });
 
-  const model = resolveAdminShellModel({ panels: props.panels, session: session.state.session, routePath, defaultPanelId: props.defaultPanelId },
-    { capabilities: props.capabilities ?? [] });
-  const slotArgs: AdminShellSlotArgs = {
-    context, session: session.state.session, route: model.route, logout: session.logout, refreshSession: session.refresh,
-    ...(appearance ? { appearance } : {}),
-  };
-  const nav = props.translateNav ? props.translateNav({ groups: model.nav }) : model.nav;
+  const view = resolveShellView({ props, context, session: session.state.session, routePath, controller: session }, { appearance });
+  const { model, slotArgs } = view;
   const assistant = props.slots.assistant;
 
   return (
     <div className={['admin-layout', props.className].filter(Boolean).join(' ')}>
       <a href={`#${mainId}`} className="skip-link">{props.labels.skipToContent}</a>
-      <Sidebar activeId={model.route.panelId ?? ''} base={props.adminBase} open={drawer.open} id={sidebarId}
-        label={props.labels.navigation} railStorageKey={props.railStorageKey} railDefaultCollapsed={props.railDefaultCollapsed ?? false}>
-        {props.slots.sidebarHeader}
-        <Sidebar.Nav groups={nav} soonLabel={props.labels.soon} collapsibleGroups={props.collapsibleGroups ?? []} />
-        <Sidebar.Footer>
-          <Sidebar.RailToggle expandLabel={props.labels.expandSidebar} collapseLabel={props.labels.collapseSidebar} />
-          {props.slots.sidebarFooter?.(slotArgs)}
-        </Sidebar.Footer>
-      </Sidebar>
+      <ShellSidebar props={props} view={view} open={drawer.open} id={sidebarId} />
       {drawer.open && <button type="button" className="sidebar-backdrop" aria-label={props.labels.closeNavigation} onClick={() => drawer.setOpen(false)} />}
       <div className="admin-main-col">
         <div className="admin-topbar">

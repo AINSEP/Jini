@@ -117,4 +117,13 @@ describe('EntityField', () => {
     expect(onTextChange).toHaveBeenCalledWith({ text: '{"x":2}' });
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('native inputs carry the id, disabled and invalid state', () => {
+    render(<EntityField inputId="name-input" field={{ name: 'name', kind: 'text' }} value="x" text="" relations={relations} translate={translate}
+      disabled invalid onChange={vi.fn()} onTextChange={vi.fn()} />);
+    const input = screen.getByRole('textbox');
+    expect(input).toHaveAttribute('id', 'name-input');
+    expect(input).toBeDisabled();
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+  });
 });

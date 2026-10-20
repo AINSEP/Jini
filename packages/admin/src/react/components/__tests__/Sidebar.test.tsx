@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Sidebar, useSidebar } from '../../components/Sidebar.js';
+import { Sidebar, useSidebar } from '../Sidebar.js';
 import { buildNav } from '../../../core/manifest/rules.js';
 import type { AdminPanel } from '../../../core/manifest/types.js';
 
@@ -206,6 +206,24 @@ describe('Sidebar.Nav', () => {
     expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined();
   });
 
+  it('gives each section an items container id from its label, or its position when ungrouped', () => {
+    const { container } = renderSidebar();
+    const ids = Array.from(container.querySelectorAll('.cms-section-items')).map((section) => section.id);
+    expect(ids[0]).toBe('cms-section-top-0');
+    expect(ids.slice(1).every((id) => /^cms-section-[a-z0-9-]+$/.test(id) && id !== 'cms-section-top-0')).toBe(true);
+  });
+
+  it('drops malformed icon markup but keeps the row and its label', () => {
+    const brokenPanels: AdminPanel<null>[] = [{ id: 'posts', render: null, nav: { label: 'Posts', icon: '<path d="M1 1"' } }];
+    const { container } = render(
+      <Sidebar activeId="posts">
+        <Sidebar.Nav groups={buildNav({ panels: brokenPanels })} />
+      </Sidebar>,
+    );
+    expect(screen.getByRole('link', { name: 'Posts' })).toBeInTheDocument();
+    expect(container.querySelector('svg')!.children).toHaveLength(0);
+  });
+
   it('hands rendering to renderItem when supplied, with active/href/collapsed precomputed', () => {
     const seen: Array<{ id: string; active: boolean; href: string; collapsed: boolean }> = [];
     render(
@@ -294,6 +312,16 @@ describe('Sidebar rail', () => {
     expect(document.querySelector('.cms-tooltip-portal')?.textContent).toBe('Posts');
 
     fireEvent.mouseLeave(posts);
+    expect(document.querySelector('.cms-tooltip-portal')).toBeNull();
+  });
+
+  it('shows the collapsed-rail tooltip on keyboard focus and hides it on blur', () => {
+    renderSidebar();
+    const posts = screen.getByRole('link', { name: 'Posts' });
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    fireEvent.focus(posts);
+    expect(document.querySelector('.cms-tooltip-portal')?.textContent).toBe('Posts');
+    fireEvent.blur(posts);
     expect(document.querySelector('.cms-tooltip-portal')).toBeNull();
   });
 

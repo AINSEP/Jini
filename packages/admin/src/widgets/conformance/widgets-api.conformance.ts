@@ -1,9 +1,23 @@
 import type { AdminWidgetsPort } from '../ports.js';
+import type { AdminWidget } from '../models.js';
+interface ConformanceProbe {
+  api: AdminWidgetsPort;
+  assert: (condition: boolean, name: string) => void;
+  rejects: (run: () => Promise<unknown>, name: string) => Promise<void>;
+}
 /** Mutates an isolated adapter. Returns named checks and throws at the first contract failure. */
 export async function runWidgetsApiConformance({ api }: { api: AdminWidgetsPort }, _optional: Record<string, never> = {}): Promise<readonly string[]> {
   const checks: string[] = [];
   function assert(condition: boolean, name: string) { if (!condition) throw new Error(`Widgets API conformance: ${name}`); checks.push(name); }
   async function rejects(run: () => Promise<unknown>, name: string) { let rejected = false; try { await run(); } catch { rejected = true; } assert(rejected, name); }
+  const probe: ConformanceProbe = { api, assert, rejects };
+  const { widget, updated } = await checkInstanceLifecycle({ probe });
+  await checkRegionPlacements({ probe, widget, updated });
+  await checkAbortsAndMissing({ probe, widget, updated });
+  await checkTrash({ probe, widget });
+  return checks;
+}
+async function checkInstanceLifecycle({ probe: { api, assert, rejects } }: { probe: ConformanceProbe }, _optional: Record<string, never> = {}) {
   const input = { widgetType: 'text', title: 'Conformance widget', config: { body: 'initial' } };
   const { widget } = await api.createWidget(input);
   assert(widget.id.length > 0 && widget.slug.length > 0 && widget.status === 'active', 'create active instance');
@@ -17,6 +31,9 @@ export async function runWidgetsApiConformance({ api }: { api: AdminWidgetsPort 
   assert(updated.title === widget.title && updated.version > widget.version, 'omitted title preserved and version advances');
   assert(widget.config.body === 'initial' && firstList.widgets.find(w => w.id === widget.id)?.version === widget.version, 'prior snapshots stay detached');
   await rejects(() => api.updateWidget({ id: widget.id, baseVersion: widget.version, config: {} }), 'stale instance write rejects');
+  return { widget, updated };
+}
+async function checkRegionPlacements({ probe: { api, assert, rejects }, widget, updated }: { probe: ConformanceProbe; widget: AdminWidget; updated: AdminWidget }, _optional: Record<string, never> = {}) {
   const regionKey = `conformance-${widget.id}`;
   const { area } = await api.bindWidgetRegion({ regionKey });
   const initialAreaVersion = area.version;
@@ -35,14 +52,17 @@ export async function runWidgetsApiConformance({ api }: { api: AdminWidgetsPort 
   assert(placed.placements[2]?.broken === true, 'broken reference remains visible');
   assert((await api.listWidgetRegions({})).regions.find(r => r.regionKey === regionKey)?.placementCount === placements.length, 'region list placement count updates');
   await rejects(() => api.mutateWidgetRegionPlacements({ regionKey, baseVersion: area.version, placements: [] }), 'stale region write rejects');
+}
+async function checkAbortsAndMissing({ probe: { api, assert, rejects }, widget, updated }: { probe: ConformanceProbe; widget: AdminWidget; updated: AdminWidget }, _optional: Record<string, never> = {}) {
   const abort = new AbortController(); abort.abort();
   await rejects(() => api.listWidgets({}, { signal: abort.signal }), 'aborted list rejects');
   await rejects(() => api.updateWidget({ id: widget.id, baseVersion: updated.version, title: 'must not save', config: {} }, { signal: abort.signal }), 'aborted write rejects');
   assert((await api.getWidget({ id: widget.id })).widget.title === widget.title, 'aborted write has no effects');
   await rejects(() => api.getWidget({ id: 'missing-conformance-widget' }), 'missing instance rejects');
   await rejects(() => api.getWidgetRegion({ regionKey: 'missing-conformance-region' }), 'missing region rejects');
+}
+async function checkTrash({ probe: { api, assert }, widget }: { probe: ConformanceProbe; widget: AdminWidget }, _optional: Record<string, never> = {}) {
   await api.trashWidget({ id: widget.id });
   assert(!(await api.listWidgets({})).widgets.some(w => w.id === widget.id), 'trash removes active listing');
   assert((await api.listWidgets({ includeInactive: true })).widgets.find(w => w.id === widget.id)?.status === 'trash', 'trash retained for shared lifecycle');
-  return checks;
 }

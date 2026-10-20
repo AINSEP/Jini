@@ -29,7 +29,7 @@ export interface WidgetsLibraryController {
 }
 import { useEffect, useRef } from 'react';
 import { useController } from '../../../core/react/use-controller.js';
-import { createWidgetsLibraryController } from '../../controllers/library.controller.js';
+import { createWidgetsLibraryController, type WidgetsLibraryState } from '../../controllers/library.controller.js';
 import type { AdminWidgetsPort, WidgetsEventsPort } from '../../ports.js';
 import { widgetsEnglish } from '../../messages.en.js';
 import { WIDGETS_LIBRARY_RESOURCE } from '../../rules.js';
@@ -40,10 +40,19 @@ export function useWidgetsLibrary({ api }: { api: AdminWidgetsPort }, { t = widg
   const latestT = useRef(t); latestT.current = t;
   const { controller, snapshot } = useController({ create: () => createWidgetsLibraryController({ api: cached.api }, { t: key => latestT.current(key) }), dependencies: [cached.api] }, { start: ({ controller }) => { void controller.load(); } });
   useEffect(() => { if (!controller) return; return events?.subscribe({ resource: WIDGETS_LIBRARY_RESOURCE, onRefresh: () => invalidate({ key: WIDGET_QUERY_KEYS.library }) }); }, [controller, events, invalidate]);
-  const state = snapshot ?? { widgets: null, error: null, skippedCount: 0, skippedIds: [], createType: 'text', pendingTrash: null, trashingId: null };
-  return { ...state, widgets: cached.query.data?.widgets ?? state.widgets, skippedCount: cached.query.data?.skippedCount ?? state.skippedCount, skippedIds: cached.query.data?.skippedIds ?? state.skippedIds, error: state.error ?? cached.query.error?.message ?? null, trashing: state.pendingTrash !== null && state.trashingId === state.pendingTrash.id,
+  return { ...mergeLibraryState({ snapshot, data: cached.query.data, queryError: cached.query.error }),
     setCreateType: type => controller?.setCreateType({ type }), requestTrash: widget => controller?.requestTrash({ widget }),
     confirmTrash: async () => { await controller?.confirmTrash(); }, cancelTrash: () => controller?.cancelTrash(), t, locale };
+}
+const EMPTY_LIBRARY_STATE: WidgetsLibraryState = { widgets: null, error: null, skippedCount: 0, skippedIds: [], createType: 'text', pendingTrash: null, trashingId: null };
+/** Cached query data wins for the list and skipped rows; a controller error wins over a query error. */
+type LibraryListResult = Awaited<ReturnType<AdminWidgetsPort['listWidgets']>>;
+function mergeLibraryState({ snapshot, data, queryError }: { snapshot: WidgetsLibraryState | null; data: LibraryListResult | undefined; queryError: Error | null | undefined }, _optional: Record<string, never> = {}) {
+  const state = snapshot ?? EMPTY_LIBRARY_STATE;
+  return { ...state, ...cachedListFields({ state, data }), error: state.error ?? queryError?.message ?? null, trashing: state.pendingTrash !== null && state.trashingId === state.pendingTrash.id };
+}
+function cachedListFields({ state, data }: { state: WidgetsLibraryState; data: LibraryListResult | undefined }, _optional: Record<string, never> = {}) {
+  return { widgets: data?.widgets ?? state.widgets, skippedCount: data?.skippedCount ?? state.skippedCount, skippedIds: data?.skippedIds ?? state.skippedIds };
 }
 export function useWiredWidgetsLibrary(): WidgetsLibraryController {
   const { widgetsApi: api, widgetsEvents: events } = useWidgetsPorts();

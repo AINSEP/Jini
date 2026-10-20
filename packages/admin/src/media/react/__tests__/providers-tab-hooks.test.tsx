@@ -87,6 +87,20 @@ describe('media useProvidersTab', () => {
     expect(view.result.current.empty).toBe(true);
   });
 
+  it('disables Clear on rows already discovered once the provider port goes away', async () => {
+    let port: MediaProvidersPort | undefined = service([{ id: 'x', label: 'X', configured: true, apiKeyTail: '1234' }]);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <MediaPortsContext.Provider value={{ mediaApi: {} as MediaApiPort, ...(port ? { mediaProviders: port } : {}) }}>{children}</MediaPortsContext.Provider>
+    );
+    const view = renderHook(() => useProvidersTab(), { wrapper });
+    await waitFor(() => expect(view.result.current.rows.map(item => item.id)).toEqual(['x']));
+    expect(view.result.current.rows[0]!.clearDisabled).toBe(false);
+    port = undefined;
+    view.rerender();
+    expect(view.result.current.disabled).toBe(true);
+    expect(view.result.current.rows.map(item => [item.id, item.clearDisabled])).toEqual([['x', true]]);
+  });
+
   it('shows and hides a credential, and marks edits unsaved', async () => {
     const view = mount({ ...service([]), catalog: [{ id: 'a', label: 'A' }] });
     await loaded(view);

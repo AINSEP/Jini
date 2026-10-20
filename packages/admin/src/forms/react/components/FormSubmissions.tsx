@@ -1,11 +1,9 @@
 import { useSubmissionsView } from "../hooks/forms-view.hooks.js";
 import type { FormAnswerColumn } from '../../html-rules.js';
-import { DataTable } from '../../../react/components/DataTable.js';
-import { agentHandle } from '@jini-ai/agentic';
 import { useWiredFormSubmissions } from '../hooks/use-form-submissions.hooks.js';
 import { useFormSubmissionDate } from '../hooks/use-form-submission-date.hooks.js';
 import { FormSubmissionDetail } from "./FormSubmissionDetail.js";
-import { FormSubmissionDate } from "./FormSubmissionDate.js";
+import { FormSubmissionsTable } from "./FormSubmissionsTable.js";
 export interface FormSubmissionsProps {
   formId: string;
   /** Dependency injection seam for tests — see `PostsProps.usePostsHook` for the convention. */
@@ -47,46 +45,7 @@ export function FormSubmissions({ formId, useFormSubmissionsHook = useWiredFormS
   // not incidental re-renders.
 
   return (
-    <div>
-      {error ? <div className="notice error">{error}</div> : null}
-      <DataTable<(typeof rows)[number]>
-        rows={rows}
-        rowKey={(s) => s.id}
-        columns={[
-          { key: "submitted-at", header: t("Submitted at"), cell: (s) => <FormSubmissionDate date={formatDate({ iso: s.submittedAt })} /> },
-          { key: "source-ip", header: t("Source IP"), cell: (s) => s.sourceIp },
-          ...answerColumns,
-          {
-            key: "view",
-            cell: (s, index) => (
-              <button
-                type="button"
-                onClick={s.view}
-                {...agentHandle({ handle: s.handle }, {
-                  role: "button",
-                  label: "Open this submission's full details",
-                })}
-              >
-                {t("View")}
-              </button>
-            ),
-          },
-        ]}
-      />
-      {nextCursor ? (
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={loadingMore}
-          onClick={loadMore}
-          {...agentHandle({ handle: "form-submissions-load-more" }, {
-            role: "button",
-            label: "Load the next page of submissions",
-          })}
-        >
-          {loadingMore ? t("Loading…") : t("Load more")}
-        </button>
-      ) : null}
-    </div>
+    <FormSubmissionsTable rows={rows} loadMore={loadMore} error={error} nextCursor={nextCursor} loadingMore={loadingMore}
+      formatDate={formatDate} answerColumns={answerColumns} t={t} />
   );
 }

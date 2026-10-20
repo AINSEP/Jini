@@ -240,3 +240,31 @@ it('lets another host supply its own login, features, branding and footer', asyn
   await screen.findByRole('button', { name: 'Sign in' });
   expect(f.props.session.logout).toHaveBeenCalledWith({ apiBase: '/mock', workspace: { organizationId: 'org' } });
 });
+
+it('hands a session read failure to the host error slot with a working retry', async () => {
+  const f = fixture();
+  const failure = new Error('offline');
+  f.props.session.read = vi.fn().mockRejectedValueOnce(failure).mockResolvedValueOnce(null);
+  const sessionError = vi.fn(({ retry }: { readonly error: unknown; readonly retry: () => Promise<void> }) =>
+    <button onClick={() => { void retry(); }}>Host retry</button>);
+  render(<AdminShell {...f.props} slots={{ ...f.props.slots, sessionError }} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Host retry' }));
+  await screen.findByRole('button', { name: 'Sign in' });
+  expect(sessionError.mock.calls[0]?.[0].error).toBe(failure);
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('renders an empty authenticated layout when no panel resolves', async () => {
+  const f = fixture();
+  render(<AdminShell {...f.props} panels={[]} defaultPanelId="missing" />);
+  const main = await screen.findByRole('main');
+  expect(main).toBeEmptyDOMElement();
+  expect(main).not.toHaveAttribute('data-agent-page');
+  expect(screen.queryByRole('link', { current: 'page' })).toBeNull();
+});
+
+it('renders host overlays with the authenticated slot arguments', async () => {
+  const f = fixture();
+  render(<AdminShell {...f.props} slots={{ ...f.props.slots, overlays: ({ session }) => <p>Overlay for {session.user.username}</p> }} />);
+  expect(await screen.findByText('Overlay for operator')).toBeInTheDocument();
+});
