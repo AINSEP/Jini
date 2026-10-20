@@ -126,3 +126,18 @@ for (const [text, reason, attribute] of [
     assert.deepEqual(parsed.error, { reason, attribute });
   });
 }
+
+test("parseEmbedHtmlAttributes reads double-quoted, single-quoted, bare and boolean values", () => {
+  const { attributes } = parseEmbedHtmlAttributes(`data-a="1" data-b='2' data-c=3 muted`);
+  assert.deepEqual(attributes, { "data-a": "1", "data-b": "2", "data-c": "3", muted: "" });
+});
+
+test("parseEmbedHtmlAttributes names a mid-string malformed fragment without its surrounding whitespace", () => {
+  const { error } = parseEmbedHtmlAttributes(`data-a="1"  "  data-b="2"`);
+  assert.deepEqual(error, { reason: "malformed", attribute: '"' });
+});
+
+test("parseEmbedHtmlAttributes names a trailing malformed fragment without its leading whitespace", () => {
+  const { errors } = parseEmbedHtmlAttributes(`data-a="1"   "`);
+  assert.deepEqual(errors, [{ reason: "malformed", attribute: '"' }]);
+});
