@@ -92,6 +92,27 @@ export function classifyRunFailureForRetry(context: {
     context.sideEffects === undefined ? {} : { sideEffects: context.sideEffects });
 }
 
+async function closeFailedAcquisition(
+  { featureConnection, opened }: { featureConnection: SqliteDb | undefined; opened: readonly ClosableEventLog[] },
+  _optional: Record<string, never> = {},
+): Promise<void> {
+  // Every acquired handle is attempted even if another closer fails. Preserve the boot error.
+  try { featureConnection?.close(); } catch { /* Keep the boot failure. */ }
+  await Promise.allSettled(opened.map((log) => log.close?.({})));
+}
+
+function createKernelAgentRuntime(
+  { options }: { options: CreateJiniKernelBaseOptions },
+  _optional: Record<string, never> = {},
+): NativeAgentRuntime {
+  const agentRuntime = createNativeAgentRuntime({ env: options.agentExecutor?.hostEnv ?? process.env }, {
+    ...(options.agentExecutor?.runtimeState ? { state: options.agentExecutor.runtimeState } : {}),
+    ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codexDisablePlugins: options.agentExecutor.codexDisablePlugins } : {}),
+    ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { piGracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } : {}),
+  });
+  return agentRuntime;
+}
+
 /**
  * Opens every kernel-owned resource and rehydrates durable run history.
  *
@@ -150,17 +171,11 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     lifecycle = createRunLifecycle({ eventLog });
     await lifecycle.rehydrate({});
   } catch (error) {
-    // Every acquired handle is attempted even if another closer fails. Preserve the boot error.
-    try { featureConnection?.close(); } catch { /* Keep the boot failure. */ }
-    await Promise.allSettled(opened.map((log) => log.close?.({})));
+    await closeFailedAcquisition({ featureConnection, opened });
     throw error;
   }
 
-  const agentRuntime = createNativeAgentRuntime({ env: options.agentExecutor?.hostEnv ?? process.env }, {
-    ...(options.agentExecutor?.runtimeState ? { state: options.agentExecutor.runtimeState } : {}),
-    ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codexDisablePlugins: options.agentExecutor.codexDisablePlugins } : {}),
-    ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { piGracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } : {}),
-  });
+  const agentRuntime = createKernelAgentRuntime({ options });
   const agentExecutor = createAgentExecutor({ lifecycle }, {
     ...options.agentExecutor,
     runtimeState: agentRuntime.state,

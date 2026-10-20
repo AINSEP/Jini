@@ -44,6 +44,7 @@ import type {  DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootReso
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
 
 import { composeJiniKernel, type JiniKernelSecurity, type KernelBoundIds } from './compose-jini-kernel.js';
+import type { BuiltInFeatureOptions } from './builtin-features.js';
 import type { CapabilityId, JiniProfileId } from './feature.js';
 import { closeHttpServer, normalizeDaemonBindHost } from './host-bootstrap.js';
 
@@ -235,6 +236,77 @@ export interface LocalNodeDaemon {
   readonly activeFeatures: readonly string[];
 }
 
+type LocalPresetConfig = CreateLocalNodeDaemonConfig<readonly AnyPack[], string>;
+
+function localKernelOptions(
+  { config }: { config: LocalPresetConfig },
+  _optional: Record<string, never> = {},
+) {
+  return {
+    profile: config.profile ?? 'local-daemon-v1',
+    ...(config.capabilities === undefined ? {} : { capabilities: config.capabilities }),
+    ...(config.features === undefined ? {} : { features: config.features }),
+    packs: config.packs,
+    ...(config.bindings === undefined ? {} : { bindings: config.bindings }),
+    ...(config.toolRegistrations === undefined ? {} : { toolRegistrations: config.toolRegistrations }),
+  };
+}
+
+function localSecurity(
+  { config, host }: { config: LocalPresetConfig; host: string },
+  _optional: Record<string, never> = {},
+): JiniKernelSecurity {
+  return config.security
+    ? { ...config.security, host }
+    : {
+        mode: 'jini-local',
+        host,
+        apiToken: {
+          tokenEnvVar: config.apiToken?.tokenEnvVar ?? DEFAULT_TOKEN_ENV_VAR,
+          disableEnvVar: config.apiToken?.disableEnvVar ?? DEFAULT_DISABLE_ENV_VAR,
+        },
+      };
+}
+
+function localFeatureOptions(
+  { config, host, resolvedPortRef, xaiListenerRef, isShuttingDown, requestShutdown }: {
+    config: LocalPresetConfig;
+    host: string;
+    resolvedPortRef: { current: number };
+    xaiListenerRef: { current: OAuthCallbackListener | null };
+    isShuttingDown: () => boolean;
+    requestShutdown: () => void;
+  },
+  _optional: Record<string, never> = {},
+): BuiltInFeatureOptions {
+  return {
+    health: { getVersion: () => packageVersion, isShuttingDown },
+    runs: {
+      ...(config.onRunStarted === undefined ? {} : { onRunStarted: config.onRunStarted }),
+      ...(config.resolveRunInput === undefined ? {} : { resolveRunInput: config.resolveRunInput }),
+    },
+    ...(config.agentDetector === undefined ? {} : { agents: { detector: config.agentDetector } }),
+    hostTools: {
+      ...(config.resolveWorkspaceRoot === undefined ? {} : { resolveWorkspaceRoot: config.resolveWorkspaceRoot }),
+    },
+    terminal: {
+      ...(config.resolveWorkspaceRoot === undefined ? {} : { resolveWorkspaceRoot: config.resolveWorkspaceRoot }),
+    },
+    ...(config.resolveDelegatedPrincipal === undefined
+      ? {}
+      : { delegatedToolCalls: { resolvePrincipal: config.resolveDelegatedPrincipal } }),
+    xai: { listenerRef: xaiListenerRef },
+    daemonStatus: {
+      getVersion: () => packageVersion,
+      host,
+      getPort: () => resolvedPortRef.current,
+      dataDir: config.dataDir,
+      isShuttingDown,
+      requestShutdown,
+    },
+  };
+}
+
 /**
  * Boots a complete, runnable `@jini-ai/core` daemon process.
  *
@@ -308,60 +380,24 @@ export async function createLocalNodeDaemon(
     app,
     adapter,
     storage: { kind: 'sqlite', dataDir: config.dataDir, open: config.open },
-    profile: config.profile ?? 'local-daemon-v1',
-    ...(config.capabilities === undefined ? {} : { capabilities: config.capabilities }),
-    ...(config.features === undefined ? {} : { features: config.features }),
-    packs: config.packs,
-    ...(config.bindings === undefined ? {} : { bindings: config.bindings }),
-    ...(config.toolRegistrations === undefined ? {} : { toolRegistrations: config.toolRegistrations }),
-    security: config.security
-      ? { ...config.security, host }
-      : {
-          mode: 'jini-local',
-          host,
-          apiToken: {
-            tokenEnvVar: config.apiToken?.tokenEnvVar ?? DEFAULT_TOKEN_ENV_VAR,
-            disableEnvVar: config.apiToken?.disableEnvVar ?? DEFAULT_DISABLE_ENV_VAR,
-          },
-        },
+    ...localKernelOptions({ config }),
+    security: localSecurity({ config, host }),
     env,
     ...(config.agentExecutor ? { agentExecutor: config.agentExecutor } : {}),
-    featureOptions: {
-      health: { getVersion: () => packageVersion, isShuttingDown: () => shuttingDown },
-      runs: {
-        ...(config.onRunStarted === undefined ? {} : { onRunStarted: config.onRunStarted }),
-        ...(config.resolveRunInput === undefined ? {} : { resolveRunInput: config.resolveRunInput }),
+    featureOptions: localFeatureOptions({ config, host, resolvedPortRef, xaiListenerRef,
+      isShuttingDown: () => shuttingDown,
+      requestShutdown: () => {
+        // `POST /api/daemon/shutdown` answers before shutdown begins, so nothing downstream can
+        // ever await this promise. Dropping it with a bare `void` turned any shutdown failure
+        // into a process-level unhandled rejection — which on Node's default policy terminates
+        // the very process this was trying to shut down gracefully. Reported here instead; the
+        // rejection stays on `stopPromise`, so an explicit `stop()` caller still observes it.
+        void stop().catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.error('[@jini-ai/server] shutdown requested through POST /api/daemon/shutdown failed', error);
+        });
       },
-      ...(config.agentDetector === undefined ? {} : { agents: { detector: config.agentDetector } }),
-      hostTools: {
-        ...(config.resolveWorkspaceRoot === undefined ? {} : { resolveWorkspaceRoot: config.resolveWorkspaceRoot }),
-      },
-      terminal: {
-        ...(config.resolveWorkspaceRoot === undefined ? {} : { resolveWorkspaceRoot: config.resolveWorkspaceRoot }),
-      },
-      ...(config.resolveDelegatedPrincipal === undefined
-        ? {}
-        : { delegatedToolCalls: { resolvePrincipal: config.resolveDelegatedPrincipal } }),
-      xai: { listenerRef: xaiListenerRef },
-      daemonStatus: {
-        getVersion: () => packageVersion,
-        host,
-        getPort: () => resolvedPortRef.current,
-        dataDir: config.dataDir,
-        isShuttingDown: () => shuttingDown,
-        requestShutdown: () => {
-          // `POST /api/daemon/shutdown` answers before shutdown begins, so nothing downstream can
-          // ever await this promise. Dropping it with a bare `void` turned any shutdown failure
-          // into a process-level unhandled rejection — which on Node's default policy terminates
-          // the very process this was trying to shut down gracefully. Reported here instead; the
-          // rejection stays on `stopPromise`, so an explicit `stop()` caller still observes it.
-          void stop().catch((error: unknown) => {
-            // eslint-disable-next-line no-console
-            console.error('[@jini-ai/server] shutdown requested through POST /api/daemon/shutdown failed', error);
-          });
-        },
-      },
-    },
+    }),
     // Product extensions, then caller-pack routes — the historical position, between the locked
     // route families and the daemon-status routes.
     onAfterApiRoutes: (mountedApp, daemon, base) => {

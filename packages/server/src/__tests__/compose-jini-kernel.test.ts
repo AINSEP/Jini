@@ -725,3 +725,50 @@ it('rejects unknown security modes before any storage resource is read', async (
   // @ts-expect-error An unknown wire value is deliberately supplied to exercise runtime validation.
   await expect(composeJiniKernel(config)).rejects.toThrow('an explicit supported security mode is required');
 });
+
+
+describe('L039a composition phase pins', () => {
+  it.each(['host', 'jini-local', 'sidecar-strict'] as const)(
+    'registers tools, afterTools, probe, api, caller hook and status in order (%s)', async (mode) => {
+      const events: string[] = [];
+      const extraFeatures = (['probe', 'api', 'status'] as const).map((phase) => defineJiniFeature({
+        id: `pin-${phase}`, phase, provides: [],
+        compose: ({ kernel }) => ({
+          pack: definePack({ name: `pin-${phase}`, deps: [], services: () => ({}), }, {
+            tools: () => { events.push(`tools:${phase}`); return [makeTool(`pin.${phase}`)]; },
+            http: () => { events.push(`http:${phase}`); },
+          }),
+          afterTools: () => {
+            expect(kernel.registry.list({}).map(({ id }) => id)).toEqual(['pin.probe', 'pin.api', 'pin.status', 'pin.host', 'pin.caller']);
+            events.push(`after:${phase}`);
+          },
+        }),
+      }));
+      const pack = definePack({ name: 'pin-caller', deps: [], services: () => ({}) }, {
+        tools: () => [makeTool('pin.caller')],
+      });
+      await compose({ storage: { kind: 'memory' }, env: { PIN_TOKEN: 'secret' },
+        security: mode === 'sidecar-strict' ? { mode, host: '127.0.0.1', tokenEnvVar: 'PIN_TOKEN', exemptPaths: ['/api/callback'] }
+          : mode === 'jini-local' ? { mode, host: '127.0.0.1', apiToken: { tokenEnvVar: 'PIN_TOKEN', disableEnvVar: 'PIN_DISABLE' } } : { mode },
+        features: { runs: false, agents: false, delegatedToolCalls: false },
+        extraFeatures, packs: [pack], toolRegistrations: [makeTool('pin.host')],
+        onAfterApiRoutes: () => { events.push('caller'); },
+      });
+      expect(events).toEqual(['tools:probe', 'tools:api', 'tools:status', 'after:probe', 'after:api',
+        'after:status', 'http:probe', 'http:api', 'caller', 'http:status']);
+    },
+  );
+  it.each([true, false])('respects the host body-parser choice (%s)', async (installJsonBodyParser) => {
+    const app = express();
+    const use = vi.spyOn(app, 'use');
+    await compose({ app, storage: { kind: 'memory' }, security: { mode: 'host' }, installJsonBodyParser,
+      features: { runs: false, agents: false, delegatedToolCalls: false, health: false } });
+    expect(use.mock.calls.length).toBe(installJsonBodyParser ? 1 : 0);
+  });
+  it('rejects an unsupported security mode before invalid origin or activation config', async () => {
+    const config = { storage: { kind: 'memory' as const }, features: { typo: true },
+      env: { JINI_ALLOWED_ORIGINS: 'ftp://invalid' }, security: { mode: 'unknown' } };
+    await expect(compose(config as unknown as Parameters<typeof compose>[0]))
+      .rejects.toThrow('an explicit supported security mode is required');
+  });
+});

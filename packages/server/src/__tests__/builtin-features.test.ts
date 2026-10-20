@@ -1,3 +1,4 @@
+import { getAgentDef, type DetectedAgent } from '@jini-ai/agent-runtime';
 import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
@@ -8,7 +9,7 @@ import express, { type Express } from 'express';
 import { getRouteRegistrationInventory, installRouteRegistrationGuard, type AdapterContext } from '@jini-ai/http-kit';
 
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
-import { createBuiltInFeatures } from '../builtin-features.js';
+import { projectDetectedAgent, createBuiltInFeatures } from '../builtin-features.js';
 import { createJiniKernelBase } from '../kernel-base.js';
 
 /**
@@ -830,3 +831,28 @@ describe('agents feature — AgentExecutor compatibility filtering', () => {
 
 /** Every durable fixture uses the external host's installed SQLite driver. */
 function openSqlite(file: string, settings: Database.Options = {}) { return new Database(file, settings); }
+
+
+describe('L039a agent diagnostic projection pins', () => {
+  it.each([
+    { diagnostics: undefined }, { diagnostics: [] },
+    { diagnostics: [{ message: '' }] }, { diagnostics: [{ message: '' }, { message: 'later' }] },
+  ])(
+    'omits the diagnostic unless the first message is truthy (%j)', ({ diagnostics }) => {
+      const agent: DetectedAgent = {
+        ...getAgentDef({ id: 'codex' })!, available: true, models: [], modelsSource: 'fallback',
+        ...(diagnostics === undefined ? {} : { diagnostics: diagnostics.map(({ message }): NonNullable<DetectedAgent['diagnostics']>[number] => ({ reason: 'not-on-path', severity: 'warning', message })) }),
+      };
+      expect(projectDetectedAgent(agent)).not.toHaveProperty('diagnostic');
+    },
+  );
+  it('projects only the first diagnostic message and hides probe details', () => {
+    const agent: DetectedAgent = {
+      ...getAgentDef({ id: 'codex' })!, available: true, models: [], modelsSource: 'fallback',
+      diagnostics: [{ reason: 'not-on-path', severity: 'warning', message: 'first' }, { reason: 'not-on-path', severity: 'warning', message: 'second' }],
+    };
+    const summary = projectDetectedAgent(agent);
+    expect(summary.diagnostic).toBe('first');
+    expect(summary).not.toHaveProperty('diagnostics');
+  });
+});

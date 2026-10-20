@@ -1,3 +1,4 @@
+import * as KernelCompositionModule from '../compose-jini-kernel.js';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import net from 'node:net';
@@ -7,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DetectedAgent } from '@jini-ai/agent-runtime';
 import { definePack } from '@jini-ai/core';
 import { AgentExecutorToken } from '@jini-ai/daemon';
-import type { DaemonStatusResponse, RunStartContext } from '@jini-ai/daemon/http';
+import type { DaemonStatusResponse, RunStartContext, RunStartHandler } from '@jini-ai/daemon/http';
 import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-ai/sidecar';
 import * as SidecarModule from '@jini-ai/sidecar';
 import * as SqliteModule from '@jini-ai/daemon/store/event-log/sqlite';
@@ -1703,3 +1704,98 @@ describe('createLocalNodeDaemon', () => {
 
 /** Every durable fixture uses the external host's installed SQLite driver. */
 function openSqlite(file: string, settings: Database.Options = {}) { return new Database(file, settings); }
+
+
+describe('L039a preset option forwarding pins', () => {
+  it.each([false, true])('keeps default and host-supplied composition options distinct (%s)', async (supplied) => {
+    const composeSpy = vi.spyOn(KernelCompositionModule, 'composeJiniKernel');
+    const env: NodeJS.ProcessEnv = {};
+    const resolver = () => '/pin/workspace';
+    const principal = { id: 'pin-principal' };
+    const resolveDelegatedPrincipal = () => principal;
+    const onRunStarted = vi.fn<RunStartHandler>();
+    const resolveRunInput = vi.fn(() => ({ agentId: 'pin', prompt: 'pin', cwd: '/pin' }));
+    const agentDetector = vi.fn(async () => []);
+    const toolRegistrations = [{ descriptor: { id: 'pin.tool' }, handler: async () => 'ok', policy: { authorize: () => 'allow' as const } }];
+    try {
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir: makeTempDataDir(), packs: [], env,
+        discoveryFile: false,
+        ...(supplied ? { profile: 'agent-core-v1' as const, capabilities: { 'host:exec': true },
+          features: { terminal: true }, agentDetector, onRunStarted, resolveRunInput,
+          resolveWorkspaceRoot: resolver, resolveDelegatedPrincipal,
+          toolRegistrations, agentExecutor: { codexDisablePlugins: false, piGracefulShutdownMs: 0 },
+          security: { mode: 'sidecar-strict' as const, tokenEnvVar: 'PIN_TOKEN', exemptPaths: ['/api/pin'] },
+        } : {}),
+      });
+      daemonsToStop.push(daemon);
+      const forwarded = composeSpy.mock.calls[0]![0];
+      const featureOptions = forwarded.featureOptions!;
+      expect(forwarded.env).toBe(env);
+      expect(env.JINI_BIND_HOST).toBe('127.0.0.1');
+      expect(forwarded.profile).toBe(supplied ? 'agent-core-v1' : 'local-daemon-v1');
+      expect(featureOptions.runs).toEqual(supplied ? { onRunStarted, resolveRunInput } : {});
+      expect(featureOptions.hostTools).toEqual(supplied ? { resolveWorkspaceRoot: resolver } : {});
+      expect(featureOptions.terminal).toEqual(supplied ? { resolveWorkspaceRoot: resolver } : {});
+      if (supplied) {
+        expect(forwarded.capabilities).toEqual({ 'host:exec': true });
+        expect(forwarded.features).toEqual({ terminal: true });
+        expect(forwarded.toolRegistrations).toBe(toolRegistrations);
+        expect(forwarded.agentExecutor).toEqual({ codexDisablePlugins: false, piGracefulShutdownMs: 0 });
+        expect(featureOptions.agents!.detector).toBe(agentDetector);
+        expect(featureOptions.delegatedToolCalls!.resolvePrincipal).toBe(resolveDelegatedPrincipal);
+        expect(forwarded.security).toEqual({ mode: 'sidecar-strict', host: '127.0.0.1', tokenEnvVar: 'PIN_TOKEN', exemptPaths: ['/api/pin'] });
+      } else {
+        expect(forwarded).not.toHaveProperty('features');
+        expect(forwarded).not.toHaveProperty('capabilities');
+        expect(forwarded).not.toHaveProperty('toolRegistrations');
+        expect(forwarded).not.toHaveProperty('agentExecutor');
+        expect(forwarded.featureOptions).not.toHaveProperty('agents');
+        expect(forwarded.featureOptions).not.toHaveProperty('delegatedToolCalls');
+        expect(forwarded.security).toEqual({ mode: 'jini-local', host: '127.0.0.1', apiToken: {
+          tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH',
+        } });
+      }
+    } finally { composeSpy.mockRestore(); }
+  });
+});
+
+it('leaves a rejected cleanup continuation after a bind failure (reported, not fixed)', async () => {
+  const cleanupError = new Error('cleanup failed');
+  let observeCleanup: (error: unknown) => void = () => undefined;
+  const rejectedContinuation = new Promise<unknown>((resolve) => { observeCleanup = resolve; });
+  // Observe the discarded child promise at the injected port so the runner does not receive an
+  // unhandled rejection. Production currently drops this child after attaching its finally hook.
+  class ObservedCleanup extends Promise<void> {
+    override finally(onfinally?: (() => void) | null): Promise<void> {
+      const child = super.finally(onfinally);
+      void child.catch(observeCleanup);
+      return child;
+    }
+  }
+  const original = KernelCompositionModule.composeJiniKernel;
+  const composeSpy = vi.spyOn(KernelCompositionModule, 'composeJiniKernel').mockImplementation(async (config) => {
+    const kernel = await original(config);
+    return { ...kernel, close: () => new ObservedCleanup((_resolve, reject) => {
+      void kernel.close().then(() => reject(cleanupError), reject);
+    }) };
+  });
+  try {
+    await expect(createLocalNodeDaemon({ open: openSqlite, dataDir: makeTempDataDir(), packs: [],
+      env: {}, discoveryFile: false, port: -1, profile: 'agent-core-v1',
+    })).rejects.toThrow(/port/i);
+    await expect(rejectedContinuation).resolves.toBe(cleanupError);
+  } finally { composeSpy.mockRestore(); }
+});
+
+it('forwards host bindings and runs them before constructing caller services', async () => {
+  const events: string[] = [];
+  const pack = definePack({ name: 'pin-bindings', deps: [], services: () => {
+    events.push('services'); return {};
+  } });
+  const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir: makeTempDataDir(), packs: [pack],
+    env: {}, discoveryFile: false, profile: 'agent-core-v1',
+    bindings: (bound) => { events.push('bindings'); return bound; },
+  });
+  daemonsToStop.push(daemon);
+  expect(events).toEqual(['bindings', 'services']);
+});

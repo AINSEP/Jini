@@ -221,6 +221,14 @@ export function isExecutableDetectedAgent(agent: DetectedAgent): boolean {
   return def === null || isAgentExecutorSupported({ def });
 }
 
+function projectAgentDiagnostic(
+  { agent }: { agent: DetectedAgent },
+  _optional: Record<string, never> = {},
+): Pick<AgentSummary, 'diagnostic'> {
+  const diagnostic = agent.diagnostics?.[0]?.message;
+  return diagnostic ? { diagnostic } : {};
+}
+
 /** Projects a real `DetectedAgent` probe onto the HTTP summary shape. */
 export function projectDetectedAgent(agent: DetectedAgent): AgentSummary {
   return {
@@ -238,7 +246,7 @@ export function projectDetectedAgent(agent: DetectedAgent): AgentSummary {
       : {}),
     modelsSource: agent.modelsSource,
     ...(agent.supportsCustomModel !== undefined ? { supportsCustomModel: agent.supportsCustomModel } : {}),
-    ...(agent.diagnostics?.[0]?.message ? { diagnostic: agent.diagnostics[0].message } : {}),
+    ...projectAgentDiagnostic({ agent }),
   };
 }
 

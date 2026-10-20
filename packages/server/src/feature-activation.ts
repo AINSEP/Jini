@@ -91,16 +91,10 @@ function resolveGrants(input: FeatureActivationInput): Set<CapabilityId> {
   return granted;
 }
 
-/**
- * Resolves the composition's feature plan.
- *
- * @throws If an override names an unknown feature id, if an explicitly-enabled feature needs a
- * denied capability, if two catalogued features share an id, or if an active feature's `requires`
- * are not satisfied. Every one of these is a composition-time programming/config error that would
- * otherwise surface as a mysteriously missing (or mysteriously present) route at runtime.
- * @complexity O(f · c) in features and their declared capabilities.
- */
-export function resolveFeatureActivation(input: FeatureActivationInput): FeatureActivationPlan {
+function validateActivationConfig(
+  { input }: { input: FeatureActivationInput },
+  _optional: Record<string, never> = {},
+): Map<string, JiniFeature> {
   const byId = new Map<string, JiniFeature>();
   for (const feature of input.features) {
     if (byId.has(feature.id)) {
@@ -131,56 +125,57 @@ export function resolveFeatureActivation(input: FeatureActivationInput): Feature
     }
   }
 
-  const granted = resolveGrants(input);
-  const coreCapabilities = new Set<CapabilityId>(CORE_CAPABILITIES);
+  return byId;
+}
 
-  const active: ActiveFeatureRecord[] = [];
-  const inactive: InactiveFeatureRecord[] = [];
-  const denied = new Set<CapabilityId>();
+function selectFeature(
+  { feature, missing, explicit, profile }: {
+    feature: JiniFeature;
+    missing: readonly CapabilityId[];
+    explicit: boolean | undefined;
+    profile: JiniProfile;
+  },
+  _optional: Record<string, never> = {},
+): ActiveFeatureRecord | InactiveFeatureRecord {
+  const permitted = missing.length === 0;
 
-  for (const feature of input.features) {
-    const missing = feature.provides.filter((capability) => !granted.has(capability));
-    for (const capability of missing) denied.add(capability);
-
-    const permitted = missing.length === 0;
-    const explicit = overrides[feature.id];
-
-    // Rule 2 — an explicit enable never overrides a denied capability, in either direction.
-    if (explicit === true && !permitted) {
-      throw new Error(
-        `jini: feature "${feature.id}" was explicitly enabled but requires denied ` +
-          `capabilit${missing.length > 1 ? 'ies' : 'y'} [${missing.join(', ')}] under profile ` +
-          `"${input.profile.id}". Grant them via config.capabilities, or remove "${feature.id}" from config.features.`,
-      );
-    }
-
-    if (explicit === false) {
-      inactive.push({ id: feature.id, provides: feature.provides, reason: 'opt-out', deniedCapabilities: [] });
-      continue;
-    }
-    if (explicit === true) {
-      active.push({ id: feature.id, provides: feature.provides, reason: 'opt-in' });
-      continue;
-    }
-    if (!permitted) {
-      inactive.push({
-        id: feature.id,
-        provides: feature.provides,
-        reason: 'capability-denied',
-        deniedCapabilities: missing,
-      });
-      continue;
-    }
-
-    // Rule 3 — permitted is not active. `core-only` still requires the caller to name it.
-    const defaultOn =
-      input.profile.activation === 'all-permitted' ||
-      feature.provides.every((capability) => coreCapabilities.has(capability));
-
-    if (defaultOn) active.push({ id: feature.id, provides: feature.provides, reason: 'default' });
-    else inactive.push({ id: feature.id, provides: feature.provides, reason: 'not-default', deniedCapabilities: [] });
+  // Rule 2 — an explicit enable never overrides a denied capability, in either direction.
+  if (explicit === true && !permitted) {
+    throw new Error(
+      `jini: feature "${feature.id}" was explicitly enabled but requires denied ` +
+        `capabilit${missing.length > 1 ? 'ies' : 'y'} [${missing.join(', ')}] under profile ` +
+        `"${profile.id}". Grant them via config.capabilities, or remove "${feature.id}" from config.features.`,
+    );
   }
 
+  if (explicit === false) {
+    return { id: feature.id, provides: feature.provides, reason: 'opt-out', deniedCapabilities: [] };
+  }
+  if (explicit === true) {
+    return { id: feature.id, provides: feature.provides, reason: 'opt-in' };
+  }
+  if (!permitted) {
+    return {
+      id: feature.id,
+      provides: feature.provides,
+      reason: 'capability-denied',
+      deniedCapabilities: missing,
+    };
+  }
+
+  // Rule 3 — permitted is not active. `core-only` still requires the caller to name it.
+  const defaultOn =
+    profile.activation === 'all-permitted' ||
+    feature.provides.every((capability) => CORE_CAPABILITIES.includes(capability));
+
+  if (defaultOn) return { id: feature.id, provides: feature.provides, reason: 'default' };
+  return { id: feature.id, provides: feature.provides, reason: 'not-default', deniedCapabilities: [] };
+}
+
+function validateFeatureDependencies(
+  { active, byId }: { active: readonly ActiveFeatureRecord[]; byId: ReadonlyMap<string, JiniFeature> },
+  _optional: Record<string, never> = {},
+): void {
   // Rule 4 — dependencies validated after the full active set is known, so declaration order in the
   // catalog never decides whether a legitimate configuration is accepted.
   const activeIds = new Set(active.map((record) => record.id));
@@ -197,6 +192,37 @@ export function resolveFeatureActivation(input: FeatureActivationInput): Feature
       }
     }
   }
+}
+
+/**
+ * Resolves the composition's feature plan.
+ *
+ * @throws If an override names an unknown feature id, if an explicitly-enabled feature needs a
+ * denied capability, if two catalogued features share an id, or if an active feature's `requires`
+ * are not satisfied. Every one of these is a composition-time programming/config error that would
+ * otherwise surface as a mysteriously missing (or mysteriously present) route at runtime.
+ * @complexity O(f · c) in features and their declared capabilities.
+ */
+export function resolveFeatureActivation(input: FeatureActivationInput): FeatureActivationPlan {
+  const byId = validateActivationConfig({ input });
+  const overrides = input.featureOverrides ?? {};
+
+  const granted = resolveGrants(input);
+
+  const active: ActiveFeatureRecord[] = [];
+  const inactive: InactiveFeatureRecord[] = [];
+  const denied = new Set<CapabilityId>();
+
+  for (const feature of input.features) {
+    const missing = feature.provides.filter((capability) => !granted.has(capability));
+    for (const capability of missing) denied.add(capability);
+
+    const selection = selectFeature({ feature, missing, explicit: overrides[feature.id], profile: input.profile });
+    if ('deniedCapabilities' in selection) inactive.push(selection);
+    else active.push(selection);
+  }
+
+  validateFeatureDependencies({ active, byId });
 
   return {
     active,
