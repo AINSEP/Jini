@@ -41,6 +41,9 @@ type Schema = Record<string, unknown>;
  * that ordering a schema could publish, say, a `pattern` the parser silently ignores, and every
  * test using a conforming fixture would still pass.
  *
+ * Check order (pinned in `__tests__/agent-tool-input.pins.test.ts`): object shape, top-level
+ * keywords, `type`, `additionalProperties`, `properties`, `required`, then each property sub-schema.
+ *
  * @param schema - A tool's published `inputSchema`.
  * @throws {Error} If the schema, or any property sub-schema, uses an unimplemented keyword.
  * @complexity O(k) in the total keyword count across the schema and its property sub-schemas.
@@ -57,26 +60,44 @@ function assertSchemaIsInterpretable(schema: Schema): void {
   }
   const properties = Object.hasOwn(schema, "properties") ? schema.properties : {};
   if (!isSchemaObject(properties)) throw new Error("identity agent-tool schema properties must be an object");
-  const required = Object.hasOwn(schema, "required") ? schema.required : [];
-  if (!Array.isArray(required) || required.some(key => typeof key !== "string") || new Set(required).size !== required.length) {
+  assertRequiredIsDeclared(Object.hasOwn(schema, "required") ? schema.required : [], properties);
+  for (const [key, sub] of Object.entries(properties)) assertStringPropertySchema(key, sub);
+}
+
+/** `required` must be unique strings, each naming an OWN declared property. */
+function assertRequiredIsDeclared(required: unknown, properties: Schema): void {
+  if (!isUniqueStringArray(required)) {
     throw new Error("identity agent-tool schema required must be an array of unique strings");
   }
   for (const key of required) {
     if (!Object.hasOwn(properties, key)) throw new Error(`identity agent-tool schema requires undeclared property '${key}'`);
   }
-  for (const [key, sub] of Object.entries(properties)) {
-    if (!isSchemaObject(sub)) throw new Error(`identity agent-tool schema property '${key}' must be an object`);
-    assertKeywords(sub, STRING_KEYWORDS);
-    if (sub.type !== "string") {
-      throw new Error(`identity agent-tool schema declares non-string property '${key}' — this parser only implements string properties`);
-    }
-    if (Object.hasOwn(sub, "minLength") && (typeof sub.minLength !== "number" || !Number.isInteger(sub.minLength) || sub.minLength < 0)) {
-      throw new Error(`identity agent-tool schema minLength for '${key}' must be a nonnegative integer`);
-    }
+}
+
+function isUniqueStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(key => typeof key === "string") && new Set(value).size === value.length;
+}
+
+/** A property sub-schema must be a string schema whose optional `minLength` is a nonnegative integer. */
+function assertStringPropertySchema(key: string, sub: unknown): void {
+  if (!isSchemaObject(sub)) throw new Error(`identity agent-tool schema property '${key}' must be an object`);
+  assertKeywords(sub, STRING_KEYWORDS);
+  if (sub.type !== "string") {
+    throw new Error(`identity agent-tool schema declares non-string property '${key}' — this parser only implements string properties`);
+  }
+  if (Object.hasOwn(sub, "minLength") && !isNonNegativeInteger(sub.minLength)) {
+    throw new Error(`identity agent-tool schema minLength for '${key}' must be a nonnegative integer`);
   }
 }
 
-/** JSON Schema objects and keyword placement are checked before inspecting any input value. */
+function isNonNegativeInteger(value: unknown): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+/**
+ * JSON Schema objects and keyword placement are checked before inspecting any input value. The
+ * same "non-null, non-array object" test also decides whether an input is an object at all.
+ */
 function isSchemaObject(value: unknown): value is Schema {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -120,45 +141,51 @@ export function parseIdentityToolInput(required: {
   input: unknown;
 }): IdentityToolInputResult {
   const schema = required.schema as Schema;
+  // Also guarantees `type === "object"` and `additionalProperties === false`, read through the
+  // same property access used below, so neither needs re-checking here.
   assertSchemaIsInterpretable(schema);
 
-  if (schema.type !== "object") {
-    throw new Error(`identity agent-tool schema must be an object schema, got type '${String(schema.type)}'`);
-  }
-
   const { input } = required;
-  if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    return { ok: false, error: new Error("input must be an object") };
-  }
+  if (!isSchemaObject(input)) return rejected("input must be an object");
 
-  const record = input as Record<string, unknown>;
+  // Read through ordinary property access, exactly as before validation was split out — see the
+  // "inherited schema members (reported, not fixed)" pins for what that means for a prototype.
   const properties = (schema.properties ?? {}) as Record<string, Schema>;
+  const violation = findUnrecognizedKey(input, properties)
+    ?? findMissingRequiredKey(input, (schema.required as string[] | undefined) ?? []);
+  if (violation !== undefined) return rejected(violation);
 
-  if (schema.additionalProperties === false) {
-    for (const key of Object.keys(record)) {
-      if (!Object.hasOwn(properties, key)) {
-        return { ok: false, error: new Error(`'${key}' is not a recognized input key`) };
-      }
-    }
-  }
+  return extractStrings(input, properties);
+}
 
-  for (const key of (schema.required as string[] | undefined) ?? []) {
-    if (!Object.hasOwn(record, key) || record[key] === undefined) {
-      return { ok: false, error: new Error(`'${key}' is required`) };
-    }
-  }
+function rejected(message: string): IdentityToolInputResult {
+  return { ok: false, error: new Error(message) };
+}
 
+/** Own input keys only; a key inherited through the input's prototype is neither rejected nor read. */
+function findUnrecognizedKey(record: Schema, properties: Schema): string | undefined {
+  const key = Object.keys(record).find(candidate => !Object.hasOwn(properties, candidate));
+  return key === undefined ? undefined : `'${key}' is not a recognized input key`;
+}
+
+/** A required key present with the value `undefined` counts as missing. */
+function findMissingRequiredKey(record: Schema, requiredKeys: readonly string[]): string | undefined {
+  const key = requiredKeys.find(candidate => !Object.hasOwn(record, candidate) || record[candidate] === undefined);
+  return key === undefined ? undefined : `'${key}' is required`;
+}
+
+/** Extracts every present declared key, in declaration order, rejecting the first non-conforming value. */
+function extractStrings(record: Schema, properties: Record<string, Schema>): IdentityToolInputResult {
   const value: Record<string, string> = {};
   for (const [key, sub] of Object.entries(properties)) {
     if (!Object.hasOwn(record, key)) continue;
 
     const candidate = record[key];
-    if (typeof candidate !== "string") {
-      return { ok: false, error: new Error(`'${key}' must be a string, received ${describeType(candidate)}`) };
-    }
+    if (typeof candidate !== "string") return rejected(`'${key}' must be a string, received ${describeType(candidate)}`);
     if (typeof sub.minLength === "number" && Array.from(candidate).length < sub.minLength) {
-      return { ok: false, error: new Error(`'${key}' must contain at least ${sub.minLength} Unicode code point(s)`) };
+      return rejected(`'${key}' must contain at least ${sub.minLength} Unicode code point(s)`);
     }
+    // defineProperty keeps a `__proto__` key as plain own data rather than invoking the setter.
     Object.defineProperty(value, key, { value: candidate, enumerable: true, writable: true, configurable: true });
   }
 
