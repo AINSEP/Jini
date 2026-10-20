@@ -5,8 +5,9 @@
  * It exists because a desktop host cannot register a fixed HTTPS callback; the authorization
  * server sends the browser back to `http://127.0.0.1:<port>/callback` instead. The listener is the
  * only part of the grant that faces other local processes and web pages, so it is deliberately
- * narrow: one bound address, a pinned Host, one consumed callback, bounded headers, no body,
- * a declared-field allowlist and a static close page that never echoes the request.
+ * narrow: one bound address, a pinned Host, one consumed callback (a wrong-state request does not
+ * consume it, up to a bound), bounded headers, no body, a declared-field allowlist and a static
+ * close page that never echoes the request.
  *
  * Starting is separate from arming because the state is minted by `beginAuthorizationCode`,
  * which itself needs this listener's redirect URI first.
@@ -28,6 +29,11 @@ const CALLBACK_PATH = '/callback';
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_HEADER_BYTES = 16 * 1024;
 const MAX_HEADER_COUNT = 64;
+/**
+ * Wrong-state requests answered before the listener gives up. The state has 256 bits, so letting
+ * a mismatch pass costs no guessing resistance; the bound only stops endless local noise.
+ */
+const MAX_WRONG_STATE_REQUESTS = 16;
 
 /** Timer port so tests drive expiry without sleeping; `after` returns its own cancellation. */
 export interface LoopbackReceiverTimers {
@@ -94,6 +100,21 @@ function hasBody(req: IncomingMessage): boolean {
     return req.headers['transfer-encoding'] !== undefined || (req.headers['content-length'] ?? '0') !== '0';
 }
 
+type CallbackOutcome = { value: LoopbackAuthorizationResult } | { error: OAuthError };
+
+function readOutcome(requiredArgs: Parameters<typeof readLoopbackCallback>[0]): CallbackOutcome {
+    try {
+        return { value: readLoopbackCallback(requiredArgs) };
+    } catch (error) {
+        return { error: error as OAuthError };
+    }
+}
+
+/** `readLoopbackCallback` checks state before anything else and is the only source of this code here. */
+function isWrongState(outcome: CallbackOutcome): boolean {
+    return 'error' in outcome && outcome.error.code === 'OAUTH_INVALID_STATE';
+}
+
 function reply(res: ServerResponse, status: number, page: string): Promise<void> {
     return new Promise(resolve => { res.writeHead(status, CLOSE_PAGE_HEADERS).end(page, resolve); });
 }
@@ -114,6 +135,7 @@ export async function startLoopbackAuthorizationReceiver(_requiredArgs: OAuthEmp
     let expectedState: string | undefined;
     let done = false;
     let consumed = false;
+    let wrongStateRequests = 0;
     let settle!: (outcome: { value: LoopbackAuthorizationResult } | { error: OAuthError }) => void;
     const result = new Promise<LoopbackAuthorizationResult>((resolve, reject) => {
         settle = outcome => ('value' in outcome ? resolve(outcome.value) : reject(outcome.error));
@@ -148,14 +170,17 @@ export async function startLoopbackAuthorizationReceiver(_requiredArgs: OAuthEmp
             void reply(res, route.status, FAILED_PAGE);
             return;
         }
-        // Consume before any check: whatever this request says, it is the attempt's one callback.
-        consumed = true;
-        let outcome: { value: LoopbackAuthorizationResult } | { error: OAuthError };
-        try {
-            outcome = { value: readLoopbackCallback({ query: route.query, expectedState: expectedState!, callbackFields }) };
-        } catch (error) {
-            outcome = { error: error as OAuthError };
+        const outcome = readOutcome({ query: route.query, expectedState: expectedState!, callbackFields });
+        // Not this attempt's callback (a local process or a page probing ports): answer it and keep
+        // the slot armed, so it cannot end the sign-in; the bound and the timeout still close it.
+        wrongStateRequests += isWrongState(outcome) ? 1 : 0;
+        if (isWrongState(outcome) && wrongStateRequests < MAX_WRONG_STATE_REQUESTS) {
+            void reply(res, 400, FAILED_PAGE);
+            return;
         }
+        // Consumed synchronously with the state check: a request already pipelined behind this
+        // one finds the slot taken and is never read as a callback.
+        consumed = true;
         void reply(res, 'value' in outcome ? 200 : 400, 'value' in outcome ? DONE_PAGE : FAILED_PAGE).then(() => finish(outcome));
     });
 
