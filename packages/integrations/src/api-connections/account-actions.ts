@@ -22,9 +22,18 @@ export interface ApiConnectionDisconnectResult extends ApiConnectionStatusView {
   readonly remoteRevocation: ApiConnectionRemoteRevocation;
 }
 
+export interface ApiConnectionSwitchResult extends ApiConnectionStatusView {
+  /**
+   * The previous account's grant is left at the provider: revoking it could cut off the same
+   * account connected elsewhere through the same client. Hosts say so and link the provider's
+   * account-access page; the local copy of its tokens is gone.
+   */
+  readonly previousAccountRevocation: 'not-attempted';
+}
+
 function switchNotStaged(): ApiConnectionError {
   return new ApiConnectionError({ code: 'switch-not-staged',
-    message: 'There is no account switch waiting for your confirmation, or it expired. Start the switch again.' });
+    message: 'There is no account switch waiting for your confirmation, or it expired. Cancel the switch and start it again.' });
 }
 
 function stagedSwitchUsable(record: ApiConnectionRecord, actorId: string, nowMs: number): boolean {
@@ -33,23 +42,35 @@ function stagedSwitchUsable(record: ApiConnectionRecord, actorId: string, nowMs:
     && Date.parse(staged.expiresAt) > nowMs;
 }
 
-/** Revoke a stored credential through the plugin hook; `confirmed` only when the hook returned normally. */
-async function revokeCredential(deps: ApiConnectionServiceDeps, key: string): Promise<ApiConnectionRemoteRevocation> {
-  const tokens = await deps.tokens.load({ key });
+/**
+ * Revoke the credential stored under `key` through the plugin hook and delete it only when the
+ * hook returned. The read ignores the generation fence: a disconnect has already disabled the
+ * credential, and these tokens go to the revoke hook only.
+ */
+async function revokeStoredCredential(deps: ApiConnectionServiceDeps, key: string): Promise<ApiConnectionRemoteRevocation> {
+  const tokens = await deps.tokens.loadForRevocation({ key });
   if (tokens === null) return 'not-needed';
   try {
     await deps.hooks.revoke({ token: tokens.refreshToken ?? tokens.accessToken });
-    return 'confirmed';
   } catch {
     // The hook's error may echo provider bodies; the outcome, not the detail, is what callers get.
+    // The credential stays (disabled) so a retry can still revoke the grant.
     return 'pending';
   }
+  await deps.tokens.delete({ key });
+  return 'confirmed';
+}
+
+/** One outcome for several credentials: any pending wins, then any confirmed. */
+function combineRevocations(outcomes: readonly ApiConnectionRemoteRevocation[]): ApiConnectionRemoteRevocation {
+  if (outcomes.includes('pending')) return 'pending';
+  return outcomes.includes('confirmed') ? 'confirmed' : 'not-needed';
 }
 
 export async function confirmSwitchAccount(
   deps: ApiConnectionServiceDeps,
   requiredArgs: { readonly connectionRef: string; readonly actorId: string },
-): Promise<ApiConnectionStatusView> {
+): Promise<ApiConnectionSwitchResult> {
   const record = await loadOwnedRecord(deps, requiredArgs);
   if (!stagedSwitchUsable(record, requiredArgs.actorId, deps.clock.nowMs())) throw switchNotStaged();
   const stagedKey = stagedTokenKey({ key: record.key });
@@ -58,41 +79,40 @@ export async function confirmSwitchAccount(
   const staged = record.staged!;
   const updated = await installCredential(deps, { current: record, tokens, account: staged.account, grantedScopes: staged.grantedScopes });
   await deps.tokens.delete({ key: stagedKey });
-  return toStatusView(updated);
+  return { ...toStatusView(updated), previousAccountRevocation: 'not-attempted' };
 }
 
-/** Drop a staged switch; its tokens are revoked best-effort because the person consented to them. */
+/**
+ * Drop a staged switch, revoking its tokens because the person consented to them. When the
+ * provider does not confirm, the switch stays staged (still confirmable) and cancelling again retries.
+ */
 export async function cancelSwitchAccount(
   deps: ApiConnectionServiceDeps,
   requiredArgs: { readonly connectionRef: string },
 ): Promise<ApiConnectionDisconnectResult> {
   const record = await loadOwnedRecord(deps, requiredArgs);
-  const stagedKey = stagedTokenKey({ key: record.key });
-  const remoteRevocation = await revokeCredential(deps, stagedKey);
-  await deps.tokens.delete({ key: stagedKey });
-  const updated = record.staged === null ? record : await writeRecord(deps, record, { staged: null });
+  // Without a staged record the slot can only hold a confirmed switch's copy of the live grant
+  // (or a credential a pending disconnect owns): revoking it here would cut off the live account.
+  if (record.staged === null) return { ...toStatusView(record), remoteRevocation: 'not-needed' };
+  const remoteRevocation = await revokeStoredCredential(deps, stagedTokenKey({ key: record.key }));
+  const updated = remoteRevocation === 'pending' ? record : await writeRecord(deps, record, { staged: null });
   return { ...toStatusView(updated), remoteRevocation };
 }
 
-/** Disconnect and revoke; call again to retry a `pending` remote revocation. */
+/** Disconnect and revoke the live and any staged credential; call again to retry a `pending` revocation. */
 export async function disconnectApiConnection(
   deps: ApiConnectionServiceDeps,
   requiredArgs: { readonly connectionRef: string },
 ): Promise<ApiConnectionDisconnectResult> {
   const record = await loadOwnedRecord(deps, requiredArgs);
-  // Stop use before any network call: no token is served once the generation moves.
+  // Stop use before any network call: no token is served or refreshed once the generation moves.
   const stopped = record.status === 'revocation-pending' ? record
     : await writeRecord(deps, record, { status: 'revocation-pending', generation: record.generation + 1, staged: null });
-  if (record.staged !== null) await cancelStagedTokens(deps, record.key);
-  const remoteRevocation = await revokeCredential(deps, record.key);
+  const remoteRevocation = combineRevocations([
+    await revokeStoredCredential(deps, record.key),
+    await revokeStoredCredential(deps, stagedTokenKey({ key: record.key })),
+  ]);
   if (remoteRevocation === 'pending') return { ...toStatusView(stopped), remoteRevocation };
-  await deps.tokens.delete({ key: record.key });
   const cleared = await writeRecord(deps, stopped, { status: 'disconnected', account: null, grantedScopes: [] });
   return { ...toStatusView(cleared), remoteRevocation };
-}
-
-async function cancelStagedTokens(deps: ApiConnectionServiceDeps, key: string): Promise<void> {
-  const stagedKey = stagedTokenKey({ key });
-  await revokeCredential(deps, stagedKey);
-  await deps.tokens.delete({ key: stagedKey });
 }

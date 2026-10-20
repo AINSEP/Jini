@@ -43,6 +43,11 @@ function assertStartAllowed(record: ApiConnectionRecord | null, intent: ApiConne
     throw new ApiConnectionError({ code: 'revocation-pending',
       message: 'This connection is disconnected locally but remote revocation is still pending. Retry disconnecting first.' });
   }
+  // A new sign-in would overwrite (switch) or orphan (connect) the staged credential without revoking it.
+  if (record != null && record.staged !== null) {
+    throw new ApiConnectionError({ code: 'switch-in-progress',
+      message: 'An account switch is waiting for confirmation. Confirm it or cancel it before signing in again.' });
+  }
   if (intent === 'switch-account' && (record === null || record.account === null)) {
     throw new ApiConnectionError({ code: 'not-connected', message: 'There is no connected account to switch from. Connect an account first.' });
   }

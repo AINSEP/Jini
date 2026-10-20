@@ -24,16 +24,21 @@ error mapping, code exchange), `createTokenRefresher` and `refreshAccessToken`.
 
 Ports (`ports.ts`), all injected:
 
-- `ApiConnectionTokenStore = OAuthTokenStore & { install({ key, tokens, generation }), delete({ key }) }` —
+- `ApiConnectionTokenStore = OAuthTokenStore & { install({ key, tokens, generation }), loadForRevocation({ key }), delete({ key }) }` —
   secret storage (a vault). `persist` is the refresher's write and may require the store's refresh
   lease; `install` is the sign-in / switch write: no lease, refused once the live generation differs
-  from `generation` or a newer generation's tokens are stored. The bundled vault token store
-  (`createVaultOAuthTokenStore`) implements both, so a host needs no lease wrapper of its own.
+  from `generation` or a newer generation's tokens are stored. `load` returns null for tokens of an
+  older generation (that is what disables a credential on disconnect); `loadForRevocation` returns
+  them anyway, owner-checked, because only that disabled credential can still revoke the grant. The
+  engine hands its result to the revoke hook and nothing else; never wire it into a refresher, tool
+  or host read path. The bundled vault token store (`createVaultOAuthTokenStore`) implements all of
+  them, so a host needs no wrapper of its own.
 - `ApiConnectionRecordStore` — non-secret metadata: `read`, `compareAndSet({ key, expectedRevision, record })`,
   `putAttempt`, `takeAttempt` (atomic consume-once). Attempts hold a short-lived PKCE verifier:
   keep them out of logs and exports.
 - `ApiConnectionHooks` (the plugin) — `resolveScopes({ scopeSetIds })`, `readAccount({ accessToken })`,
-  `revoke({ token })` (throw unless the provider confirmed).
+  `revoke({ token })` (throw unless the provider confirmed; a retry may resend a token the provider
+  already revoked, so treat "token already invalid" as success).
 
 ## Client kind vs auth method
 
@@ -67,11 +72,22 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
 - **Switch account** (`intent: 'switch-account'`) stages the new tokens and identity; nothing
   changes until the same actor calls `confirmSwitchAccount`. Bindings that froze an account pass
   `getAccessToken({ connectionRef }, { expectedAccountId })` and get `account-changed` instead of
-  silently using the new account.
-- **Disconnect** stops use first (new generation, `revocation-pending`), calls the revoke hook,
-  and only on success deletes local tokens (`disconnected`, `remoteRevocation: 'confirmed'`). On
-  failure it stays `revocation-pending` with the disabled credential kept; calling `disconnect`
-  again retries. A sign-in is refused while revocation is pending.
+  silently using the new account. While a switch is staged every new sign-in is refused
+  (`switch-in-progress`), so a consented staged credential is never overwritten or orphaned
+  unrevoked; the record claims the staged slot before its tokens are written.
+- **Confirmed switch** returns `previousAccountRevocation: 'not-attempted'`: the previous account's
+  grant is left at the provider (revoking it could cut off the same account connected elsewhere
+  through the same client) and its local tokens are replaced. Hosts say so and link the provider's
+  account-access page. A same-account reconnect never revokes either: the new tokens share the grant.
+- **Cancel switch** revokes the staged credential; when the provider does not confirm, the switch
+  stays staged (`remoteRevocation: 'pending'`) and cancelling again retries.
+- **Disconnect** stops use first (new generation, `revocation-pending`: no token is served or
+  refreshed from then on), then revokes the live credential and any staged one through the hook,
+  deleting each only after the hook returned. All confirmed (or nothing stored) → `disconnected`.
+  Any failure → stays `revocation-pending` with the disabled credential kept, `remoteRevocation:
+  'pending'` (show "Disconnected locally; revocation pending" and the provider's account-access
+  page); calling `disconnect` again retries. `not-needed` means no credential was stored. A sign-in
+  is refused while revocation is pending.
 - **Access tokens** are served only for `connected` records; a rejected refresh moves the record
   to `reconnect-required`.
 
