@@ -81,31 +81,40 @@ export function parseAdminSurfacesFile(required: { readonly raw: string }, _opti
   let value: unknown;
   try { value = JSON.parse(required.raw); } catch { return { ok: false, reason: 'not valid JSON' }; }
   if (!isPlainObject(value) || value.schemaVersion !== 1) return { ok: false, reason: 'schemaVersion must be 1' };
-  const surfaces = value.surfaces;
-  if (!Array.isArray(surfaces) || surfaces.length > MAX_SURFACES) return { ok: false, reason: `surfaces must be an array of at most ${MAX_SURFACES}` };
+  const descriptors = parseSurfaces(value.surfaces);
+  return typeof descriptors === 'string' ? { ok: false, reason: descriptors } : { ok: true, descriptors };
+}
+
+function parseSurfaces(surfaces: unknown): Parsed<readonly AdminSurfaceDescriptor[]> {
+  if (!Array.isArray(surfaces) || surfaces.length > MAX_SURFACES) return `surfaces must be an array of at most ${MAX_SURFACES}`;
   const descriptors: AdminSurfaceDescriptor[] = [];
   for (const [index, entry] of surfaces.entries()) {
     const parsed = parseSurface(entry, `surfaces[${index}]`);
-    if (typeof parsed === 'string') return { ok: false, reason: parsed };
-    if (descriptors.some((seen) => seen.id === parsed.id)) return { ok: false, reason: `surfaces[${index}].id '${parsed.id}' is declared twice` };
+    if (typeof parsed === 'string') return parsed;
+    if (descriptors.some((seen) => seen.id === parsed.id)) return `surfaces[${index}].id '${parsed.id}' is declared twice`;
     descriptors.push(parsed);
   }
-  return { ok: true, descriptors };
+  return descriptors;
 }
 
 function parseSurface(entry: unknown, at: string): Parsed<AdminSurfaceDescriptor> {
   if (!isPlainObject(entry)) return `${at} must be an object`;
-  const { id, title, entry: html } = entry;
-  if (!isId(id)) return `${at}.id must be a lowercase hyphenated id`;
-  if (typeof title !== 'string' || !title.trim() || title.length > MAX_TITLE_LENGTH) return `${at}.title must be a non-empty string of at most ${MAX_TITLE_LENGTH} characters`;
-  if (!isContainedAdminSurfacePath({ value: html, extensions: ['.html'] })) return `${at}.entry must be a plain relative path ending in .html`;
+  const identity = parseIdentity(entry, at);
+  if (typeof identity === 'string') return identity;
   const files = parseFiles(entry.files ?? [], at);
   if (typeof files === 'string') return files;
   const actions = parseActions(entry.actions ?? [], at);
   if (typeof actions === 'string') return actions;
   const csp = parseCsp(entry.csp ?? {}, at);
-  if (typeof csp === 'string') return csp;
-  return { id, title, entry: html as string, files, actions, csp };
+  return typeof csp === 'string' ? csp : { ...identity, files, actions, csp };
+}
+
+function parseIdentity(entry: Entry, at: string): Parsed<Pick<AdminSurfaceDescriptor, 'id' | 'title' | 'entry'>> {
+  const { id, title, entry: html } = entry;
+  if (!isId(id)) return `${at}.id must be a lowercase hyphenated id`;
+  if (typeof title !== 'string' || !title.trim() || title.length > MAX_TITLE_LENGTH) return `${at}.title must be a non-empty string of at most ${MAX_TITLE_LENGTH} characters`;
+  if (!isContainedAdminSurfacePath({ value: html, extensions: ['.html'] })) return `${at}.entry must be a plain relative path ending in .html`;
+  return { id, title, entry: html as string };
 }
 
 function parseFiles(value: unknown, at: string): Parsed<readonly string[]> {

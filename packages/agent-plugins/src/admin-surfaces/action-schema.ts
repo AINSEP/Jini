@@ -69,14 +69,15 @@ function checkObject(schema: SchemaNode, depth: number): string | null {
   const properties = schema.properties ?? {};
   if (!isPlainObject(properties)) return 'properties must be an object';
   if (schema.additionalProperties !== undefined && schema.additionalProperties !== false) return 'additionalProperties may only be false (objects are closed)';
-  const required = schema.required ?? [];
-  if (!Array.isArray(required) || !required.every((key) => typeof key === 'string' && Object.hasOwn(properties, key))) return 'required must list declared properties';
+  if (!listsDeclaredKeys(schema.required ?? [], properties)) return 'required must list declared properties';
   for (const [key, child] of Object.entries(properties)) {
     const reason = checkAdminSurfaceActionSchema({ schema: child }, { depth: depth + 1 });
     if (reason !== null) return `property '${key}' ${reason}`;
   }
   return null;
 }
+
+const listsDeclaredKeys = (required: unknown, properties: SchemaNode) => Array.isArray(required) && required.every((key) => typeof key === 'string' && Object.hasOwn(properties, key));
 
 function checkArray(schema: SchemaNode, depth: number): string | null {
   if (!isCount(schema.maxItems)) return 'maxItems must be a non-negative integer';
@@ -97,16 +98,8 @@ function checkString(schema: SchemaNode): string | null {
  * @complexity O(v) values visited.
  */
 export function validateAdminSurfaceActionValue(required: { readonly schema: AdminSurfaceActionSchema; readonly value: unknown }, optional: { readonly path?: string } = {}): string | null {
-  const { schema, value } = required;
-  const path = optional.path ?? '$';
-  switch (schema.type) {
-    case 'object': return validateObject(schema, value, path);
-    case 'array': return validateArray(schema, value, path);
-    case 'string': return validateString(schema, value, path);
-    case 'boolean': return typeof value === 'boolean' ? null : `${path} must be a boolean`;
-    case 'null': return value === null ? null : `${path} must be null`;
-    default: return validateNumber(schema, value, path);
-  }
+  const validate = VALIDATORS[required.schema.type] as (schema: AdminSurfaceActionSchema, value: unknown, path: string) => string | null;
+  return validate(required.schema, required.value, optional.path ?? '$');
 }
 
 function validateObject(schema: Extract<AdminSurfaceActionSchema, { type: 'object' }>, value: unknown, path: string): string | null {
@@ -142,5 +135,18 @@ function validateString(schema: Extract<AdminSurfaceActionSchema, { type: 'strin
 function validateNumber(schema: Extract<AdminSurfaceActionSchema, { type: 'number' | 'integer' }>, value: unknown, path: string): string | null {
   const ok = typeof value === 'number' && Number.isFinite(value) && (schema.type === 'number' || Number.isInteger(value));
   if (!ok) return `${path} must be ${schema.type === 'integer' ? 'an integer' : 'a number'}`;
-  return value >= (schema.minimum ?? -Infinity) && value <= (schema.maximum ?? Infinity) ? null : `${path} is out of range`;
+  return inRange(value, schema.minimum, schema.maximum) ? null : `${path} is out of range`;
 }
+
+const inRange = (value: number, minimum: number | undefined, maximum: number | undefined) => value >= (minimum ?? -Infinity) && value <= (maximum ?? Infinity);
+
+/** One validator per declared `type`; the schema was checked at parse time, so the lookup always hits. */
+const VALIDATORS: { readonly [T in AdminSurfaceActionSchema['type']]: (schema: Extract<AdminSurfaceActionSchema, { type: T }>, value: unknown, path: string) => string | null } = {
+  object: validateObject,
+  array: validateArray,
+  string: validateString,
+  number: validateNumber,
+  integer: validateNumber,
+  boolean: (_schema, value, path) => (typeof value === 'boolean' ? null : `${path} must be a boolean`),
+  null: (_schema, value, path) => (value === null ? null : `${path} must be null`),
+};

@@ -43,8 +43,12 @@ const MAX_PAYLOAD_CHARS = 64 * 1024;
 function isRequestEnvelope(data: unknown): data is AdminSurfaceActionRequest {
   if (typeof data !== 'object' || data === null) return false;
   const message = data as Readonly<Record<string, unknown>>;
-  return message.protocol === ADMIN_SURFACE_PROTOCOL && message.version === ADMIN_SURFACE_PROTOCOL_VERSION && message.kind === 'action-request'
-    && typeof message.mountId === 'string' && typeof message.requestId === 'string' && REQUEST_ID_PATTERN.test(message.requestId)
+  const isProtocol = message.protocol === ADMIN_SURFACE_PROTOCOL && message.version === ADMIN_SURFACE_PROTOCOL_VERSION && message.kind === 'action-request';
+  return isProtocol && hasRequestFields(message);
+}
+
+function hasRequestFields(message: Readonly<Record<string, unknown>>): boolean {
+  return typeof message.mountId === 'string' && typeof message.requestId === 'string' && REQUEST_ID_PATTERN.test(message.requestId)
     && typeof message.action === 'string' && Object.hasOwn(message, 'payload');
 }
 
