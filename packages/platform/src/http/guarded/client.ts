@@ -1,6 +1,6 @@
 // Policy refusals use EgressRefusedError; DNS, connection and transport failures retain their
 // own errors because they are operational failures, not decisions that a different URL fixes.
-import { isPrivateAddress, expandIpv6 } from "../../net/address.js";
+import { classifyIpAddress } from "../../net/address.js";
 import { FetchTimeoutError } from "../../fetch-with-timeout.js";
 import { isIP } from "node:net";
 
@@ -11,34 +11,9 @@ import type { DnsResolver, GuardedHttpRequired } from "./ports.js";
 import type { HttpRequest, HttpResponse, RequestRedirect } from "@jini-ai/core/primitives";
 import type { PinnedPeer } from "./types.js";
 
-export type AddressClass = "public" | "private" | "loopback" | "link-local" | "reserved";
+export type { AddressClass } from "../../net/address.js";
 /** Uses the canonical net address validator; labels preserve the guarded refusal contract. */
-export function classifyAddress({ ip }: { ip: string }): AddressClass {
-  if (!isPrivateAddress({ address: ip })) {
-
-    if (ip.toLowerCase().startsWith("::0.")) return "reserved";
-    return "public";
-  }
-  if (isIP(ip) === 6) {
-    const g = expandIpv6({ address: ip })!;
-    if (g.slice(0, 5).every(n => n === 0) && g[5] === 0xffff) {
-      return classifyAddress({ ip: [g[6]! >> 8, g[6]! & 255, g[7]! >> 8, g[7]! & 255].join(".") });
-    }
-    if (g.slice(0, 7).every(n => n === 0) && g[7] === 1) return "loopback";
-    if ((g[0]! & 0xffc0) === 0xfe80) return "link-local";
-    if ((g[0]! & 0xfe00) === 0xfc00) return "private";
-    return "reserved";
-  }
-  if (isIP(ip) !== 4) return "reserved";
-  const [a,b] = ip.split(".").map(Number);
-  if (a === 127) return "loopback";
-  // This range includes the cloud metadata address 169.254.169.254.
-  if (a === 169 && b === 254) return "link-local";
-  if (a === 0 || a! >= 224) return "reserved";
-  // The remaining blocked IPv4 ranges include RFC 6598 shared carrier space (100.64.0.0/10):
-  // it is not globally routable and belongs with RFC 1918 private ranges for egress decisions.
-  return "private";
-}
+export const classifyAddress = classifyIpAddress;
 const CROSS_ORIGIN_HEADERS = new Set(["accept", "accept-language", "user-agent"]);
 
 // HTTP header names are case-insensitive; preserve the caller's explicit User-Agent in any casing.

@@ -186,7 +186,7 @@ test("classifyAddress: IPv6 loopback and unspecified are exact single addresses,
     assert.equal(classifyAddress({ ip: "::" }), "reserved"); // unspecified address
     assert.equal(classifyAddress({ ip: "::0" }), "reserved");
     assert.equal(classifyAddress({ ip: "::0.0.0.0" }), "reserved"); // deprecated IPv4-compatible notation
-    assert.equal(classifyAddress({ ip: "::2" }), "public"); // one past unspecified/loopback — not special
+    assert.equal(classifyAddress({ ip: "::2" }), "reserved"); // compatible 0.0.0.2 must match its dotted spelling
 });
 test("classifyAddress: IPv6 link-local fe80::/10 boundaries are exact, not off-by-one", () => {
     assert.equal(classifyAddress({ ip: "fe7f::1" }), "public"); // just below the link-local block
@@ -224,15 +224,24 @@ test("classifyAddress: IPv4-mapped IPv6 normalizes regardless of ::-compression,
     assert.equal(classifyAddress({ ip: "0:0:0:0:0:ffff:7f00:1" }), "loopback"); // fully expanded, hex tail
     assert.equal(classifyAddress({ ip: "0:0:0:0:0:ffff:127.0.0.1" }), "loopback"); // fully expanded, dotted tail
 });
-test("classifyAddress: a near-miss IPv6 literal that merely resembles a mapped address is NOT force-mapped", () => {
+test("classifyAddress: translated IPv6 has a distinct prefix and still classifies its embedded IPv4", () => {
     // `::ffff:0:7f00:1` looks superficially like another spelling of `::ffff:7f00:1` (127.0.0.1
     // mapped), but per RFC 4291 group expansion it is a genuinely different 128-bit value: the
     // explicit "0" group after "ffff" pushes "ffff" itself to group index 4, not the index-5 position
-    // the ::ffff:0:0/96 prefix requires. Blindly pattern-matching on the "::ffff:" substring would
-    // wrongly force-map this to 127.0.0.1; the group-based parser must reject it and fall through to
-    // ordinary (non-special) classification instead.
-    assert.equal(classifyAddress({ ip: "::ffff:0:7f00:1" }), "public");
+    // the ::ffff:0:0/96 mapped prefix requires. It is the separate translated /96 prefix;
+    // byte-based classification recognizes both without blindly matching the "::ffff:" substring.
+    assert.equal(classifyAddress({ ip: "::ffff:0:7f00:1" }), "loopback");
 });
+
+test.each(['::ffff:0:a00:1', '64:ff9b::a00:1', '0:0:0:0:0:ffff:a00:1', '::a00:1', '::0.0.0.2', 'ff02::1'])(
+    "rejects IPv6 SSRF target %s before transport after URL normalization",
+    async (ip) => {
+        const transport = new ScriptedTransport([{ status: 200, headers: {}, bodyText: "ok" }]);
+        const client = createHttpClient({ transport, policy: makePolicy(), dns, clock, userAgent: "Fixture/1.0" });
+        await assert.rejects(() => client.send({ request: makeRequest({ url: `https://[${ip}]/` }) }), EgressRefusedError);
+        assert.equal(transport.calls.length, 0, "SSRF targets must be refused before connecting");
+    },
+);
 test("classifyAddress: IPv6 multicast ff00::/8 is treated as reserved (blocked), mirroring IPv4 multicast, exact boundaries", () => {
     assert.equal(classifyAddress({ ip: "feff:ffff:ffff:ffff:ffff:ffff:ffff:ffff" }), "public"); // just below the block
     assert.equal(classifyAddress({ ip: "ff00::1" }), "reserved"); // first address of the block

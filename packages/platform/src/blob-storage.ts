@@ -14,7 +14,7 @@
  * grouped and traversal-guarded underneath one.
  */
 import path from 'node:path';
-import { promises as fsp } from 'node:fs';
+import { promises as fsp, type Dirent } from 'node:fs';
 import { encodeS3PathSegment, signSigV4, type SigV4Credentials } from './aws-sigv4.js';
 
 /** Metadata for a single stored blob. */
@@ -81,29 +81,19 @@ export class LocalBlobStorage implements BlobStorage {
   }
 
   async listFiles(namespace: string): Promise<BlobFileMeta[]> {
+    validateNamespace(namespace);
     const root = path.join(this.root, namespace);
     const out: BlobFileMeta[] = [];
     const queue: string[] = [root];
     while (queue.length > 0) {
       const dir = queue.pop()!;
-      let entries;
-      try {
-        entries = await fsp.readdir(dir, { withFileTypes: true });
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
-        throw new StorageError('IO', `list failed: ${(err as Error).message}`);
+      const entries = await readListedDirectory(dir);
+      // A missing namespace lists as empty; a subdirectory deleted mid-walk only drops its own entries.
+      if (!entries) {
+        if (dir === root) return [];
+        continue;
       }
-      for (const entry of entries) {
-        const abs = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          queue.push(abs);
-          continue;
-        }
-        if (!entry.isFile()) continue;
-        const stat = await fsp.stat(abs);
-        const rel = path.relative(root, abs).split(path.sep).join('/');
-        out.push({ path: rel, size: stat.size, mtimeMs: stat.mtimeMs });
-      }
+      for (const entry of entries) await collectListedEntry({ root, dir, entry, queue, out });
     }
     return out;
   }
@@ -129,14 +119,8 @@ export class LocalBlobStorage implements BlobStorage {
   }
 
   private resolvePath(namespace: string, relpath: string): string {
-    if (!namespace || namespace.includes('/') || namespace.includes('\\') || namespace.includes('\0') || namespace.includes('..')) {
-      throw new StorageError('TRAVERSAL', `invalid namespace ${namespace}`);
-    }
-    const normalized = normalizeRel(relpath);
-    if (!normalized) throw new StorageError('TRAVERSAL', 'empty relpath');
-    if (normalized.split('/').some((seg) => seg === '..' || seg === '.')) {
-      throw new StorageError('TRAVERSAL', `unsafe relpath ${relpath}`);
-    }
+    validateNamespace(namespace);
+    const normalized = validateRelpath(relpath);
     return path.join(this.root, namespace, ...normalized.split('/'));
   }
 }
@@ -217,12 +201,12 @@ export class S3BlobStorage implements BlobStorage {
     return {
       path: normalizeRel(relpath),
       size: Number.isFinite(contentLength) ? contentLength : 0,
-      mtimeMs: lastModified ? Date.parse(lastModified) : Date.now(),
+      mtimeMs: modificationTime(lastModified),
     };
   }
 
   async listFiles(namespace: string): Promise<BlobFileMeta[]> {
-    const namespacePrefix = this.keyFor(namespace, '');
+    const namespacePrefix = `${this.keyFor(namespace, '', { allowPrefix: true })}/`;
     const out: BlobFileMeta[] = [];
     let continuationToken: string | undefined;
     // Cap iterations so a hostile bucket can't loop forever.
@@ -240,31 +224,20 @@ export class S3BlobStorage implements BlobStorage {
       }
       const xml = await res.text();
       const { entries, isTruncated, nextToken } = parseListBucketV2Xml(xml);
-      for (const e of entries) {
-        // Strip the per-bucket namespacePrefix to surface namespace-relative paths.
-        // `namespacePrefix` is `keyFor(namespace, '')`, which always includes at least the
-        // (non-empty, `keyFor`-validated) namespace segment and never a trailing slash — so it's
-        // always non-empty and the +1 separator always applies.
-        const relStart = namespacePrefix.length + 1;
-        const rel = e.key.slice(relStart).replace(/^\/+/, '');
-        if (!rel) continue; // skip the prefix marker itself
-        out.push({ path: rel, size: e.size, mtimeMs: e.lastModifiedMs });
-      }
+      out.push(...namespaceEntries(entries, namespacePrefix));
       if (!isTruncated || !nextToken) break;
       continuationToken = nextToken;
     }
     return out;
   }
 
-  /** Builds the canonical S3 key the impl uses. Exposed for tests so the prefix/namespace/relpath join is stable. */
-  keyFor(namespace: string, relpath: string): string {
-    if (!namespace || namespace.includes('/') || namespace.includes('\\') || namespace.includes('..')) {
-      throw new StorageError('TRAVERSAL', `invalid namespace ${namespace}`);
-    }
-    const normalized = relpath ? normalizeRel(relpath) : '';
-    if (normalized.split('/').some((seg) => seg === '..' || seg === '.')) {
-      throw new StorageError('TRAVERSAL', `unsafe relpath ${relpath}`);
-    }
+  /**
+   * Builds the canonical S3 key. Exposed for tests so the prefix/namespace/relpath join is stable.
+   * Listing explicitly opts into an empty prefix relpath; file operations never do.
+   */
+  keyFor(namespace: string, relpath: string, { allowPrefix = false }: { allowPrefix?: boolean } = {}): string {
+    validateNamespace(namespace);
+    const normalized = validateRelpath(relpath, { allowPrefix });
     const segments = [this.options.prefix?.replace(/^\/+|\/+$/g, ''), namespace, normalized].filter(
       (s): s is string => typeof s === 'string' && s.length > 0,
     );
@@ -341,7 +314,7 @@ function parseListBucketV2Xml(xml: string): { entries: ListBucketEntry[]; isTrun
     entries.push({
       key,
       size: Number.isFinite(size) ? size : 0,
-      lastModifiedMs: lastModifiedRaw ? Date.parse(lastModifiedRaw) : Date.now(),
+      lastModifiedMs: modificationTime(lastModifiedRaw),
     });
   }
   const isTruncated = (pluckTag(xml, 'IsTruncated') ?? 'false').toLowerCase() === 'true';
@@ -368,4 +341,67 @@ function normalizeRel(relpath: string): string {
     .replace(/^[\\/]+/, '')
     .replace(/[\\]+/g, '/')
     .replace(/\/+/g, '/');
+}
+
+/** Directory entries for a listing walk; null when the directory no longer exists. */
+async function readListedDirectory(dir: string): Promise<Dirent[] | null> {
+  try {
+    return await fsp.readdir(dir, { withFileTypes: true });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw new StorageError('IO', `list failed: ${(err as Error).message}`);
+  }
+}
+
+/** Queues a subdirectory or records a regular file; other entry types are skipped. */
+async function collectListedEntry({ root, dir, entry, queue, out }: {
+  root: string; dir: string; entry: Dirent; queue: string[]; out: BlobFileMeta[];
+}): Promise<void> {
+  const abs = path.join(dir, entry.name);
+  if (entry.isDirectory()) {
+    queue.push(abs);
+    return;
+  }
+  if (!entry.isFile()) return;
+  const stat = await fsp.stat(abs);
+  const rel = path.relative(root, abs).split(path.sep).join('/');
+  out.push({ path: rel, size: stat.size, mtimeMs: stat.mtimeMs });
+}
+
+/** Strips the per-bucket namespacePrefix to surface namespace-relative paths. */
+function namespaceEntries(entries: readonly ListBucketEntry[], namespacePrefix: string): BlobFileMeta[] {
+  const out: BlobFileMeta[] = [];
+  for (const e of entries) {
+    // It includes the non-empty, validated namespace and its trailing separator,
+    // so sibling namespaces (ns10 vs ns1) cannot leak into this listing.
+    if (!e.key.startsWith(namespacePrefix)) continue;
+    const rel = e.key.slice(namespacePrefix.length).replace(/^\/+/, '');
+    if (!rel) continue; // skip the prefix marker itself
+    out.push({ path: rel, size: e.size, mtimeMs: e.lastModifiedMs });
+  }
+  return out;
+}
+
+/** One namespace guard for both backends and every operation, including listing. */
+function validateNamespace(namespace: string): void {
+  if (!namespace || namespace === '.' || /[/\\\0]/.test(namespace) || namespace.includes('..')) {
+    throw new StorageError('TRAVERSAL', `invalid namespace ${namespace}`);
+  }
+}
+
+/** Shared key validation; only an explicit empty string may denote an S3 listing prefix. */
+function validateRelpath(relpath: string, { allowPrefix = false }: { allowPrefix?: boolean } = {}): string {
+  if (allowPrefix && relpath === '') return '';
+  const normalized = normalizeRel(relpath);
+  if (!normalized) throw new StorageError('TRAVERSAL', 'empty relpath');
+  if (normalized.includes('\0') || normalized.split('/').some(seg => seg === '..' || seg === '.')) {
+    throw new StorageError('TRAVERSAL', `unsafe relpath ${relpath}`);
+  }
+  return normalized;
+}
+
+/** Missing or malformed remote timestamps use the same finite clock fallback. */
+function modificationTime(value: string | null | undefined): number {
+  const parsed = value ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : Date.now();
 }
