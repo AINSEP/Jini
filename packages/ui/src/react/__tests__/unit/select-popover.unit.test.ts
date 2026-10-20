@@ -229,3 +229,49 @@ describe('useSelectPopover Tab without a portal', () => {
     expect(preventDefault).not.toHaveBeenCalled();
   });
 });
+
+describe('resolveTabTarget without an attached trigger', () => {
+  it('returns null when the trigger ref is still unattached', () => {
+    button('a');
+    expect(resolveTabTarget({ panel: null, trigger: null, shiftKey: false })).toBeNull();
+  });
+});
+
+describe('useSelectPopover portal lifecycle', () => {
+  function outOfViewTrigger(): HTMLButtonElement {
+    const el = button('trigger');
+    vi.spyOn(el, 'getBoundingClientRect').mockReturnValue(DOMRect.fromRect({ x: 10, y: -100, width: 20, height: 20 }));
+    return el;
+  }
+
+  it('focuses the panel only after the first measured position exists', () => {
+    const focusInitial = vi.fn<(input: { panel: HTMLDivElement | null }) => void>();
+    const { result } = renderHook(() => useSelectPopover({ measurePosition: () => 'measured' }, { focusInitial }));
+    const panel = document.createElement('div');
+    result.current.triggerRef.current = button('trigger');
+    result.current.panelRef.current = panel;
+    act(() => result.current.openPanel());
+    expect(result.current.position).toBe('measured');
+    expect(focusInitial).toHaveBeenCalledWith({ panel });
+  });
+
+  it('ignores a scroll while open once the trigger has been detached', () => {
+    const measurePosition = vi.fn<() => string>(() => 'measured');
+    const { result } = renderHook(() => useSelectPopover({ measurePosition }));
+    act(() => result.current.openPanel());
+    act(() => { window.dispatchEvent(new Event('scroll')); });
+    expect(result.current.open).toBe(true);
+    expect(measurePosition).not.toHaveBeenCalled();
+  });
+
+  it('closes without refocusing the trigger when dismissWhenHidden sees it scroll out of view', () => {
+    const { result } = renderHook(() => useSelectPopover({ measurePosition: () => 'measured' }, { dismissWhenHidden: true }));
+    const trigger = outOfViewTrigger();
+    result.current.triggerRef.current = trigger;
+    act(() => result.current.openPanel());
+    act(() => { window.dispatchEvent(new Event('scroll')); });
+    expect(result.current.open).toBe(false);
+    expect(result.current.position).toBeNull();
+    expect(document.activeElement).not.toBe(trigger);
+  });
+});
