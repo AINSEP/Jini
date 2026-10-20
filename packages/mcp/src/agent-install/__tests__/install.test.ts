@@ -332,3 +332,69 @@ describe('removeJsonInstall', () => {
     expect(JSON.parse(out as string)).toEqual({ mcp: { servers: { other: {} } } });
   });
 });
+
+describe('planAgentInstall — characterization pins (before refactor)', () => {
+  it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty'])(
+    'throws for the Object.prototype member name %s instead of resolving it as a planner',
+    (slug) => {
+      expect(() => planAgentInstall({ slug: slug as AgentSlug, spec: spec(), ctx: ctx() })).toThrow(`unknown agent slug: ${slug}`);
+    },
+  );
+
+  it('reads APPDATA from the injected env option, not process.env, for cline on win32', () => {
+    process.env.APPDATA = '/ignored';
+    const plan = planAgentInstall({ slug: 'cline', spec: spec(), ctx: ctx({ platform: 'win32' }) }, { env: { APPDATA: '/appdata' } });
+    expect(plan).toMatchObject({ configPath: '/appdata/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json' });
+  });
+
+  it('falls back to <home>/AppData/Roaming for trae on win32 when the injected env has no APPDATA', () => {
+    const plan = planAgentInstall({ slug: 'trae', spec: spec(), ctx: ctx({ platform: 'win32' }) }, { env: {} });
+    expect(plan).toMatchObject({ configPath: '/home/u/AppData/Roaming/Trae/User/mcp.json' });
+  });
+
+  it('uses the injected APPDATA for trae on win32', () => {
+    const plan = planAgentInstall({ slug: 'trae', spec: spec(), ctx: ctx({ platform: 'win32' }) }, { env: { APPDATA: '/appdata' } });
+    expect(plan).toMatchObject({ configPath: '/appdata/Trae/User/mcp.json' });
+  });
+
+  it('treats any non-darwin, non-win32 platform like linux for cline and trae', () => {
+    expect(planAgentInstall({ slug: 'trae', spec: spec(), ctx: ctx({ platform: 'freebsd' }) })).toMatchObject({ configPath: '/home/u/.config/Trae/User/mcp.json' });
+    expect(planAgentInstall({ slug: 'cline', spec: spec(), ctx: ctx({ platform: 'freebsd' }) }))
+      .toMatchObject({ configPath: '/home/u/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json' });
+  });
+
+  it('pins the exact entry shapes for cursor, copilot, cline, openclaw, antigravity, trae and opencode with env', () => {
+    const s = spec({ A: '1' });
+    const base = { command: '/usr/bin/node', args: ['/app/cli.js', 'mcp'] };
+    const entry = (slug: AgentSlug) => (planAgentInstall({ slug, spec: s, ctx: ctx() }) as JsonInstallPlan).entry;
+    expect(JSON.stringify(entry('cursor'))).toBe(JSON.stringify({ ...base, type: 'stdio', env: { A: '1' } }));
+    expect(JSON.stringify(entry('copilot'))).toBe(JSON.stringify({ ...base, type: 'local', tools: ['*'], env: { A: '1' } }));
+    expect(JSON.stringify(entry('cline'))).toBe(JSON.stringify({ ...base, disabled: false, autoApprove: [], env: { A: '1' } }));
+    expect(JSON.stringify(entry('openclaw'))).toBe(JSON.stringify({ ...base, env: { A: '1' } }));
+    expect(JSON.stringify(entry('antigravity'))).toBe(JSON.stringify({ ...base, env: { A: '1' } }));
+    expect(JSON.stringify(entry('trae'))).toBe(JSON.stringify({ ...base, env: { A: '1' } }));
+    expect(JSON.stringify(entry('opencode'))).toBe(JSON.stringify({ type: 'local', command: ['/usr/bin/node', '/app/cli.js', 'mcp'], enabled: true, environment: { A: '1' } }));
+  });
+
+  it('pins the pi snippet text exactly, key order included', () => {
+    const plan = planAgentInstall({ slug: 'pi', spec: spec({ A: '1' }), ctx: ctx() });
+    expect(plan).toMatchObject({ snippet: JSON.stringify({ mcpServers: { jini: { command: '/usr/bin/node', args: ['/app/cli.js', 'mcp'], env: { A: '1' } } } }, null, 2) });
+  });
+
+  it('builds a relative config path when the injected APPDATA is relative (reported, not fixed)', () => {
+    // A relative APPDATA is not rejected, so the json strategy would write relative to the cwd.
+    const plan = planAgentInstall({ slug: 'trae', spec: spec(), ctx: ctx({ platform: 'win32' }) }, { env: { APPDATA: 'rel/appdata' } });
+    expect(plan).toMatchObject({ configPath: 'rel/appdata/Trae/User/mcp.json' });
+  });
+
+  it('puts a dash-leading serverName into the agent argv as-is, where the agent CLI may read it as a flag (reported, not fixed)', () => {
+    const plan = planAgentInstall({ slug: 'claude', spec: spec(), ctx: ctx({ serverName: '--scope=project' }) });
+    expect(plan).toMatchObject({ addArgv: ['mcp', 'add', '--scope', 'user', '--scope=project', '--', '/usr/bin/node', '/app/cli.js', 'mcp'] });
+  });
+
+  it('writes serverName and env keys into the hermes YAML snippet unquoted (reported, not fixed)', () => {
+    // A name containing a newline can inject extra YAML structure into the print-only snippet.
+    const plan = planAgentInstall({ slug: 'hermes', spec: spec({ 'K: x\n  evil': 'v' }), ctx: ctx({ serverName: 'n:\n  injected: true' }) });
+    expect(plan).toMatchObject({ snippet: 'mcp_servers:\n  n:\n  injected: true:\n    command: "/usr/bin/node"\n    args: ["/app/cli.js","mcp"]\n    env:\n      K: x\n  evil: "v"' });
+  });
+});
