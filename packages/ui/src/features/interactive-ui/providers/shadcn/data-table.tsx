@@ -18,6 +18,20 @@ export interface DataTableProps {
   readonly onRowClick?: (row: Record<string, unknown>, index: number) => void;
 }
 
+function resolveTablePage({ pageSize, rowCount, requestedPage }: {
+  readonly pageSize: DataTableProps['pageSize'];
+  readonly rowCount: number;
+  readonly requestedPage: number;
+}, _options = {}) {
+  const requestedSize = pageSize !== undefined && Number.isInteger(pageSize) && pageSize > 0 ? pageSize : null;
+  const paging = requestedSize !== null;
+  const size = requestedSize ?? Math.max(rowCount, 1);
+  const pageCount = Math.max(1, Math.ceil(rowCount / size));
+  // Clamp during render so a smaller result set never shows a stale, empty page.
+  const page = paging ? Math.min(requestedPage, pageCount - 1) : 0;
+  return { paging, size, pageCount, page, start: page * size };
+}
+
 /** Composes shadcn's real `table.tsx` primitives into the same `columns`/`rows`/`onRowClick` contract `native.data-table` exposes. */
 export function DataTable({ columns, rows, onRowClick, sortable = true, pageSize }: DataTableProps) {
   const [sort, setSort] = useState<TableSort | null>(null);
@@ -25,13 +39,7 @@ export function DataTable({ columns, rows, onRowClick, sortable = true, pageSize
   const numericKeys = useMemo(() => getNumericColumnKeys({ columns, rows }), [columns, rows]);
   const activeSort = sortable && columns.some((column) => column.key === sort?.key) ? sort : null;
   const sortedRows = useMemo(() => sortTableRows({ rows, sort: activeSort, numericKeys }), [rows, activeSort, numericKeys]);
-  const requestedSize = pageSize !== undefined && Number.isInteger(pageSize) && pageSize > 0 ? pageSize : null;
-  const paging = requestedSize !== null;
-  const size = requestedSize ?? Math.max(rows.length, 1);
-  const pageCount = Math.max(1, Math.ceil(rows.length / size));
-  // Clamp during render so a smaller result set never shows a stale, empty page.
-  const page = paging ? Math.min(requestedPage, pageCount - 1) : 0;
-  const start = page * size;
+  const { paging, size, pageCount, page, start } = resolveTablePage({ pageSize, rowCount: rows.length, requestedPage });
   const visibleRows = sortedRows.slice(start, start + size);
 
   return (
