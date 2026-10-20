@@ -52,40 +52,42 @@ export function buildAcpSessionNewParams({ cwd }: { cwd: string }, options: AcpS
     // agents can run through the skill + CLI path without MCP support. Do not
     // auto-install or mutate user/global MCP config; callers must pass an
     // explicit per-session MCP descriptor when a compatible agent supports it.
-    mcpServers: servers.map((s) => {
-      const rawEnv = s?.env;
-      // Already a plain object — pass through in map mode, convert to
-      // array in array mode (e.g. live-artifacts MCP from
-      // buildLiveArtifactsMcpServersForAgent which already respects
-      // acpMcpEnvFormat).
-      const isPlainObject =
-        rawEnv && typeof rawEnv === 'object' && !Array.isArray(rawEnv);
-      if (wantsMap && isPlainObject) {
-        return {
-          type: typeof s?.type === 'string' ? s.type : 'stdio',
-          name: typeof s?.name === 'string' ? s.name : '',
-          command: typeof s?.command === 'string' ? s.command : '',
-          args: Array.isArray(s?.args) ? s.args : [],
-          env: rawEnv,
-        };
-      }
-      const envArr = Array.isArray(rawEnv) ? rawEnv : [];
-      const env = wantsMap
-        ? Object.fromEntries(envArr.map((e: any) => [e?.name ?? '', e?.value ?? '']))
-        : isPlainObject
-          ? Object.entries(rawEnv as Record<string, string>).map(
-              ([name, value]) => ({ name, value }),
-            )
-          : envArr;
-      return {
-        type: typeof s?.type === 'string' ? s.type : 'stdio',
-        name: typeof s?.name === 'string' ? s.name : '',
-        command: typeof s?.command === 'string' ? s.command : '',
-        args: Array.isArray(s?.args) ? s.args : [],
-        env,
-      };
-    }),
+    mcpServers: servers.map((s) => normalizeMcpServer(s, wantsMap)),
   };
+}
+/** Returns `value` when it is a string, else `fallback`. */
+function stringOr(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
+}
+/** Normalises one caller-supplied MCP server descriptor into the wire shape
+ * (`type`/`name`/`command`/`args`/`env`, in that key order). */
+function normalizeMcpServer(s: AcpMcpServerInput | null | undefined, wantsMap: boolean) {
+  return {
+    type: stringOr(s?.type, 'stdio'),
+    name: stringOr(s?.name, ''),
+    command: stringOr(s?.command, ''),
+    args: Array.isArray(s?.args) ? s.args : [],
+    env: normalizeMcpEnv(s?.env, wantsMap),
+  };
+}
+/** Converts an MCP server `env` value to the requested wire format. */
+function normalizeMcpEnv(rawEnv: unknown, wantsMap: boolean): unknown {
+  // Already a plain object — pass through in map mode, convert to
+  // array in array mode (e.g. live-artifacts MCP from
+  // buildLiveArtifactsMcpServersForAgent which already respects
+  // acpMcpEnvFormat).
+  const isPlainObject =
+    rawEnv && typeof rawEnv === 'object' && !Array.isArray(rawEnv);
+  if (isPlainObject) {
+    return wantsMap
+      ? rawEnv
+      : Object.entries(rawEnv as Record<string, string>).map(([name, value]) => ({ name, value }));
+  }
+  const envArr: Array<{ name?: unknown; value?: unknown } | null | undefined> =
+    Array.isArray(rawEnv) ? rawEnv : [];
+  return wantsMap
+    ? Object.fromEntries(envArr.map((e) => [e?.name ?? '', e?.value ?? '']))
+    : envArr;
 }
 /**
  * Assembles the `prompt` array for a `session/prompt` ACP call. Always
