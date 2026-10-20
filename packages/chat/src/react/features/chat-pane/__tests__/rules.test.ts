@@ -4,6 +4,7 @@ import type { AgentEvent, ChatMessage } from '../../../../core/index.js';
 import {
   appendQueuedTurn,
   defaultChatPaneSelection,
+  describeChatPaneSendBlocker,
   describeTypedAnswerNotice,
   findAwaitedTypedAnswerId,
   findChatPaneSendBlocker,
@@ -449,5 +450,98 @@ describe('appendQueuedTurn — a second message behind the same run joins the qu
       queued: { text: 'a [token removed]', secretRedacted: true, count: 1 },
       next: { text: 'b', secretRedacted: false, count: 0 },
     })).toEqual({ text: 'a [token removed]\n\nb', secretRedacted: true, count: 1 });
+  });
+
+  it('keeps the redaction signal when only the newer message was redacted', () => {
+    expect(appendQueuedTurn({
+      queued: { text: 'a', secretRedacted: false, count: 0 },
+      next: { text: 'b [token removed]', secretRedacted: true, count: 2 },
+    })).toEqual({ text: 'a\n\nb [token removed]', secretRedacted: true, count: 2 });
+  });
+});
+
+describe('findChatPaneSendBlocker: model resolution', () => {
+  const modelCatalog: NonNullable<ChatPaneAgent['modelCatalog']> = {
+    source: 'cli',
+    freshness: 'fresh',
+    fetchedAt: '2026-01-01T00:00:00.000Z',
+    expiresAt: '2026-01-02T00:00:00.000Z',
+    coverage: 'account',
+    launchFingerprint: 'fingerprint',
+  };
+  const ready: ChatPaneSendability = {
+    selectedAgent: { available: true, modelCatalog },
+    model: 'gpt-5.6-terra',
+    isStreaming: false,
+    activeUploadCount: 0,
+    workingDirectoryPending: false,
+    workingDirectoryInvalid: false,
+    workingDirectoryError: null,
+  };
+  const { model: _model, ...noModel } = ready;
+
+  it('allows a catalog agent with a concrete model', () => {
+    expect(findChatPaneSendBlocker(ready)).toBeNull();
+  });
+
+  it('blocks a catalog agent with no model chosen', () => {
+    expect(findChatPaneSendBlocker({ ...noModel })).toBe('model-unresolved');
+  });
+
+  it('blocks a catalog agent whose model is only an alias', () => {
+    expect(findChatPaneSendBlocker({ ...ready, model: 'default' })).toBe('model-unresolved');
+  });
+
+  it('blocks an agent that refuses concrete model selection even with a concrete model', () => {
+    expect(findChatPaneSendBlocker({
+      ...ready,
+      selectedAgent: { available: true, supportsConcreteModelSelection: false },
+    })).toBe('model-unresolved');
+  });
+
+  it('does not require a model from an agent without a catalog', () => {
+    expect(findChatPaneSendBlocker({ ...noModel, selectedAgent: { available: true } }))
+      .toBeNull();
+  });
+
+  it('skips model resolution once API mode is configured', () => {
+    expect(findChatPaneSendBlocker({ ...noModel, apiModeConfigured: true })).toBeNull();
+  });
+
+  it('reports a model problem ahead of streaming', () => {
+    expect(findChatPaneSendBlocker({ ...noModel, isStreaming: true })).toBe('model-unresolved');
+  });
+
+  it('still reports an unavailable selected agent when API mode is configured', () => {
+    expect(findChatPaneSendBlocker({
+      ...ready,
+      selectedAgent: { available: false },
+      apiModeConfigured: true,
+    })).toBe('agent-unavailable');
+  });
+});
+
+describe('describeChatPaneSendBlocker', () => {
+  it('explains each blocker in its own words', () => {
+    const blockers: ChatPaneSendBlocker[] = [
+      'no-agent-selected',
+      'agent-unavailable',
+      'model-unresolved',
+      'streaming',
+      'uploads-pending',
+      'working-directory-pending',
+      'working-directory-invalid',
+      'working-directory-error',
+    ];
+    expect(blockers.map(describeChatPaneSendBlocker)).toEqual([
+      'no agent is selected',
+      'the selected agent is unavailable',
+      'choose a concrete model before sending',
+      'a run is already streaming — cancel it first',
+      'attachment uploads are still in flight',
+      'the working directory is still being validated',
+      'the working directory is invalid',
+      'the working directory could not be read',
+    ]);
   });
 });
