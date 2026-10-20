@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { ToolInputError, type SurfaceEmission, type SurfaceExchange, type SurfaceMessage, type ToolExecutionContext } from '@jini-ai/core';
 import { parseUIResource } from '../resource.js';
 import { defineSecretCardTool, type SecretCardDeps, type SecretCardField, type SecretCardForm, type SecretCardOptions, type SecretCardRun, type SecretCardSpec } from '../secret-card.js';
@@ -411,5 +412,58 @@ describe('secret-card lifecycle', () => {
     expect(resourceAt(f.emissions, 1).uri).toBe(resourceAt(f.emissions, 0).uri);
     expect(JSON.stringify({ output, emissions: f.emissions })).not.toContain(CANARY);
     expect(f.isClosed()).toBe(true);
+  });
+});
+
+// Exact-output pins: digests of every emitted resource, captured on the pre-refactor code, so a
+// refactor that changes one byte of the card, its outcome, routing params or URI fails here.
+describe('secret-card exact emitted output', () => {
+  const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+
+  it('pins the form and success outcome with host framing, a non-secret field and a form cancel label', async () => {
+    const f = fixture({ uriHost: 'host', frameSize: ['100%', '420px'], text: { cancelLabel: 'Options cancel' } });
+    f.form.fields = [...f.form.fields, { kind: 'string', name: 'label', label: 'Label', value: 'Original' }];
+    f.form.cancelLabel = 'Form cancel';
+    f.setAnswer({ status: 'received', params: { token: CANARY, label: 'Changed' } });
+    expect(await f.run()).toEqual({ saved: true, id: 'saved-1' });
+    expect(f.save.mock.calls).toEqual([[{ values: { token: CANARY, label: 'Changed' }, prep: { target: 'entry-1' }, signal: f.ctx.signal }]]);
+    expect(digest(f.emissions)).toBe('513dd8a0b4491bc007f17818c7e17cddb9d9ee108095b7d802c33ca3e448c971');
+  });
+
+  it('pins the default-option form, options cancel label fallback and success outcome', async () => {
+    const f = fixture({ text: { cancelLabel: 'Options cancel' } });
+    expect(await f.run()).toEqual({ saved: true, id: 'saved-1' });
+    expect(digest(f.emissions)).toBe('5d11e21f8a323b3eb203666069b1ed42a9d70735d729c57908ab12e8f1ae9207');
+  });
+
+  it('pins the redacted failure outcome, result and fixed log metadata', async () => {
+    const logFailure = vi.fn();
+    const f = fixture({ logFailure, safeError: () => `Rejected ${CANARY}` });
+    f.save.mockRejectedValue(new Error(CANARY));
+    const output = await f.run();
+    expect(output).toEqual({ saved: false, reason: 'failed', message: 'Rejected [REDACTED:exact_secret]' });
+    expect(logFailure.mock.calls).toEqual([[{ toolId: 'save_credential', exchangeId: 'exchange-1', saved: false }]]);
+    expect(digest(f.emissions)).toBe('ca7aba0bf27d288ab783745a1e149f9dae41208dcd5c0a3a93980887831b4f9b');
+  });
+
+  it.each([
+    ['cancelled', { status: 'received', params: { __dismissed: true, token: CANARY } }],
+    ['blank', { status: 'received', params: { token: '   ' } }],
+    ['expired', { status: 'expired' }],
+  ] as const)('pins the %s run as a form-only emission with no save', async (reason, answer) => {
+    const f = fixture();
+    f.setAnswer(answer);
+    expect(await f.run()).toEqual({ saved: false, reason });
+    expect(f.save).not.toHaveBeenCalled();
+    expect(digest(f.emissions)).toBe('1008d45c0f4c1a2a78f0b0472839fd9136923c302dd3bb0f1d49b4fe30e3bec1');
+  });
+
+  it('an abort raised while the submitted values are read wins over the save', async () => {
+    const f = fixture();
+    const params: Record<string, unknown> = {};
+    Object.defineProperty(params, 'token', { enumerable: true, get: () => { f.controller.abort(); return CANARY; } });
+    f.setAnswer({ status: 'received', params });
+    expect(await f.run()).toEqual({ saved: false, reason: 'abandoned' });
+    expect(f.save).not.toHaveBeenCalled();
   });
 });
