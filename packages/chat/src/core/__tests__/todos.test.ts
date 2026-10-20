@@ -155,3 +155,43 @@ describe('todos: latest-plan derivation', () => {
     expect(result.plan[1]).toMatchObject({ status: 'stopped' });
   });
 });
+
+describe('todos: boundaries', () => {
+  it('prefers a todos array over a plan array, and falls back to plan when todos is not an array', () => {
+    expect(parseTodoWriteInput({ input: { todos: [{ content: 't' }], plan: [{ step: 'p' }] } }).map((todo) => todo.content)).toEqual(['t']);
+    expect(parseTodoWriteInput({ input: { todos: 'x', plan: [{ step: 'p' }] } }).map((todo) => todo.content)).toEqual(['p']);
+  });
+
+  it('takes the first string body alias even when an earlier alias is a non-string', () => {
+    expect(parseTodoWriteInput({ input: { todos: [{ content: 7, step: 's', text: 'x' }] } })[0]?.content).toBe('s');
+    expect(parseTodoWriteInput({ input: { todos: [{ activeForm: 1, active_form: 'snake' , content: 'c' }] } })[0]?.activeForm).toBe('snake');
+  });
+
+  it('drops an entry whose first string alias is empty instead of reading a later alias', () => {
+    expect(parseTodoWriteInput({ input: { todos: [{ content: '', step: 's' }] } })).toEqual([]);
+  });
+
+  it('ignores a non-tool_use event that shares a plan-tool name', () => {
+    const ext: AgentEvent = { kind: 'ext', name: 'TodoWrite', data: { todos: [{ content: 'x' }] } };
+    expect(latestTodosFromEvents({ events: [ext] })).toEqual([]);
+  });
+
+  it('pinned card reads only the newest message holding a plan, ignoring older terminal ones', () => {
+    const plan = (status: string): AgentEvent => ({ kind: 'tool_use', id: status, name: 'TodoWrite', input: { todos: [{ content: 'a', status }] } });
+    const text: AgentEvent = { kind: 'text', text: 'no plan' };
+    const messages = [
+      { events: [plan('in_progress')], runStatus: 'failed' as const },
+      { events: [plan('pending')], runStatus: 'running' as const },
+      { events: [text], runStatus: 'succeeded' as const },
+    ];
+    expect(latestTodoWriteInputForPinnedCard({ messages })).toEqual({ todos: [{ content: 'a', status: 'pending' }] });
+  });
+
+  it('pinned card flips in_progress to stopped for each terminal status', () => {
+    for (const runStatus of ['succeeded', 'failed', 'canceled'] as const) {
+      const event: AgentEvent = { kind: 'tool_use', id: 't', name: 'update_plan', input: { plan: [{ step: 's', status: 'in_progress' }] } };
+      const messages = [{ events: [event], runStatus }];
+      expect(latestTodoWriteInputForPinnedCard({ messages })).toEqual({ plan: [{ step: 's', status: 'stopped' }] });
+    }
+  });
+});
