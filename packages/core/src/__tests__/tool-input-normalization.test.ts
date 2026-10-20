@@ -57,11 +57,53 @@ describe('schema-guided tool input normalization', () => {
   });
 
   it.each(['expectedVersoin', 'expectedVersio', 'expectedVersions'])('refuses to discard near-miss required property %s', async key => {
-    await expect(normalize({ [key]: 3 })).rejects.toThrow('Use the canonical property explicitly');
+    await expect(normalize({ [key]: 3 })).rejects.toThrow("Did you mean 'expectedVersion'? Resend with the declared name.");
+  });
+
+  it.each(['id', 'menuI', 'menu_idd'])('suggests the optional menuId for %s without accepting the input', async key => {
+    const input = { [key]: 'private-menu-value' };
+    const definition = { descriptor: { id: 'read', inputSchema: { type: 'object', additionalProperties: false, properties: { menuId: { type: 'string' } } } } };
+    await expect(normalizeToolInput({ input, registration: definition })).rejects.toThrow(
+      `Unknown input '${key}'. Declared inputs: menuId (optional). Did you mean 'menuId'? Resend with the declared name.`,
+    );
+    expect(input).toEqual({ [key]: 'private-menu-value' });
+  });
+
+  it('suggests id when an undeclared resource-specific id name was supplied', async () => {
+    const definition = { descriptor: { id: 'read', inputSchema: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' } } } } };
+    await expect(normalizeToolInput({ input: { menuId: 'private-menu-value' }, registration: definition })).rejects.toThrow(
+      "Unknown input 'menuId'. Declared inputs: id (optional). Did you mean 'id'? Resend with the declared name.",
+    );
+  });
+
+  it('lists required names first even without a near miss', async () => {
+    const definition = { descriptor: { id: 'read', inputSchema: {
+      type: 'object', additionalProperties: false, required: ['expectedVersion'],
+      properties: { menuId: { type: 'string' }, expectedVersion: { type: 'integer' } },
+    } } };
+    await expect(normalizeToolInput({ input: { unrelated: 'private-menu-value' }, registration: definition })).rejects.toThrow(
+      "Unknown input 'unrelated'. Declared inputs: expectedVersion (required), menuId (optional). Resend with the declared name.",
+    );
+  });
+
+  it('lists multiple id suggestions required first without selecting a property', async () => {
+    const definition = { descriptor: { id: 'read', inputSchema: {
+      type: 'object', additionalProperties: false, required: ['pageId'],
+      properties: { menuId: { type: 'string' }, pageId: { type: 'string' } },
+    } } };
+    await expect(normalizeToolInput({ input: { id: 'private-menu-value' }, registration: definition })).rejects.toThrow(
+      "Unknown input 'id'. Declared inputs: pageId (required), menuId (optional). Did you mean 'pageId', 'menuId'? Resend with the declared name.",
+    );
+  });
+
+  it('includes the nested array path and local declared name in a hint', async () => {
+    await expect(normalize({ items: [{ id: 'private-theme-value' }] })).rejects.toThrow(
+      "Unknown input 'items[0].id'. Declared inputs: themeId (optional). Did you mean 'themeId'? Resend with the declared name.",
+    );
   });
 
   it('refuses unknown fields even in an empty closed schema before a guard can lose them', async () => {
-    await expect(normalizeToolInput({ input: { site: 'other' }, registration: { descriptor: { id: 'empty', inputSchema: { type: 'object', additionalProperties: false } } } })).rejects.toThrow("Unknown input 'site'. Use only the declared properties");
+    await expect(normalizeToolInput({ input: { site: 'other' }, registration: { descriptor: { id: 'empty', inputSchema: { type: 'object', additionalProperties: false } } } })).rejects.toThrow("Unknown input 'site'. Declared inputs: none. Resend with the declared name.");
   });
 
   it('lets a domain alias run before closed-schema checks, then normalizes its canonical result', async () => {

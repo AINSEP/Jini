@@ -26,9 +26,11 @@ function sameLengthNearMiss({ left, right, index }: { left: string; right: strin
     || (left[index] === right[index + 1] && left[index + 1] === right[index] && left.slice(index + 2) === right.slice(index + 2));
 }
 
-/** Detect one insertion, deletion, substitution or adjacent transposition, for hints only. */
-function nearMiss({ left, right }: { left: string; right: string }): boolean {
-  if (Math.abs(left.length - right.length) > 1 || left.length > 128 || right.length > 128) return false;
+/** Detect id shorthand or one insertion, deletion, substitution or transposition, for hints only. */
+function nearMiss({ left, right }: { left: string; right: string }, _options: Record<string, never> = {}): boolean {
+  if (left.length > 128 || right.length > 128) return false;
+  if ((left === 'id' && right.endsWith('id')) || (right === 'id' && left.endsWith('id'))) return true;
+  if (Math.abs(left.length - right.length) > 1) return false;
   const index = commonPrefixLength({ left, right });
   if (left.length === right.length) return sameLengthNearMiss({ left, right, index });
   return left.length > right.length ? left.slice(index + 1) === right.slice(index) : left.slice(index) === right.slice(index + 1);
@@ -93,10 +95,17 @@ function canonicalKey({ key, location, shape }: { key: string; location: string;
   return candidates[0];
 }
 
-function unknownKeyError({ key, location, required }: { key: string; location: string; required: readonly string[] }): ToolInputError {
-  const hints = required.filter(name => nearMiss({ left: keyShape(key), right: keyShape(name) }));
-  if (hints.length) return new ToolInputError({ message: `Unknown input '${location}'; possible required property: ${hints.join(', ')}. Use the canonical property explicitly; no value was guessed.` });
-  return new ToolInputError({ message: `Unknown input '${location}'. Use only the declared properties; declare target and permission fields in the tool schema before using them.` });
+/** Describe the local schema and likely names without choosing a name or exposing input values.
+ * Target and permission fields must be declared in the tool schema before callers can use them.
+ * @complexity O(p) time and space for p declared properties; name comparisons are length-bounded.
+ */
+function unknownKeyError({ key, location, shape }: { key: string; location: string; shape: ObjectShape }, _options: Record<string, never> = {}): ToolInputError {
+  const required = new Set(shape.required);
+  const names = [...shape.names.filter(name => required.has(name)), ...shape.names.filter(name => !required.has(name))];
+  const declared = names.map(name => `${name} (${required.has(name) ? 'required' : 'optional'})`).join(', ') || 'none';
+  const hints = names.filter(name => nearMiss({ left: keyShape(key), right: keyShape(name) }));
+  const suggestion = hints.length ? ` Did you mean ${hints.map(name => `'${name}'`).join(', ')}?` : '';
+  return new ToolInputError({ message: `Unknown input '${location}'. Declared inputs: ${declared}.${suggestion} Resend with the declared name.` });
 }
 
 /** One key of an object: canonical rename + recursion, closed-schema refusal, or open pass-through. */
@@ -107,7 +116,7 @@ function normalizeEntry(
   const location = path ? `${path}.${key}` : key;
   const target = canonicalKey({ key, location, shape });
   if (target === undefined) {
-    if (walk.validateClosed && shape.schema.additionalProperties === false) throw unknownKeyError({ key, location, required: shape.required });
+    if (walk.validateClosed && shape.schema.additionalProperties === false) throw unknownKeyError({ key, location, shape });
     const childSchema = object(shape.schema.additionalProperties) ? shape.schema.additionalProperties : undefined;
     return [key, normalizeValue({ value: raw, schema: childSchema, step: { path: location, depth: depth + 1, walk } })];
   }

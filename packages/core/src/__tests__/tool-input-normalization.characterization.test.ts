@@ -107,12 +107,12 @@ describe('normalizeToolInput: key canonicalization and refusals', () => {
   });
 
   it('ignores non-string and non-array required lists when hinting', async () => {
-    await expect(run({ ab: 1 }, closed({ abc: {} }, 'abc'))).rejects.toThrow("Unknown input 'ab'. Use only the declared properties");
-    await expect(run({ ab: 1 }, closed({ abc: {} }, [3, 'abc']))).rejects.toThrow("Unknown input 'ab'; possible required property: abc. Use the canonical property explicitly; no value was guessed.");
+    await expect(run({ ab: 1 }, closed({ abc: {} }, 'abc'))).rejects.toThrow("Unknown input 'ab'. Declared inputs: abc (optional). Did you mean 'abc'? Resend with the declared name.");
+    await expect(run({ ab: 1 }, closed({ abc: {} }, [3, 'abc']))).rejects.toThrow("Unknown input 'ab'. Declared inputs: abc (required). Did you mean 'abc'? Resend with the declared name.");
   });
 
-  it('hints only required names, not optional ones', async () => {
-    await expect(run({ ab: 1 }, closed({ abc: {} }, []))).rejects.toThrow("Unknown input 'ab'. Use only the declared properties; declare target and permission fields in the tool schema before using them.");
+  it('hints optional names as well as required ones', async () => {
+    await expect(run({ ab: 1 }, closed({ abc: {} }, []))).rejects.toThrow("Unknown input 'ab'. Declared inputs: abc (optional). Did you mean 'abc'? Resend with the declared name.");
   });
 
   it.each([
@@ -122,7 +122,7 @@ describe('normalizeToolInput: key canonicalization and refusals', () => {
     ['insertion', 'abxcd', 'abcd'],
     ['last-character change', 'abcx', 'abcd'],
   ])('hints a %s', async (_kind, key, name) => {
-    await expect(run({ [key]: 1 }, closed({ [name]: {} }))).rejects.toThrow(`possible required property: ${name}.`);
+    await expect(run({ [key]: 1 }, closed({ [name]: {} }))).rejects.toThrow(`Did you mean '${name}'? Resend with the declared name.`);
   });
 
   it.each([
@@ -132,11 +132,11 @@ describe('normalizeToolInput: key canonicalization and refusals', () => {
     ['a key longer than 128', 'a'.repeat(129), 'a'.repeat(128) + 'b'],
     ['a name longer than 128', 'a'.repeat(128), 'a'.repeat(129)],
   ])('gives no hint for %s', async (_kind, key, name) => {
-    await expect(run({ [key]: 1 }, closed({ [name]: {} }))).rejects.toThrow(/^Unknown input '[a-z]+'\. Use only the declared properties/);
+    await expect(run({ [key]: 1 }, closed({ [name]: {} }))).rejects.toThrow(`Unknown input '${key}'. Declared inputs: ${name} (required). Resend with the declared name.`);
   });
 
   it('compares hint shapes ignoring separators and case', async () => {
-    await expect(run({ Expected_Versoin: 1 }, closed({ expectedVersion: {} }))).rejects.toThrow('possible required property: expectedVersion.');
+    await expect(run({ Expected_Versoin: 1 }, closed({ expectedVersion: {} }))).rejects.toThrow("Did you mean 'expectedVersion'? Resend with the declared name.");
   });
 });
 
