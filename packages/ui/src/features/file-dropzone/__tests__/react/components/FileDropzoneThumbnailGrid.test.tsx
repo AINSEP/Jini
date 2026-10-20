@@ -2,9 +2,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { FileDropzoneThumbnailGrid } from './FileDropzoneThumbnailGrid.js';
-import { I18nProvider } from '../../../i18n/index.js';
-import type { FileDropzonePreviewState } from '../../types.js';
+import { FileDropzoneThumbnailGrid } from '../../../react/components/FileDropzoneThumbnailGrid.js';
+import { I18nProvider } from '../../../../i18n/index.js';
+import type { FileDropzonePreviewState } from '../../../types.js';
 
 function file(name: string, type = ''): File {
   return new File(['x'], name, { type });
@@ -90,6 +90,33 @@ describe('FileDropzoneThumbnailGrid', () => {
     const noExt = file('README', '');
     render(<FileDropzoneThumbnailGrid files={[noExt]} previews={EMPTY_PREVIEWS} onSelect={vi.fn()} />);
     expect(screen.getByText('FILE')).toBeInTheDocument();
+  });
+
+  it('falls back to the glyph for a video with no resolved preview URL yet', () => {
+    const f = file('a.mp4', 'video/mp4');
+    const { container } = render(<FileDropzoneThumbnailGrid files={[f]} previews={EMPTY_PREVIEWS} onSelect={vi.fn()} />);
+    expect(container.querySelector('video')).toBeNull();
+    expect(screen.getByText('MP4')).toBeInTheDocument();
+  });
+
+  it('falls back to the glyph for an HTML file with no resolved preview URL yet', () => {
+    const f = file('a.html', 'text/html');
+    const { container } = render(<FileDropzoneThumbnailGrid files={[f]} previews={EMPTY_PREVIEWS} onSelect={vi.fn()} />);
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(screen.getByText('HTML')).toBeInTheDocument();
+  });
+
+  it('falls back to the glyph for a text file whose snippet has not loaded yet', () => {
+    const f = file('notes.txt', 'text/plain');
+    render(<FileDropzoneThumbnailGrid files={[f]} previews={EMPTY_PREVIEWS} onSelect={vi.fn()} />);
+    expect(screen.getByText('TXT')).toBeInTheDocument();
+  });
+
+  it('caps the text thumbnail snippet at 360 characters', () => {
+    const f = file('notes.txt', 'text/plain');
+    const previews: FileDropzonePreviewState = { ...EMPTY_PREVIEWS, textSnippets: new Map([[f, 'a'.repeat(500)]]) };
+    const { container } = render(<FileDropzoneThumbnailGrid files={[f]} previews={previews} onSelect={vi.fn()} />);
+    expect(container.querySelector('.jini-file-dropzone__text-thumb')!.textContent).toHaveLength(360);
   });
 
   it('clicking a tile calls onSelect with that file', async () => {
