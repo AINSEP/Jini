@@ -44,12 +44,14 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 | L026 | running | cloud/w2-platform-L026 | | | | |
 | L034 | running | cloud/w2-platform-L034 | | | | |
 | L056 | running | cloud/w2-platform-L056 | | | | |
-| L093 | running | cloud/w2-platform-L093 | | | | |
+| L093 | MERGED | cloud/w2-platform-L093 | e85550e1, 5634636b | address 30/41→10/10 (expandIpv6 untouched, isPrivateAddress 4/2); endpoint-policy 14→6/5 | 100/100/100 both | eslint0, tsc0, 265 tests green |
 | L110 | running | cloud/w2-platform-L110 | | | | |
 | L230 | waiting on L056 | | | | | |
 | L271 | waiting on L026 | | | | | |
 
 ## Problems / notes
 - Baseline whole suite (unmodified tree @6bc87468): 77 files, 1173 passed, 6 skipped, 18s, exit 0.
+
+- L093 bugs pinned (reported, not fixed): isPrivateAddress treats ::ffff:0:a00:1 (v4-translated) and 64:ff9b::/96 NAT64 as public; isBlockedExternalApiHostname misses expanded mapped 0:0:0:0:0:ffff:a00:1, v4-compatible ::a00:1/::10.0.0.1, and ff02::1 multicast.
 
 ## Next
