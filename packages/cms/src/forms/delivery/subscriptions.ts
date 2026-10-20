@@ -28,11 +28,27 @@ export function createFormDeliverySubscriptions(
 ): { start(required?: Record<string, never>, optional?: Record<string, never>): Promise<void> } {
   let started: Promise<void> | undefined;
   const install = async (): Promise<void> => {
-    await required.bus.subscribe<FormSubmissionReceivedPayload>({ eventName: FORM_SUBMISSION_RECEIVED_EVENT, handler: async event => {
-      await required.plan({ workspaceId: event.workspaceId, submissionId: event.payload.submissionId, formId: event.payload.formDefinitionId });
-    } });
-    await required.bus.subscribe<FormDeliveryJob>({ eventName: FORM_DELIVERY_EVENT, handler: event =>
-      deliverFormJob({ job: event.payload, deliver: job => required.deliver({ workspaceId: event.workspaceId, job }) }) });
+    const installed: Array<() => Promise<void>> = [];
+    try {
+      installed.push(await required.bus.subscribe<FormSubmissionReceivedPayload>({ eventName: FORM_SUBMISSION_RECEIVED_EVENT, handler: async event => {
+        await required.plan({ workspaceId: event.workspaceId, submissionId: event.payload.submissionId, formId: event.payload.formDefinitionId });
+      } }));
+      installed.push(await required.bus.subscribe<FormDeliveryJob>({ eventName: FORM_DELIVERY_EVENT, handler: event =>
+        deliverFormJob({ job: event.payload, deliver: job => required.deliver({ workspaceId: event.workspaceId, job }) }) }));
+    } catch (error) {
+      // Undo a half install so the retry below cannot leave the planner subscribed twice.
+      await Promise.allSettled(installed.map(unsubscribe => unsubscribe()));
+      throw error;
+    }
   };
-  return { start: () => (started ??= install()) };
+  const start = (): Promise<void> => {
+    if (started) return started;
+    started = install();
+    // A failed install is forgotten so a later start retries it. Attaching this handler also marks
+    // the promise handled, so a host that fires `void start()` gets no unhandled rejection, while a
+    // caller that awaits the returned promise still sees the error.
+    started.catch(() => { started = undefined; });
+    return started;
+  };
+  return { start };
 }
