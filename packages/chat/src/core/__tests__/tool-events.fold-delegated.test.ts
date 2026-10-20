@@ -92,3 +92,92 @@ describe('foldDelegatedWrapperCalls', () => {
     expect(foldDelegatedWrapperCalls({ events: undefined })).toEqual([]);
   });
 });
+
+describe('dedupeToolUsesById', () => {
+  it('returns [] for no events', () => {
+    expect(dedupeToolUsesById({ events: undefined })).toEqual([]);
+  });
+
+  it('returns [] for an empty list', () => {
+    expect(dedupeToolUsesById({ events: [] })).toEqual([]);
+  });
+
+  it('returns the same reference when no tool_use id repeats', () => {
+    const events: AgentEvent[] = [
+      { kind: 'text', text: 'a' },
+      { kind: 'tool_use', id: 't1', name: 'Read', input: {} },
+      { kind: 'tool_use', id: 't2', name: 'Read', input: {} },
+    ];
+    expect(dedupeToolUsesById({ events })).toBe(events);
+  });
+
+  it('drops later replays of a tool_use id and keeps every other event in order', () => {
+    const first: AgentEvent = { kind: 'tool_use', id: 't1', name: 'Read', input: {} };
+    const events: AgentEvent[] = [
+      first,
+      { kind: 'text', text: 'a' },
+      { ...first, input: { replay: true } },
+      { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+      { ...first, input: { replay: 2 } },
+      { kind: 'tool_use', id: 't2', name: 'Read', input: {} },
+    ];
+    expect(dedupeToolUsesById({ events })).toEqual([events[0], events[1], events[3], events[5]]);
+  });
+});
+
+describe('foldDelegatedWrapperCalls — wrapper input edges', () => {
+  it('returns [] for an empty list', () => {
+    expect(foldDelegatedWrapperCalls({ events: [] })).toEqual([]);
+  });
+
+  it('keeps a wrapper whose input is null', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w1', name: 'execute_delegated_tool', input: null },
+      { kind: 'tool_use', id: 'c1', name: 'page.fill', input: {} },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toBe(events);
+  });
+
+  it('keeps a wrapper whose input is not an object', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w1', name: 'execute_delegated_tool', input: 'page.fill' },
+      { kind: 'tool_use', id: 'c1', name: 'page.fill', input: {} },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toBe(events);
+  });
+
+  it('keeps a wrapper whose toolId is an empty string', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w1', name: 'execute_delegated_tool', input: { toolId: '' } },
+      { kind: 'tool_use', id: 'c1', name: '', input: {} },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toBe(events);
+  });
+
+  it('keeps a wrapper whose toolId is not a string', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w1', name: 'execute_delegated_tool', input: { toolId: 7 } },
+      { kind: 'tool_use', id: 'c1', name: '7', input: {} },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toBe(events);
+  });
+
+  it('does not let a replayed wrapper (same id) claim a second canonical row', () => {
+    const wrapper: AgentEvent = { kind: 'tool_use', id: 'w1', name: 'execute_delegated_tool', input: { toolId: 'page.fill' } };
+    const events: AgentEvent[] = [
+      wrapper,
+      wrapper,
+      { kind: 'tool_use', id: 'c1', name: 'page.fill', input: {} },
+      { kind: 'tool_use', id: 'c2', name: 'page.fill', input: {} },
+    ];
+    expect(toolUseIds(foldDelegatedWrapperCalls({ events }))).toEqual(['c1', 'c2']);
+  });
+
+  it('leaves a non-wrapper tool_use that shares a canonical name untouched', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'x1', name: 'Read', input: { toolId: 'page.fill' } },
+      { kind: 'tool_use', id: 'c1', name: 'page.fill', input: {} },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toBe(events);
+  });
+});
