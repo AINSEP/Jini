@@ -124,6 +124,10 @@ describe('renderNanoBananaImage', () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({}), { status: 200 })));
         await expect(renderNanoBananaImage({ ctx: baseCtx(), credentials: { apiKey: 'g-key' } })).rejects.toThrow(/missing candidates/);
     });
+    it('throws the missing-inlineData message when candidates is a non-array object', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ candidates: { content: { parts: [] } } }), { status: 200 })));
+        await expect(renderNanoBananaImage({ ctx: baseCtx(), credentials: { apiKey: 'g-key' } })).rejects.toThrow(/^nano-banana image response missing candidates/);
+    });
     it('throws when a candidate has no parts array', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ candidates: [{ content: {} }] }), { status: 200 })));
         await expect(renderNanoBananaImage({ ctx: baseCtx(), credentials: { apiKey: 'g-key' } })).rejects.toThrow(/missing candidates/);
