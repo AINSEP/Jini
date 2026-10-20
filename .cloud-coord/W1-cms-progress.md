@@ -15,7 +15,7 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 | L123 | redirects host-config, redirects | merged | done (52 tool calls) | 8778aace, d15f1058 | 18/29 → 8/9 | 100/100/100 (was 93.3–96.5) | eslint 0, tsc 0, 322 ✓ |
 | L151 | content-types index-provisioning, write-service | merged | done (22 tool calls) | e39b6c22, d07e78b9 | 19/20 → 8/8 | 100/100/100 (was 93.96/92.04) | eslint 0, tsc 0, 168 ✓ |
 | L164 | entries field-validation, write-service | merged | done (27 tool calls) | 41882661, 5f80579f | 17/16 → 9/6 (9 = untouched conformsToKind) | 100/100/100 (was 96.9/87.5) | eslint 0, tsc 0, entries+widgets ✓; 45 new tests green on old code |
-| L169 | taxonomy write-service | running | | | 16/20 → | | |
+| L169 | taxonomy write-service | merged | done (38 tool calls) | d08fe497 | 16/20 → ≤10/≤10 | 100/100/100 (was 98.5/95.1) | eslint 0, tsc 0, taxonomy 123 ✓; 20 new tests green on old code |
 | L176 | forms forms, submission-attempts, submit-service | running | | | 18/16 → | | |
 
 ## Problems
@@ -26,4 +26,5 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 - L123 flagged: `checkRedirectFieldsWouldWrite` exported with no callers; doc cites a non-existent publish-content precheck. Unreachable "matcher does not match" safety net in host-config kept + pinned via fake matcher.
 - Cross-package (http-kit): `checkSiteRelativeTarget` returns ok for raw backslash (`/a\b`) despite refusal wording; redirects.ts refuses it separately, so no behaviour impact.
 - L010 bugs pinned: file field — filename with no dot passes when whole name is a safe extension (e.g. `png`); renderHtmlFormBody — hidden input still points aria-describedby at unrendered help/error ids. Quirk: `<select>` gets a placeholder attribute.
+- L169 flagged (outside lot): `validateHierarchyAssignment` (taxonomy/validation-chain.ts) never reads its required `termId`, so importTerm’s existing?id:"__new__" argument is inert.
 ## Next
