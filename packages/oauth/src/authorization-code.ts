@@ -8,7 +8,7 @@ import { assertOAuthAppOptions } from "./options.js";
 import { applyResourceIndicators } from "./resource.js";
 import { assertSafeProviderEndpoint } from "./endpoint-safety.js";
 import { OAuthError } from "./errors.js";
-import type { PendingAuthorizationStore } from "./pending-authorizations.js";
+import type { PendingAuthorization, PendingAuthorizationStore } from "./pending-authorizations.js";
 import { invalidState } from './pending-authorizations.js';
 import { assertValidCodeVerifier, createPkcePair } from "./pkce.js";
 import type { OAuthClient, OAuthProviderDescriptor, OAuthRandomBytes, OAuthTokenSet, OAuthUrlGuard, OAuthAppOptions, OAuthResource } from "./ports.js";
@@ -72,9 +72,10 @@ function assertGrantSupported(provider: OAuthProviderDescriptor, grant: "authori
 }
 type BeginAuthorizationCodeArgs = OAuthRequiredArgs<Omit<BeginAuthorizationCodeDeps, 'pending'> & BeginAuthorizationCodeInput>
     & ({ pending: PendingAuthorizationStore } | { stateless: SealedAuthorizationState });
-export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCodeArgs, optionalArgs: OAuthOptionalArgs<BeginAuthorizationCodeDeps & BeginAuthorizationCodeInput> = {}): Promise<BeginAuthorizationCodeResult> {
-    const deps = requiredArgs;
-    const input = { ...optionalArgs, ownerKey: requiredArgs.ownerKey, client: requiredArgs.client, redirectUri: requiredArgs.redirectUri };
+function resolveAuthorizationUrls({ deps, redirectUri: rawRedirectUri }: {
+    deps: Omit<BeginAuthorizationCodeDeps, 'pending'>;
+    redirectUri: string;
+}, _optionalArgs: Record<string, never> = {}): { authorizationUrl: URL; redirectUri: URL } {
     assertOAuthAppOptions(deps.options);
     const { provider } = deps;
     assertGrantSupported(provider, "authorization_code");
@@ -85,13 +86,33 @@ export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCod
         });
     }
     const authorizationUrl = assertSafeProviderEndpoint(provider.authorizationEndpoint, "authorization endpoint", deps.guard);
-    const redirectUri = assertSafeProviderEndpoint(input.redirectUri, "redirect URI", deps.guard);
+    const redirectUri = assertSafeProviderEndpoint(rawRedirectUri, "redirect URI", deps.guard);
     if (!deps.options.redirectUris.some(uri => new URL(uri).href === redirectUri.href)) {
         throw new OAuthError({
             code: 'OAUTH_INVALID_REQUEST', message: 'redirect URI is not in the configured client identity',
             operatorAction: 'Register this callback URL before connecting.'
         });
     }
+    return { authorizationUrl, redirectUri };
+}
+async function storeAuthorizationRequest({ deps, authorization }: {
+    deps: { pending: PendingAuthorizationStore } | { stateless: SealedAuthorizationState };
+    authorization: Parameters<PendingAuthorizationStore['put']>[0];
+}, optionalArgs: Pick<BeginAuthorizationCodeInput, 'resource'> = {}): Promise<PendingAuthorization> {
+    const resource = optionalArgs.resource === undefined ? {} : { resource: optionalArgs.resource };
+    const entry = 'stateless' in deps
+        ? await deps.stateless.seal({ entry: { ...authorization, ...resource } })
+        : await deps.pending.put(authorization, resource);
+    if (entry.state.length === 0 || entry.state.length > MAX_AUTHORIZATION_STATE_LENGTH) {
+        throw invalidState({});
+    }
+    return entry;
+}
+export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCodeArgs, optionalArgs: OAuthOptionalArgs<BeginAuthorizationCodeDeps & BeginAuthorizationCodeInput> = {}): Promise<BeginAuthorizationCodeResult> {
+    const deps = requiredArgs;
+    const input = { ...optionalArgs, ownerKey: requiredArgs.ownerKey, client: requiredArgs.client, redirectUri: requiredArgs.redirectUri };
+    const { authorizationUrl, redirectUri } = resolveAuthorizationUrls({ deps, redirectUri: input.redirectUri });
+    const { provider } = deps;
     applyExtraAuthorizationParams(authorizationUrl, input.extraAuthorizationParams, optionalArgs.messages ?? defaultOAuthMessages);
     applyResourceIndicators(authorizationUrl.searchParams, input.resource);
     const scopes = input.scopes ?? provider.defaultScopes;
@@ -105,13 +126,7 @@ export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCod
         redirectUri: redirectUri.toString(),
         scopes: [...scopes]
     };
-    const resource = input.resource === undefined ? {} : { resource: input.resource };
-    const entry = 'stateless' in deps
-        ? await deps.stateless.seal({ entry: { ...authorization, ...resource } })
-        : await deps.pending.put(authorization, resource);
-    if (entry.state.length === 0 || entry.state.length > MAX_AUTHORIZATION_STATE_LENGTH) {
-        throw invalidState({});
-    }
+    const entry = await storeAuthorizationRequest({ deps, authorization }, input);
     authorizationUrl.searchParams.set("response_type", "code");
     authorizationUrl.searchParams.set("client_id", input.client.clientId);
     authorizationUrl.searchParams.set("redirect_uri", redirectUri.toString());

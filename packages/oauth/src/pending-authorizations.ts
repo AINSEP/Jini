@@ -93,6 +93,15 @@ export interface PendingAuthorizationCache<T> {
     size(requiredArgs: OAuthEmptyArgs): number;
     stop(requiredArgs: OAuthEmptyArgs): void;
 }
+function assertPendingStoreLimits({ ttlMs, maxEntries }: {
+    ttlMs: number;
+    maxEntries: number;
+}, _optionalArgs: OAuthEmptyArgs = {}): void {
+    if (!Number.isFinite(ttlMs) || ttlMs <= 0 || !Number.isSafeInteger(maxEntries) || maxEntries < 1) {
+        throw new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message: 'pending store limits must be positive',
+            operatorAction: 'Configure positive TTL and capacity values.' });
+    }
+}
 /** One process-local, single-use store: an explicit expiry option selects host payloads;
  * otherwise entropy creates owner-bound authorizations. Both use the same bounded map,
  * expiry sweep and removal-before-return contract. No persistence is required for a local
@@ -112,10 +121,7 @@ export function createPendingAuthorizationStore<T>(
 ): PendingAuthorizationCache<T> | PendingAuthorizationStore {
     const ttlMs = optionalArgs.ttlMs ?? DEFAULT_TTL_MS;
     const maxEntries = optionalArgs.maxEntries ?? DEFAULT_MAX_ENTRIES;
-    if (!Number.isFinite(ttlMs) || ttlMs <= 0 || !Number.isSafeInteger(maxEntries) || maxEntries < 1) {
-        throw new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message: 'pending store limits must be positive',
-            operatorAction: 'Configure positive TTL and capacity values.' });
-    }
+    assertPendingStoreLimits({ ttlMs, maxEntries });
     function entries<Value>(options: PendingAuthorizationCacheOptions<Value>): PendingAuthorizationCache<Value> {
         const pending = new Map<string, Value>();
         let cancel: (() => void) | null = null;
@@ -160,7 +166,7 @@ export function createPendingAuthorizationStore<T>(
         expiry: ({ value }) => Date.parse(value.expiresAt),
         ...(optionalArgs.scheduler === undefined ? {} : { scheduler: optionalArgs.scheduler }),
     });
-    const authorizationStore: PendingAuthorizationStore = {
+    return {
         async put(requiredArgs, optional = {}) {
             const input = { ...optional, ownerKey: requiredArgs.ownerKey, providerId: requiredArgs.providerId,
                 codeVerifier: requiredArgs.codeVerifier, redirectUri: requiredArgs.redirectUri, scopes: requiredArgs.scopes };
@@ -179,6 +185,5 @@ export function createPendingAuthorizationStore<T>(
             return structuredClone(entry);
         },
         async size(requiredArgs) { return pending.size(requiredArgs); },
-    };
-    return authorizationStore;
+    } satisfies PendingAuthorizationStore;
 }

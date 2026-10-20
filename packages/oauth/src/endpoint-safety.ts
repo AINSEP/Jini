@@ -10,6 +10,13 @@ export interface OAuthUrlGuardOptions {
     /** Test/development exception for localhost, the full 127.0.0.0/8 range, ::1 and mapped IPv6 loopback. */
     readonly allowLoopbackHttp?: boolean;
 }
+function isLoopbackHost({ hostname }: { hostname: string }, _optionalArgs: Record<string, never> = {}): boolean {
+    const host = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');
+    // URL parsing canonicalizes IPv4 and mapped IPv6; recognize their full loopback range.
+    // This only gates plaintext. The required host policy still approves the destination.
+    return host === 'localhost' || host === '::1'
+        || /^127\.\d+\.\d+\.\d+$/.test(host) || /^::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}$/.test(host);
+}
 /** Adds OAuth's scheme gate and typed errors around the application's URL policy. No DNS I/O is hidden here. */
 export function createOAuthUrlGuard(requiredArgs: OAuthRequiredArgs<OAuthUrlGuardOptions>, optionalArgs: OAuthOptionalArgs<OAuthUrlGuardOptions> = {}): OAuthUrlGuard {
     const options = { ...optionalArgs, assertAllowed: requiredArgs.assertAllowed };
@@ -30,11 +37,7 @@ export function createOAuthUrlGuard(requiredArgs: OAuthRequiredArgs<OAuthUrlGuar
             catch {
                 return reject('is not a valid absolute URL', 'Check the OAuth endpoints configured for this provider.');
             }
-            const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');
-            // URL parsing canonicalizes IPv4 and mapped IPv6; recognize their full loopback range.
-            // This only gates plaintext. The required host policy still approves the destination.
-            const loopback = host === 'localhost' || host === '::1'
-                || /^127\.\d+\.\d+\.\d+$/.test(host) || /^::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}$/.test(host);
+            const loopback = isLoopbackHost({ hostname: parsed.hostname });
             // Discovery, registration and token traffic can carry secrets; plaintext would expose
             // them before any protocol check could help. Local development is an explicit exception.
             if (parsed.protocol !== 'https:' && !(options.allowLoopbackHttp === true && parsed.protocol === 'http:' && loopback)) {

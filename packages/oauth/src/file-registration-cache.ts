@@ -56,7 +56,9 @@ export function createFileClientRegistrationCache(options: FileClientRegistratio
 function validRow(row: unknown): boolean {
     if (!Array.isArray(row) || row.length !== 2 || typeof row[0] !== 'string')
         return false;
-    const client: unknown = row[1];
+    return validClient({ client: row[1] });
+}
+function validClient({ client }: { client: unknown }, _optionalArgs: Record<string, never> = {}): boolean {
     if (client === null || typeof client !== 'object')
         return false;
     const c = client as Record<string, unknown>;
