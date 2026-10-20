@@ -564,18 +564,29 @@ export function buildMcpChildEnv({
   parentEnv = process.env,
   execPath = process.execPath,
 }: Omit<McpChildEnvInput, "command" | "specEnv"> = {}): Record<string, string> {
-  const isWin32 = platform === "win32";
-  const names: readonly string[] = isWin32 ? [...INHERITED_ENV_VARS, ...WIN32_INHERITED_ENV_VARS] : INHERITED_ENV_VARS;
+  return { ...inheritedParentEnv(parentEnv, platform), ...carriedRunMode({ command, platform, parentEnv, execPath }), ...launchEnv, ...specEnv };
+}
+
+/** The allowlisted parent variables ({@link INHERITED_ENV_VARS}, plus
+ *  {@link WIN32_INHERITED_ENV_VARS} on win32). Empty parent values are skipped. @complexity O(k). */
+function inheritedParentEnv(parentEnv: NodeJS.ProcessEnv, platform: NodeJS.Platform): Record<string, string> {
+  const names: readonly string[] = platform === "win32" ? [...INHERITED_ENV_VARS, ...WIN32_INHERITED_ENV_VARS] : INHERITED_ENV_VARS;
   const inherited: Record<string, string> = {};
   for (const name of names) {
     const value = parentEnv[name];
     if (typeof value === "string" && value.length > 0) inherited[name] = value;
   }
+  return inherited;
+}
+
+/** `ELECTRON_RUN_AS_NODE` for a win32 child that is this very executable while this process runs
+ *  with it set (see {@link buildMcpChildEnv}); `{}` for every other child. @complexity O(n) in the path length. */
+function carriedRunMode({ command, platform, parentEnv, execPath }: {
+  command: string; platform: NodeJS.Platform; parentEnv: NodeJS.ProcessEnv; execPath: string;
+}): Record<string, string> {
   const runMode = parentEnv[ELECTRON_RUN_AS_NODE];
-  if (isWin32 && typeof runMode === "string" && runMode.length > 0 && isSameWin32Path(command, execPath)) {
-    inherited[ELECTRON_RUN_AS_NODE] = runMode;
-  }
-  return { ...inherited, ...launchEnv, ...specEnv };
+  if (platform !== "win32" || typeof runMode !== "string" || runMode.length === 0) return {};
+  return isSameWin32Path(command, execPath) ? { [ELECTRON_RUN_AS_NODE]: runMode } : {};
 }
 
 /** Whether two win32 paths name the same file: resolved, then compared case-insensitively, as
