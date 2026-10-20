@@ -154,3 +154,7 @@ test('renderRedirectStub degrades unparseable, relative and backslash targets to
 test('renderRedirectStub escapes the visible location text', () => {
   assert.match(renderRedirectStub({ location: `javascript:'<x>'` }), /Redirecting to <a href="#">javascript:&#39;&lt;x&gt;&#39;<\/a>/);
 });
+
+test('extractAssetUrls never keeps protocol-relative URLs, even under a root prefix', () => {
+  assert.deepEqual(extractAssetUrls({ html: '<img src="//cdn.test/a.png"><img srcset="//cdn.test/b.png 1x, /c.png 2x">{"src":"//cdn.test/d"}', prefixes: ['/'] }), ['/c.png']);
+});
