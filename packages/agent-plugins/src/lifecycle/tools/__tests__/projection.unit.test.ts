@@ -120,11 +120,12 @@ describe('the contract snapshot', () => {
   test('fills the site-plugin SDK slot with functions that refuse', () => {
     const { registry, held } = fakeRegistry();
     projectionWith(registry).sync({ loaded: [loaded()], refusals: [] });
-    const sdk = held.get('acme-office')!.sdk as Record<string, unknown> & { content: Record<string, () => never>; routes: { add: () => never } };
+    // The contract types the slot as `object`; this is the site-plugin SDK shape the projection fills.
+    const sdk = held.get('acme-office')!.sdk as { content: { read: () => never }; routes: { add: () => never }; addFilter: () => never };
     const message = 'Agent Plugin tools have no site-plugin SDK.';
     expect(() => sdk.content.read()).toThrow(message);
     expect(() => sdk.routes.add()).toThrow(message);
-    expect(() => (sdk.addFilter as () => never)()).toThrow(message);
+    expect(() => sdk.addFilter()).toThrow(message);
     expect(Object.isFrozen(sdk)).toBe(true);
   });
 
