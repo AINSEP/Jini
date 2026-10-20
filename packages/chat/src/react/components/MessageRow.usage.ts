@@ -44,17 +44,23 @@ export function usageLineMeetsActions(
  * the current turn's cost is unknown. `showTotal: false` turns the total off. */
 export function useUsageSummary({ usage }: { usage: ChatUsageSummary }, { showTotal = true }: { showTotal?: boolean } = {}) {
   const t = useT();
-  const parts: string[] = [];
-  if (usage.durationMs !== undefined) {
-    const seconds = Math.round(usage.durationMs / 1000);
-    parts.push(seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`);
-  }
-  if (usage.costUsd !== undefined) {
-    parts.push(formatUsageCost({ costUsd: usage.costUsd, ...(showTotal ? { totalCostUsd: usage.totalCostUsd ?? usage.costUsd } : {}) }));
-  } else if (showTotal && usage.totalCostUsd !== undefined) {
-    parts.push(`total ${formatUsageCost({ costUsd: usage.totalCostUsd })}`);
-  }
+  const parts = [usageDuration({ durationMs: usage.durationMs }), usageCost({ usage }, { showTotal })]
+    .filter((part): part is string => part !== undefined);
   const text = parts.join(' · ');
   const title = usage.outputTokens === undefined ? undefined : t('{n} out', { n: usage.outputTokens });
   return { text, title, ariaLabel: title === undefined ? undefined : `${t('Done')} · ${text} · ${title}` };
+}
+
+function usageDuration({ durationMs }: { durationMs: number | undefined }, _options = {}): string | undefined {
+  if (durationMs === undefined) return undefined;
+  const seconds = Math.round(durationMs / 1000);
+  return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
+}
+
+function usageCost({ usage }: { usage: ChatUsageSummary }, { showTotal = true }: { showTotal?: boolean } = {}): string | undefined {
+  if (usage.costUsd !== undefined) {
+    return formatUsageCost({ costUsd: usage.costUsd, ...(showTotal ? { totalCostUsd: usage.totalCostUsd ?? usage.costUsd } : {}) });
+  }
+  if (showTotal && usage.totalCostUsd !== undefined) return `total ${formatUsageCost({ costUsd: usage.totalCostUsd })}`;
+  return undefined;
 }

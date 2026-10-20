@@ -19,18 +19,12 @@ export interface TodoCardProps {
   onDismiss?: () => void;
 }
 
-export function TodoCard({ todos, runStreaming = false, onDismiss }: TodoCardProps) {
+export function TodoCard({ todos, runStreaming, onDismiss }: TodoCardProps) {
   const t = useT();
-  const hasInProgress = todos.some((todo) => todo.status === 'in_progress');
-  const hasPending = todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress');
-  const defaultExpanded = todos.length > 0 && (hasInProgress || hasPending || runStreaming);
+  const { defaultExpanded, inProgressTodo, done, allComplete } = todoProgress({ todos }, { runStreaming });
   const [overrideExpanded, setOverrideExpanded] = useState<boolean | null>(null);
   const expanded = overrideExpanded ?? defaultExpanded;
 
-  const inProgressTodo = todos.find((todo) => todo.status === 'in_progress');
-  const completed = todos.filter((todo) => todo.status === 'completed').length;
-  const done = todos.filter((todo) => todo.status === 'completed' || todo.status === 'in_progress').length;
-  const allComplete = todos.length > 0 && completed === todos.length;
   const showDismiss = Boolean(onDismiss) && allComplete;
 
   return (
@@ -50,7 +44,7 @@ export function TodoCard({ todos, runStreaming = false, onDismiss }: TodoCardPro
           <span className="op-meta">
             {done}/{todos.length}
           </span>
-          {!expanded && inProgressTodo ? <span className="op-todo-current">{inProgressTodo.activeForm || inProgressTodo.content}</span> : null}
+          {!expanded && inProgressTodo ? <span className="op-todo-current">{todoLabel({ todo: inProgressTodo })}</span> : null}
           <span className="op-todo-chev" aria-hidden>
             {expanded ? <Icon name="chevron-down" size={11} /> : <Icon name="chevron-right" size={11} />}
           </span>
@@ -69,7 +63,7 @@ export function TodoCard({ todos, runStreaming = false, onDismiss }: TodoCardPro
                 <span className="todo-check" aria-hidden>
                   {todo.status === 'completed' ? '✓' : todo.status === 'in_progress' ? '◐' : todo.status === 'stopped' ? '!' : '○'}
                 </span>
-                <span className="todo-text">{todo.status === 'in_progress' && todo.activeForm ? todo.activeForm : todo.content}</span>
+                <span className="todo-text">{todoLabel({ todo })}</span>
               </li>
             ))}
           </ul>
@@ -77,4 +71,18 @@ export function TodoCard({ todos, runStreaming = false, onDismiss }: TodoCardPro
       </div>
     </div>
   );
+}
+
+function todoProgress({ todos }: { todos: TodoItem[] }, { runStreaming = false }: { runStreaming?: boolean | undefined } = {}) {
+  const hasPending = todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress');
+  const defaultExpanded = todos.length > 0 && (hasPending || runStreaming);
+  const inProgressTodo = todos.find((todo) => todo.status === 'in_progress');
+  const completed = todos.filter((todo) => todo.status === 'completed').length;
+  const done = todos.filter((todo) => todo.status === 'completed' || todo.status === 'in_progress').length;
+  const allComplete = todos.length > 0 && completed === todos.length;
+  return { defaultExpanded, inProgressTodo, done, allComplete };
+}
+
+function todoLabel({ todo }: { todo: TodoItem }, _options = {}): string {
+  return todo.status === 'in_progress' && todo.activeForm ? todo.activeForm : todo.content;
 }

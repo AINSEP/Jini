@@ -12,6 +12,7 @@
 import { memo } from 'react';
 import type { ChatMessage } from '../../core/index.js';
 import { isTerminalRunStatus } from '../../core/index.js';
+import type { ChatUsageSummary } from '../../core/turn-usage.js';
 import { useT } from '../hooks/context.js';
 import { useMessageListAutoScroll, useConversationUsage } from './MessageList.hooks.js';
 import { MessageRow, type MessageRowProps } from './MessageRow.js';
@@ -38,6 +39,32 @@ export interface MessageListProps extends Pick<MessageRowProps, 'projectFileName
   pendingPrompt?: { text: string; onCancel: () => void } | null;
 }
 
+function renderMessageRow(
+  { message, isLast, isStreaming, usageSummary }: {
+    message: ChatMessage;
+    isLast: boolean;
+    isStreaming: boolean;
+    usageSummary: ChatUsageSummary | undefined;
+  },
+  { activeQuestionFormMessageId, questionFormSubmittedAnswersByMessageId, onQuestionFormSubmit, ...rowProps }: Omit<MessageListProps, 'messages' | 'isStreaming' | 'scrollIntent' | 'onScrolled' | 'pendingPrompt'> = {},
+) {
+  const runStreaming = isLast && isStreaming && !isTerminalRunStatus({ status: message.runStatus });
+  return (
+    <MessageRow
+      key={message.id}
+      message={message}
+      // MessageRow owns the display defaults; forward host overrides without duplicating them here.
+      {...rowProps}
+      {...(usageSummary === undefined ? {} : { usageSummary })}
+      runStreaming={runStreaming}
+      runSucceeded={message.runStatus === 'succeeded'}
+      questionFormInteractive={message.id === activeQuestionFormMessageId}
+      {...(questionFormSubmittedAnswersByMessageId?.[message.id] !== undefined ? { questionFormSubmittedAnswers: questionFormSubmittedAnswersByMessageId[message.id] } : {})}
+      {...(onQuestionFormSubmit !== undefined ? { onQuestionFormSubmit: (text: string, answers: Record<string, string | string[]>) => onQuestionFormSubmit(message.id, text, answers) } : {})}
+    />
+  );
+}
+
 /**
  * Memoized: the pane re-renders on every composer keystroke, and re-rendering a long transcript
  * (hundreds of tool rows, MCP-UI cards, markdown) per key made typing lag (owner report
@@ -49,17 +76,8 @@ export const MessageList = memo(function MessageList({
   isStreaming = false,
   scrollIntent = false,
   onScrolled,
-  activeQuestionFormMessageId = null,
-  questionFormSubmittedAnswersByMessageId,
-  onQuestionFormSubmit,
-  projectFileNames,
-  onRequestOpenFile,
-  renderAttachment,
-  showUsageTotal = true,
-  showUsageLine = true,
-  toolCallDisplay = 'show',
-  showThinking = false,
-  pendingPrompt = null,
+  pendingPrompt,
+  ...rowProps
 }: MessageListProps) {
   const t = useT();
   const usageByMessage = useConversationUsage({ messages });
@@ -74,29 +92,12 @@ export const MessageList = memo(function MessageList({
       data-agent-role="list"
       data-agent-label="The conversation transcript, oldest message first"
     >
-      {messages.map((message) => {
-        const isLast = message.id === messages[messages.length - 1]?.id;
-        const runStreaming = isLast && isStreaming && !isTerminalRunStatus({ status: message.runStatus });
-        return (
-          <MessageRow
-            key={message.id}
-            message={message}
-            {...(usageByMessage.has(message.id) ? { usageSummary: usageByMessage.get(message.id)! } : {})}
-            showUsageTotal={showUsageTotal}
-            showUsageLine={showUsageLine}
-            toolCallDisplay={toolCallDisplay}
-            showThinking={showThinking}
-            runStreaming={runStreaming}
-            runSucceeded={message.runStatus === 'succeeded'}
-            questionFormInteractive={message.id === activeQuestionFormMessageId}
-            {...(questionFormSubmittedAnswersByMessageId?.[message.id] !== undefined ? { questionFormSubmittedAnswers: questionFormSubmittedAnswersByMessageId[message.id] } : {})}
-            {...(onQuestionFormSubmit !== undefined ? { onQuestionFormSubmit: (text: string, answers: Record<string, string | string[]>) => onQuestionFormSubmit(message.id, text, answers) } : {})}
-            {...(projectFileNames !== undefined ? { projectFileNames } : {})}
-            {...(onRequestOpenFile !== undefined ? { onRequestOpenFile } : {})}
-            {...(renderAttachment !== undefined ? { renderAttachment } : {})}
-          />
-        );
-      })}
+      {messages.map((message) => renderMessageRow({
+        message,
+        isLast: message.id === messages[messages.length - 1]?.id,
+        isStreaming,
+        usageSummary: usageByMessage.get(message.id),
+      }, rowProps))}
       {pendingPrompt ? (
         <div
           className="jini-chat-pane__queued"
