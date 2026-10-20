@@ -26,8 +26,8 @@ Branch: `cloud/w3-user-management` (from origin/general-work). Brief: `origin/cl
 | L182a | MERGED cecbc9ef | cloud/w3-user-management-L182a | yes | 6ed390c0,7e0a494f |
 | L182c | MERGED 8b952d6c | cloud/w3-user-management-L182c | yes | 329b2756,7055fa49,78fddb94,de16cc2f |
 | L182b | MERGED e14dc212 | cloud/w3-user-management-L182b | yes | 51aa0b60,4bfead36 |
-| L154-L272 | running | cloud/w3-user-management-L154-L272 | | |
-| L205 | running | cloud/w3-user-management-L205 | | |
+| L154-L272 | REJECTED once (new HW3 guard line), fix subagent running | cloud/w3-user-management-L154-L272 | yes | 2c053b61,00b5be9a,9d9918a8,a28864fa,7885c2d0 |
+| L205 | MERGED 393cb657 | cloud/w3-user-management-L205 | yes | 18e790cb,e347d0cd,a9ceeaf6,093b5ac8,c4cdebcc,38915e09 |
 
 ## Merges / verification
 Verify = coordinator eslint (cyc/cog 10) on lot files + new helpers, tsc, lot tests + importers (no `Errors` line), pnpm guard (no new lines vs base), own coverage run, diff read (as-any/as-unknown, comment moves, secrets).
@@ -80,6 +80,16 @@ Verify = coordinator eslint (cyc/cog 10) on lot files + new helpers, tsc, lot te
 - Coordinator coverage (all react + people suites, 232 tests): Users.tsx 100/100/100/100 (was 80.92/86.11/57.14), UserRowParts.tsx 100.
 - RED: 12 previously-uncovered functions each caught (EyeIcon needed a stricter assertion, added).
 - Security: none seen (show/hide password keeps autocomplete=new-password, pinned).
+
+### L205 — admin react MemberRow / page hooks / pages (merged 393cb657)
+- Measured: MemberRow 10/13→7/4; useRolesPage 13/0→7/3; useUserRow 13→8/4; useUsersConfirmation 11→6/1; RolesPage 11→8/4; UsersPage 12→9/4 (new helpers all ≤6/3). Coordinator eslint 0; tsc 0; 6 files / 78 tests; guard no new lines.
+- Coordinator coverage (exact 5 files, 259 tests): all 100/100/100/100.
+- Markup identity: temp old-vs-new innerHTML over 768/1024/2048 combos + hook return/call-log diff over 384 cases, deleted.
+- Removed: repeated tab-id slice → tabKey; 4 push lines → rowActions table; duplicate option builder → grantOptions; ternaries → maps/early returns. Checks removed: none. Bugs/security: none seen.
+
+### L154-L272 — people.rules / rules / memory adapter (REJECTED at first merge, not pushed)
+- First merge attempt: eslint 0, tsc 0, 25 files / 344 tests, coverage 100% on all 4 files incl. new error-copy.ts — but `pnpm guard` added `HW3-module-state packages/user-management/src/admin/people.rules.ts` (module-level `new Map` ACTION_RULES without ReadonlyMap type). Merge dropped locally (was never pushed); fresh fix subagent dispatched.
+- Commit messages 00b5be9a/9d9918a8/a28864fa carry pre-measurement (wrong) figures; empty commit 7885c2d0 records measured ones: userActionAllowed 27/17→5/1, describeRolesError 12/12→5/3, createMemoryRolesApi 13/0→4/0.
 
 ## Next steps
 - Wait for lot reports; VERIFY + MERGE each; dispatch queued lots as slots free.
