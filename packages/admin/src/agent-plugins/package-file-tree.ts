@@ -46,19 +46,16 @@ interface MutableFolder {
 const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
 /** Files first, then folders, each alphabetical (owner's call, 2026-09-29 — VS Code's default is the reverse). */
-function compareNodes(a: PackageFileTreeNode, b: PackageFileTreeNode, sorter = collator): number {
-  if (a.kind !== b.kind) return a.kind === "file" ? -1 : 1;
-  return sorter.compare(a.name, b.name) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
-}
-
-function freeze(folder: MutableFolder, prefix: string, sorter = collator): PackageFileTreeNode[] {
-  const nodes: PackageFileTreeNode[] = [];
-  for (const [name, child] of folder.folders) {
+function freeze(folder: MutableFolder, prefix: string, sorter: Intl.Collator): PackageFileTreeNode[] {
+  // Two same-kind siblings never share a name (folders are keyed by name, files deduped by path),
+  // so a collator tie only needs a code-unit tie-break, never an "equal" result.
+  const byName = (a: { readonly name: string }, b: { readonly name: string }) => sorter.compare(a.name, b.name) || (a.name < b.name ? -1 : 1);
+  const files: PackageFileTreeNode[] = folder.files.map((file) => ({ kind: "file" as const, ...file })).sort(byName);
+  const folders: PackageFileTreeNode[] = [...folder.folders].map(([name, child]) => {
     const path = prefix ? `${prefix}/${name}` : name;
-    nodes.push({ kind: "folder", name, path, children: freeze(child, path, sorter) });
-  }
-  for (const file of folder.files) nodes.push({ kind: "file", ...file });
-  return nodes.sort((a, b) => compareNodes(a, b, sorter));
+    return { kind: "folder" as const, name, path, children: freeze(child, path, sorter) };
+  }).sort(byName);
+  return [...files, ...folders];
 }
 
 /**
@@ -75,21 +72,27 @@ export function buildPackageFileTree({ paths }: { paths: readonly string[] }, op
     const segments = path.split("/").filter(Boolean);
     const fileName = segments.pop();
     if (!fileName) continue;
-    let folder = root;
-    for (const segment of segments) {
-      let next = folder.folders.get(segment);
-      if (!next) {
-        next = { folders: new Map(), files: [] };
-        folder.folders.set(segment, next);
-      }
-      folder = next;
-    }
+    const folder = folderAt({ root, segments });
     const normalized = [...segments, fileName].join("/");
     if (seen.has(normalized)) continue;
     seen.add(normalized);
     folder.files.push({ name: fileName, path });
   }
   return freeze(root, "", optional.locale === undefined ? collator : new Intl.Collator(optional.locale, { numeric: true, sensitivity: "base" }));
+}
+
+/** Walks `segments` down from `root`, creating each missing folder on the way. */
+function folderAt({ root, segments }: { root: MutableFolder; segments: readonly string[] }, _optional = {}): MutableFolder {
+  let folder = root;
+  for (const segment of segments) {
+    let next = folder.folders.get(segment);
+    if (!next) {
+      next = { folders: new Map(), files: [] };
+      folder.folders.set(segment, next);
+    }
+    folder = next;
+  }
+  return folder;
 }
 
 /**
@@ -165,32 +168,47 @@ export function packageFileTreeKeyAction(
     rows.findIndex((row) => row.node.path === currentPath),
   );
   const row = rows[index]!;
-  const node = row.node;
-  const open = node.kind === "folder" && isExpanded({ path: node.path });
-  switch (key) {
-    case "ArrowDown":
-      return { focus: rows[Math.min(index + 1, rows.length - 1)]!.node.path };
-    case "ArrowUp":
-      return { focus: rows[Math.max(index - 1, 0)]!.node.path };
-    case "Home":
-      return { focus: rows[0]!.node.path };
-    case "End":
-      return { focus: rows[rows.length - 1]!.node.path };
-    case "ArrowRight":
-      if (node.kind !== "folder") return { focus: node.path };
-      if (!open) return { focus: node.path, setExpanded: { path: node.path, expanded: true } };
-      return { focus: rows[index + 1]?.parentPath === node.path ? rows[index + 1]!.node.path : node.path };
-    case "ArrowLeft":
-      if (open) return { focus: node.path, setExpanded: { path: node.path, expanded: false } };
-      return { focus: row.parentPath ?? node.path };
-    case "Enter":
-    case " ":
-      if (node.kind === "file") return { focus: node.path, open: node.path };
-      return { focus: node.path, setExpanded: { path: node.path, expanded: !open } };
-    default:
-      return {};
-  }
+  const open = row.node.kind === "folder" && isExpanded({ path: row.node.path });
+  // A Map, not an object literal, so a key like "constructor" can never resolve to a prototype member.
+  return KEY_HANDLERS.get(key)?.({ rows, index, row, open }) ?? {};
 }
+
+interface KeyContext {
+  readonly rows: readonly PackageFileTreeRow[];
+  readonly index: number;
+  readonly row: PackageFileTreeRow;
+  /** The focused row is a folder that is currently expanded. */
+  readonly open: boolean;
+}
+
+const focusAt = (rows: readonly PackageFileTreeRow[], index: number): PackageFileTreeKeyAction => ({ focus: rows[index]!.node.path });
+
+function arrowRight({ rows, index, row: { node }, open }: KeyContext, _optional = {}): PackageFileTreeKeyAction {
+  if (node.kind !== "folder") return { focus: node.path };
+  if (!open) return { focus: node.path, setExpanded: { path: node.path, expanded: true } };
+  return { focus: rows[index + 1]?.parentPath === node.path ? rows[index + 1]!.node.path : node.path };
+}
+
+function arrowLeft({ row, open }: KeyContext, _optional = {}): PackageFileTreeKeyAction {
+  if (open) return { focus: row.node.path, setExpanded: { path: row.node.path, expanded: false } };
+  return { focus: row.parentPath ?? row.node.path };
+}
+
+function activate({ row: { node }, open }: KeyContext, _optional = {}): PackageFileTreeKeyAction {
+  if (node.kind === "file") return { focus: node.path, open: node.path };
+  return { focus: node.path, setExpanded: { path: node.path, expanded: !open } };
+}
+
+const KEY_HANDLERS = new Map<string, (context: KeyContext) => PackageFileTreeKeyAction>([
+  ["ArrowDown", ({ rows, index }) => focusAt(rows, Math.min(index + 1, rows.length - 1))],
+  ["ArrowUp", ({ rows, index }) => focusAt(rows, Math.max(index - 1, 0))],
+  ["Home", ({ rows }) => focusAt(rows, 0)],
+  ["End", ({ rows }) => focusAt(rows, rows.length - 1)],
+  ["ArrowRight", arrowRight],
+  ["ArrowLeft", arrowLeft],
+  ["Enter", activate],
+  [" ", activate],
+]);
 
 /** Icon family for a file row; the component maps it to a RemixIcon glyph and a tint. */
 export type PackageFileIconKind =
