@@ -114,7 +114,9 @@ const ASCII_WHITESPACE_OR_CONTROL_MAX_CODE_POINT = 0x20;
 function isUnsafeMediaUrlValue(value: string): boolean {
   let stripped = "";
   for (const char of value) {
-    if ((char.codePointAt(0) ?? 0) > ASCII_WHITESPACE_OR_CONTROL_MAX_CODE_POINT) stripped += char;
+    // `char` is never empty, so `charCodeAt(0)` is always a number; for an astral character it is
+    // the high surrogate (>= 0xD800), which is kept exactly as the full code point would be.
+    if (char.charCodeAt(0) > ASCII_WHITESPACE_OR_CONTROL_MAX_CODE_POINT) stripped += char;
   }
   stripped = stripped.toLowerCase();
   return stripped.startsWith("javascript:") || stripped.startsWith("vbscript:") || stripped.startsWith("data:");
@@ -197,16 +199,11 @@ export function parseMediaHtmlAttributes({ text }: { text: string }, _optional: 
     // Non-whitespace text between the previous match and this one is a fragment the token pattern
     // could not parse as a name (e.g. a stray quote) — the tokenizer has lost sync, so everything
     // parsed so far is discarded rather than trusted.
-    const skipped = trimmed.slice(consumed, match.index);
-    if (skipped.trim() !== "") {
-      const malformed: MediaHtmlAttributeError = { reason: "malformed", attribute: skipped.trim() };
-      errors.push(malformed);
-      return { attributes: {}, errors, error: malformed };
-    }
+    const skipped = trimmed.slice(consumed, match.index).trim();
+    if (skipped !== "") return malformedMediaHtmlAttributes({ errors, fragment: skipped });
     consumed = match.index + match[0].length;
 
-    const name = match[1]!.toLowerCase();
-    const value = match[2] ?? match[3] ?? match[4] ?? "";
+    const { name, value } = readMediaHtmlAttributeToken({ match });
     const rejection = classifyMediaHtmlAttributeToken(name, value);
     if (rejection) {
       errors.push(rejection);
@@ -215,13 +212,33 @@ export function parseMediaHtmlAttributes({ text }: { text: string }, _optional: 
     attributes[name] = value;
   }
 
-  const trailing = trimmed.slice(consumed);
-  if (trailing.trim() !== "") {
-    const malformed: MediaHtmlAttributeError = { reason: "malformed", attribute: trailing.trim() };
-    errors.push(malformed);
-    return { attributes: {}, errors, error: malformed };
-  }
+  const trailing = trimmed.slice(consumed).trim();
+  if (trailing !== "") return malformedMediaHtmlAttributes({ errors, fragment: trailing });
   return { attributes, errors, error: errors[0] ?? null };
+}
+
+/** The lowercased name and the value of one {@link HTML_ATTRIBUTE_TOKEN} match: whichever of the
+ *  double-quoted, single-quoted or unquoted value groups matched, or `""` for a bare boolean name.
+ *
+ * @complexity O(n) in the name's length (one lowercase pass).
+ */
+function readMediaHtmlAttributeToken({ match }: { match: RegExpExecArray }, _optional: Record<string, never> = {}): { name: string; value: string } {
+  return { name: match[1]!.toLowerCase(), value: match[2] ?? match[3] ?? match[4] ?? "" };
+}
+
+/** The fail-closed result once the tokenizer loses sync: `fragment` (already trimmed) is appended
+ *  to `errors` as the final `malformed` entry, and every accepted attribute is discarded — see
+ *  {@link parseMediaHtmlAttributes}'s header for why. Mutates `errors` (the caller's own list).
+ *
+ * @complexity O(1).
+ */
+function malformedMediaHtmlAttributes(
+  { errors, fragment }: { errors: MediaHtmlAttributeError[]; fragment: string },
+  _optional: Record<string, never> = {},
+): ParsedMediaHtmlAttributes {
+  const malformed: MediaHtmlAttributeError = { reason: "malformed", attribute: fragment };
+  errors.push(malformed);
+  return { attributes: {}, errors, error: malformed };
 }
 
 
