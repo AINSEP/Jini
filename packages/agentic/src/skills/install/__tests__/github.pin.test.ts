@@ -57,6 +57,10 @@ describe('fetchGitHubSkill URL allow-list', () => {
     expect(transport.calls).toEqual([]);
   });
 
+  it('keeps the URL parser failure as the cause of the refusal', async () => {
+    await expect(fetchGitHubSkill({ githubUrl: 'not a url', fetch: github().fetch })).rejects.toMatchObject({ message: URL_HELP, cause: expect.any(TypeError) });
+  });
+
   it('pins a bare repository to HEAD and strips one trailing slash and a .git suffix', async () => {
     const transport = github({ tree: [row('SKILL.md', 'x')] });
     const result = await fetchGitHubSkill({ githubUrl: 'https://github.com/owner/repo.git/', fetch: transport.fetch });
@@ -130,6 +134,9 @@ describe('fetchGitHubSkill response refusals', () => {
   });
   it.each([{ truncated: true, tree: [] }, { truncated: false }, { tree: {} }])('refuses incomplete tree %j', async treeBody => {
     expect(await refuse(url, github({ treeBody }))).toBe('GitHub repository tree is incomplete. Choose a smaller skill repository.');
+  });
+  it('lets a null tree row escape as a raw TypeError (reported, not fixed)', async () => {
+    await expect(fetchGitHubSkill({ githubUrl: url, fetch: github({ treeBody: { tree: [null] } }).fetch })).rejects.toThrow(TypeError);
   });
   it.each([{ type: 'commit' }, { mode: '120000' }, { mode: '040000' }, { type: undefined }])('refuses non-regular file %j', async overrides => {
     expect(await refuse(url, github({ tree: [row('SKILL.md', 'x', overrides)] }))).toBe('GitHub skills may contain only regular files.');
