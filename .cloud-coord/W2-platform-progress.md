@@ -47,7 +47,7 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 | L093 | MERGED | cloud/w2-platform-L093 | e85550e1, 5634636b | address 30/41→10/10 (expandIpv6 untouched, isPrivateAddress 4/2); endpoint-policy 14→6/5 | 100/100/100 both | eslint0, tsc0, 265 tests green |
 | L110 | MERGED | cloud/w2-platform-L110 | fe57e091, 63cd031a | client 23/19→≤10; fetch-adapter 17/11→≤10 | 100/100/100 both (was 94%/75% branch) | eslint0, tsc0, 166 tests green |
 | L230 | MERGED | cloud/w2-platform-L230 | 8029339b, d83b96f0 | asset-cache 10/11→≤10/7; blob-storage 9/14→9/9 | 100/100/100 both | eslint0, tsc0, 220 tests |
-| L271 | running | cloud/w2-platform-L271 | | | | |
+| L271 | MERGED | cloud/w2-platform-L271 | bea6b051, 6ffd8a6b | directory-home cyc 11→8; directory-registry 11/11→9/4 | 100/100/100 both | eslint0, tsc0, 126 tests |
 
 ## Problems / notes
 - Baseline whole suite (unmodified tree @6bc87468): 77 files, 1173 passed, 6 skipped, 18s, exit 0.
@@ -60,5 +60,7 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 - L034 review note: new tests use `as unknown as` only to feed malformed runtime input to validators (not typed fakes) — accepted.
 - L230 bugs pinned (reported, not fixed), blob-storage: (1) Local listFiles never validates namespace — '..' lists outside root, '' lists all namespaces; (2) Local accepts namespace '.' (writes into root); (3) S3 listFiles('ns1') also returns ns10/* (prefix lacks trailing '/'); (4) Local listFiles returns [] if a subdir vanishes mid-walk; (5) S3 keyFor accepts NUL and '.' namespace; (6) S3 readFile(ns,'/') reads the bare namespace key; (7) S3 statFile NaN mtime on unparseable Last-Modified.
 - L026 bug pinned (reported, not fixed): guarded-reader refuses subpaths under a not-yet-existing root with a misleading 'resolves outside the allowed root through a symbolic link' (fails closed).
+- Whole suite after all merges (platform rebuilt): 99 files, 2037 passed, 6 skipped (same 6 as baseline) — BUT 2 unhandled ENOENT errors (exit 1) from new L026 test guarded-reader.boundaries.test.ts (fakes wrap a real ReadStream whose deferred open races afterEach cleanup). Test-only; production unaffected. Fresh agent fixing on cloud/w2-platform-L026fix. Baseline had 0 errors, so this is ours.
+- Coordinator verify lesson: grep for the vitest 'Errors' line too, not just Tests/FAIL — per-lot verify missed it.
 
 ## Next
