@@ -10,3 +10,6 @@ export * from './host-validator.js';
 export * from './action-dispatcher.js';
 export * from './contribution.js';
 export * from './surface-handlers.js';
+export * from './capability-declarations.js';
+export * from './surface-capabilities.js';
+export * from './callback-field-inbox.js';

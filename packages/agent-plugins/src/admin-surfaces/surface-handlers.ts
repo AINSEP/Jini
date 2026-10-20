@@ -6,14 +6,15 @@
  * provider plugin cannot ship a working settings or resource-chooser screen. Why it is safe to run plugin code
  * here: the module loads only through the lifecycle's one executable loader
  * (`defineExecutablePluginContribution`: active plugin, shipped digest, on-disk containment), it
- * receives the same host capability ports as an executable tool (never a raw secret), every call goes
- * through G4's capability session (revoked on disable, results and errors scanned for tokens the call
- * obtained), and the dispatcher still checks the declared input and result schemas around it.
+ * receives host capability ports (never a raw secret) through the admin-surface capability session
+ * (`./surface-capabilities.ts`: only the surface's declared connections and config, revoked on disable,
+ * results and errors scanned for tokens the call obtained, the same gate as executable tools), and the
+ * dispatcher still checks the declared input and result schemas around it.
  * Bootstrap data is the one answer allowed to carry an access token (a surface may need a short-lived
  * one); it must match the surface's declared `bootstrap` schema and is never cached by the host.
  */
 import { defineExecutablePluginContribution, type LoadedPluginContribution, type PluginContributionDefinition } from '../lifecycle/contribution-loader.js';
-import { openCapabilitySession, type AgentPluginToolCapabilities, type AgentPluginToolCapabilitiesPort } from '../lifecycle/tools/capabilities.js';
+import { openAdminSurfaceCapabilitySession, type AdminSurfaceCapabilities, type AdminSurfaceCapabilitiesPort } from './surface-capabilities.js';
 import { AdminSurfaceActionError, type AdminSurfaceActionHandler } from './action-dispatcher.js';
 import { validateAdminSurfaceActionValue, type AdminSurfaceActionSchema } from './action-schema.js';
 import { parseAdminSurfacesFile, type AdminSurfaceDescriptor } from './descriptor.js';
@@ -27,10 +28,16 @@ export interface AdminSurfaceHandlerContext {
   readonly surfaceId: string;
 }
 
+/** The context a handler sees: the route's context plus the plugin's own declared connection ids
+ * (ids, never refs: the host resolves the ref, so a plugin can never name another plugin's connection). */
+export interface AdminSurfacePluginContext extends AdminSurfaceHandlerContext {
+  readonly connectionIds: readonly string[];
+}
+
 /** What a bootstrap provider receives. */
 export interface AdminSurfaceBootstrapCall {
-  readonly capabilities: AgentPluginToolCapabilities;
-  readonly context: AdminSurfaceHandlerContext;
+  readonly capabilities: AdminSurfaceCapabilities;
+  readonly context: AdminSurfacePluginContext;
 }
 
 /** What an action handler receives. `input` already matched the action's declared input schema. */
@@ -115,19 +122,21 @@ const keyOf = (pluginId: string, surfaceId: string) => `${pluginId}\u0000${surfa
  * Holds the admitted handler modules and answers for them. Call `sync` with every load of
  * `defineAdminSurfaceHandlerContribution` (on boot and on every activation change); a surface missing
  * from a load loses its handlers, and capabilities its module kept are revoked.
- * @param required.capabilities - Host port building one call's capabilities (the executable-tool port shape).
+ * @param required.capabilities - Host port building one call's admin-surface capabilities.
  * @returns `sync`, plus `handlersFor` and `bootstrapData` for the host's action dispatcher and bootstrap route.
  * @complexity sync is O(s + a) surfaces and actions; lookups are O(1).
  */
-export function createAdminSurfaceHandlerHost(required: { readonly capabilities: AgentPluginToolCapabilitiesPort }, _optional: Record<string, never> = {}) {
+export function createAdminSurfaceHandlerHost(required: { readonly capabilities: AdminSurfaceCapabilitiesPort }, _optional: Record<string, never> = {}) {
   let admitted = new Map<string, AdmittedSurface>();
 
   /** One call's capability session, scoped to the loaded plugin and the route's workspace/principal. */
-  function sessionFor(self: AdmittedSurface, context: AdminSurfaceHandlerContext) {
+  function sessionFor(self: AdmittedSurface, context: AdminSurfaceHandlerContext): { session: ReturnType<typeof openAdminSurfaceCapabilitySession>; context: AdminSurfacePluginContext } {
     const { pluginId, descriptor } = self.loaded;
     const principal = context.principalId === undefined ? {} : { principalId: context.principalId };
-    const session = openCapabilitySession({ capabilities: required.capabilities({ pluginId, workspaceId: context.workspaceId, ...principal }), isLive: self.isLive });
-    return { session, context: { workspaceId: context.workspaceId, ...principal, pluginId, surfaceId: descriptor.id } };
+    const capabilities = required.capabilities({ pluginId, workspaceId: context.workspaceId, ...principal });
+    const session = openAdminSurfaceCapabilitySession({ capabilities, isLive: self.isLive, declared: descriptor }, { ...(principal.principalId !== undefined && { actorId: principal.principalId }) });
+    const connectionIds = (descriptor.connections ?? []).map((connection) => connection.id);
+    return { session, context: { workspaceId: context.workspaceId, ...principal, pluginId, surfaceId: descriptor.id, connectionIds } };
   }
 
   function actionHandler(self: AdmittedSurface, run: AdminSurfaceHandlerModule['actions'][string]): AdminSurfaceActionHandler<AdminSurfaceHandlerContext> {

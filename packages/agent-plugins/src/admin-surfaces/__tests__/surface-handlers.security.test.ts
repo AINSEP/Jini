@@ -10,8 +10,9 @@ import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { createPluginContributionLoader } from '../../lifecycle/contribution-loader.js';
 import { findTrustedPluginPackages, importContainedModule, readTrustedPluginFile, setAgentPluginActivation } from '../../lifecycle/__tests__/test-support.js';
-import type { AgentPluginToolCapabilities } from '../../lifecycle/tools/capabilities.js';
-import { fakeCapabilities, FAKE_TOKEN, installPlugin, WORKSPACE_ID, withWorkspace } from '../../lifecycle/tools/__tests__/support.js';
+import type { AdminSurfaceCapabilities } from '../surface-capabilities.js';
+import { createFakeSurfaceHost } from './surface-support.js';
+import { FAKE_TOKEN, installPlugin, WORKSPACE_ID, withWorkspace } from '../../lifecycle/tools/__tests__/support.js';
 import {
   ADMIN_SURFACE_PLUGIN_DISABLED_MESSAGE, createAdminSurfaceActionDispatcher, createAdminSurfaceHandlerHost, defineAdminSurfaceHandlerContribution, parseAdminSurfacesFile, readAdminSurfaceFile,
   type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule, type LoadedAdminSurfaceHandlers,
@@ -25,7 +26,7 @@ const result = { type: 'object', properties: { saved: { type: 'boolean' } }, req
 const bootstrap = { type: 'object', properties: { accessToken: { type: 'string' } }, required: ['accessToken'] } as const;
 const surface = (overrides: Record<string, unknown> = {}) => ({
   id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'],
-  actions: [{ name: 'save', input, result }], handlerModule: 'server/handlers.mjs', ...overrides,
+  actions: [{ name: 'save', input, result }], handlerModule: 'server/handlers.mjs', connections: [{ id: 'c1' }], ...overrides,
 });
 const surfacesFile = (overrides: Record<string, unknown> = {}) => JSON.stringify({ schemaVersion: 1, surfaces: [surface(overrides)] });
 const reasonFor = (overrides: Record<string, unknown>) => {
@@ -43,8 +44,8 @@ const saveModule = (save: AdminSurfaceHandlerModule['actions'][string]): AdminSu
 /** A host over typed fake capabilities; records which plugin each capability set was scoped to. */
 function hostFor(entries: readonly LoadedAdminSurfaceHandlers[]) {
   const scopes: string[] = [];
-  const log = { tokenRequests: [] as string[], requests: [] };
-  const host = createAdminSurfaceHandlerHost({ capabilities: (scope) => { scopes.push(scope.pluginId); return fakeCapabilities(log); } });
+  const { log, port } = createFakeSurfaceHost();
+  const host = createAdminSurfaceHandlerHost({ capabilities: (scope) => { scopes.push(scope.pluginId); return port(scope); } });
   const { refusals } = host.sync({ loaded: entries, refusals: [] });
   return { host, refusals, scopes, log };
 }
@@ -135,7 +136,7 @@ describe('the handler module export is checked before admission', () => {
   });
   test('an invalid surfaces file refuses every handler, and surfaces without a handler module import nothing', () => {
     expect(definition.parse({ raw: '{' })).toEqual({ ok: false, reason: 'not valid JSON' });
-    expect(definition.parse({ raw: surfacesFile({ handlerModule: undefined }) })).toEqual({ ok: true, descriptors: [] });
+    expect(definition.parse({ raw: surfacesFile({ handlerModule: undefined, connections: undefined }) })).toEqual({ ok: true, descriptors: [] });
   });
 });
 
@@ -173,7 +174,7 @@ describe('dispatch through plugin handlers', () => {
   test('a result that carries an access token the call obtained is withheld', async () => {
     // The result schema admits a `token` string, so only the token scan can stop this answer.
     const overrides = { actions: [{ name: 'save', input, result: { type: 'object', properties: { token: { type: 'string' } } } }] };
-    const leaky = saveModule(async ({ capabilities }) => ({ token: await capabilities.connections.getAccessToken({ connectionRef: 'c1' }) }));
+    const leaky = saveModule(async ({ capabilities }) => ({ token: await capabilities.connections.getAccessToken({ connectionId: 'c1' }) }));
     const errors: unknown[] = [];
     const { host } = hostFor([loaded(leaky, overrides)]);
     const descriptor = descriptorOf(overrides);
@@ -185,7 +186,7 @@ describe('dispatch through plugin handlers', () => {
   });
   test('a plugin failure keeps its surface-safe code, but one that mentions an obtained token is replaced', async () => {
     const failing = (withToken: boolean) => saveModule(async ({ capabilities, fail }) => {
-      const token = await capabilities.connections.getAccessToken({ connectionRef: 'c1' });
+      const token = await capabilities.connections.getAccessToken({ connectionId: 'c1' });
       throw fail({ code: 'reconnect-required', message: withToken ? `token ${token} expired` : 'Reconnect the account and retry.' }, { retryable: false });
     });
     const clean = await dispatcherFor(hostFor([loaded(failing(false))]).host).dispatch({ action: 'save', payload: { name: 'x' }, context: CONTEXT });
@@ -200,7 +201,7 @@ describe('dispatch through plugin handlers', () => {
     const overrides = { actions: [{ name: 'save', input, result: { type: 'object', properties: { token: { type: 'string' } } } }], bootstrap };
     const module: AdminSurfaceHandlerModule = {
       actions: { save: async () => ({ token: kept }) },
-      bootstrap: async ({ capabilities }) => { kept = await capabilities.connections.getAccessToken({ connectionRef: 'c1' }); return { accessToken: 'unrelated' }; },
+      bootstrap: async ({ capabilities }) => { kept = await capabilities.connections.getAccessToken({ connectionId: 'c1' }); return { accessToken: 'unrelated' }; },
     };
     const { host } = hostFor([loaded(module, overrides)]);
     await host.bootstrapData({ context: CONTEXT });
@@ -217,14 +218,14 @@ describe('dispatch through plugin handlers', () => {
     const { host, scopes } = hostFor([loaded(saveModule(async ({ context, capabilities }) => { seen.push(context); await capabilities.limiter.check({ key: 'k' }); return { saved: true }; }))]);
     await dispatcherFor(host).dispatch({ action: 'save', payload: { name: 'x' }, context: { ...CONTEXT, pluginId: 'other-plugin', surfaceId: 'other' } });
     expect(scopes).toEqual([PLUGIN]);
-    expect(seen).toEqual([{ workspaceId: WORKSPACE_ID, principalId: 'admin-1', pluginId: PLUGIN, surfaceId: 'settings' }]);
+    expect(seen).toEqual([{ workspaceId: WORKSPACE_ID, principalId: 'admin-1', pluginId: PLUGIN, surfaceId: 'settings', connectionIds: ['c1'] }]);
   });
 });
 
 describe('bootstrap data', () => {
   const withBootstrap = (provide: AdminSurfaceHandlerModule['bootstrap']) => hostFor([loaded({ actions: {}, ...(provide ? { bootstrap: provide } : {}) }, { actions: [], bootstrap })]).host;
   test('bootstrap data is the one channel that may carry a short-lived access token, and only inside its schema', async () => {
-    const host = withBootstrap(async ({ capabilities }) => ({ accessToken: await capabilities.connections.getAccessToken({ connectionRef: 'c1' }) }));
+    const host = withBootstrap(async ({ capabilities }) => ({ accessToken: await capabilities.connections.getAccessToken({ connectionId: 'c1' }) }));
     expect(await host.bootstrapData({ context: CONTEXT })).toEqual({ accessToken: FAKE_TOKEN });
   });
   test('bootstrap data outside its schema is refused without echoing the value', async () => {
@@ -235,7 +236,7 @@ describe('bootstrap data', () => {
     expect((error as Error).message).not.toContain('secret-value');
   });
   test('a bootstrap failure that mentions an obtained token is replaced', async () => {
-    const host = withBootstrap(async ({ capabilities }) => { throw new Error(`denied ${await capabilities.connections.getAccessToken({ connectionRef: 'c1' })}`); });
+    const host = withBootstrap(async ({ capabilities }) => { throw new Error(`denied ${await capabilities.connections.getAccessToken({ connectionId: 'c1' })}`); });
     await expect(host.bootstrapData({ context: CONTEXT })).rejects.toThrow(/^The plugin tool failed and its error was withheld because it contained a connection credential\.$/);
   });
   test('a surface without a bootstrap provider starts with null', async () => {
@@ -245,7 +246,7 @@ describe('bootstrap data', () => {
 
 describe('disabling the plugin revokes its handlers', () => {
   test('a retained handler is refused, a retained capability is revoked and bootstrap data stops', async () => {
-    let retained: AgentPluginToolCapabilities | undefined;
+    let retained: AdminSurfaceCapabilities | undefined;
     const module: AdminSurfaceHandlerModule = {
       actions: { save: async ({ capabilities }) => { retained = capabilities; return { saved: true }; } },
       bootstrap: async () => ({ accessToken: 'a' }),
@@ -258,7 +259,7 @@ describe('disabling the plugin revokes its handlers', () => {
     expect(host.sync({ loaded: [], refusals: [] })).toEqual({ refusals: [] });
     expect(await createAdminSurfaceActionDispatcher({ descriptor, handlers }).dispatch({ action: 'save', payload: { name: 'x' }, context: CONTEXT }))
       .toEqual({ ok: false, error: { code: 'plugin-disabled', message: 'This plugin was disabled, so its admin surface cannot act. Re-enable the plugin and reopen the surface.', retryable: false } });
-    await expect(retained!.connections.getAccessToken({ connectionRef: 'c1' })).rejects.toThrow('This plugin tool was disabled; its capabilities are revoked. Re-enable the plugin and retry.');
+    await expect(retained!.connections.getAccessToken({ connectionId: 'c1' })).rejects.toThrow('This plugin tool was disabled; its capabilities are revoked. Re-enable the plugin and retry.');
     expect(host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' })).toEqual({});
     expect(await host.bootstrapData({ context: CONTEXT })).toBeNull();
   });
@@ -282,7 +283,7 @@ describe('disabling the plugin revokes its handlers', () => {
     await withWorkspace(async (workspaceRoot) => {
       await installPlugin({ workspaceRoot, pluginId: PLUGIN, files: { [FILENAME]: surfacesFile(), 'surface/index.html': '<!doctype html>', 'surface/app.mjs': 'export {};',
         'server/handlers.mjs': 'export default { actions: { async save() { return { saved: true }; } } };\n' } });
-      const host = createAdminSurfaceHandlerHost({ capabilities: () => fakeCapabilities({ tokenRequests: [], requests: [] }) });
+      const host = createAdminSurfaceHandlerHost({ capabilities: createFakeSurfaceHost().port });
       host.sync(await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition }).then(({ items, refusals }) => ({ loaded: items, refusals })));
       expect(Object.keys(host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }))).toEqual(['save']);
       await setAgentPluginActivation({ workspaceRoot, pluginId: PLUGIN, enabled: false, actor: 'test' }, { origin: 'bundled' });

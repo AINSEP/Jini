@@ -11,6 +11,7 @@
  * this file only guarantees the declared strings cannot name anything outside the package root.
  */
 import { checkAdminSurfaceActionSchema, type AdminSurfaceActionSchema } from './action-schema.js';
+import { parseAdminSurfaceCapabilityDeclarations, type AdminSurfaceCapabilityDeclarations } from './capability-declarations.js';
 
 /** The CSP directives a descriptor may extend. Everything else stays at the strict default. */
 export const ADMIN_SURFACE_CSP_DIRECTIVES = ['script-src', 'style-src', 'img-src', 'font-src', 'connect-src', 'frame-src'] as const;
@@ -23,7 +24,7 @@ export interface AdminSurfaceAction {
   readonly result?: AdminSurfaceActionSchema;
 }
 
-export interface AdminSurfaceDescriptor {
+export interface AdminSurfaceDescriptor extends AdminSurfaceCapabilityDeclarations {
   readonly id: string;
   readonly title: string;
   /** The `.html` document the frame loads, relative to the plugin root. */
@@ -37,6 +38,7 @@ export interface AdminSurfaceDescriptor {
   readonly handlerModule?: string;
   /** The schema bootstrap data from `handlerModule` must match before it reaches the frame. */
   readonly bootstrap?: AdminSurfaceActionSchema;
+  // `connections` and `publicConfig` (./capability-declarations.ts) also need a `handlerModule`.
 }
 
 type Parsed<T> = T | string;
@@ -127,14 +129,26 @@ function parseSurfaceExtras(entry: Entry, surface: Omit<AdminSurfaceDescriptor, 
  * it may not also be served to the frame, and every action it answers must declare a `result`: unlike
  * a host handler, plugin code is not trusted to shape what reaches the frame.
  */
-function parseHandler(entry: Entry, surface: Pick<AdminSurfaceDescriptor, 'files' | 'actions'>, at: string): Parsed<Pick<AdminSurfaceDescriptor, 'handlerModule' | 'bootstrap'>> {
+type HandlerFields = Pick<AdminSurfaceDescriptor, 'handlerModule' | 'bootstrap' | 'connections' | 'publicConfig'>;
+
+function parseHandler(entry: Entry, surface: Pick<AdminSurfaceDescriptor, 'files' | 'actions'>, at: string): Parsed<HandlerFields> {
   const { handlerModule } = entry;
-  if (handlerModule === undefined) return entry.bootstrap === undefined ? {} : `${at}.bootstrap needs a handlerModule that provides it`;
+  if (handlerModule === undefined) return handlerOnlyFieldRefusal(entry, at) ?? {};
   if (!isContainedAdminSurfacePath({ value: handlerModule, extensions: ['.mjs'] })) return `${at}.handlerModule must be a plain relative path ending in .mjs`;
   if (surface.files.includes(handlerModule as string)) return `${at}.handlerModule is server code and may not also be served to the frame`;
   const unchecked = surface.actions.findIndex((action) => action.result === undefined);
   if (unchecked !== -1) return `${at}.actions[${unchecked}] must declare a result schema when the surface has a handlerModule`;
-  return parseBootstrap(entry.bootstrap, handlerModule as string, at);
+  const declarations = parseAdminSurfaceCapabilityDeclarations({ entry, at });
+  if (typeof declarations === 'string') return declarations;
+  const handler = parseBootstrap(entry.bootstrap, handlerModule as string, at);
+  return typeof handler === 'string' ? handler : { ...handler, ...declarations };
+}
+
+/** Fields only a handler module can use; without one they would be dead declarations. */
+function handlerOnlyFieldRefusal(entry: Entry, at: string): string | null {
+  if (entry.bootstrap !== undefined) return `${at}.bootstrap needs a handlerModule that provides it`;
+  const declared = ['connections', 'publicConfig'].find((name) => entry[name] !== undefined);
+  return declared === undefined ? null : `${at}.${declared} needs a handlerModule that uses it`;
 }
 
 function parseBootstrap(bootstrap: unknown, handlerModule: string, at: string): Parsed<Pick<AdminSurfaceDescriptor, 'handlerModule' | 'bootstrap'>> {

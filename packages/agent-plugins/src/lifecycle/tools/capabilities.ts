@@ -64,31 +64,27 @@ function errorProbe(error: unknown, depth: number): unknown {
 }
 
 /**
- * Opens the capability session for one tool call.
- * @param required.capabilities - The host's capabilities for this call.
- * @param required.isLive - False once the contributing plugin's tools are revoked.
- * @returns Wrapped capabilities plus `release` (result gate) and `sanitize` (error gate).
- * @complexity O(1) to open; gates are O(serialized size).
+ * The revocation and credential gates every capability session shares: this file's tool session and
+ * the admin-surface session (`../../admin-surfaces/surface-capabilities.ts`), so both revoke and scan
+ * the same way.
+ * @param required.isLive - False once the contributing plugin's contributions are revoked.
+ * @returns `guard` (wraps a capability so it refuses once revoked), `noteToken` (records a token the
+ * call obtained), `mentionsToken`, and the `release` (result) and `sanitize` (error) gates.
+ * @complexity O(1) to open; the scans are O(serialized size).
  */
-export function openCapabilitySession(required: { readonly capabilities: AgentPluginToolCapabilities; readonly isLive: () => boolean }, _optional: Record<string, never> = {}) {
-  const { capabilities: host, isLive } = required;
+export function openCapabilityGate(required: { readonly isLive: () => boolean }, _optional: Record<string, never> = {}) {
+  const { isLive } = required;
   const issued = new Set<string>();
-  const guard = <A extends unknown[], R>(call: (...args: A) => Promise<R>) => async (...args: A): Promise<R> => {
-    if (!isLive()) throw new Error(REVOKED_MESSAGE);
-    return call(...args);
-  };
-  const capabilities: AgentPluginToolCapabilities = Object.freeze({
-    connections: Object.freeze({ getAccessToken: guard(async (input: { readonly connectionRef: string }) => {
-      const token = await host.connections.getAccessToken({ connectionRef: input.connectionRef });
+  return {
+    guard: <A extends unknown[], R>(call: (...args: A) => Promise<R>) => async (...args: A): Promise<R> => {
+      if (!isLive()) throw new Error(REVOKED_MESSAGE);
+      return call(...args);
+    },
+    noteToken({ token }: { readonly token: string }): string {
       if (token) issued.add(token);
       return token;
-    }) }),
-    http: Object.freeze({ fetch: guard((input: { readonly url: string }, options?: AgentPluginHttpOptions) => host.http.fetch(input, options)) }),
-    limiter: Object.freeze({ check: guard((input: { readonly key: string }) => host.limiter.check(input)) }),
-    artifacts: Object.freeze({ write: guard((input: Parameters<AgentPluginToolCapabilities['artifacts']['write']>[0]) => host.artifacts.write(input)) }),
-  });
-  return {
-    capabilities,
+    },
+    mentionsToken: ({ value }: { readonly value: unknown }): boolean => mentionsToken(value, issued),
     /** The result, unless it mentions a token this call obtained. */
     release<T>({ value }: { readonly value: T }): T {
       if (mentionsToken(value, issued)) throw new Error(WITHHELD_OUTPUT_MESSAGE);
@@ -99,4 +95,37 @@ export function openCapabilitySession(required: { readonly capabilities: AgentPl
       return mentionsToken(errorProbe(error, 2), issued) ? new Error(WITHHELD_ERROR_MESSAGE) : error;
     },
   };
+}
+
+export type AgentPluginCapabilityGate = ReturnType<typeof openCapabilityGate>;
+
+/** The host capabilities every session wraps the same way: guarded HTTP, limiter and artifacts. @complexity O(1). */
+export function guardSharedCapabilities(
+  required: { readonly gate: AgentPluginCapabilityGate; readonly host: Pick<AgentPluginToolCapabilities, 'http' | 'limiter' | 'artifacts'> },
+  _optional: Record<string, never> = {},
+): Pick<AgentPluginToolCapabilities, 'http' | 'limiter' | 'artifacts'> {
+  const { gate: { guard }, host } = required;
+  return {
+    http: Object.freeze({ fetch: guard((input: { readonly url: string }, options?: AgentPluginHttpOptions) => host.http.fetch(input, options)) }),
+    limiter: Object.freeze({ check: guard((input: { readonly key: string }) => host.limiter.check(input)) }),
+    artifacts: Object.freeze({ write: guard((input: Parameters<AgentPluginToolCapabilities['artifacts']['write']>[0]) => host.artifacts.write(input)) }),
+  };
+}
+
+/**
+ * Opens the capability session for one tool call.
+ * @param required.capabilities - The host's capabilities for this call.
+ * @param required.isLive - False once the contributing plugin's tools are revoked.
+ * @returns Wrapped capabilities plus `release` (result gate) and `sanitize` (error gate).
+ * @complexity O(1) to open; gates are O(serialized size).
+ */
+export function openCapabilitySession(required: { readonly capabilities: AgentPluginToolCapabilities; readonly isLive: () => boolean }, _optional: Record<string, never> = {}) {
+  const { capabilities: host, isLive } = required;
+  const gate = openCapabilityGate({ isLive });
+  const capabilities: AgentPluginToolCapabilities = Object.freeze({
+    connections: Object.freeze({ getAccessToken: gate.guard(async (input: { readonly connectionRef: string }) =>
+      gate.noteToken({ token: await host.connections.getAccessToken({ connectionRef: input.connectionRef }) })) }),
+    ...guardSharedCapabilities({ gate, host }),
+  });
+  return { capabilities, release: gate.release, sanitize: gate.sanitize };
 }
