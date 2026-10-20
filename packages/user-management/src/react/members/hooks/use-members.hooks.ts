@@ -78,19 +78,34 @@ export interface MembersController {
 }
 
 export interface MembersOptions { refresh?: IdentityRefreshPort | undefined }
+
+/**
+ * The spinner row for the detail panel: the expanded row while its keyed observer is still
+ * fetching with nothing cached, `null` otherwise. Pure so `useMembers` stays a flat wiring list.
+ */
+function detailLoadingIdFor(
+  { expandedId, detail }: { expandedId: string | null; detail: { data?: unknown; isFetching: boolean } },
+): string | null {
+  return expandedId !== null && !detail.data && detail.isFetching ? expandedId : null;
+}
+
 export function useMembers({ port, translate, queryScope = "members" }: MembersDependencies, { refresh }: MembersOptions = {}): MembersController {
   const scopeRef = useRef(queryScope); scopeRef.current = queryScope;
-  const boundT = translate;
   const describeError = (error: unknown, fallback: string) => describeApiError({ error, fallback, translate });
+  /** `null` when there is nothing to describe, so each derived error string stays one line. */
+  const describeIfError = (error: unknown, fallback: string) => (error ? describeError(error, fallback) : null);
   const listKey = [queryScope, 'members', 'list'] as const;
   const detailRoot = [queryScope, 'members', 'detail'] as const;
   const invalidate = useInvalidate();
+  // One request description shared by the observer and the imperative loader, so both read the
+  // same key through the same fetch.
+  const listRequest = { key: listKey, fetch: () => port.listMembers({}) };
   // Mount reads and assistant refreshes can overlap; the shared cache owns list settlement
   // order so a slow earlier success or failure cannot replace a newer roster.
-  const list = useFetchQuery({ key: listKey, fetch: () => port.listMembers({}) });
+  const list = useFetchQuery(listRequest);
   const members = list.data?.members ?? null;
-  const error = list.error ? describeError(list.error, translate("failed to load members")) : null;
-  const listLoader = useCachedLoader({ key: listKey, fetch: () => port.listMembers({}) }, { staleTime: 0 });
+  const error = describeIfError(list.error, translate("failed to load members"));
+  const listLoader = useCachedLoader(listRequest, { staleTime: 0 });
   const disable = useFetchMutation({ run: ({ input: id }: { input: string }) => port.disableMember({ id }) }, { invalidates: [listKey, detailRoot] });
   // Sending a link changes no list/detail fields; do not refetch the roster on success.
   const resend = useFetchMutation({ run: ({ input: email }: { input: string }) => port.requestMemberMagicLink({ email }) });
@@ -111,11 +126,9 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
   const [detailGeneration, setDetailGeneration] = useState(0);
   // Entity keys own settlement: a late A response cannot paint B's error/spinner. Detail
   // data remains cached on collapse, while successful disables invalidate both resources.
-  const detail = useFetchQuery({
-    key: [...detailRoot, expandedId ?? '', detailGeneration],
-    fetch: () => port.getMember({ id: expandedId! }),
-  }, { enabled: expandedId !== null, staleTime: Infinity });
-  const detailLoader = useCachedLoader({ key: [...detailRoot, expandedId ?? '', detailGeneration], fetch: () => port.getMember({ id: expandedId! }) }, { staleTime: Infinity });
+  const detailRequest = { key: [...detailRoot, expandedId ?? '', detailGeneration], fetch: () => port.getMember({ id: expandedId! }) };
+  const detail = useFetchQuery(detailRequest, { enabled: expandedId !== null, staleTime: Infinity });
+  const detailLoader = useCachedLoader(detailRequest, { staleTime: Infinity });
   useEffect(() => {
     expandedIdRef.current = null;
     detailGenerations.current = {};
@@ -127,10 +140,10 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
   }, [queryScope]);
   // Only paint the failure onto the panel that is still expanded: the observer's entity key
   // selects the current row, so a late rejection for a collapsed row cannot surface here.
-  const detailError = detail.error ? describeError(detail.error, translate("Failed to load member detail.")) : null;
+  const detailError = describeIfError(detail.error, translate("Failed to load member detail."));
   // A superseded load leaves the spinner to its successor. Derive it from the current keyed
   // observer instead of letting an old request's finally clear the new row's loading state.
-  const detailLoadingId = expandedId !== null && !detail.data && detail.isFetching ? expandedId : null;
+  const detailLoadingId = detailLoadingIdFor({ expandedId, detail });
   useEffect(() => {
     if (expandedId && detail.data) setDetailById(current => ({ ...current, [expandedId]: detail.data!.member }));
   }, [expandedId, detail.data]);
@@ -222,7 +235,7 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
     setConfirmingDisable,
     confirmDisable,
 
-    t: boundT,
+    t: translate,
     translate,
   };
 }

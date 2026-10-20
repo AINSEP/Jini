@@ -85,6 +85,28 @@ describe("useMembers pins — detail panel", () => {
     expect(result.current.detailError).toBeNull();
   });
 
+  it("does not show the spinner while an already-loaded detail refetches after a refresh", async () => {
+    const port = createFakeMembersPort({}, { members: [MEMBER] });
+    let refetch: ReturnType<typeof deferred<{ member: AdminMember }>> | null = null;
+    let refetching = false;
+    port.getMember = async () => {
+      if (!refetch) return { member: MEMBER };
+      refetching = true;
+      return refetch.promise;
+    };
+    let onRefresh = () => {};
+    const refresh: IdentityRefreshPort = { subscribe: (required) => { onRefresh = required.onRefresh; return () => {}; } };
+    const { result } = renderHook(() => useMembers({ port, translate }, { refresh }));
+    await waitFor(() => expect(result.current.members).not.toBeNull());
+    await act(async () => { await result.current.onToggleDetail(MEMBER); });
+    await waitFor(() => expect(result.current.detailById.m1).toEqual(MEMBER));
+    refetch = deferred<{ member: AdminMember }>();
+    act(() => onRefresh());
+    await waitFor(() => expect(refetching).toBe(true));
+    expect(result.current.detailLoadingId).toBeNull();
+    await act(async () => { refetch!.resolve({ member: MEMBER }); });
+  });
+
   it("is not loading and has no error while every row is collapsed", async () => {
     const port = createFakeMembersPort({}, { members: [MEMBER] });
     const { result } = await mounted(port);
