@@ -6,9 +6,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import type { OAuthClient } from '@jini-ai/oauth';
-import { createApiConnectionService, parseApiConnectionDescriptor, type ApiConnectionServiceDeps } from '../index.js';
+import { createApiConnectionService, parseApiConnectionDescriptor, type ApiConnectionServiceDeps, type VaultOAuthTokenStore } from '../index.js';
 import { startAcmeProvider, type AcmeProvider } from './fixtures/acme-provider.js';
-import { buildHarness, buildVaultHarness, CALLBACK, signIn, type Harness } from './fixtures/harness.js';
+import { buildRecordMeta } from '../token-store/record.js';
+import { buildHarness, buildVaultHarness, CALLBACK, signIn, VAULT_SCOPE, type Harness } from './fixtures/harness.js';
 
 let provider: AcmeProvider;
 let h: Harness;
@@ -415,5 +416,58 @@ describe('paths that would discard a consented credential', () => {
     await complete((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
     const confirmed = await h.service.confirmSwitchAccount({ connectionRef: ref, actorId: 'actor-1' });
     expect(confirmed.previousAccountRevocation).toBe('not-attempted');
+  });
+});
+
+describe('a changed OAuth client or an unreadable stored credential never locks the connection out', () => {
+  let before: ReturnType<typeof buildVaultHarness>;
+  let after: ReturnType<typeof buildVaultHarness>;
+  let ref: string;
+  const finishOn = (x: Harness<VaultOAuthTokenStore>, callbackParams: Record<string, string>) =>
+    x.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+  const storedRow = () => before.vault.get({ ...VAULT_SCOPE, id: ref });
+  beforeEach(async () => {
+    before = buildVaultHarness(provider);
+    const { started, callbackParams } = await signIn(before, provider);
+    await finishOn(before, callbackParams);
+    ref = started.connectionRef;
+    // The same host restarted with another OAuth client id: same vault rows, same records.
+    after = buildVaultHarness(provider, { client: { clientId: 'acme-desktop-2', authMethod: 'none' }, records: before.records }, before.vault);
+  });
+
+  it('reconnects under the new client and serves the newly issued token', async () => {
+    await finishOn(after, (await signIn(after, provider)).callbackParams);
+    expect(await after.service.getAccessToken({ connectionRef: ref })).toBe('acme-at-2');
+  });
+  it('a hosted same-account reconnect under the new client installs instead of failing on the old row', async () => {
+    const hosted = buildVaultHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' },
+      clientKind: 'confidential', records: before.records }, before.vault);
+    await finishOn(hosted, (await signIn(hosted, provider, { account: 'alice', omitRefreshToken: true })).callbackParams);
+    expect((await hosted.service.getStatus({ connectionRef: ref })).status).toBe('connected');
+  });
+  it('disconnect removes the unreadable credential locally and reports pending, never confirmed', async () => {
+    const result = await after.service.disconnect({ connectionRef: ref });
+    expect([result.status, result.remoteRevocation, provider.revoked, await storedRow()]).toEqual(['disconnected', 'pending', [], null]);
+  });
+  it('allows a new sign-in after such a disconnect', async () => {
+    await after.service.disconnect({ connectionRef: ref });
+    await finishOn(after, (await signIn(after, provider)).callbackParams);
+    expect((await after.service.getStatus({ connectionRef: ref })).status).toBe('connected');
+  });
+  it('treats a malformed stored credential the same way: removed locally, pending, then reconnectable', async () => {
+    const row = (await storedRow())!;
+    await before.vault.put({ ...VAULT_SCOPE, id: ref, expectedRevision: row.summary.revision, provider: null, label: ref,
+      meta: buildRecordMeta({ meta: { status: 'active', leaseHolder: null, leaseExpiresAtMs: null } }),
+      payload: { format: 'oauth-token-set', version: 99 } }); // malformed on purpose
+    const result = await before.service.disconnect({ connectionRef: ref });
+    await finishOn(before, (await signIn(before, provider)).callbackParams);
+    expect([result.status, result.remoteRevocation, (await before.service.getStatus({ connectionRef: ref })).status])
+      .toEqual(['disconnected', 'pending', 'connected']);
+  });
+  it('surfaces any other token-store failure during revocation and keeps the credential', async () => {
+    before.tokens.loadForRevocation = async () => { throw new Error('vault unavailable'); };
+    await expect(before.service.disconnect({ connectionRef: ref })).rejects.toThrow('vault unavailable');
+    expect([(await before.service.getStatus({ connectionRef: ref })).status, await storedRow()])
+      .toEqual(['revocation-pending', expect.objectContaining({ payload: expect.anything() })]);
   });
 });

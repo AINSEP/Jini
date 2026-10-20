@@ -13,6 +13,7 @@ import { ApiConnectionError } from './errors.js';
 import { installCredential } from './install-credential.js';
 import { stagedTokenKey } from './keys.js';
 import { blankRecord, writeRecord } from './records.js';
+import { isUnreadableTokenRecord } from './token-store/errors.js';
 import type { ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionRecord } from './types.js';
 
 const MAX_IDENTITY_LENGTH = 256;
@@ -65,7 +66,11 @@ async function currentRecord(deps: ApiConnectionServiceDeps, attempt: ApiConnect
 async function keepRefreshToken(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, tokens: OAuthTokenSet,
   account: ApiConnectionAccount): Promise<OAuthTokenSet> {
   if (tokens.refreshToken !== null || deps.clientKind === 'public' || record.account?.accountId !== account.accountId) return tokens;
-  const existing = await deps.tokens.load({ key: record.key });
+  // A row sealed for another client (the host changed its OAuth client) has no usable refresh token.
+  const existing = await deps.tokens.load({ key: record.key }).catch((error: unknown) => {
+    if (isUnreadableTokenRecord(error)) return null;
+    throw error;
+  });
   return existing?.refreshToken ? { ...tokens, refreshToken: existing.refreshToken } : tokens;
 }
 

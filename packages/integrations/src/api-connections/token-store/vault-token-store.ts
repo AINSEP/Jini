@@ -13,7 +13,7 @@ import type { Clock } from "@jini-ai/core/primitives";
 import type { OAuthTokenSet, OAuthTokenStore } from "@jini-ai/oauth";
 import { VaultError, type SecretsVaultService, type VaultContext, type VaultIdentity, type VaultMeta } from "@jini-ai/platform/secrets/credential-sets";
 import { OAuthTokenStoreError } from "./errors.js";
-import { buildRecordMeta, buildTokenPayload, parseTokenPayload, parseTokenSet, readRecordMeta,
+import { buildRecordMeta, buildTokenPayload, parseTokenPayload, parseTokenSet, readRecordMeta, readReplaceableGeneration,
   type OAuthConnectionOwner, type OAuthConnectionStatus, type OAuthTokenPayload, type OAuthTokenRecordMeta } from "./record.js";
 
 /** A crashed holder's lease frees itself after this long; longer than any single token request. */
@@ -46,6 +46,7 @@ export type VaultOAuthTokenStore = Required<OAuthTokenStore> & {
 };
 
 interface OpenedRecord { readonly revision: number; readonly meta: OAuthTokenRecordMeta; readonly payload: OAuthTokenPayload }
+interface InstallTarget { readonly revision: number | null; readonly generation: number | null; readonly meta: OAuthTokenRecordMeta }
 interface HeldLease { readonly holder: string; readonly generation: number }
 interface LoadObservation { readonly generation: number; readonly atMs: number }
 
@@ -85,10 +86,10 @@ export function createVaultOAuthTokenStore(
     loads.delete(key);
     return recent;
   };
-  const writeRecord = async (key: string, required: { record: OpenedRecord | null; meta: OAuthTokenRecordMeta; payload: VaultMeta }): Promise<void> => {
+  const writeRecord = async (key: string, required: { revision: number | null; meta: OAuthTokenRecordMeta; payload: VaultMeta }): Promise<void> => {
     // The vault keeps labels unique per scope, and one scope holds several rows per connection
     // (main and staged keys, other plugins' connections), so the label is the unique, non-secret key.
-    await vault.put({ ...identity(key), expectedRevision: required.record?.revision ?? null, provider: null,
+    await vault.put({ ...identity(key), expectedRevision: required.revision, provider: null,
       label: key, meta: buildRecordMeta({ meta: required.meta }), payload: required.payload });
   };
   // Every token write re-proves the lease and the generation immediately before the CAS write.
@@ -100,7 +101,7 @@ export function createVaultOAuthTokenStore(
     if (record === null || record.meta.leaseHolder !== lease.holder) throw new OAuthTokenStoreError({ code: "lease-lost" });
     const payload = buildTokenPayload({ key, owner, generation: lease.generation, tokens: required.tokens });
     try {
-      await writeRecord(key, { record, meta: { ...record.meta, status: required.status }, payload });
+      await writeRecord(key, { revision: record.revision, meta: { ...record.meta, status: required.status }, payload });
     } catch (error) {
       throw isConflict(error) ? new OAuthTokenStoreError({ code: "lease-lost" }, { cause: error }) : error;
     }
@@ -109,7 +110,7 @@ export function createVaultOAuthTokenStore(
     const leaseFields = { leaseHolder: required.holder, leaseExpiresAtMs: clock.nowMs() + LEASE_TTL_MS };
     try {
       if (required.record === null) {
-        await writeRecord(key, { record: null, meta: { status: "active", ...leaseFields },
+        await writeRecord(key, { revision: null, meta: { status: "active", ...leaseFields },
           payload: buildTokenPayload({ key, owner, generation: required.generation, tokens: null }) });
       } else {
         await vault.patchMeta({ ...identity(key), expectedRevision: required.record.revision, patch: leaseFields });
@@ -122,25 +123,34 @@ export function createVaultOAuthTokenStore(
   };
   // Lease fields are kept: a refresher holding the lease for an older generation is refused by
   // its own generation check or by this write's revision change, and then releases as usual.
+  // The row an install replaces; see `readReplaceableGeneration` for which rows qualify.
+  const openInstallTarget = async (key: string): Promise<InstallTarget> => {
+    const found = await vault.get(identity(key));
+    if (found === null) return { revision: null, generation: null, meta: { status: "active", leaseHolder: null, leaseExpiresAtMs: null } };
+    return { revision: found.summary.revision, generation: readReplaceableGeneration({ payload: found.payload, key, owner }),
+      meta: readRecordMeta({ meta: found.summary.meta }) };
+  };
   const installOnce = async (key: string, required: { tokens: OAuthTokenSet; generation: number }): Promise<boolean> => {
     if (await readGeneration({ key }) !== required.generation) throw new OAuthTokenStoreError({ code: "stale-generation" });
-    const record = await open(key);
+    const target = await openInstallTarget(key);
     // The live generation moved on after the check above and a newer install already landed.
-    if (record !== null && record.payload.generation > required.generation) throw new OAuthTokenStoreError({ code: "stale-generation" });
-    const meta: OAuthTokenRecordMeta = { ...(record?.meta ?? { leaseHolder: null, leaseExpiresAtMs: null }), status: "active" };
+    if (target.generation !== null && target.generation > required.generation) throw new OAuthTokenStoreError({ code: "stale-generation" });
     try {
-      await writeRecord(key, { record, meta, payload: buildTokenPayload({ key, owner, generation: required.generation, tokens: required.tokens }) });
+      await writeRecord(key, { revision: target.revision, meta: { ...target.meta, status: "active" },
+        payload: buildTokenPayload({ key, owner, generation: required.generation, tokens: required.tokens }) });
       return true;
     } catch (error) {
       if (isConflict(error)) return false;
       throw error;
     }
   };
+  // Needs only the revision: a row this owner can no longer open (another client id, malformed)
+  // must still be removable, or a disconnect could never clear it.
   const deleteOnce = async (key: string): Promise<boolean> => {
-    const record = await open(key);
-    if (record === null) return true;
+    const found = await vault.get(identity(key));
+    if (found === null) return true;
     try {
-      await vault.delete({ ...identity(key), expectedRevision: record.revision });
+      await vault.delete({ ...identity(key), expectedRevision: found.summary.revision });
       return true;
     } catch (error) {
       if (isConflict(error)) return false;

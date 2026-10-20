@@ -44,7 +44,8 @@ Also exported: `parseOAuthTokenVaultMeta` (the vault metadata parser), `OAuthTok
 | Rotation is durable before the lease is released | `persist` returns only after the vault write; the refresher releases afterwards. |
 | `invalid_grant` → reconnect required | `markNeedsReauth` clears the sealed tokens and sets `status: "reconnect-required"`; the reason string is not stored. |
 | A sign-in install is fenced without a lease | `install({ key, tokens, generation })` refuses (`stale-generation`) when the live generation is not `generation` or the stored payload is from a newer generation; a CAS conflict re-reads and retries up to 3 times (`write-conflict`). Recent loads do not block it, because its tokens are freshly issued rather than derived from a load. |
-| Disconnect clears the secret | `delete` removes the row (retries the CAS up to 3 times, then `write-conflict`). |
+| Disconnect clears the secret | `delete` removes the row (retries the CAS up to 3 times, then `write-conflict`). It needs only the row's revision, so it also removes a row this owner can no longer open. |
+| A changed client or a corrupt row never locks a connection out | `install` may replace a row whose payload is malformed or sealed for another `clientId` of the same key and connection (the host changed its OAuth client); a row sealed for another key, workspace, plugin or connection is still `owner-mismatch`. `load` and `loadForRevocation` keep refusing such rows; the service then deletes the row on disconnect and reports `pending` (see the api-connections README). |
 
 ## Host responsibilities
 
