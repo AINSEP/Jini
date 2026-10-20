@@ -141,3 +141,20 @@ test('non-Error runner and artifact failures are stringified into the job reason
   const second = await runAgentJobs({ jobs: [{ id: 'a', prompt: 'p' }], options, fs: failingFs, runner: { run: async () => ({ exitCode: 1 }) } });
   assert.deepEqual(second.results, [{ id: 'a', status: 'failed', reason: 'artifact: disk full', exitCode: 1 }]);
 });
+
+test('event types that name Object prototype members are ignored', () => {
+  const jsonl = [successful, event({ type: 'constructor' }), event({ type: '__proto__' }), event({ type: 'toString' })].join('\n');
+  assert.deepEqual(parseCodexRun({ jsonl }), { success: true, finalMessage: 'final\n', usage: { input_tokens: 3 } });
+});
+
+test('a supplied decoder never sees blank or whitespace-only lines', () => {
+  const decoded: string[] = [];
+  parseCodexRun({ jsonl: 'a\n\n   \nb' }, { decoder: { decode: ({ line }) => { decoded.push(line); return null; } } });
+  assert.deepEqual(decoded, ['a', 'b']);
+});
+
+test('a decoded array is not an event even when it carries a type property', () => {
+  const completedArray = Object.assign([], { type: 'turn.completed' });
+  const decoder = { decode: ({ line }: { line: string }) => line === 'c' ? completedArray : { type: 'item.completed', item: { type: 'agent_message', text: 'hi' } } };
+  assert.deepEqual(parseCodexRun({ jsonl: 'm\nc' }, { decoder }), { success: false, reason: 'no turn.completed event' });
+});
