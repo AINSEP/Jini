@@ -101,12 +101,7 @@ export function mergeDaemonProviders(
   options?: { preserveLocalProviderIds?: ReadonlySet<string>; dropProviderIds?: ReadonlySet<string> },
 ): MediaProviderMap {
   const dropped = options?.dropProviderIds;
-  const withoutDropped = (map: MediaProviderMap): MediaProviderMap =>
-    dropped === undefined || dropped.size === 0
-      ? map
-      : Object.fromEntries(Object.entries(map).filter(([providerId]) => !dropped.has(providerId)));
-
-  const local = withoutDropped({ ...(localProviders ?? {}) });
+  const local = withoutProviderIds({ map: { ...(localProviders ?? {}) } }, { dropped });
 
   if (daemonProviders == null) return local;
 
@@ -114,16 +109,40 @@ export function mergeDaemonProviders(
     return Object.fromEntries(Object.entries(local).filter(([, entry]) => !isMarkerOnlyEntry(entry)));
   }
 
+  const preserveIds = options?.preserveLocalProviderIds;
   const merged: MediaProviderMap = { ...local };
   for (const [providerId, daemonEntry] of Object.entries(daemonProviders)) {
-    if (!isEntryPresent(daemonEntry)) continue;
-    if (dropped?.has(providerId)) continue;
-    const localEntry = merged[providerId];
-    const preserveLocalEdit =
-      Boolean(options?.preserveLocalProviderIds?.has(providerId)) && hasRecoverableFields(localEntry);
-    merged[providerId] = preserveLocalEdit ? { ...daemonEntry, ...localEntry } : { ...daemonEntry };
+    if (!isEntryPresent(daemonEntry) || dropped?.has(providerId)) continue;
+    merged[providerId] = mergeDaemonEntry(
+      { providerId, daemonEntry, localEntry: merged[providerId] },
+      { preserveIds },
+    );
   }
   return merged;
+}
+
+/** `map` minus every id in `dropped` (see `mergeDaemonProviders`'s `dropProviderIds`). */
+function withoutProviderIds(
+  { map }: { map: MediaProviderMap },
+  { dropped }: { dropped?: ReadonlySet<string> | undefined },
+): MediaProviderMap {
+  if (dropped === undefined || dropped.size === 0) return map;
+  return Object.fromEntries(Object.entries(map).filter(([providerId]) => !dropped.has(providerId)));
+}
+
+/** Case 3 of `mergeDaemonProviders` for one provider: the server entry wins
+ *  unless the caller asked to preserve a local edit that has recoverable
+ *  fields, which is then layered ON TOP so server-only markers survive. */
+function mergeDaemonEntry(
+  {
+    providerId,
+    daemonEntry,
+    localEntry,
+  }: { providerId: string; daemonEntry: MediaProviderCredentials; localEntry: MediaProviderCredentials | undefined },
+  { preserveIds }: { preserveIds?: ReadonlySet<string> | undefined },
+): MediaProviderCredentials {
+  const preserveLocalEdit = Boolean(preserveIds?.has(providerId)) && hasRecoverableFields(localEntry);
+  return preserveLocalEdit ? { ...daemonEntry, ...localEntry } : { ...daemonEntry };
 }
 
 /**
