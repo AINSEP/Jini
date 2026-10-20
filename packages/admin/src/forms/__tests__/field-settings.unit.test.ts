@@ -314,3 +314,105 @@ describe("field settings dialog controller", () => {
     expect(controller.getSnapshot().error).toBeNull();
   });
 });
+
+describe("retypeField key order and absent settings", () => {
+  it("writes the retyped field's keys in a fixed order, so a JSON-compared draft does not churn", () => {
+    const rich = field({
+      type: "text", id: "t", label: "T", required: true, helpText: "h", className: "c", attributes: { "data-x": "1" },
+      placeholder: "p", maxLength: 9, minLength: 1, pattern: "[a-z]+", default: "d",
+    });
+    expect(Object.keys(retypeField({ field: rich, type: "email" }))).toEqual([
+      "id", "label", "type", "required", "helpText", "className", "attributes", "placeholder", "maxLength", "minLength", "pattern", "default",
+    ]);
+    const number = field({ type: "number", min: 1, max: 9, step: 2, default: 5 });
+    expect(Object.keys(retypeField({ field: number, type: "range" }))).toEqual(["id", "label", "type", "required", "min", "max", "step", "default"]);
+    const upload = field({ type: "file", accept: ["image/*"], maxFileSize: 1024 });
+    expect(Object.keys(retypeField({ field: upload, type: "file" }))).toEqual(["id", "label", "type", "required", "accept", "maxFileSize"]);
+    const choice = field({ type: "select", options: [{ value: "a", label: "A" }], default: "a" });
+    expect(Object.keys(retypeField({ field: choice, type: "radio" }))).toEqual(["id", "label", "type", "required", "options", "default"]);
+  });
+
+  it("adds no key for a setting the old field never had", () => {
+    expect(retypeField({ field: field({ type: "text" }), type: "email" })).toEqual({ id: "f", label: "F", type: "email", required: false });
+  });
+
+  it("drops a null max length rather than carrying it", () => {
+    expect(retypeField({ field: field({ type: "text", maxLength: null }), type: "email" })).not.toHaveProperty("maxLength");
+  });
+
+  it("copies attributes and accepted types rather than sharing them, and keeps the default by reference", () => {
+    const attributes = { "data-x": "1" };
+    const accept = ["image/*"];
+    const defaults = ["a"];
+    expect(retypeField({ field: field({ type: "text", attributes }), type: "email" }).attributes).not.toBe(attributes);
+    expect(retypeField({ field: field({ type: "file", accept }), type: "file" }).accept).not.toBe(accept);
+    const choices = field({ type: "multi-select", options: [{ value: "a", label: "A" }], default: defaults });
+    expect(retypeField({ field: choices, type: "checkbox-group" }).default).toBe(defaults);
+  });
+});
+
+describe("buildFieldSettingsPatch bounds edges", () => {
+  const build = (type: string, overrides: Partial<FieldSettingsForm>) => buildFieldSettingsPatch({ form: form(overrides), field: { type } });
+
+  it("keeps a date max with a blank min", () => {
+    expect(build("date", { min: "", max: "2026-01-01" })).toMatchObject({ ok: true, patch: { min: undefined, max: "2026-01-01" } });
+  });
+
+  it("refuses a date min after its max", () => {
+    expect(build("date", { min: "2026-02-01", max: "2026-01-01" })).toEqual({ ok: false, error: "Minimum must not be above maximum." });
+  });
+
+  it("refuses a non-number step, and a step of zero", () => {
+    expect(build("number", { step: "x" })).toEqual({ ok: false, error: "Enter numbers for min, max and step." });
+    expect(build("number", { step: "0" })).toEqual({ ok: false, error: "Step must be above 0." });
+  });
+
+  it("refuses a non-number min, and a non-number max", () => {
+    expect(build("number", { min: "x" })).toEqual({ ok: false, error: "Enter numbers for min, max and step." });
+    expect(build("number", { max: "x" })).toEqual({ ok: false, error: "Enter numbers for min, max and step." });
+  });
+
+  it("refuses a numeric min above its max", () => {
+    expect(build("number", { min: "5", max: "1" })).toEqual({ ok: false, error: "Minimum must not be above maximum." });
+  });
+
+  it("refuses a negative or fractional length, a min length above max, and an unsafe pattern", () => {
+    expect(build("text", { minLength: "-1" })).toEqual({ ok: false, error: "Length must be a whole number." });
+    expect(build("text", { maxLength: "1.5" })).toEqual({ ok: false, error: "Length must be a whole number." });
+    expect(build("text", { minLength: "5", maxLength: "2" })).toEqual({ ok: false, error: "Minimum must not be above maximum." });
+    expect(build("text", { pattern: "(" })).toEqual({ ok: false, error: "That pattern isn't supported." });
+  });
+
+  it("accepts a min equal to its max", () => {
+    expect(build("number", { min: "5", max: "5" })).toMatchObject({ ok: true, patch: { min: 5, max: 5 } });
+    expect(build("text", { minLength: "3", maxLength: "3" })).toMatchObject({ ok: true, patch: { minLength: 3, maxLength: 3 } });
+  });
+
+  it("clears a blank pattern", () => {
+    expect(build("text", { pattern: "  " })).toMatchObject({ ok: true, patch: { pattern: undefined } });
+  });
+
+  it("refuses a non-number default and an out-of-range upload size", () => {
+    expect(build("number", { defaultText: "x" })).toEqual({ ok: false, error: "Default must be a number." });
+    expect(build("file", { maxFileSizeMb: "0" })).toEqual({ ok: false, error: "Max size must be up to 10 MB." });
+    expect(build("file", { maxFileSizeMb: "x" })).toEqual({ ok: false, error: "Max size must be up to 10 MB." });
+  });
+
+  it("gives an unknown type only help text and no default", () => {
+    expect(build("legacy", { helpText: "h", defaultText: "d" })).toEqual({ ok: true, patch: {
+      placeholder: undefined, pattern: undefined, minLength: undefined, min: undefined, max: undefined, step: undefined,
+      helpText: "h", options: undefined, default: undefined,
+    } });
+  });
+});
+
+describe("settingsFormFromField defaults", () => {
+  it("drafts a choice default as a one-item list, a text default as text, and a file size in megabytes", () => {
+    expect(settingsFormFromField({ field: field({ type: "select", options: [{ value: "a", label: "A" }], default: "a" }) })).toMatchObject({ defaultText: "a", defaultChoices: ["a"], defaultChecked: false });
+    expect(settingsFormFromField({ field: field({ type: "text", default: "a" }) })).toMatchObject({ defaultText: "a", defaultChoices: [] });
+    expect(settingsFormFromField({ field: field({ type: "multi-select", default: ["a", "b"] }) })).toMatchObject({ defaultText: "", defaultChoices: ["a", "b"] });
+    expect(settingsFormFromField({ field: field({ type: "checkbox", default: true }) })).toMatchObject({ defaultText: "", defaultChecked: true });
+    expect(settingsFormFromField({ field: field({ type: "checkbox", checkboxValue: "yes", default: "yes" }) })).toMatchObject({ defaultChecked: true });
+    expect(settingsFormFromField({ field: field({ type: "file", maxFileSize: 1536 * 1024 }) })).toMatchObject({ maxFileSizeMb: "1.5" });
+  });
+});

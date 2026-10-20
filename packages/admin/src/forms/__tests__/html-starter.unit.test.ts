@@ -3,7 +3,7 @@ import { FIELD_TYPE_REGISTRY } from "@jini-ai/cms/forms";
 import { deriveHtmlForm } from "@jini-ai/cms/forms/html";
 import { describe, expect, it } from "vitest";
 
-import { formHtmlStarter } from "../html-rules.js";
+import { formHtmlEmbed, formHtmlStarter } from "../html-rules.js";
 import type { AdminFormField } from "../models.js";
 
 /**
@@ -57,6 +57,15 @@ describe("formHtmlStarter", () => {
     expect(starter(one("hidden", { default: "ad" }))).toBe('<input type="hidden" name="f" value="ad" aria-label="Field">');
   });
 
+  it("writes a paragraph field as an empty textarea", () => {
+    expect(starter(one("textarea", { maxLength: 9 }))).toBe('<label>Field\n  <textarea name="f" maxlength="9"></textarea>\n</label>');
+  });
+
+  it("writes a choice field that has no options yet with no boxes and only the empty choice", () => {
+    expect(starter(one("radio"))).toBe('<fieldset>\n  <legend>Field</legend>\n\n</fieldset>');
+    expect(starter(one("select"))).toBe('<label>Field\n  <select name="f">\n    <option value="">Choose an option</option>\n  </select>\n</label>');
+  });
+
   it("escapes labels, option text and attribute values", () => {
     expect(starter(one("select", { label: "<b>", options: [{ value: '"x"', label: "<i>" }] }))).toContain('<option value="&quot;x&quot;">&lt;i&gt;</option>');
     expect(starter(one("text", { label: "<b>" }))).toContain("<label>&lt;b&gt;");
@@ -83,5 +92,11 @@ describe("formHtmlStarter", () => {
     const derived = deriveHtmlForm({ html: formHtmlStarter({ fields }) }).fields;
     expect(derived.map((field) => [field.id, field.type])).toEqual(fields.map((field) => [field.id, field.type]));
     for (const field of derived.filter((item) => item.options)) expect(field.options, field.id).toEqual(options);
+  });
+});
+
+describe("formHtmlEmbed", () => {
+  it("writes the embed placeholder with its config, escaping an apostrophe in the slug", () => {
+    expect(formHtmlEmbed({ slug: "o'neil" })).toBe(`<div data-embed-config='{"type":"form","id":"o&#39;neil","mode":"html"}'></div>`);
   });
 });
