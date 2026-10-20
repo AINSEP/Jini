@@ -4,11 +4,24 @@ import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { createFakeSketchEditorDependencies } from '../../../react/dependencies-fake.js';
 import { emptySketchScene } from '../../../rules.js';
+import type { ExcalidrawProps, SketchEditorDependencies } from '../../../ports.js';
 import type { SketchScene } from '../../../types.js';
 import { SketchEditor } from '../../../react/components/SketchEditor.js';
 
 function flushRaf(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+/** The fake engine, with every `Excalidraw` render's props recorded. */
+function recordingDependencies(): { dependencies: SketchEditorDependencies; seen: ExcalidrawProps[] } {
+  const fake = createFakeSketchEditorDependencies();
+  const seen: ExcalidrawProps[] = [];
+  const FakeExcalidraw = fake.engine.Excalidraw;
+  function RecordingExcalidraw(props: ExcalidrawProps) {
+    seen.push(props);
+    return <FakeExcalidraw {...props} />;
+  }
+  return { dependencies: { ...fake, engine: { ...fake.engine, Excalidraw: RecordingExcalidraw } }, seen };
 }
 
 function baseProps(overrides: Partial<Parameters<typeof SketchEditor>[0]> = {}) {
@@ -138,5 +151,60 @@ describe('SketchEditor', () => {
     );
     expect(screen.getByTestId('sketch-menu-save').textContent).toContain('Enregistrer');
     expect(screen.getByTestId('sketch-menu-clear').textContent).toContain('Effacer le canevas');
+  });
+
+  it('shows the "Unsaved changes" badge when dirty and not saving', () => {
+    render(<SketchEditor {...baseProps({ dirty: true })} />);
+    expect(document.querySelector('.sketch-save-state.is-dirty')?.textContent).toBe('Unsaved changes');
+  });
+
+  it('shows the "Saved" badge when neither dirty nor saving', () => {
+    render(<SketchEditor {...baseProps()} />);
+    expect(document.querySelector('.sketch-save-state.is-saved')?.textContent).toBe('Saved');
+  });
+
+  it('prefers the "Saving…" badge over "dirty" while a save is in flight', () => {
+    render(<SketchEditor {...baseProps({ saving: true, dirty: true })} />);
+    expect(document.querySelector('.sketch-save-state.is-saving')?.textContent).toBe('Saving…');
+  });
+
+  it('passes the host excalidrawLangCode mapping of the active locale to Excalidraw', () => {
+    const { dependencies, seen } = recordingDependencies();
+    const excalidrawLangCode = vi.fn((locale: string) => `xx-${locale}`);
+    render(<SketchEditor {...baseProps({ dependencies, excalidrawLangCode })} />);
+    expect(seen.at(-1)?.langCode).toBe(`xx-${excalidrawLangCode.mock.calls[0]![0]}`);
+  });
+
+  it('hands Excalidraw the same UIOptions object across re-renders', () => {
+    const { dependencies, seen } = recordingDependencies();
+    const props = baseProps({ dependencies });
+    const { rerender } = render(<SketchEditor {...props} />);
+    rerender(<SketchEditor {...props} dirty />);
+    expect(seen.length).toBeGreaterThan(1);
+    expect(seen.at(-1)?.UIOptions).toBe(seen[0]?.UIOptions);
+  });
+
+  it('offers an "Open file" toast action after export that opens the exported file', async () => {
+    const onOpenExportedImage = vi.fn();
+    render(
+      <SketchEditor
+        {...baseProps({
+          onExportImage: async (_b: string, name: string) => ({ fileName: name }),
+          onOpenExportedImage,
+          fileName: 'plan.excalidraw',
+          scene: { elements: [{ isDeleted: false }], appState: null, files: {} },
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByTestId('sketch-menu-export-image'));
+    await userEvent.click(await screen.findByText('Open file'));
+    expect(onOpenExportedImage).toHaveBeenCalledWith('plan.png');
+  });
+
+  it('shows the save toast without an "Open file" action', async () => {
+    render(<SketchEditor {...baseProps({ scene: { elements: [{ isDeleted: false }], appState: null, files: {} } })} />);
+    await userEvent.click(screen.getByTestId('sketch-menu-save'));
+    await waitFor(() => expect(document.querySelector('.jini-toast-message')?.textContent).toBe('Saved'));
+    expect(screen.queryByText('Open file')).toBeNull();
   });
 });
