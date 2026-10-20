@@ -45,3 +45,11 @@
 
 ## Next
 - All 6 lots merged. Final: cms build + whole-suite run (see Final section).
+
+## Final
+- `pnpm --filter @jini-ai/cms build` OK; `tsc --noEmit -p packages/cms` 0; eslint (cyc/cog 10) on all 12 lot files: 0.
+- Whole cms suite (`vitest run --maxWorkers=4`): 229/230 files, 2692/2693 tests pass, 54 s.
+- Only failure: `src/media/__tests__/video-frames.ffmpeg.test.ts > reports temporary files that cannot be removed and still releases the lock` (ENOENT chmod /tmp/video-preview-*). Not in any lot; fails identically on origin/general-work (wt-base). Likely root-in-container (chmod-based "unremovable" fixture). Pre-existing.
+- Bugs pinned (reported, not fixed): L258 NaN `after` → next NaN; L258 zero-padded cursor accepted; L227 non-string menu item id → raw TypeError (500 not 400); L285 missing parsed body → 500 not 4xx.
+- Cross-package issues: none. Public-signature leftovers kept (unused `_optional`s, empty ExecuteCommandOptional, `{}`-typed optional on createContactFormResolver).
+- Status: COMPLETE. Nothing left to resume.
