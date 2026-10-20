@@ -88,6 +88,24 @@ test.each(["reject", "throw"])("background dispatcher may %s without rejecting s
   assert.deepEqual(submitDeps.logger.warn.mock.calls[0], [{ message: "form outbox dispatch failed" }, { error }]);
 });
 
+test("a throwing logger on a failed background dispatch still leaves the submission accepted with no unhandled rejection", async () => {
+  const { writes, input, submitDeps } = setup();
+  await createFormDefinition({ deps: writes, input });
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    const warn = vi.fn(() => { throw new Error("logger down"); });
+    const deps = { ...submitDeps, logger: { warn }, dispatcher: { dispatch: async () => { throw new Error("dispatcher unavailable"); } } };
+    assert.deepEqual(await submitForm({ deps, input: { workspaceId: "workspace", slug: "new", body: { name: "Ada" }, sourceIp: "source" } }), { status: "accepted" });
+    await vi.waitFor(() => assert.equal(warn.mock.calls.length, 1));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+});
+
 test("injected sender is used and failed delivery still reaches the next recipient and sibling", async () => {
   const { writes, input, submitDeps } = setup();
   const { definition } = await createFormDefinition({ deps: writes, input }, { notify: { enabled: true, recipients: ["first@example.org", "second@example.org"] } });
