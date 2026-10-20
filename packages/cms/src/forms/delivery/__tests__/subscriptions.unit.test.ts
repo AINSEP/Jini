@@ -5,7 +5,8 @@
  */
 import { afterEach, describe, expect, test } from "vitest";
 import type { DomainEvent, EventBusPort } from "../../../core/index.js";
-import { createFormDeliverySubscriptions, FORM_DELIVERY_EVENT, FORM_SUBMISSION_RECEIVED_EVENT } from "../../index.js";
+import { createFormDeliverySubscriptions, FORM_DELIVERY_EVENT, FORM_SUBMISSION_RECEIVED_EVENT, FormDeliveryError, type FormDeliveryJob,
+  type FormDeliveryResult } from "../../index.js";
 
 /** Typed bus fake: the subscribe calls numbered in `failCalls` (1-based) reject; `subscribed` lists live handlers. */
 class FlakyBus implements EventBusPort {
@@ -70,5 +71,68 @@ describe("start", () => {
     void subscriptionsOn(new FlakyBus([1])).start();
     await new Promise(resolve => setTimeout(resolve, 10));
     expect(unhandled).toEqual([]);
+  });
+});
+
+/** Typed bus fake that keeps each subscribed handler so a test can deliver an event to it. */
+class HandlerBus implements EventBusPort {
+  readonly handlers = new Map<string, (event: DomainEvent<unknown>) => Promise<void>>();
+  async publish<TPayload>(_event: DomainEvent<TPayload>): Promise<void> {}
+  async publishBatch<TPayload>(_required: { events: Array<DomainEvent<TPayload>> }): Promise<void> {}
+  async subscribeAll(_required: { handler: (event: DomainEvent) => Promise<void> }): Promise<() => Promise<void>> {
+    throw new Error("delivery subscriptions never subscribe to every event");
+  }
+  async subscribe<TPayload>(required: { eventName: string; handler: (event: DomainEvent<TPayload>) => Promise<void> }): Promise<() => Promise<void>> {
+    this.handlers.set(required.eventName, required.handler as (event: DomainEvent<unknown>) => Promise<void>);
+    return async () => { this.handlers.delete(required.eventName); };
+  }
+  emit(name: string, payload: unknown): Promise<void> {
+    return this.handlers.get(name)!({ id: "evt-1", name, occurredAt: "2026-10-20T00:00:00.000Z", workspaceId: "w-1", aggregateId: "s-1", payload });
+  }
+}
+
+const job: FormDeliveryJob = {
+  binding: { bindingId: "b-1", adapterId: "rows", connectionRef: "conn-1", enabled: true, config: {} },
+  snapshot: { form: { slug: "contact", fields: [] }, submission: { id: "s-1", answers: {}, submittedAt: "2026-10-20T00:00:00.000Z" } },
+  idempotencyKey: '["s-1","b-1"]',
+};
+
+describe("handlers", () => {
+  test("a received submission is planned with its workspace, submission and form ids", async () => {
+    const bus = new HandlerBus();
+    const plans: Array<{ workspaceId: string; submissionId: string; formId: string }> = [];
+    await createFormDeliverySubscriptions({ bus, plan: async input => { plans.push(input); }, deliver: async () => undefined }).start();
+    await bus.emit(FORM_SUBMISSION_RECEIVED_EVENT, { workspaceId: "w-1", submissionId: "s-1", formDefinitionId: "f-1" });
+    expect(plans).toEqual([{ workspaceId: "w-1", submissionId: "s-1", formId: "f-1" }]);
+  });
+
+  test("a planner failure rejects the handler so the source event retries", async () => {
+    const bus = new HandlerBus();
+    await createFormDeliverySubscriptions({ bus, plan: async () => { throw new Error("plan store locked"); }, deliver: async () => undefined }).start();
+    await expect(bus.emit(FORM_SUBMISSION_RECEIVED_EVENT, { submissionId: "s-1", formDefinitionId: "f-1" })).rejects.toThrow("plan store locked");
+  });
+
+  test("a child job is delivered with the event's workspace and its frozen payload", async () => {
+    const bus = new HandlerBus();
+    const delivered: Array<{ workspaceId: string; job: FormDeliveryJob }> = [];
+    await createFormDeliverySubscriptions({ bus, plan: async () => undefined, deliver: async input => { delivered.push(input); } }).start();
+    await bus.emit(FORM_DELIVERY_EVENT, job);
+    expect(delivered).toEqual([{ workspaceId: "w-1", job }]);
+  });
+
+  test("a failed delivery rejects the job handler with only the safe code", async () => {
+    const bus = new HandlerBus();
+    const deliver = async (): Promise<FormDeliveryResult> => ({ ok: false, error: { code: "destination-limit", retryable: false } });
+    await createFormDeliverySubscriptions({ bus, plan: async () => undefined, deliver }).start();
+    const error = await bus.emit(FORM_DELIVERY_EVENT, job).then(() => undefined, (e: unknown) => e);
+    expect(error).toBeInstanceOf(FormDeliveryError);
+    expect([(error as FormDeliveryError).message, (error as FormDeliveryError).retryable]).toEqual(["destination-limit", false]);
+  });
+
+  test("a host deliver that throws raw text is reduced to delivery-failed", async () => {
+    const bus = new HandlerBus();
+    const deliver = async (): Promise<void> => { throw new Error("credential vault said: " + "sk" + "-" + "y".repeat(40)); };
+    await createFormDeliverySubscriptions({ bus, plan: async () => undefined, deliver }).start();
+    await expect(bus.emit(FORM_DELIVERY_EVENT, job)).rejects.toThrow(/^delivery-failed$/);
   });
 });
