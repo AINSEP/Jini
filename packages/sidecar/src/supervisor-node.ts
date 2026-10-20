@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import type { Writable } from "node:stream";
+import type { Readable, Writable } from "node:stream";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { createCommandInvocation } from "@jini-ai/platform/command";
 import { collectProcessTreePids, listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
@@ -47,6 +47,36 @@ export interface NodeDaemonProcessOptions {
   execFileSync?: (file: string, args: readonly string[], options: { stdio: "ignore" }) => unknown;
 }
 
+function relayProcessOutput(
+  { stream, sink }: { stream: Readable | null; sink: Writable | undefined },
+  _options: Record<string, never> = {},
+): void {
+  if (sink !== undefined) stream?.pipe(sink);
+  else stream?.resume();
+}
+
+async function stopWindowsProcess(
+  { child, pid }: { child: SpawnedDaemonProcess; pid: number },
+  options: NodeDaemonProcessOptions = {},
+): Promise<void> {
+  // Windows has no group signal, so taskkill supplies the tree-stop escalation.
+  // Windows has no POSIX group signal. Killing only the immediate launcher would
+  // orphan its daemon; taskkill /T walks the entire descendant tree instead.
+  let exited = false;
+  if (child.closeStdin !== undefined) {
+    try {
+      child.closeStdin({});
+      // Reuse platform's existing 5s grace before any forced Windows termination.
+      exited = await (options.waitForProcessExit ?? waitForProcessExit)(pid);
+    } catch { /* A broken pipe cannot request shutdown; escalate to the whole tree. */ }
+  }
+  if (!exited) {
+    try {
+      (options.execFileSync ?? execFileSync)("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
+    } catch { child.kill({}, { signal: "SIGTERM" }); }
+  }
+}
+
 /**
  * Node launch/tree-stop adapter using platform command quoting, snapshots and signal escalation.
  * @param required Complete host launch settings and the shared sidecar registry port.
@@ -74,10 +104,8 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
       const child = options.spawn
         ? options.spawn({ command: invocation.command, args: invocation.args, options: spawnOptions }, {})
         : spawn(invocation.command, invocation.args, spawnOptions);
-      if (options.stdout !== undefined) child.stdout?.pipe(options.stdout);
-      else child.stdout?.resume();
-      if (options.stderr !== undefined) child.stderr?.pipe(options.stderr);
-      else child.stderr?.resume();
+      relayProcessOutput({ stream: child.stdout, sink: options.stdout });
+      relayProcessOutput({ stream: child.stderr, sink: options.stderr });
       return {
         get pid() { return child.pid; },
         on(input) {
@@ -96,23 +124,8 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
       const pid = child.pid;
       const snapshotRequest = (options.listProcessSnapshots ?? listProcessSnapshots)();
       // Request stop before the first await: even a parent exiting immediately starts tree teardown.
-      // Windows has no group signal, so taskkill supplies the tree-stop escalation.
-      // Windows has no POSIX group signal. Killing only the immediate launcher would
-      // orphan its daemon; taskkill /T walks the entire descendant tree instead.
       if ((options.platform ?? process.platform) === "win32") {
-        let exited = false;
-        if (child.closeStdin !== undefined) {
-          try {
-            child.closeStdin({});
-            // Reuse platform's existing 5s grace before any forced Windows termination.
-            exited = await (options.waitForProcessExit ?? waitForProcessExit)(pid);
-          } catch { /* A broken pipe cannot request shutdown; escalate to the whole tree. */ }
-        }
-        if (!exited) {
-          try {
-            (options.execFileSync ?? execFileSync)("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
-          } catch { child.kill({}, { signal: "SIGTERM" }); }
-        }
+        await stopWindowsProcess({ child, pid }, options);
       } else {
         try { (options.signalProcess ?? process.kill)(-pid, "SIGTERM"); }
         catch { child.kill({}, { signal: "SIGTERM" }); }

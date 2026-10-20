@@ -115,6 +115,10 @@ export function isProcessAlive({ pid }: { pid: number }): boolean {
   }
 }
 
+function isPositiveInteger({ value }: { value: unknown }, _options: Record<string, never> = {}): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
 /**
  * @internal Structural + type validation for a value read back from a registry file — a
  * cross-process JSON file is untrusted input (wrong version, hand-edited, truncated write from
@@ -128,12 +132,8 @@ function isValidRegistryRecord(value: unknown): value is LocalDaemonRegistryReco
     record.url.length > 0 &&
     typeof record.host === "string" &&
     record.host.length > 0 &&
-    typeof record.port === "number" &&
-    Number.isInteger(record.port) &&
-    record.port > 0 &&
-    typeof record.pid === "number" &&
-    Number.isInteger(record.pid) &&
-    record.pid > 0 &&
+    isPositiveInteger({ value: record.port }) &&
+    isPositiveInteger({ value: record.pid }) &&
     typeof record.startedAt === "string" &&
     record.startedAt.length > 0
   );

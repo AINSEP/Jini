@@ -29,6 +29,19 @@ export interface RespawnPolicy {
   isTripped(): boolean;
 }
 
+function validateRespawnOptions(
+  { backoffScheduleMs, crashLoopWindowMs, crashLoopMaxFailures, portConflictMaxAttempts }: Required<RespawnPolicyOptions>,
+  _options: Record<string, never> = {},
+): void {
+  if (backoffScheduleMs.length === 0 || backoffScheduleMs.some((delay) => !Number.isFinite(delay) || delay < 0)) {
+    throw new RangeError("backoffScheduleMs must contain finite non-negative delays");
+  }
+  if (!Number.isFinite(crashLoopWindowMs) || crashLoopWindowMs <= 0) throw new RangeError("crashLoopWindowMs must be positive and finite");
+  for (const count of [crashLoopMaxFailures, portConflictMaxAttempts]) {
+    if (!Number.isSafeInteger(count) || count < 1) throw new RangeError("failure thresholds must be positive safe integers");
+  }
+}
+
 /**
  * Create an independent retry policy; a caller-owned clock is mandatory.
  * @param required Clock port, read once for each recorded failure.
@@ -45,13 +58,7 @@ export function createRespawnPolicy(
   const crashLoopWindowMs = options.crashLoopWindowMs ?? 60000;
   const crashLoopMaxFailures = options.crashLoopMaxFailures ?? 5;
   const portConflictMaxAttempts = options.portConflictMaxAttempts ?? 3;
-  if (backoffScheduleMs.length === 0 || backoffScheduleMs.some((delay) => !Number.isFinite(delay) || delay < 0)) {
-    throw new RangeError("backoffScheduleMs must contain finite non-negative delays");
-  }
-  if (!Number.isFinite(crashLoopWindowMs) || crashLoopWindowMs <= 0) throw new RangeError("crashLoopWindowMs must be positive and finite");
-  for (const count of [crashLoopMaxFailures, portConflictMaxAttempts]) {
-    if (!Number.isSafeInteger(count) || count < 1) throw new RangeError("failure thresholds must be positive safe integers");
-  }
+  validateRespawnOptions({ backoffScheduleMs, crashLoopWindowMs, crashLoopMaxFailures, portConflictMaxAttempts });
 
   let timestamps: number[] = [];
   let consecutivePortConflicts = 0;
