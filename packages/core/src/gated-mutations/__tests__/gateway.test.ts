@@ -8,9 +8,9 @@ import {
   confirm,
   execute,
   plan,
-} from "../gated-mutations/gateway.js";
-import { InMemoryTokenStore, TokenAlreadyRedeemedError, TokenExpiredError, isRedeemable, mintToken } from "../gated-mutations/token.js";
-import type { AuthorizeFn, PrincipalKind } from "../gated-mutations/ports.js";
+} from "../gateway.js";
+import { InMemoryTokenStore, TokenAlreadyRedeemedError, TokenExpiredError, isRedeemable, mintToken } from "../token.js";
+import type { AuthorizeFn, PrincipalKind } from "../ports.js";
 
 const NOW = "2026-07-15T00:00:00.000Z";
 const clock = { nowMs: () => Date.parse(NOW) };
@@ -132,7 +132,7 @@ test("AC-09: plan() rejects when the caller lacks {domain}.read", async () => {
 });
 
 test("architectural guard (AC-09): gateway.ts exposes no direct single-call mutation entry point beyond plan/confirm/execute", async () => {
-  const gatewayModule = await import("../gated-mutations/gateway.js");
+  const gatewayModule = await import("../gateway.js");
   assert.deepEqual(Object.keys(gatewayModule).sort(), [
     "ForbiddenError", "PlanStaleError", "UnauthenticatedError", "authorizeForHooks", "confirm", "execute", "plan",
   ], "new runtime exports must be reviewed for a direct mutation entry point");
