@@ -60,13 +60,15 @@ body {
   color: var(--jini-mcpui-text-strong);
 }
 .mcpui-description { margin: 6px 0 0; color: var(--jini-mcpui-text-muted); }
+/* fit-content(40%), not max-content: one long label used to take the whole row and squeeze every
+   value to one character per line. Labels wrap at 40% instead. */
 .mcpui-details {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
   gap: 4px 14px;
   margin: 14px 0 0;
 }
-.mcpui-details dt { color: var(--jini-mcpui-text-soft); font-weight: 500; }
+.mcpui-details dt { color: var(--jini-mcpui-text-soft); font-weight: 500; overflow-wrap: anywhere; }
 .mcpui-details dd { margin: 0; overflow-wrap: anywhere; color: var(--jini-mcpui-text); }
 .mcpui-details-outcome { display: flex; flex-direction: column; gap: 8px; }
 .mcpui-outcome-row { display: flex; align-items: flex-start; gap: 14px; }
@@ -77,6 +79,12 @@ body {
    stays in the cell's title. */
 .mcpui-outcome-row dd.mcpui-detail-status {
   flex: 0 1 auto; max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Frames up to 480px: stack each label above its value so the value gets the full width.
+   Outcome lists keep their own row layout. */
+@media (max-width: 480px) {
+  .mcpui-details:not(.mcpui-details-outcome) { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
+  .mcpui-details:not(.mcpui-details-outcome) dd { margin-bottom: 8px; }
 }
 /* The iframe has 16px body padding on each side: 352px viewport = 320px card. Stacked, the value
    has the full width, so it wraps between words instead of truncating. */
