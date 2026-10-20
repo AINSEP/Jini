@@ -1,6 +1,5 @@
-import type { IdGenerator } from "../primitives/index.js";
+import type { Clock, IdGenerator, JsonValue } from "../primitives/index.js";
 import { adaptLegacyAuthorize } from "../tool-permissions.js";
-import type { Clock } from "../primitives/index.js";
 /**
  * @file Settings tools: three reads and three bounded value writes. Bulk reset and definition
  * registration stay unwired. The generic tools reuse write-service authorization/validation and
@@ -16,7 +15,6 @@ import { buildDomainRegistrations, indexCatalogById, optionalString, requireInpu
 import type { AgentToolSideEffect } from "../agent-tools.js";
 import { ToolInputError, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "../tool-registry.js";
 import { requireToolPermission } from "../tool-permissions.js";
-import type { JsonValue } from "../primitives/index.js";
 import type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
 import { getSettingsAgentToolCatalog } from "./agent-tools.js";
 import {
@@ -32,7 +30,7 @@ import {
 } from "./errors.js";
 import type { SettingsRepoPort } from "./ports.js";
 import { getEffective, resolveDefinition, resolveDefinitionRaw } from "./settings.js";
-import { SCOPE_BIT, type SettingValueRecord } from "./types.js";
+import { SCOPE_BIT, type SettingDefinitionRecord, type SettingValueRecord } from "./types.js";
 import { set as setSettingValue } from "./write-service.js";
 
 const CATALOG_BY_ID = indexCatalogById({ catalog: getSettingsAgentToolCatalog() });
@@ -157,6 +155,52 @@ const UNWIRED_SETTINGS_TOOL_IDS = new Set([
   "settings_register_definitions",
 ]);
 
+/**
+ * One `settings_list_definitions` row. Only aliases need an extra lookup. Their target's
+ * schema/scope and BOTH coordinates' key policies must agree with the write handler;
+ * dangling/tombstoned targets fail closed. O(r) in policy rules plus at most one alias resolution.
+ */
+async function describeDefinitionForAgent(
+  routeDeps: SettingsToolDeps,
+  rules: { denied: readonly AgentSettingWriteRule[]; confirmation: readonly AgentSettingWriteRule[] },
+  def: SettingDefinitionRecord
+) {
+  const resolved = def.status === "alias"
+    ? await resolveDefinitionRaw({ repo: routeDeps.settingsRepo }, { namespace: def.namespace, key: def.key, workspaceId: routeDeps.workspaceId })
+    : def;
+  const coordinates = resolved ? [def, resolved] : [def];
+  const matchesAny = (list: readonly AgentSettingWriteRule[]) => coordinates.some((coordinate) => !!findAgentWriteRule(list, coordinate));
+  const denied = matchesAny(rules.denied);
+  const confirmationRequired = matchesAny(rules.confirmation);
+  const scopes = resolved?.scopes ?? def.scopes;
+  return { namespace: def.namespace, key: def.key, ownerKind: def.ownerKind, scopes, status: def.status, version: def.version,
+    schema: resolved?.schema ?? def.schema,
+    agentWritable: isAgentWritable({ resolved, denied, confirmationRequired, canConfirm: !!routeDeps.confirmWrite, scopes }),
+    confirmationRequired };
+}
+
+/** Mirrors the write handler's refusals: live target, not denied, confirmable when protected,
+ * and writable at workspace or user scope. O(1). */
+function isAgentWritable(facts: { resolved: SettingDefinitionRecord | null; denied: boolean; confirmationRequired: boolean; canConfirm: boolean; scopes: number }): boolean {
+  if (!facts.resolved || facts.resolved.status === "tombstone" || facts.denied) return false;
+  if (facts.confirmationRequired && !facts.canConfirm) return false;
+  return (facts.scopes & (SCOPE_BIT.workspace | SCOPE_BIT.user)) !== 0;
+}
+
+/** Every split point of a dotted key that names a live (non-tombstoned) definition.
+ * Leading/trailing dots are never split points. O(k) resolver calls for k dots. */
+async function findDottedKeySplits(routeDeps: SettingsToolDeps, dottedKey: string): Promise<{ namespace: string; key: string }[]> {
+  const matches: { namespace: string; key: string }[] = [];
+  // Reuse the definition resolver, including workspace fencing and aliases; never split on a guess.
+  for (let index = 1; index < dottedKey.length - 1; index++) {
+    if (dottedKey[index] !== ".") continue;
+    const candidate = { namespace: dottedKey.slice(0, index), key: dottedKey.slice(index + 1) };
+    const definition = await resolveDefinitionRaw({ repo: routeDeps.settingsRepo }, { ...candidate, workspaceId: routeDeps.workspaceId });
+    if (definition && definition.status !== "tombstone") matches.push(candidate);
+  }
+  return matches;
+}
+
 export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     settings_set_value: buildSettingsValueWriteHandler(routeDeps, "settings_set_value"),
@@ -171,22 +215,8 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
         routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: routeDeps.workspaceId }),
       ]);
 
-      const { denied: deniedRules, confirmation: confirmationRules } = agentWriteRules(routeDeps);
-      // Only aliases need an extra lookup. Their target's schema/scope and BOTH coordinates'
-      // key policies must agree with the write handler; dangling/tombstoned targets fail closed.
-      const data = (await Promise.all([...platformDefs, ...siteDefs].map(async (def) => {
-        const resolved = def.status === "alias"
-          ? await resolveDefinitionRaw({ repo: routeDeps.settingsRepo }, { namespace: def.namespace, key: def.key, workspaceId: routeDeps.workspaceId })
-          : def;
-        const coordinates = resolved ? [def, resolved] : [def];
-        const denied = coordinates.some((coordinate) => !!findAgentWriteRule(deniedRules, coordinate));
-        const confirmationRequired = coordinates.some((coordinate) => !!findAgentWriteRule(confirmationRules, coordinate));
-        const scopes = resolved?.scopes ?? def.scopes;
-        return { namespace: def.namespace, key: def.key, ownerKind: def.ownerKind, scopes, status: def.status, version: def.version,
-          schema: resolved?.schema ?? def.schema,
-          agentWritable: !!resolved && resolved.status !== "tombstone" && !denied && (!confirmationRequired || !!routeDeps.confirmWrite) && (scopes & (SCOPE_BIT.workspace | SCOPE_BIT.user)) !== 0,
-          confirmationRequired };
-      })))
+      const rules = agentWriteRules(routeDeps);
+      const data = (await Promise.all([...platformDefs, ...siteDefs].map((def) => describeDefinitionForAgent(routeDeps, rules, def))))
         .sort((a, b) => a.namespace.localeCompare(b.namespace) || a.key.localeCompare(b.key));
 
       return { data };
@@ -317,14 +347,7 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
       if (input.key.length > 512) throw new ToolInputError({ message: "settings_set_value: dotted key is too long. Send namespace and key separately." });
       await routeDeps.settingsReady;
       await routeDeps.settingsUiTabsReady;
-      const matches: { namespace: string; key: string }[] = [];
-      // Reuse the definition resolver, including workspace fencing and aliases; never split on a guess.
-      for (let index = 1; index < input.key.length - 1; index++) {
-        if (input.key[index] !== ".") continue;
-        const candidate = { namespace: input.key.slice(0, index), key: input.key.slice(index + 1) };
-        const definition = await resolveDefinitionRaw({ repo: routeDeps.settingsRepo }, { ...candidate, workspaceId: routeDeps.workspaceId });
-        if (definition && definition.status !== "tombstone") matches.push(candidate);
-      }
+      const matches = await findDottedKeySplits(routeDeps, input.key);
       if (matches.length !== 1) throw new ToolInputError({ message: matches.length
         ? `settings_set_value: dotted key is ambiguous (${matches.map(match => `namespace=${match.namespace}, key=${match.key}`).join("; ")}). Send namespace and key explicitly.`
         : "settings_set_value: no registered namespace/key pair matches this dotted key. Call settings_list_definitions to see valid keys; send namespace and key explicitly." });

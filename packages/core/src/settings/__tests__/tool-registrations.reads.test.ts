@@ -100,3 +100,9 @@ test("get_raw refuses a non-string principalId", async () => {
   const f = fixture();
   await assert.rejects(() => f.call("settings_get_raw", { ...target, principalId: 5 }), { name: "ToolInputError", message: "'principalId' must be a string" });
 });
+
+test("list_definitions marks a global-only definition as not agent-writable", async () => {
+  const f = fixture([definition({ scopes: 1 })]);
+  const { data } = await f.call("settings_list_definitions", {}) as { data: Array<{ agentWritable: boolean; confirmationRequired: boolean }> };
+  assert.deepEqual(data.map((row) => [row.agentWritable, row.confirmationRequired]), [[false, false]]);
+});
