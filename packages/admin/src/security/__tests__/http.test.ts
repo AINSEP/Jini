@@ -34,3 +34,75 @@ describe('security HTTP wire contract', () => {
   });
   it('does not dispatch aborted reads or writes', async () => { const t = transport([]); const signal = new AbortController(); signal.abort(); const api = createHttpSecurityApi({ transport: t.port, workspacePath: '/w' }); await expect(api.custom.list({}, { signal: signal.signal })).rejects.toThrow(); await expect(api.publish.create({ label: 'x', connection: { token: 'x' } }, { signal: signal.signal })).rejects.toThrow(); expect(t.calls).toEqual([]); });
 });
+describe('security HTTP projections and routing boundaries', () => {
+  const aborted = () => { const c = new AbortController(); c.abort(); return c.signal; };
+  it('projects a custom row with defaults and drops a blank username', async () => {
+    const t = transport([{ credentials: [{ id: 'c', label: 'C', configured: true, createdAt: 'd', updatedAt: 'e', username: '' }] }]);
+    expect(await createHttpSecurityApi({ transport: t.port, workspacePath: '/w' }).custom.list({})).toEqual([{ kind: 'custom', id: 'c', providerId: '', label: 'C', configured: true, isDefault: false, createdAt: 'd', updatedAt: 'e', category: 'general', baseUrl: '', additionalHosts: [] }]);
+  });
+  it('projects a custom row with its stored metadata and account label', async () => {
+    const t = transport([{ credential: { id: 'c', providerId: '', label: 'C', configured: true, isDefault: false, createdAt: 'd', updatedAt: 'e', accountLabel: null, category: 'ai', baseUrl: 'https://a', additionalHosts: ['https://b'], username: 'me', token: 'SHOULD_NOT_ESCAPE' } }]);
+    expect(await createHttpSecurityApi({ transport: t.port, workspacePath: '/w' }).custom.create({ label: 'C', connection: { token: 'x' } })).toEqual({ kind: 'custom', id: 'c', providerId: '', label: 'C', configured: true, isDefault: false, createdAt: 'd', updatedAt: 'e', accountLabel: null, category: 'ai', baseUrl: 'https://a', additionalHosts: ['https://b'], username: 'me' });
+  });
+  it('never adds custom metadata to a publish row', async () => {
+    const t = transport([{ credential: { ...raw, category: 'ai', baseUrl: 'https://a', username: 'me' } }]);
+    expect(await createHttpSecurityApi({ transport: t.port, workspacePath: '/w' }).publish.update({ id: 'a/b', patch: {} })).toEqual({ kind: 'publish', id: 'a/b', providerId: 'git', label: 'Personal', configured: true, isDefault: true, createdAt: 'date', updatedAt: 'date' });
+    expect(t.calls[0]?.path).toBe('/w/system/publish/credentials/a%2Fb');
+  });
+  it('does not dispatch an aborted update or remove', async () => {
+    const t = transport([]); const api = createHttpSecurityApi({ transport: t.port, workspacePath: '/w' });
+    await expect(api.custom.update({ id: 'x', patch: {} }, { signal: aborted() })).rejects.toThrow('This operation was aborted');
+    await expect(api.custom.remove({ id: 'x' }, { signal: aborted() })).rejects.toThrow('This operation was aborted'); expect(t.calls).toEqual([]);
+  });
+  it('does not dispatch an aborted provider read', async () => { const t = transport([]); await expect(createHttpSecurityApi({ transport: t.port, workspacePath: '/w' }).providers({}, { signal: aborted() })).rejects.toThrow('This operation was aborted'); expect(t.calls).toEqual([]); });
+  it('skips publish targets without a credential and fills descriptor defaults', async () => {
+    const t = transport([{ targets: [{ id: 'static', label: 'Static' }, { id: 'pages', label: 'Pages', credential: { tokenField: 'key' } }] }, { providers: [] }]);
+    expect(await createHttpSecurityApi({ transport: t.port, workspacePath: '/w' }).providers({})).toEqual([{ kind: 'publish', id: 'pages', label: 'Pages', vendorLabel: 'Pages', category: 'hosting', tokenField: 'key', fields: [] }]);
+  });
+  it('maps descriptor links and falls back to plain help without user help', async () => {
+    const t = transport([{ targets: [] }, { providers: [{ id: 'git', label: 'Git', credential: { tokenField: 'token', tokenPageUrl: 'https://tokens', help: 'Plain help' } }] }]);
+    expect(await createHttpSecurityApi({ transport: t.port, workspacePath: '/w' }).providers({})).toEqual([{ kind: 'source-control', id: 'git', label: 'Git', vendorLabel: 'Git', category: 'source-control', tokenField: 'token', fields: [], tokenPageUrl: 'https://tokens', help: 'Plain help' }]);
+  });
+  it('labels a provider by its descriptor vendor label', async () => {
+    const t = transport([{ targets: [{ id: 'pages', label: 'Pages', credential: { tokenField: 'token', vendorLabel: 'Vendor' } }] }, { providers: [] }]);
+    expect((await createHttpSecurityApi({ transport: t.port, workspacePath: '/w' }).providers({}))[0]?.vendorLabel).toBe('Vendor');
+  });
+  it('prefers user help over plain help', async () => {
+    const t = transport([{ targets: [] }, { providers: [{ id: 'git', label: 'Git', credential: { tokenField: 'token', help: 'Plain', userHelp: 'User' } }] }]);
+    expect((await createHttpSecurityApi({ transport: t.port, workspacePath: '/w' }).providers({}))[0]?.help).toBe('User');
+  });
+  it('lists a set single store with its label, and an unset one as empty', async () => {
+    const t = transport([{ data: { isSet: true, updatedAt: null } }, { data: { isSet: false, updatedAt: null } }]); const api = createHttpOtherCredentials({ transport: t.port, workspacePath: '/w/' });
+    expect(await api.list({ store: 'admin-byok' })).toEqual([{ store: 'admin-byok', id: 'admin-byok', label: 'Admin model key', category: 'ai', configured: true, supportsReplace: true, updatedAt: null }]);
+    expect(await api.list({ store: 'site-assistant' })).toEqual([]); expect(t.calls.map(c => c.path)).toEqual(['/w/assistant/execution-credential', '/w/assistant/site-credential']);
+  });
+  it('lists only configured media providers, labelled by host labels or id', async () => {
+    const t = transport([{ a: { apiKeyConfigured: true }, b: { apiKeyConfigured: false }, c: { apiKeyConfigured: true } }]);
+    expect(await createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }, { mediaLabels: { a: 'Alpha' } }).list({ store: 'media-provider' })).toEqual([{ store: 'media-provider', id: 'a', label: 'Alpha', category: 'media', configured: true, supportsReplace: true }, { store: 'media-provider', id: 'c', label: 'c', category: 'media', configured: true, supportsReplace: true }]);
+  });
+  it('refuses a blank replacement before any request', async () => { const t = transport([]); await expect(createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }).replace({ store: 'external-mcp', id: 'm', token: '  ' })).rejects.toThrow(/^Enter a credential$/); expect(t.calls).toEqual([]); });
+  it('replaces and removes a single store key at its own path', async () => {
+    const t = transport([undefined, undefined]); const api = createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' });
+    await api.replace({ store: 'site-assistant', id: 'site-assistant', token: 'k' }); await api.remove({ store: 'admin-byok', id: 'admin-byok' });
+    expect(t.calls).toEqual([{ path: '/w/assistant/site-credential', method: 'PUT', body: { apiKey: 'k' } }, { path: '/w/assistant/execution-credential', method: 'DELETE' }]);
+  });
+  it('rebuilds media entries without absent settings, and keeps a stored key by omission', async () => {
+    const t = transport([{ a: { apiKeyConfigured: true }, b: { apiKeyConfigured: true, apiKey: 'STORED', apiKeyTail: 'tail' } }, undefined]);
+    await createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }).replace({ store: 'media-provider', id: 'a', token: 'k' });
+    expect(t.calls[1]?.body).toEqual({ a: { apiKey: 'k' }, b: {} });
+  });
+  it('does not dispatch an aborted other-store read', async () => { const t = transport([]); await expect(createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }).list({ store: 'external-mcp' }, { signal: aborted() })).rejects.toThrow('This operation was aborted'); expect(t.calls).toEqual([]); });
+  it('projects optional root-key status and result fields', async () => {
+    const status = { active: true, source: 'file', state: 'active', keyFilePath: '/k', runtimeMode: 'production', fingerprint: 'fp', invalid: false };
+    const result = { outcome: 'started-fresh', fingerprint: 'fp', keyFilePath: '/k', runtimeMode: 'local', resealed: 0, discarded: 2, kept: 0, restorePointId: 'rp', affectedWebhooks: [{ label: 'Hook', targetUrl: 'https://h', secret: 'SECRET' }] };
+    const t = transport([status, result]); const api = createHttpRootKey({ transport: t.port, workspacePath: '/w/' });
+    expect(await api.status({})).toEqual(status); expect(await api.startFresh({ confirm: 'START FRESH' })).toEqual({ ...result, affectedWebhooks: [{ label: 'Hook', targetUrl: 'https://h' }] });
+  });
+  it('omits an empty restore point and keeps an empty webhook list', async () => {
+    const t = transport([{ outcome: 'x', fingerprint: 'f', keyFilePath: '/k', runtimeMode: 'local', restorePointId: '', affectedWebhooks: [] }]);
+    expect(await createHttpRootKey({ transport: t.port, workspacePath: '/w' }).generate({})).toEqual({ outcome: 'x', fingerprint: 'f', keyFilePath: '/k', runtimeMode: 'local', affectedWebhooks: [] });
+  });
+  it('omits an empty fingerprint from status', async () => { const t = transport([{ active: false, source: 'none', state: 'missing', keyFilePath: '/k', runtimeMode: 'local', fingerprint: '' }]); expect(await createHttpRootKey({ transport: t.port, workspacePath: '/w' }).status({})).toEqual({ active: false, source: 'none', state: 'missing', keyFilePath: '/k', runtimeMode: 'local' }); });
+  it('strips webhook extras from a start-fresh preview', async () => { const t = transport([{ removes: 1, detail: 'd', runtimeMode: 'local', affectedWebhooks: [{ label: 'H', targetUrl: 'https://h', secret: 'SECRET' }], extra: 'SECRET' }]); expect(await createHttpRootKey({ transport: t.port, workspacePath: '/w' }).previewStartFresh({})).toEqual({ removes: 1, detail: 'd', runtimeMode: 'local', affectedWebhooks: [{ label: 'H', targetUrl: 'https://h' }] }); });
+  it('does not dispatch an aborted root-key request', async () => { const t = transport([]); await expect(createHttpRootKey({ transport: t.port, workspacePath: '/w' }).importToken({ token: 'x' }, { signal: aborted() })).rejects.toThrow('This operation was aborted'); expect(t.calls).toEqual([]); });
+});
