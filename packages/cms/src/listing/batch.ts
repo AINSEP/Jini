@@ -53,19 +53,34 @@ export async function readListingBatch<T>(
   let cursor = Math.max(0, Math.min(Math.floor(after), LISTING_AFTER_MAX));
   for (let round = 0; round < LISTING_SCAN_ROUNDS; round += 1) {
     const rows = await source({ offset: cursor, limit: size + 1 });
-    for (const row of rows) {
-      if (!isVisible(row)) {
-        cursor += 1;
-        continue;
-      }
-      // A visible row past a full batch only proves there is more; it stays unconsumed.
-      if (items.length === size) return { items, hasMore: true, next: cursor };
-      items.push(row);
-      cursor += 1;
-    }
+    const taken = takeVisibleRows({ rows, items, cursor, size, isVisible });
+    cursor = taken.next;
+    if (taken.full) return { items, hasMore: true, next: cursor };
     if (rows.length < size + 1) return { items, hasMore: false, next: cursor };
   }
   return { items, hasMore: true, next: cursor };
+}
+
+/**
+ * One scan round: appends `rows`' visible rows to `items` until it holds `size`, advancing the source
+ * cursor past every row consumed (hidden ones included). `full` means a visible row was met with the
+ * batch already full; that row is the proof of more and is not consumed.
+ * @complexity O(rows) `isVisible` calls.
+ */
+function takeVisibleRows<T>(
+  { rows, items, cursor, size, isVisible }: { rows: readonly T[]; items: T[]; cursor: number; size: number; isVisible: (item: T) => boolean },
+  _optional: Record<string, never> = {},
+): { next: number; full: boolean } {
+  let next = cursor;
+  for (const row of rows) {
+    if (isVisible(row)) {
+      // A visible row past a full batch only proves there is more; it stays unconsumed.
+      if (items.length === size) return { next, full: true };
+      items.push(row);
+    }
+    next += 1;
+  }
+  return { next, full: false };
 }
 
 /** An in-memory {@link ListingSource} over an already-ordered array. @complexity O(limit). */
