@@ -23,35 +23,44 @@ function subsets(items: readonly string[]): string[][] {
   return items.reduce<string[][]>((all, item) => [...all, ...all.map(s => [...s, item])], [[]]);
 }
 
+const CALLERS: readonly (CallerInfo | null)[] = [null,
+  { user: { id: ME, username: 'me' } },
+  { user: { id: ME, username: 'me' }, canManageUserTrash: false },
+  { user: { id: ME, username: 'me' }, canManageUserTrash: true }];
+const OWNERSHIPS: readonly Ownership[] = ['owner', 'operator', 'unknown', 'throws'];
+const STATUSES: readonly AdminOperator['status'][] = ['active', 'disabled'];
+
 function cases(): Case[] {
-  const callers: (CallerInfo | null)[] = [null,
-    { user: { id: ME, username: 'me' } },
-    { user: { id: ME, username: 'me' }, canManageUserTrash: false },
-    { user: { id: ME, username: 'me' }, canManageUserTrash: true }];
-  const out: Case[] = [];
-  for (const action of ACTIONS) for (const permissions of subsets(GRANTS)) for (const caller of callers)
-    for (const ownership of ['owner', 'operator', 'unknown', 'throws'] as const) for (const target of [ME, OTHER, SEEDED])
-      for (const status of ['active', 'disabled'] as const) for (const seeded of [SEEDED, ME, null])
-        out.push({ action, permissions, caller, ownership, target, status, seeded });
-  return out;
+  return ACTIONS.flatMap(action => subsets(GRANTS).flatMap(permissions => CALLERS.flatMap(caller => OWNERSHIPS.flatMap(ownership =>
+    [ME, OTHER, SEEDED].flatMap(target => STATUSES.flatMap(status => [SEEDED, ME, null].map(seeded =>
+      ({ action, permissions, caller, ownership, target, status, seeded }))))))));
 }
 
-/** Independent statement of the rules (see the doc comment on `userActionAllowed`). */
-function expected(c: Case): boolean {
-  const has = (p: string) => c.permissions.includes('*') || c.permissions.includes(p);
+/** The gates shared by every action: a known caller, known ownership, and the wildcard over owners. */
+function gatesPass(c: Case): c is Case & { caller: CallerInfo } {
   if (c.caller === null) return false;
-  if (c.ownership === 'throws' || c.ownership === 'unknown') return false;
-  if (c.ownership === 'owner' && !c.permissions.includes('*')) return false;
-  const self = c.caller.user.id === c.target;
-  const targetIsSeeded = c.seeded !== null && c.target === c.seeded;
-  switch (c.action) {
-    case 'delete': return has('user.manage') && c.caller.canManageUserTrash === true && !self && c.seeded !== null && !targetIsSeeded;
-    case 'disable': return c.status === 'active' && c.seeded !== null && !targetIsSeeded && has('user.manage');
-    case 'enable': return c.status === 'disabled' && has('user.manage');
-    case 'reset': return c.seeded !== null && (!targetIsSeeded || self) && has('user.manage');
-    case 'grants': return has('role.manage');
-    case 'email': return (self && has('member.manage')) || has('user.manage');
-  }
+  if (c.ownership === 'owner') return c.permissions.includes('*');
+  return c.ownership === 'operator';
+}
+
+interface Facts { has: (p: string) => boolean; self: boolean; seededKnown: boolean; targetIsSeeded: boolean; trash: boolean; status: AdminOperator['status'] }
+/** Independent statement of the per-action rules (see the doc comment on `userActionAllowed`). */
+const EXPECTED: Record<UserAction, (f: Facts) => boolean> = {
+  delete: f => f.has('user.manage') && f.trash && !f.self && f.seededKnown && !f.targetIsSeeded,
+  disable: f => f.status === 'active' && f.seededKnown && !f.targetIsSeeded && f.has('user.manage'),
+  enable: f => f.status === 'disabled' && f.has('user.manage'),
+  reset: f => f.seededKnown && (!f.targetIsSeeded || f.self) && f.has('user.manage'),
+  grants: f => f.has('role.manage'),
+  email: f => (f.self && f.has('member.manage')) || f.has('user.manage'),
+};
+
+function expected(c: Case): boolean {
+  if (!gatesPass(c)) return false;
+  return EXPECTED[c.action]({
+    has: p => c.permissions.includes('*') || c.permissions.includes(p),
+    self: c.caller.user.id === c.target, seededKnown: c.seeded !== null, targetIsSeeded: c.seeded !== null && c.target === c.seeded,
+    trash: c.caller.canManageUserTrash === true, status: c.status,
+  });
 }
 
 function run(c: Case, calls: { count: number } = { count: 0 }): boolean {
