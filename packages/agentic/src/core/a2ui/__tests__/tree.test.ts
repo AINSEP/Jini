@@ -120,3 +120,63 @@ describe('flattenRenderTree — bounded against untrusted trees', () => {
     expect(result.some((node) => node.status === 'truncated')).toBe(false);
   });
 });
+
+// Characterization pins (code-health wave 3), written before the child-push loop was extracted.
+describe('flattenRenderTree — walk bookkeeping', () => {
+  it('asks for child ids once per present, non-cycle node and never for missing or cycle nodes', () => {
+    const asked: string[] = [];
+    const components = map([
+      { id: 'root', children: ['a', 'ghost'] },
+      { id: 'a', children: ['root'] },
+    ]);
+    const result = flattenRenderTree({ components, rootId: 'root', getChildIds: ({ component }) => { asked.push(component.id); return component.children; } });
+    expect(asked).toEqual(['root', 'a']);
+    expect(result).toEqual([
+      { id: 'root', depth: 0, status: 'ok' },
+      { id: 'a', depth: 1, status: 'ok' },
+      { id: 'root', depth: 2, status: 'cycle' },
+      { id: 'ghost', depth: 1, status: 'missing' },
+    ]);
+  });
+
+  it('drops an id from the ancestor set once its subtree closes, so a later sibling may repeat it', () => {
+    const components = map([
+      { id: 'root', children: ['a', 'a'] },
+      { id: 'a', children: ['b'] },
+      { id: 'b', children: [] },
+    ]);
+    expect(flattenRenderTree({ components, rootId: 'root', getChildIds }).map((n) => `${n.id}:${n.depth}:${n.status}`))
+      .toEqual(['root:0:ok', 'a:1:ok', 'b:2:ok', 'a:1:ok', 'b:2:ok']);
+  });
+
+  it('keeps every child in order, including repeated and missing ids, at depth + 1', () => {
+    const components = map([
+      { id: 'root', children: ['x', 'y', 'x', 'z'] },
+      { id: 'x', children: [] },
+      { id: 'z', children: [] },
+    ]);
+    expect(flattenRenderTree({ components, rootId: 'root', getChildIds })).toEqual([
+      { id: 'root', depth: 0, status: 'ok' },
+      { id: 'x', depth: 1, status: 'ok' },
+      { id: 'y', depth: 1, status: 'missing' },
+      { id: 'x', depth: 1, status: 'ok' },
+      { id: 'z', depth: 1, status: 'ok' },
+    ]);
+  });
+
+  it('labels the truncation marker with the id and depth of the first node it did not walk', () => {
+    const children = Array.from({ length: MAX_RENDER_NODES + 5 }, (_, i) => `c${i}`);
+    const components = new Map<string, Node>([['root', { id: 'root', children }], ...children.map((id): [string, Node] => [id, { id, children: [] }])]);
+    const result = flattenRenderTree({ components, rootId: 'root', getChildIds });
+    expect(result).toHaveLength(MAX_RENDER_NODES + 1);
+    expect(result[MAX_RENDER_NODES]).toEqual({ id: `c${MAX_RENDER_NODES - 1}`, depth: 1, status: 'truncated' });
+  });
+
+  it('counts missing and cycle markers toward the node cap', () => {
+    const children = Array.from({ length: MAX_RENDER_NODES }, () => 'ghost');
+    const result = flattenRenderTree({ components: map([{ id: 'root', children }]), rootId: 'root', getChildIds });
+    expect(result).toHaveLength(MAX_RENDER_NODES + 1);
+    expect(result[MAX_RENDER_NODES - 1]).toEqual({ id: 'ghost', depth: 1, status: 'missing' });
+    expect(result[MAX_RENDER_NODES]).toEqual({ id: 'ghost', depth: 1, status: 'truncated' });
+  });
+});
