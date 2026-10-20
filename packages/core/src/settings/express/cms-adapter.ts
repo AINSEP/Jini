@@ -7,8 +7,8 @@ import {
 import type { JsonValue } from "../../primitives/index.js";
 import type { SettingsService, SettingsPermissions, SettingsChangeFeed, DefinitionResult } from "./contracts.js";
 
-/** Keep the CMS write chokepoint while translating its permission vocabulary to host policy. */
-/** Bind the CMS ledger and write chokepoint without copying their domain logic.
+/** Keep the CMS write chokepoint while translating its permission vocabulary to host policy.
+ * Bind the CMS ledger and write chokepoint without copying their domain logic.
  * Effective reads scan definitions and resolve each namespace key; mutations inherit CMS transactions/errors.
  * @complexity O(1) setup. Per operation: O(definitions + keys) reads, or O(batch size) writes.
  * @example createCmsSettingsService({ deps: cmsPorts, permissions });
@@ -86,31 +86,54 @@ async function applyDefinitions(required: {
   const toRegister: DefinitionInput[] = [];
   const applied: Array<{ key: string; op: string; status: string }> = [];
   for (const raw of items) {
-    const item = raw as Record<string, unknown>;
-    const op = String(item.op ?? "register");
-    const namespace = String(item.namespace ?? "");
-    const key = String(item.key ?? "");
-    const ownerKind = item.ownerKind as SettingOwnerKind;
-    const workspaceId = ownerKind === "site" ? authWorkspaceId : null;
-    const defaultValue = (item.defaultJson ?? null) as JsonValue | null;
-    if (op === "register") {
-      toRegister.push({ namespace, key, ownerKind, workspaceId, schema: item.schemaJson as SettingValueSchema,
-        defaultValue, scopes: Number(item.scopes), secret: Boolean(item.secret ?? false) });
+    const item = parseDefinitionItem(raw as Record<string, unknown>, { authWorkspaceId });
+    if (item.op === "register") {
+      toRegister.push(toRegisterInput(item));
     } else {
-      const parsedOp = parseNonRegisterDefinitionOp({ op });
-      if (!parsedOp) return { unknownOp: op };
-      const opItem: DefinitionOpRequestItem = { namespace, key, ownerKind, workspaceId, defaultJson: defaultValue,
-        ...(item.newNamespace === undefined ? {} : { newNamespace: item.newNamespace as string }),
-        ...(item.newKey === undefined ? {} : { newKey: item.newKey as string }),
-        ...(item.schemaJson === undefined ? {} : { schemaJson: item.schemaJson as SettingValueSchema }),
-        ...(item.coercionJson === undefined ? {} : { coercionJson: item.coercionJson as string | { tag?: string } }),
-      };
-      await NON_REGISTER_DEFINITION_OPS[parsedOp]({ ctx: { deps, callerPrincipalId, authWorkspaceId }, item: opItem });
+      const parsedOp = parseNonRegisterDefinitionOp({ op: item.op });
+      if (!parsedOp) return { unknownOp: item.op };
+      await NON_REGISTER_DEFINITION_OPS[parsedOp]({ ctx: { deps, callerPrincipalId, authWorkspaceId }, item: toOpItem(item) });
     }
-    applied.push({ key: `${namespace}.${key}`, op, status: "applied" });
+    applied.push({ key: `${item.namespace}.${item.key}`, op: item.op, status: "applied" });
   }
   if (toRegister.length) await registerDefinitions({ deps, input: { definitions: toRegister, callerPrincipalId, authWorkspaceId } });
   return { applied };
+}
+
+/** One request item with the fields every op shares normalized; `raw` keeps the op-specific rest. */
+interface ParsedDefinitionItem {
+  op: string; namespace: string; key: string; ownerKind: SettingOwnerKind; workspaceId: string | null;
+  defaultValue: JsonValue | null; raw: Record<string, unknown>;
+}
+
+/** Site definitions live in the caller's workspace; every other owner is platform-wide. Pure, O(1). */
+function parseDefinitionItem(raw: Record<string, unknown>, context: { authWorkspaceId: string }): ParsedDefinitionItem {
+  const ownerKind = raw.ownerKind as SettingOwnerKind;
+  return {
+    op: String(raw.op ?? "register"),
+    namespace: String(raw.namespace ?? ""),
+    key: String(raw.key ?? ""),
+    ownerKind,
+    workspaceId: ownerKind === "site" ? context.authWorkspaceId : null,
+    defaultValue: (raw.defaultJson ?? null) as JsonValue | null,
+    raw,
+  };
+}
+
+function toRegisterInput(item: ParsedDefinitionItem): DefinitionInput {
+  const { namespace, key, ownerKind, workspaceId, defaultValue, raw } = item;
+  return { namespace, key, ownerKind, workspaceId, schema: raw.schemaJson as SettingValueSchema,
+    defaultValue, scopes: Number(raw.scopes), secret: Boolean(raw.secret ?? false) };
+}
+
+/** Op-specific fields are forwarded only when present, so CMS defaults still apply to omitted ones. */
+const OPTIONAL_OP_FIELDS = ["newNamespace", "newKey", "schemaJson", "coercionJson"] as const;
+type OptionalOpFields = Pick<DefinitionOpRequestItem, (typeof OPTIONAL_OP_FIELDS)[number]>;
+
+function toOpItem(item: ParsedDefinitionItem): DefinitionOpRequestItem {
+  const { namespace, key, ownerKind, workspaceId, defaultValue, raw } = item;
+  const present = OPTIONAL_OP_FIELDS.filter((field) => raw[field] !== undefined).map((field) => [field, raw[field]]);
+  return { namespace, key, ownerKind, workspaceId, defaultJson: defaultValue, ...(Object.fromEntries(present) as OptionalOpFields) };
 }
 
 /** Adapt the ledger through CMS tenant/principal disclosure rules, returning names and cursors only.
