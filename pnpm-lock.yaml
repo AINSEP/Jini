@@ -815,6 +815,9 @@ importers:
       '@jini-ai/db':
         specifier: workspace:^
         version: link:../db
+      '@jini-ai/oauth':
+        specifier: workspace:*
+        version: link:../oauth
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../platform

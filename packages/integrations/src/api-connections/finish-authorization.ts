@@ -1,0 +1,105 @@
+/**
+ * @file Decides what an exchanged token set becomes: a live credential or a staged switch.
+ *
+ * Exists to hold the post-exchange rules in one place: every requested scope must be granted,
+ * the plugin's identity hook must name the account, the attempt must still match the current
+ * credential generation, a reconnect must be the same account, and a switch is only staged.
+ */
+import { nowIso } from '@jini-ai/core/primitives';
+import type { OAuthTokenSet } from '@jini-ai/oauth';
+import { ATTEMPT_TTL_MS } from './attempt-state.js';
+import { type ApiConnectionServiceDeps, clientKind } from './deps.js';
+import { ApiConnectionError } from './errors.js';
+import { installCredential } from './install-credential.js';
+import { stagedTokenKey } from './keys.js';
+import { blankRecord, writeRecord } from './records.js';
+import type { ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionRecord } from './types.js';
+
+const MAX_IDENTITY_LENGTH = 256;
+
+export interface CompletedAuthorization {
+  readonly connectionRef: string;
+  /** `staged` means a switch-account result awaits `confirmSwitchAccount`. */
+  readonly outcome: 'connected' | 'staged';
+  readonly account: ApiConnectionAccount;
+  readonly grantedScopes: readonly string[];
+  /** Plugin-declared callback fields; trust them only after the plugin verifies them via the API. */
+  readonly callbackFields: Readonly<Record<string, string>>;
+}
+
+function grantedScopesOf(tokens: OAuthTokenSet, requested: readonly string[]): readonly string[] {
+  // RFC 6749 §5.1: a token response omits `scope` only when it equals the requested scope.
+  return tokens.scopes.length > 0 ? tokens.scopes : requested;
+}
+
+function assertGranted(requested: readonly string[], granted: readonly string[]): void {
+  if (requested.some(scope => !granted.includes(scope))) {
+    throw new ApiConnectionError({ code: 'scope-not-granted',
+      message: 'The account did not grant every permission this connection needs. Connect again and allow all requested permissions.' });
+  }
+}
+
+function isBoundedText(value: unknown, minLength: number): value is string {
+  return typeof value === 'string' && value.length >= minLength && value.length <= MAX_IDENTITY_LENGTH;
+}
+
+async function readAccount(deps: ApiConnectionServiceDeps, accessToken: string): Promise<ApiConnectionAccount> {
+  const failed = (cause?: unknown) => new ApiConnectionError({ code: 'account-identity-invalid',
+    message: 'Could not confirm which account signed in. Try connecting again.' }, { cause });
+  const account = await deps.hooks.readAccount({ accessToken }).catch((cause: unknown) => { throw failed(cause); });
+  if (!isBoundedText(account?.accountId, 1) || !isBoundedText(account.displayName, 0)) throw failed();
+  return { accountId: account.accountId, displayName: account.displayName };
+}
+
+async function currentRecord(deps: ApiConnectionServiceDeps, attempt: ApiConnectionAttempt): Promise<ApiConnectionRecord> {
+  const record = await deps.records.read({ key: attempt.key }) ?? blankRecord(deps, attempt);
+  // A reconnect, switch, disconnect or newer completed attempt moved the generation: this one is stale.
+  if (record.generation !== attempt.generation) {
+    throw new ApiConnectionError({ code: 'attempt-superseded',
+      message: 'A newer sign-in or account change replaced this one. Reload the connection status and start again if needed.' });
+  }
+  return record;
+}
+
+/** Hosted re-consent for the same account may omit a refresh token; the stored one stays valid. */
+async function keepRefreshToken(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, tokens: OAuthTokenSet,
+  account: ApiConnectionAccount): Promise<OAuthTokenSet> {
+  if (tokens.refreshToken !== null || clientKind(deps) === 'public' || record.account?.accountId !== account.accountId) return tokens;
+  const existing = await deps.tokens.load({ key: record.key });
+  return existing?.refreshToken ? { ...tokens, refreshToken: existing.refreshToken } : tokens;
+}
+
+async function commitConnect(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, tokens: OAuthTokenSet,
+  account: ApiConnectionAccount, grantedScopes: readonly string[]): Promise<void> {
+  if (record.account !== null && record.account.accountId !== account.accountId) {
+    throw new ApiConnectionError({ code: 'account-mismatch',
+      message: 'A different account signed in than the one connected. Use "switch account" to change accounts.' });
+  }
+  const kept = await keepRefreshToken(deps, record, tokens, account);
+  await installCredential(deps, { current: record, tokens: kept, account, grantedScopes });
+}
+
+async function stageSwitch(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, attempt: ApiConnectionAttempt,
+  tokens: OAuthTokenSet, account: ApiConnectionAccount, grantedScopes: readonly string[]): Promise<void> {
+  await deps.tokens.persist({ key: stagedTokenKey({ key: record.key }), tokens });
+  const expiresAt = new Date(Date.parse(nowIso({ clock: deps.clock })) + ATTEMPT_TTL_MS).toISOString();
+  await writeRecord(deps, record, {
+    staged: { account, grantedScopes: [...grantedScopes], actorId: attempt.actorId, generation: record.generation, expiresAt },
+  });
+}
+
+export async function finishAuthorization(
+  deps: ApiConnectionServiceDeps,
+  requiredArgs: { readonly attempt: ApiConnectionAttempt; readonly tokens: OAuthTokenSet; readonly callbackFields: Readonly<Record<string, string>> },
+): Promise<CompletedAuthorization> {
+  const { attempt, tokens } = requiredArgs;
+  const grantedScopes = grantedScopesOf(tokens, attempt.requestedScopes);
+  assertGranted(attempt.requestedScopes, grantedScopes);
+  const account = await readAccount(deps, tokens.accessToken);
+  const record = await currentRecord(deps, attempt);
+  const staged = attempt.intent === 'switch-account';
+  await (staged ? stageSwitch(deps, record, attempt, tokens, account, grantedScopes)
+    : commitConnect(deps, record, tokens, account, grantedScopes));
+  return { connectionRef: attempt.key, outcome: staged ? 'staged' : 'connected', account, grantedScopes,
+    callbackFields: requiredArgs.callbackFields };
+}

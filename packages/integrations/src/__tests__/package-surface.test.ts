@@ -10,6 +10,7 @@ it('declares each independent subpath with a runtime, source entry and legacy ty
     './media-providers/catalog': 'universal',
     './credentialed-http': 'node',
     './webhooks': 'node',
+    './api-connections': 'node',
   };
   for (const [subpath, runtime] of Object.entries(entries)) {
     const entry = manifest.exports[subpath];
