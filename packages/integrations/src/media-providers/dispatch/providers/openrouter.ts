@@ -39,9 +39,8 @@ import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
 // Chat-completions image generation can take a while for some routed
 // models; matches the same 10-minute ceiling `openai.ts`'s image dispatcher
-// uses for the same reason (see `OPENAI_IMAGE_HEADERS_TIMEOUT_MS`/
-// `OPENAI_IMAGE_BODY_TIMEOUT_MS` there — this vendor has no separate
-// headers/body distinction, so a single `AbortSignal.timeout` suffices).
+// uses for the same reason (see `OPENAI_IMAGE_TIMEOUT_MS` there — a single
+// `AbortSignal.timeout` covers the whole request for both vendors).
 const OPENROUTER_IMAGE_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
