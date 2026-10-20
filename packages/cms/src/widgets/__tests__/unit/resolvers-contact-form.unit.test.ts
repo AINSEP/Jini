@@ -4,6 +4,7 @@ import test from "../support/test-runner.js";
 import { InMemoryFormDefinitionRepo } from "../../../forms/repo.memory.js";
 import type { FormDefinitionRecord } from "../../../forms/index.js";
 import { createContactFormResolver } from "../../resolvers/index.js";
+import type { FormDefinitionReadPort, FormDefinitionView } from "../../resolvers/ports.js";
 import type { WidgetInstanceView, WidgetResolveContext } from "../../types.js";
 
 /**
@@ -125,4 +126,178 @@ test("REQ-38: a form id in another workspace degrades to target-disabled", async
   const resolver = createContactFormResolver({ formDefinitionRepo: repo });
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1" } })], CTX);
   assert.deepEqual(results.get("w-1"), { ok: false, reason: "target-disabled" });
+});
+
+/** A typed read-port fake that records every lookup, so tests can assert which lookups ran. */
+function recordingRepo(required: { byId?: readonly FormDefinitionView[]; bySlug?: readonly FormDefinitionView[] }): FormDefinitionReadPort & { calls: string[] } {
+  const calls: string[] = [];
+  return {
+    calls,
+    async findById({ workspaceId, id }) {
+      calls.push(`id:${workspaceId}:${id}`);
+      return required.byId?.find((view) => view.id === id) ?? null;
+    },
+    async findBySlug({ workspaceId, slug }) {
+      calls.push(`slug:${workspaceId}:${slug}`);
+      return required.bySlug?.find((view) => view.slug === slug) ?? null;
+    },
+  };
+}
+
+function view(overrides: Partial<FormDefinitionView> = {}): FormDefinitionView {
+  return { id: "form-1", slug: "contact", status: "active", fields: [], ...overrides };
+}
+
+test("REQ-38: a formDefinitionRef alone is tried as an id first, then as the authored slug", async () => {
+  const repo = recordingRepo({ bySlug: [view({ id: "form-9", slug: "contact" })] });
+  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionRef: "contact" } })], CTX);
+
+  assert.deepEqual(repo.calls, ["id:ws-1:contact", "slug:ws-1:contact"]);
+  assert.deepEqual(results.get("w-1"), {
+    ok: true,
+    ir: { componentId: "contact-form", props: { formDefinitionId: "form-9", slug: "contact", fields: [], successMessage: null } },
+    dependencyKeys: ["form-9"],
+  });
+});
+
+test("REQ-38: a formDefinitionRef found by id never falls back to the slug lookup", async () => {
+  const repo = recordingRepo({ byId: [view({ id: "form-1" })] });
+  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionRef: "form-1" } })], CTX);
+
+  assert.deepEqual(repo.calls, ["id:ws-1:form-1"]);
+  assert.equal(results.get("w-1")?.ok, true);
+});
+
+test("REQ-38: with both keys, formDefinitionId is looked up by id and formDefinitionRef is the slug fallback", async () => {
+  const repo = recordingRepo({ bySlug: [view({ id: "form-2", slug: "contact" })] });
+  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "gone", formDefinitionRef: "contact" } })], CTX);
+
+  assert.deepEqual(repo.calls, ["id:ws-1:gone", "slug:ws-1:contact"]);
+  assert.deepEqual(results.get("w-1"), {
+    ok: true,
+    ir: { componentId: "contact-form", props: { formDefinitionId: "form-2", slug: "contact", fields: [], successMessage: null } },
+    dependencyKeys: ["form-2"],
+  });
+});
+
+test("REQ-38: a formDefinitionId that misses with no formDefinitionRef never tries a slug lookup", async () => {
+  const repo = recordingRepo({});
+  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "gone" } })], CTX);
+
+  assert.deepEqual(repo.calls, ["id:ws-1:gone"]);
+  assert.deepEqual(results.get("w-1"), { ok: false, reason: "target-disabled" });
+});
+
+test("REQ-38: a formDefinitionRef matching neither an id nor a slug degrades to target-disabled", async () => {
+  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({}) });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionRef: "missing" } })], CTX);
+
+  assert.deepEqual(results.get("w-1"), { ok: false, reason: "target-disabled" });
+});
+
+test("REQ-38: empty-string keys on both sides are invalid-config", async () => {
+  const repo = recordingRepo({});
+  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "", formDefinitionRef: "" } })], CTX);
+
+  assert.deepEqual(results.get("w-1"), { ok: false, reason: "invalid-config" });
+  assert.deepEqual(repo.calls, []);
+});
+
+test("REQ-38: an empty-string formDefinitionId is still sent to findById before the formDefinitionRef slug fallback", async () => {
+  const repo = recordingRepo({ bySlug: [view({ slug: "contact" })] });
+  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "", formDefinitionRef: "contact" } })], CTX);
+
+  assert.deepEqual(repo.calls, ["id:ws-1:", "slug:ws-1:contact"]);
+  assert.equal(results.get("w-1")?.ok, true);
+});
+
+test("REQ-38/EC-05: a found but non-active definition degrades to target-disabled", async () => {
+  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view({ status: "disabled" })] }) });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1" } })], CTX);
+
+  assert.deepEqual(results.get("w-1"), { ok: false, reason: "target-disabled" });
+});
+
+test("REQ-37: an html-mode definition adds mode and its html to the props", async () => {
+  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view({ mode: "html", html: "<form></form>" })] }) });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1" } })], CTX);
+
+  const result = results.get("w-1");
+  assert.ok(result?.ok);
+  if (!result.ok) return;
+  assert.deepEqual(result.ir.props, { formDefinitionId: "form-1", slug: "contact", fields: [], mode: "html", html: "<form></form>", successMessage: null });
+});
+
+test("REQ-37: an html-mode definition with null html renders an empty html string", async () => {
+  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view({ mode: "html", html: null })] }) });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1" } })], CTX);
+
+  const result = results.get("w-1");
+  assert.ok(result?.ok);
+  if (!result.ok) return;
+  assert.equal(result.ir.props.html, "");
+});
+
+test("REQ-37: a non-html mode definition carries neither mode nor html in the props", async () => {
+  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view({ mode: "fields", html: "<p>ignored</p>" })] }) });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1" } })], CTX);
+
+  const result = results.get("w-1");
+  assert.ok(result?.ok);
+  if (!result.ok) return;
+  assert.deepEqual(Object.keys(result.ir.props), ["formDefinitionId", "slug", "fields", "successMessage"]);
+});
+
+test("REQ-37: a non-string successMessage config resolves successMessage: null", async () => {
+  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view()] }) });
+
+  const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1", successMessage: 7 } })], CTX);
+
+  const result = results.get("w-1");
+  assert.ok(result?.ok);
+  if (!result.ok) return;
+  assert.equal(result.ir.props.successMessage, null);
+});
+
+test("REQ-38: one batch isolates each instance's outcome by instance id", async () => {
+  const repo = recordingRepo({ byId: [view()] });
+  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+
+  const results = await resolver.resolveMany([
+    instance({ id: "bad", config: {} }),
+    instance({ id: "good", config: { formDefinitionId: "form-1" } }),
+    instance({ id: "gone", config: { formDefinitionId: "missing" } }),
+  ], CTX);
+
+  assert.deepEqual([...results.keys()], ["bad", "good", "gone"]);
+  assert.deepEqual(results.get("bad"), { ok: false, reason: "invalid-config" });
+  assert.equal(results.get("good")?.ok, true);
+  assert.deepEqual(results.get("gone"), { ok: false, reason: "target-disabled" });
+});
+
+test("REQ-38: an empty batch resolves an empty map without touching the repo", async () => {
+  const repo = recordingRepo({});
+  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+
+  const results = await resolver.resolveMany([], CTX);
+
+  assert.equal(results.size, 0);
+  assert.deepEqual(repo.calls, []);
 });
