@@ -1,10 +1,42 @@
-import { useId, useMemo } from 'react';
-import type { AdminErasedEntityPort } from '../../core/ports/entities.js';
-import type { EntityEditProps } from './types.js';
+import { useId, useMemo, type ReactNode } from 'react';
+import type { AdminEntityField, AdminErasedEntityPort } from '../../core/ports/entities.js';
+import type { EntityEditProps, EntityTranslate } from './types.js';
 import { EntityField } from './EntityField.js';
+import { RelationTruncationNotice } from './RelationTruncationNotice.js';
 import { useEntityEdit } from './use-entity-edit.js';
 import { entityText } from './types.js';
-import { RELATION_OPTION_LIMIT } from './rules.js';
+import type { RelationIndex } from './rules.js';
+
+type EntityEditState = ReturnType<typeof useEntityEdit>;
+type EntityEditForm = NonNullable<EntityEditState['form']>;
+
+function EntityFieldRow({ edit, form, field, inputId, relations, translate }: {
+  readonly edit: EntityEditState; readonly form: EntityEditForm; readonly field: AdminEntityField; readonly inputId: string;
+  readonly relations: RelationIndex; readonly translate: EntityTranslate;
+}): ReactNode {
+  const missing = edit.missing.includes(field.name);
+  const invalid = edit.invalid.some((problem) => problem.field === field.name);
+  const jsonError = form.jsonErrors[field.name] === true;
+  return <div>
+    <label htmlFor={inputId}>{translate({ key: field.label ?? field.name })}{field.required ? ' *' : ''}{field.kind === 'datetime' ? ` (${translate({ key: 'UTC' })})` : ''}</label>
+    <EntityField inputId={inputId} field={field} value={form.draft[field.name]} text={form.jsonText[field.name] ?? ''}
+      relations={relations} translate={translate} disabled={edit.pending !== null} invalid={missing || invalid || jsonError}
+      onChange={({ value }) => edit.setField({ name: field.name, value })}
+      onTextChange={({ text }) => edit.setJsonText({ name: field.name, text })} />
+    {missing ? <p>{translate({ key: 'Required' })}</p> : null}
+    {invalid ? <p>{translate({ key: 'Invalid value' })}</p> : null}
+    {jsonError ? <p role="alert">{translate({ key: 'Invalid JSON' })}</p> : null}
+  </div>;
+}
+
+function EditActions({ edit, canRemove, translate }: {
+  readonly edit: EntityEditState; readonly canRemove: boolean; readonly translate: EntityTranslate;
+}): ReactNode {
+  return <>
+    <button type="submit" disabled={!edit.canSave}>{translate({ key: edit.pending === 'save' ? 'Saving' : 'Save' })}</button>
+    {canRemove ? <button type="button" disabled={edit.pending !== null} onClick={() => { void edit.remove(); }}>{translate({ key: edit.pending === 'remove' ? 'Deleting' : 'Delete' })}</button> : null}
+  </>;
+}
 
 function EntityEditor(props: EntityEditProps & { readonly port: AdminErasedEntityPort }) {
   const { port, translate, routes, entityName, id } = props;
@@ -12,33 +44,19 @@ function EntityEditor(props: EntityEditProps & { readonly port: AdminErasedEntit
   const edit = useEntityEdit(props);
   if (edit.read.error) return <p role="alert">{translate({ key: 'Unable to load row' })}</p>;
   if (edit.read.loading || !edit.read.data) return <p role="status">{translate({ key: 'Loading' })}</p>;
-  if (id !== null && edit.read.data.row === null) return <p role="status">{translate({ key: 'Row not found' })}</p>;
-  if (!edit.form) return <p role="status">{translate({ key: 'Loading' })}</p>;
-  const busy = edit.pending !== null;
-  const truncated = Object.entries(edit.read.data.relations).filter(([, target]) => target.truncated).map(([name]) => name);
+  // useEntityEdit builds the form in the same render its row arrives, so once data has loaded the
+  // only way to have no form is an edit route whose row does not exist.
+  const { form } = edit;
+  if (!form) return <p role="status">{translate({ key: 'Row not found' })}</p>;
+  const { relations } = edit.read.data;
   return <form className="page" onSubmit={(e) => { e.preventDefault(); void edit.save(); }}>
     <a href={routes.href({ entity: entityName })}>{translate({ key: port.descriptor.labelPlural })}</a>
     <h1>{entityText({ translate, key: id === null ? 'New {entity}' : 'Edit {entity}', values: { entity: translate({ key: port.descriptor.labelSingular }) } })}</h1>
     {edit.failed ? <p role="alert">{translate({ key: 'Operation failed' })}</p> : null}
-    {port.descriptor.fields.map((field, index) => {
-      const inputId = `${formId}-${index}`;
-      const missing = edit.missing.includes(field.name);
-      const invalid = edit.invalid.some((problem) => problem.field === field.name);
-      const jsonError = edit.form?.jsonErrors[field.name] === true;
-      return <div key={field.name}>
-        <label htmlFor={inputId}>{translate({ key: field.label ?? field.name })}{field.required ? ' *' : ''}{field.kind === 'datetime' ? ` (${translate({ key: 'UTC' })})` : ''}</label>
-        <EntityField inputId={inputId} field={field} value={edit.form?.draft[field.name]} text={edit.form?.jsonText[field.name] ?? ''}
-          relations={edit.read.data!.relations} translate={translate} disabled={busy} invalid={missing || invalid || jsonError}
-          onChange={({ value }) => edit.setField({ name: field.name, value })}
-          onTextChange={({ text }) => edit.setJsonText({ name: field.name, text })} />
-        {missing ? <p>{translate({ key: 'Required' })}</p> : null}
-        {invalid ? <p>{translate({ key: 'Invalid value' })}</p> : null}
-        {jsonError ? <p role="alert">{translate({ key: 'Invalid JSON' })}</p> : null}
-      </div>;
-    })}
-    {truncated.length > 0 ? <p>{entityText({ translate, key: 'Related names limited to {limit} rows: {targets}', values: { limit: RELATION_OPTION_LIMIT, targets: truncated.join(', ') } })}</p> : null}
-    <button type="submit" disabled={!edit.canSave}>{translate({ key: edit.pending === 'save' ? 'Saving' : 'Save' })}</button>
-    {id !== null && port.remove ? <button type="button" disabled={busy} onClick={() => { void edit.remove(); }}>{translate({ key: edit.pending === 'remove' ? 'Deleting' : 'Delete' })}</button> : null}
+    {port.descriptor.fields.map((field, index) =>
+      <EntityFieldRow key={field.name} edit={edit} form={form} field={field} inputId={`${formId}-${index}`} relations={relations} translate={translate} />)}
+    <RelationTruncationNotice relations={relations} translate={translate} />
+    <EditActions edit={edit} canRemove={id !== null && port.remove !== undefined} translate={translate} />
   </form>;
 }
 
