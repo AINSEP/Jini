@@ -13,7 +13,7 @@ import { findTrustedPluginPackages, importContainedModule, readTrustedPluginFile
 import type { AgentPluginToolCapabilities } from '../../lifecycle/tools/capabilities.js';
 import { fakeCapabilities, FAKE_TOKEN, installPlugin, WORKSPACE_ID, withWorkspace } from '../../lifecycle/tools/__tests__/support.js';
 import {
-  createAdminSurfaceActionDispatcher, createAdminSurfaceHandlerHost, defineAdminSurfaceHandlerContribution, parseAdminSurfacesFile, readAdminSurfaceFile,
+  ADMIN_SURFACE_PLUGIN_DISABLED_MESSAGE, createAdminSurfaceActionDispatcher, createAdminSurfaceHandlerHost, defineAdminSurfaceHandlerContribution, parseAdminSurfacesFile, readAdminSurfaceFile,
   type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule, type LoadedAdminSurfaceHandlers,
 } from '../index.js';
 
@@ -121,6 +121,24 @@ describe('the handler module loads only through the executable trust gate', () =
   });
 });
 
+describe('the handler module export is checked before admission', () => {
+  const definition = defineAdminSurfaceHandlerContribution({ filename: FILENAME });
+  const plugin = { pluginId: PLUGIN, packageRoot: '/nowhere' };
+  test.each([
+    [null, "its module's default export is not an object"],
+    [{ bootstrap: async () => ({}) }, "its module's default export needs an actions object of functions"],
+    [{ actions: { save: 'not code' } }, "its module's default export needs an actions object of functions"],
+    [{ actions: {}, bootstrap: { data: 1 } }, 'bootstrap must be a function'],
+  ])('export %j is refused', async (exported, reason) => {
+    expect(await definition.load({ plugin, descriptor: descriptorOf(), importModule: async () => ({ exported }) }))
+      .toBe(`admin surface handlers for 'settings' from 'fixture-surface' were not loaded: ${reason}`);
+  });
+  test('an invalid surfaces file refuses every handler, and surfaces without a handler module import nothing', () => {
+    expect(definition.parse({ raw: '{' })).toEqual({ ok: false, reason: 'not valid JSON' });
+    expect(definition.parse({ raw: surfacesFile({ handlerModule: undefined }) })).toEqual({ ok: true, descriptors: [] });
+  });
+});
+
 describe('admission at sync', () => {
   test('a module that exports a handler for an undeclared action is refused whole', () => {
     const { host, refusals } = hostFor([loaded({ actions: { save: async () => ({ saved: true }), purge: async () => ({}) } })]);
@@ -202,6 +220,10 @@ describe('bootstrap data', () => {
     expect((error as Error).message).toBe('Admin surface \'settings\' from \'fixture-surface\' returned bootstrap data outside its declared schema ($ has an undeclared property "refreshToken"); report it to the plugin author.');
     expect((error as Error).message).not.toContain('secret-value');
   });
+  test('a bootstrap failure that mentions an obtained token is replaced', async () => {
+    const host = withBootstrap(async ({ capabilities }) => { throw new Error(`denied ${await capabilities.connections.getAccessToken({ connectionRef: 'c1' })}`); });
+    await expect(host.bootstrapData({ context: CONTEXT })).rejects.toThrow(/^The plugin tool failed and its error was withheld because it contained a connection credential\.$/);
+  });
   test('a surface without a bootstrap provider starts with null', async () => {
     expect(await withBootstrap(undefined).bootstrapData({ context: CONTEXT })).toBeNull();
   });
@@ -225,6 +247,16 @@ describe('disabling the plugin revokes its handlers', () => {
     await expect(retained!.connections.getAccessToken({ connectionRef: 'c1' })).rejects.toThrow('This plugin tool was disabled; its capabilities are revoked. Re-enable the plugin and retry.');
     expect(host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' })).toEqual({});
     expect(await host.bootstrapData({ context: CONTEXT })).toBeNull();
+  });
+  test('re-syncing an unchanged module keeps its handlers live; a changed module revokes the old ones', async () => {
+    const module = saveModule(async () => ({ saved: true }));
+    const { host } = hostFor([loaded(module)]);
+    const first = host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' });
+    host.sync({ loaded: [loaded(module)], refusals: [] });
+    expect(host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' })).toBe(first);
+    host.sync({ loaded: [loaded(saveModule(async () => ({ saved: false })))], refusals: [] });
+    await expect(first.save!({ payload: { name: 'x' }, context: CONTEXT })).rejects.toThrow(ADMIN_SURFACE_PLUGIN_DISABLED_MESSAGE);
+    expect(await host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }).save!({ payload: { name: 'x' }, context: CONTEXT })).toEqual({ saved: false });
   });
   test('a real deactivation removes the handlers on the next load and sync', async () => {
     const loader = createPluginContributionLoader({
