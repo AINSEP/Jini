@@ -12,9 +12,10 @@ import { buildWidgetAreaFieldsJson, buildWidgetInstanceFieldsJson } from "../../
 import type { PageHtmlEmbedRef } from "../../html/html-embeds.js";
 import type { MediaContentTypeStorePort, PostRecord, PostRepoPort, WidgetHostPorts } from "../../host-ports.js";
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
-import { HTML_EMBED_RESOLVERS, resolvePageWidgets, type ResolveHtmlPageEmbedsDeps } from "../../resolver-service.js";
+import { HTML_EMBED_RESOLVERS, resolveGalleryWidgetMedia, resolvePageWidgets, type ResolveHtmlPageEmbedsDeps } from "../../resolver-service.js";
 import { createContactFormResolver, registerCoreResolver } from "../../resolvers/index.js";
 import type { FormDefinitionReadPort, FormDefinitionView } from "../../resolvers/ports.js";
+import type { TaxonomyListPort, TermListPort } from "../../../taxonomy/index.js";
 import type { WidgetPlacementNode, WidgetResolveContext } from "../../types.js";
 
 /**
@@ -533,5 +534,78 @@ describe("region placements", () => {
 
   it("resolves a region whose widget_area payload is malformed to no widgets", async () => {
     expect(await resolveRegions([areaRow("area-1", [], { fieldsJson: { ext: {} } })], { sidebar: "area-1" })).toEqual({ sidebar: [] });
+  });
+});
+
+describe("taxonomy embed resolution", () => {
+  const taxonomyRepo: TaxonomyListPort = { list: async () => [{ id: "tax-1", name: "Topics", hierarchical: true, status: "active", updatedAt: "2026-01-01T00:00:00.000Z", version: 1 }] };
+  const termRepo: TermListPort = {
+    listByTaxonomy: async ({ taxonomyId }) => [{ id: "t1", taxonomyId, parentId: null, name: "News", status: "active", updatedAt: "2026-01-01T00:00:00.000Z", version: 1 }],
+  };
+
+  it("delegates to the taxonomy resolver with the host's taxonomy and term repositories", async () => {
+    const resolved = await HTML_EMBED_RESOLVERS.taxonomy!([ref({ type: "taxonomy", id: "tax-1" })], deps({ taxonomyRepo, termRepo }), CTX);
+    expect(resolved.get("tax-1")).toEqual({ componentId: "taxonomy-list", props: { id: "tax-1", name: "Topics", hierarchical: true, terms: [{ id: "t1", name: "News", parentId: null }] } });
+  });
+});
+
+describe("gallery embed resolution", () => {
+  const legacyConfig = { layout: "grid", images: [{ mediaId: "a1", alt: "" }] };
+
+  it("resolves a gallery's images through the media resolver", async () => {
+    const resolved = await HTML_EMBED_RESOLVERS.gallery!([ref({ type: "gallery", id: "g1", config: legacyConfig })], deps(), CTX);
+    const ir = resolved.get("g1")!;
+    expect(ir.componentId).toBe("gallery");
+    expect(ir.props.config).toEqual(legacyConfig);
+    expect({ ...(ir.props.media as JsonObject) }).toEqual({ a1: { assetId: "a1", slug: "a1-slug", transformName: "public", version: 3, alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null } });
+  });
+
+  it("reports an invalid gallery with the workspace id and leaves it unresolved", async () => {
+    const resolved = await HTML_EMBED_RESOLVERS.gallery!([ref({ type: "gallery", id: "g1", config: { layout: "grid", images: [] } })], deps(), CTX);
+    expect(resolved.size).toBe(0);
+    expect(warn).toHaveBeenCalledWith("[widgets] unresolved gallery embed", { workspaceId: WS, key: "g1", messages: ["images must contain between 1 and 50 images"] });
+  });
+
+  it("exposes the media resolver to gallery widgets", async () => {
+    const resolved = await resolveGalleryWidgetMedia({ refs: [ref({ id: "a1" })], deps: deps(), context: CTX });
+    expect(resolved.get("a1")!.props).toMatchObject({ assetId: "a1", transformName: "public" });
+  });
+});
+
+describe("inline media content embeds", () => {
+  const items = { mode: "media", layout: "grid", items: [{ slug: "a1-slug" }] };
+  const mediaProps = (resolved: ReadonlyMap<string, { props: JsonObject }>) => ({ ...(resolved.get("m1")!.props.media as JsonObject) });
+
+  it("resolves a media marker's inline content as a media gallery IR", async () => {
+    const resolved = await media([ref({ id: "m1", config: { content: items } })], deps());
+    expect(resolved.get("m1")!.componentId).toBe("media");
+    expect(resolved.get("m1")!.props.config).toEqual(items);
+    expect(Object.keys(mediaProps(resolved))).toEqual(["a1-slug"]);
+  });
+
+  it("treats a media marker carrying items directly as inline content", async () => {
+    const resolved = await media([ref({ id: "m1", config: items })], deps());
+    expect(Object.keys(mediaProps(resolved))).toEqual(["a1-slug"]);
+  });
+
+  it("treats a media marker carrying html as inline content", async () => {
+    const resolved = await media([ref({ id: "m1", config: { html: "{{media:a1-slug}}" } })], deps());
+    expect(Object.keys(mediaProps(resolved))).toEqual(["a1-slug"]);
+  });
+
+  it("warns about invalid inline content and leaves it unresolved", async () => {
+    const resolved = await media([ref({ id: "m1", config: { html: 7 } })], deps());
+    expect(resolved.size).toBe(0);
+    expect(warn).toHaveBeenCalledWith("[widgets] unresolved media content", { key: "m1", messages: ["html must be a string of at most 65536 characters"] });
+  });
+
+  it("resolves a media marker with a config but no inline content as an ordinary asset", async () => {
+    const resolved = await media([ref({ id: "a1", config: { variant: "public" } })], deps());
+    expect(resolved.get("a1")!.componentId).toBe("media-image");
+  });
+
+  it("returns ordinary and inline media results together", async () => {
+    const resolved = await media([ref({ id: "a1" }), ref({ id: "m1", config: { content: items } })], deps());
+    expect([...resolved.keys()]).toEqual(["a1", "m1"]);
   });
 });
