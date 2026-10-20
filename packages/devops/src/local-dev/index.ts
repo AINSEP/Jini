@@ -51,29 +51,45 @@ export interface ServerListenerPort {
   address(): { port: number } | string | null;
 }
 
+function validListenRange(required: { port: number; attempts: number }): boolean {
+  const { port, attempts } = required;
+  return Number.isInteger(attempts) && attempts >= 1 && Number.isInteger(port) && port >= 0 && port + attempts - 1 <= 65535;
+}
+
+/** One bind attempt; both one-shot handlers are removed however it ends, including a synchronous throw. */
+function bindOnce(required: { server: ServerListenerPort; port: number }, optional: { host?: string | undefined }): Promise<void> {
+  const { server, port } = required;
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => { server.off('error', onError); server.off('listening', onListening); };
+    const onError = (error: unknown) => { cleanup(); reject(error); };
+    const onListening = () => { cleanup(); resolve(); };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    try { server.listen({ port, ...(optional.host === undefined ? {} : { host: optional.host }) }); }
+    catch (error) { onError(error); }
+  });
+}
+
+function addressInUse(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'EADDRINUSE';
+}
+
+/** Bind once at `port`; the listener's reported port wins over the requested one (port 0, retries). */
+async function bindAndReport(required: { server: ServerListenerPort; port: number }, optional: { host?: string | undefined }): Promise<number> {
+  await bindOnce(required, optional);
+  const address = required.server.address();
+  return typeof address === 'object' && address !== null ? address.port : required.port;
+}
+
 /** Bind the actual listener, retaining it across boot. Only address collisions may try the next
  * port; explicit addresses use the default single attempt. No probe/release/bind race. */
 export async function listenServer({ server, port }: { server: ServerListenerPort; port: number },
   { host, attempts = 1 }: { host?: string; attempts?: number } = {}): Promise<number> {
-  if (!Number.isInteger(attempts) || attempts < 1 || !Number.isInteger(port) || port < 0 || port + attempts - 1 > 65535) {
-    throw new RangeError('Invalid listener port or attempt range');
+  if (!validListenRange({ port, attempts })) throw new RangeError('Invalid listener port or attempt range');
+  for (let offset = 0; offset < attempts - 1; offset++) {
+    try { return await bindAndReport({ server, port: port + offset }, { host }); }
+    catch (error) { if (!addressInUse(error)) throw error; }
   }
-  for (let offset = 0; offset < attempts; offset++) {
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const cleanup = () => { server.off('error', onError); server.off('listening', onListening); };
-        const onError = (error: unknown) => { cleanup(); reject(error); };
-        const onListening = () => { cleanup(); resolve(); };
-        server.once('error', onError);
-        server.once('listening', onListening);
-        try { server.listen({ port: port + offset, ...(host === undefined ? {} : { host }) }); }
-        catch (error) { onError(error); }
-      });
-      const address = server.address();
-      return typeof address === 'object' && address !== null ? address.port : port + offset;
-    } catch (error) {
-      if ((error as { code?: string } | null)?.code !== 'EADDRINUSE' || offset === attempts - 1) throw error;
-    }
-  }
-  throw new Error('Listener range exhausted');
+  // The final attempt's error, whatever it is, propagates unchanged.
+  return bindAndReport({ server, port: port + attempts - 1 }, { host });
 }

@@ -4,24 +4,39 @@ import type { AgentJob, AgentJobOptions, CodexInvocation, AgentCliRunnerPort, Jo
 const jsonDecoder: AgentEventDecoderPort = { decode: ({ line }) => JSON.parse(line) };
 function record(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 
+interface CodexStreamState { completed: boolean; lastMessage: string | undefined; usage: unknown; readonly errors: string[] }
+type CodexEventHandler = (state: CodexStreamState, event: Record<string, unknown>) => void;
+/** Keyed by event type in a Map, so a `type` such as `constructor` never reaches a prototype member. */
+const CODEX_EVENT_HANDLERS: ReadonlyMap<unknown, CodexEventHandler> = new Map<unknown, CodexEventHandler>([
+  ['turn.completed', (state, event) => { state.completed = true; state.usage = event.usage ?? null; }],
+  ['turn.failed', (state, event) => { state.errors.push(`turn.failed: ${JSON.stringify(event.error ?? event)}`); }],
+  ['error', (state, event) => { state.errors.push(`error: ${event.message ?? JSON.stringify(event)}`); }],
+  ['item.completed', (state, event) => {
+    if (record(event.item) && event.item.type === 'agent_message') state.lastMessage = typeof event.item.text === 'string' ? event.item.text : undefined;
+  }],
+]);
+/** Undecodable and non-object lines carry no signal and are skipped. */
+function decodeCodexEvent(required: { line: string; decoder: AgentEventDecoderPort }): Record<string, unknown> | undefined {
+  let event: unknown;
+  try { event = required.decoder.decode({ line: required.line }); } catch { return undefined; }
+  return record(event) ? event : undefined;
+}
+
 /** Original stream rule: exit status cannot replace completion, no errors, and a final message. */
 export function parseCodexRun({ jsonl }: { jsonl: string }, optional: { decoder?: AgentEventDecoderPort } = {}): ParsedCodexRun {
-  let completed = false;
-  let lastMessage: string | undefined;
-  let usage: unknown = null;
-  const errors: string[] = [];
+  const state: CodexStreamState = { completed: false, lastMessage: undefined, usage: null, errors: [] };
+  const decoder = optional.decoder ?? jsonDecoder;
   for (const line of jsonl.split('\n')) {
-    if (!line.trim()) continue;
-    let event: unknown;
-    try { event = (optional.decoder ?? jsonDecoder).decode({ line }); } catch { continue; }
-    if (!record(event)) continue;
-    if (event.type === 'turn.completed') { completed = true; usage = event.usage ?? null; }
-    else if (event.type === 'turn.failed') errors.push(`turn.failed: ${JSON.stringify(event.error ?? event)}`);
-    else if (event.type === 'error') errors.push(`error: ${event.message ?? JSON.stringify(event)}`);
-    else if (event.type === 'item.completed' && record(event.item) && event.item.type === 'agent_message') lastMessage = typeof event.item.text === 'string' ? event.item.text : undefined;
+    const event = line.trim() ? decodeCodexEvent({ line, decoder }) : undefined;
+    if (event) CODEX_EVENT_HANDLERS.get(event.type)?.(state, event);
   }
+  return codexVerdict(state);
+}
+/** Errors outrank a missing completion, which outranks a missing final message. */
+function codexVerdict({ completed, errors, lastMessage, usage }: CodexStreamState): ParsedCodexRun {
   if (completed && errors.length === 0 && lastMessage) return { success: true, finalMessage: lastMessage.endsWith('\n') ? lastMessage : lastMessage + '\n', usage };
-  return { success: false, reason: errors.length ? errors.join('\n') : !completed ? 'no turn.completed event' : 'no agent_message' };
+  if (errors.length) return { success: false, reason: errors.join('\n') };
+  return { success: false, reason: completed ? 'no agent_message' : 'no turn.completed event' };
 }
 
 /** Construct argv without a shell; prompt content goes only on stdin. Effort is a TOML string. */

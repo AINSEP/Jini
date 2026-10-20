@@ -125,53 +125,58 @@ export function isPureReExportBarrelSource({ sourceText }: { sourceText: string 
   return remaining.length === 0;
 }
 
+const BARREL_SKIP_REASON =
+  'pure re-export barrel (source is entirely `export ... from "...";` statements) -- its only ' +
+  "instrumented \"functions\" are esbuild's own CJS-interop wrapper helpers plus one lazy getter " +
+  'per re-exported name, not a second merged coverage image; wrapper-name presence here is ' +
+  'structurally guaranteed for any barrel, with or without Route A, so it carries no ' +
+  "contamination signal -- see this file's header";
+
+/** The esbuild wrapper helper names present in a block's FNDA records, and their hit counts. */
+function collectWrapperHits(fnda: LcovBlock['fnda']): { names: Set<string>; values: Set<number> } {
+  const names = new Set<string>();
+  const values = new Set<number>();
+  for (const { name, hits } of fnda) {
+    if (WRAPPER_HELPER_NAMES.has(name)) {
+      names.add(name);
+      values.add(hits);
+    }
+  }
+  return { names, values };
+}
+
+/** The SEVERE suffix when the wrapper image also won the line-hit merge, otherwise undefined. */
+function severeLineMergeReason(da: readonly number[], wrapperValues: ReadonlySet<number>): string | undefined {
+  // A tiny barrel can share hit counts by coincidence. Escalation requires enough DA records
+  // and a nonzero overlap with the wrapper's own counts; all-zero runs carry no merge signal.
+  if (da.length < MIN_DA_RECORDS_FOR_SEVERE_HEURISTIC) return undefined;
+  const comparisonSet = new Set(wrapperValues);
+  comparisonSet.add(0);
+  const distinctDa = [...new Set(da)].sort((a, b) => a - b);
+  const extra = distinctDa.filter((value) => !comparisonSet.has(value));
+  const overlapHasRealSignal = distinctDa.some((value) => value !== 0 && comparisonSet.has(value));
+  if (extra.length > 0 || !overlapHasRealSignal) return undefined;
+  const wrapperValuesSorted = [...wrapperValues].sort((a, b) => a - b);
+  return `. SEVERE: additionally, every one of this block's ${distinctDa.length} ` +
+    `distinct DA hit-count value(s) [${distinctDa.join(', ')}] matches a wrapper helper's own FNDA ` +
+    `hit-count [${wrapperValuesSorted.join(', ')}] (or 0) -- the wrapper image also won the line-hit ` +
+    `merge, so line coverage for this run is untrustworthy too, regardless of what LH:/LF: report`;
+}
+
 /** Classify esbuild interop contamination using the host source classifier. */
 export function classifyBlock({ block, repoRoot, isFirstParty }: { block: LcovBlock; repoRoot: string; isFirstParty: SourceClassifier }, { sourceText }: { sourceText?: string | undefined } = {}): BlockVerdict {
   const file = toRepoRelative({ sourceFile: block.file, repoRoot });
   if (!isFirstParty({ file })) return { file, status: 'skip', severe: false, reason: 'not a first-party source path' };
-  if (sourceText !== undefined && isPureReExportBarrelSource({ sourceText })) {
-    return {
-      file, status: 'skip', severe: false,
-      reason: 'pure re-export barrel (source is entirely `export ... from "...";` statements) -- its only ' +
-        "instrumented \"functions\" are esbuild's own CJS-interop wrapper helpers plus one lazy getter " +
-        'per re-exported name, not a second merged coverage image; wrapper-name presence here is ' +
-        'structurally guaranteed for any barrel, with or without Route A, so it carries no ' +
-        "contamination signal -- see this file's header",
-    };
-  }
-  const wrapperNamesFound = new Set<string>();
-  const wrapperValues = new Set<number>();
-  for (const { name, hits } of block.fnda) {
-    if (WRAPPER_HELPER_NAMES.has(name)) {
-      wrapperNamesFound.add(name);
-      wrapperValues.add(hits);
-    }
-  }
-  if (wrapperNamesFound.size === 0) return { file, status: 'ok', severe: false, reason: 'no esbuild CJS-wrapper FNDA records in this block' };
+  if (sourceText !== undefined && isPureReExportBarrelSource({ sourceText })) return { file, status: 'skip', severe: false, reason: BARREL_SKIP_REASON };
+  const wrapper = collectWrapperHits(block.fnda);
+  if (wrapper.names.size === 0) return { file, status: 'ok', severe: false, reason: 'no esbuild CJS-wrapper FNDA records in this block' };
   const fnSummary = block.fnf !== undefined && block.fnh !== undefined ? ` FNF:${block.fnf} FNH:${block.fnh}` : '';
   const contaminatedReason =
-    `${wrapperNamesFound.size} esbuild CJS-wrapper helper record(s) [${[...wrapperNamesFound].sort().join(', ')}] ` +
+    `${wrapper.names.size} esbuild CJS-wrapper helper record(s) [${[...wrapper.names].sort().join(', ')}] ` +
     `present in this block's FNDA records -- two coverage images (real ESM + CJS wrapper) were merged ` +
     `here.${fnSummary} function coverage for this run is untrustworthy`;
-  // A tiny barrel can share hit counts by coincidence. Escalation requires enough DA records
-  // and a nonzero overlap with the wrapper's own counts; all-zero runs carry no merge signal.
-  if (block.da.length >= MIN_DA_RECORDS_FOR_SEVERE_HEURISTIC) {
-    const comparisonSet = new Set(wrapperValues);
-    comparisonSet.add(0);
-    const distinctDa = [...new Set(block.da)].sort((a, b) => a - b);
-    const extra = distinctDa.filter((value) => !comparisonSet.has(value));
-    const overlapHasRealSignal = distinctDa.some((value) => value !== 0 && comparisonSet.has(value));
-    if (extra.length === 0 && overlapHasRealSignal) {
-      const wrapperValuesSorted = [...wrapperValues].sort((a, b) => a - b);
-      return {
-        file, status: 'contaminated', severe: true,
-        reason: `${contaminatedReason}. SEVERE: additionally, every one of this block's ${distinctDa.length} ` +
-          `distinct DA hit-count value(s) [${distinctDa.join(', ')}] matches a wrapper helper's own FNDA ` +
-          `hit-count [${wrapperValuesSorted.join(', ')}] (or 0) -- the wrapper image also won the line-hit ` +
-          `merge, so line coverage for this run is untrustworthy too, regardless of what LH:/LF: report`,
-      };
-    }
-  }
+  const severeSuffix = severeLineMergeReason(block.da, wrapper.values);
+  if (severeSuffix !== undefined) return { file, status: 'contaminated', severe: true, reason: `${contaminatedReason}${severeSuffix}` };
   return { file, status: 'contaminated', severe: false, reason: `${contaminatedReason}.` };
 }
 

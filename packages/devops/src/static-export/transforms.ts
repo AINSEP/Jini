@@ -28,20 +28,28 @@ function prefix(value: string, basePath: string): string {
   if (value === basePath || value.startsWith(basePath + '/')) return value;
   return basePath + value;
 }
+/** First index at or after `index` whose character fails `test` (or the end of `value`). */
+function skipWhile(value: string, index: number, test: (char: string) => boolean): number {
+  while (index < value.length && test(value[index]!)) index++;
+  return index;
+}
 function srcsetRanges(value: string): Array<{ start: number; end: number }> {
   const ranges: Array<{ start: number; end: number }> = [];
   let index = 0;
   while (index < value.length) {
-    while (index < value.length && /[\s,]/.test(value[index]!)) index++;
-    const start = index;
-    while (index < value.length && !/\s/.test(value[index]!)) index++;
+    const start = skipWhile(value, index, char => /[\s,]/.test(char));
+    index = skipWhile(value, start, char => !/\s/.test(char));
     let end = index;
     while (end > start && value[end - 1] === ',') end--;
     if (end > start) ranges.push({ start, end });
-    if (end < index) continue;
-    while (index < value.length && value[index] !== ',') index++;
+    // A URL ending in commas ends its candidate; otherwise skip its descriptor up to the next comma.
+    if (end === index) index = skipWhile(value, index, char => char !== ',');
   }
   return ranges;
+}
+/** One attribute's URL values: each srcset candidate URL, or the whole value for any other attribute. */
+function attributeUrls(attribute: string, value: string): string[] {
+  return attribute === 'srcset' ? srcsetRanges(value).map(({ start, end }) => value.slice(start, end)) : [value];
 }
 /** A route path naming a `.json` file (e.g. a see-more JSON batch): written as that file, not `<path>/index.html`. */
 function isJsonRoute(path: string): boolean {
@@ -54,7 +62,6 @@ function rewriteJson(body: string, basePath: string): string {
   return JSON.stringify(parsed, (key, value: unknown) => (typeof value === 'string' && (key === 'href' || key === 'url' || key === 'src') ? prefix(value, basePath) : value));
 }
 function rewriteHtml(html: string, basePath: string): string {
-  if (!basePath) return html;
   return html.replace(HTML_URL_REWRITE, (_match, attr: string, quote: string, value: string) => {
     if (attr !== 'srcset') return `${attr}=${quote}${prefix(value, basePath)}${quote}`;
     for (const { start, end } of srcsetRanges(value).reverse()) value = value.slice(0, start) + prefix(value.slice(start, end), basePath) + value.slice(end);
@@ -93,22 +100,17 @@ export function* extractHtmlReferences(required: { html: string }, _optional: Re
     references.push({ index: match.index!, attribute: 'action', value: match[2]! });
   }
   for (const { attribute, value } of references.sort((a, b) => a.index - b.index)) {
-    const values = attribute === 'srcset' ? srcsetRanges(value).map(({ start, end }) => value.slice(start, end)) : [value];
-    for (const url of values) yield { url, attribute };
+    for (const url of attributeUrls(attribute, value)) yield { url, attribute };
   }
 }
 /** Shared href/src/srcset/poster scan, preserving data-URL commas and ignoring external references. */
 export function extractAssetUrls(required: { html: string; prefixes: readonly string[] }): string[] {
-  const found = new Set<string>();
-  for (const match of required.html.matchAll(HTML_URL_SCAN)) {
-    const value = match[3]!;
-    const values = match[1] === 'srcset' ? srcsetRanges(value).map(({ start, end }) => value.slice(start, end)) : [value];
-    for (const url of values) if (!url.startsWith('//') && required.prefixes.some(prefix => url.startsWith(prefix))) found.add(url.split('#')[0]!);
-  }
+  const candidates: string[] = [];
+  for (const match of required.html.matchAll(HTML_URL_SCAN)) candidates.push(...attributeUrls(match[1]!, match[3]!));
   // JSON link fields too (a see-more JSON batch's covers), as `rewriteJson` prefixes them.
-  for (const [, url = ''] of required.html.matchAll(/"(?:href|src|url)"\s*:\s*"([^"\\]+)"/g)) {
-    if (!url.startsWith('//') && required.prefixes.some(prefix => url.startsWith(prefix))) found.add(url.split('#')[0]!);
-  }
+  for (const [, url = ''] of required.html.matchAll(/"(?:href|src|url)"\s*:\s*"([^"\\]+)"/g)) candidates.push(url);
+  const found = new Set<string>();
+  for (const url of candidates) if (!url.startsWith('//') && required.prefixes.some(prefix => url.startsWith(prefix))) found.add(url.split('#')[0]!);
   return [...found];
 }
 /** A single CSS hop, resolved against the stylesheet URL and restricted to the same synthetic origin. */

@@ -257,3 +257,48 @@ test("a command the guard cannot read throws instead of comparing as zero globs"
     message: 'not a "node [args] --test <globs>" command: node src/main.js',
   });
 });
+
+// --- L060b characterization pins: formatDiskArea ------------------------------------------------
+
+test("a failing area renders a FAIL header and one '!' line per failure, in order", () => {
+  const area = { id: "ts", floors: { line: 90 } };
+  const result = evaluateArea(area, ["src/a.ts", "src/b.ts"], cov([["src/a.ts", poor]]));
+  const lines = formatArea(result, area).split("\n");
+  assert.equal(lines[0], "  FAIL  ts");
+  assert.deepEqual(lines.filter((l) => l.startsWith("          ! ")), result.failures.map((f) => `          ! ${f}`));
+  assert.equal(result.failures.length, 2);
+});
+
+test("the full rendering of a passing area with floors on some axes is exact", () => {
+  const area = { id: "ts", floors: { line: 70, branch: 50 } };
+  const text = formatArea(evaluateArea(area, ["src/a.ts"], cov([["src/a.ts", perfect]])), area);
+  assert.equal(text, [
+    "  OK    ts",
+    "          line   100.00%  (floor 70%)",
+    "          branch 100.00%  (floor 50%)",
+    "          funcs  100.00%  (no floor configured)",
+    "          files:  1 measured of 1 on disk",
+  ].join("\n"));
+});
+
+test("an area with no floors object renders every axis with the default no-floor text", () => {
+  const area = { id: "ts" };
+  const text = formatArea(evaluateArea(area, ["src/a.ts"], cov([["src/a.ts", perfect]])), area);
+  assert.equal(text.match(/\(no floor configured\)/g)?.length, 3);
+});
+
+test("a host-supplied no-floor message replaces the default text only on unfloored axes", () => {
+  const area = { id: "ts", floors: { funcs: 10 } };
+  const text = format({ result: evaluateArea(area, ["src/a.ts"], cov([["src/a.ts", perfect]])), area }, { noFloorMessage: "(advisory)" });
+  assert.match(text, /line {3}100\.00% {2}\(advisory\)/);
+  assert.match(text, /funcs {2}100\.00% {2}\(floor 10%\)/);
+  assert.doesNotMatch(text, /no floor configured/);
+});
+
+test("a grandfathered file that regained coverage is rendered as a removal instruction", () => {
+  const area = { id: "ts", knownUnmeasured: ["src/a.ts", "src/b.ts"] };
+  const result = evaluateArea(area, ["src/a.ts", "src/b.ts"], cov([["src/a.ts", perfect], ["src/b.ts", perfect]]));
+  const text = formatArea(result, area);
+  assert.match(text, /^ {10}NOW COVERED, remove from knownUnmeasured: src\/a\.ts, src\/b\.ts$/m);
+  assert.doesNotMatch(text, /UNMEASURED/);
+});

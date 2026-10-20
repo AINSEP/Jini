@@ -13,7 +13,6 @@
 export type CommandHandler = (requiredArgs: { args: readonly string[] }) => void | Promise<void>;
 
 interface RegisteredCommand {
-  name: string;
   handler: CommandHandler;
   usage?: string;
 }
@@ -74,7 +73,7 @@ export class CommandRegistry {
         `command "${name}" is already registered; pass { override: true } to replace it intentionally`,
       );
     }
-    this.commands.set(name, { name, handler, ...(opts.usage !== undefined ? { usage: opts.usage } : {}) });
+    this.commands.set(name, { handler, ...(opts.usage !== undefined ? { usage: opts.usage } : {}) });
     return this;
   }
 
@@ -106,25 +105,7 @@ export class CommandRegistry {
    * next token as a value — so the scan skips over it instead.
    */
   async dispatch({ argv }: { argv: readonly string[] }, options: CommandDispatchOptions = {}): Promise<CommandDispatchResult> {
-    const valueFlags = options.valueFlags ?? new Set<string>();
-
-    let index = -1;
-    for (let i = 0; i < argv.length; i++) {
-      // Loop is bounded by argv.length, so this index is always in range —
-      // noUncheckedIndexedAccess types it as possibly-undefined regardless.
-      const token = argv[i]!;
-      if (!token.startsWith('-')) {
-        index = i;
-        break;
-      }
-      if (token.startsWith('--')) {
-        const eq = token.indexOf('=');
-        if (eq < 0) {
-          const key = token.slice(2);
-          if (valueFlags.has(key)) i++; // skip this flag's value token
-        }
-      }
-    }
+    const index = findCommandIndex({ argv }, { valueFlags: options.valueFlags ?? new Set<string>() });
     if (index === -1) return { kind: 'empty' };
 
     const name = argv[index]!;
@@ -135,4 +116,21 @@ export class CommandRegistry {
     await command.handler({ args: rest });
     return { kind: 'handled' };
   }
+}
+
+/**
+ * Index of the first token in `argv` that does not start with `-`, or `-1` when there is none.
+ * A `--name` token (no `=`) whose `name` is in `valueFlags` also skips the token after it, so a
+ * value-flag's own value is never taken for the command name (CR-003). Single-dash and
+ * `--name=value` tokens never skip.
+ */
+function findCommandIndex({ argv }: { argv: readonly string[] }, { valueFlags }: { valueFlags: ReadonlySet<string> }): number {
+  for (let i = 0; i < argv.length; i++) {
+    // Loop is bounded by argv.length, so this index is always in range —
+    // noUncheckedIndexedAccess types it as possibly-undefined regardless.
+    const token = argv[i]!;
+    if (!token.startsWith('-')) return i;
+    if (token.startsWith('--') && !token.includes('=') && valueFlags.has(token.slice(2))) i++; // skip this flag's value token
+  }
+  return -1;
 }

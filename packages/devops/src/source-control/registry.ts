@@ -2,8 +2,9 @@ import type { SourceControlProviderOperations, DescriptorExtensionReader, Loaded
 
 type ParseResult = { ok: true; descriptors: SourceControlProviderDescriptor[] } | { ok: false; reason: string };
 function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
-function relativeModule(value: unknown): value is string {
-  return typeof value === 'string' && value.endsWith('.mjs') && !/[\\\x00-\x1f\x7f:]/.test(value) && value.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..');
+/** Shared relative-path rule: no backslash, colon or control character; no empty, `.` or `..` segment. */
+function safeRelativePath(value: string): boolean {
+  return !/[\\\x00-\x1f\x7f:]/.test(value) && value.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..');
 }
 /** True for `https://host[:port]` exactly — what `new URL(x).origin` gives back. @complexity O(1). */
 function httpsOrigin(value: unknown): value is string {
@@ -15,21 +16,47 @@ export interface DescriptorPathPolicy {
   modulePath?(required: { path: string }): boolean;
   folderPath?(required: { path: string }): boolean;
 }
+function folderPathAllowed(entry: unknown, policy: DescriptorPathPolicy): boolean {
+  if (typeof entry !== 'string' || entry.length > 200) return false;
+  return policy.folderPath ? policy.folderPath({ path: entry }) : safeRelativePath(entry);
+}
 function pathList(value: unknown, policy: DescriptorPathPolicy = {}): value is string[] {
-  return Array.isArray(value) && value.length <= 20 && value.every(entry => typeof entry === 'string' && entry.length <= 200 && (policy.folderPath ? policy.folderPath({ path: entry }) : !/[\\\x00-\x1f\x7f:]/.test(entry) && entry.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..')));
+  return Array.isArray(value) && value.length <= 20 && value.every(entry => folderPathAllowed(entry, policy));
+}
+function providerId(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 64 && !/\s/.test(value) && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+}
+function providerLabel(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '' && value.length <= 100;
+}
+function optionalPositiveInteger(value: unknown): boolean {
+  return value === undefined || (typeof value === 'number' && Number.isSafeInteger(value) && value > 0);
+}
+function moduleAllowed(value: unknown, policy: DescriptorPathPolicy): boolean {
+  // The `.mjs` rule holds even when a trusted policy replaces the relative-path rule.
+  if (typeof value !== 'string' || !value.endsWith('.mjs')) return false;
+  return policy.modulePath ? policy.modulePath({ path: value }) : safeRelativePath(value);
+}
+/** Field checks in declaration order; each runs only after every earlier one passed. */
+function descriptorFieldError(entry: Record<string, unknown>, at: string, policy: DescriptorPathPolicy): string | undefined {
+  const checks: ReadonlyArray<readonly [() => boolean, string]> = [
+    [() => providerId(entry.id), `${at}.id must be a lowercase hyphenated id`],
+    [() => providerLabel(entry.label), `${at}.label must be a non-empty string`],
+    [() => httpsOrigin(entry.apiOrigin), `${at}.apiOrigin must be an https origin with no path`],
+    [() => optionalPositiveInteger(entry.maxFileBytes), `${at}.maxFileBytes must be a positive integer`],
+    [() => entry.reservedPaths === undefined || pathList(entry.reservedPaths, policy), `${at}.reservedPaths must be a list of at most 20 relative folder paths`],
+    [() => entry.workflowPaths === undefined || pathList(entry.workflowPaths, policy), `${at}.workflowPaths must be a list of at most 20 relative folder paths`],
+    [() => moduleAllowed(entry.module, policy), `${at}.module must be a relative path ending in .mjs`],
+  ];
+  return checks.find(([passes]) => !passes())?.[1];
 }
 function parseDescriptor(entry: unknown, at: string, readExtensions: DescriptorExtensionReader, policy: DescriptorPathPolicy): SourceControlProviderDescriptor | string {
   if (!object(entry)) return `${at} must be an object`;
-  const { id, label, apiOrigin, maxFileBytes, reservedPaths, workflowPaths, module } = entry;
-  if (typeof id !== 'string' || id.length > 64 || /\s/.test(id) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) return `${at}.id must be a lowercase hyphenated id`;
-  if (typeof label !== 'string' || label.trim() === '' || label.length > 100) return `${at}.label must be a non-empty string`;
-  if (!httpsOrigin(apiOrigin)) return `${at}.apiOrigin must be an https origin with no path`;
-  if (maxFileBytes !== undefined && (typeof maxFileBytes !== 'number' || !Number.isSafeInteger(maxFileBytes) || maxFileBytes <= 0)) return `${at}.maxFileBytes must be a positive integer`;
-  if (reservedPaths !== undefined && !pathList(reservedPaths, policy)) return `${at}.reservedPaths must be a list of at most 20 relative folder paths`;
-  if (workflowPaths !== undefined && !pathList(workflowPaths, policy)) return `${at}.workflowPaths must be a list of at most 20 relative folder paths`;
-  if (!(typeof module === "string" && module.endsWith(".mjs") && (policy.modulePath ? policy.modulePath({ path: module }) : relativeModule(module)))) return `${at}.module must be a relative path ending in .mjs`;
+  const fieldError = descriptorFieldError(entry, at, policy);
+  if (fieldError !== undefined) return fieldError;
   const extras = readExtensions({ entry, at });
   if (!extras.ok) return extras.reason;
+  const { id, label, apiOrigin, maxFileBytes, reservedPaths, workflowPaths, module } = entry as Record<string, unknown> & { id: string; label: string; apiOrigin: string; module: string };
   return { ...extras.extensions, id, label, apiOrigin, module, ...(typeof maxFileBytes === 'number' ? { maxFileBytes } : {}), ...(pathList(reservedPaths, policy) ? { reservedPaths } : {}), ...(pathList(workflowPaths, policy) ? { workflowPaths } : {}) };
 }
 /** Parse generic host facts; the caller validates credential/i18n extensions. Unknown keys are ignored. */
@@ -52,36 +79,53 @@ export function sourceControlProviderModuleError({ value }: { value: unknown }, 
   if (value.validateTarget !== undefined && typeof value.validateTarget !== 'function') return "its module's validateTarget is not a function";
   return null;
 }
+type CatalogItem = Awaited<ReturnType<ProviderCatalogPort['list']>>[number];
+type RegistryLoadArgs = Parameters<typeof loadSourceControlProviderRegistry>[0];
+interface RegistryAccumulator { providers: LoadedSourceControlProvider[]; refusals: string[]; switchedOff: Map<string, string> }
+
+function byPluginId(a: CatalogItem, b: CatalogItem): number {
+  if (a.pluginId < b.pluginId) return -1;
+  return a.pluginId > b.pluginId ? 1 : 0;
+}
+/** Parse one catalog descriptor file; a throwing extension reader is that plugin's refusal only. */
+function parseCatalogDescriptors(required: { descriptorText: string; args: RegistryLoadArgs }): ParseResult {
+  try { return parseSourceControlProvidersFile({ raw: required.descriptorText, readExtensions: required.args.readExtensions }); }
+  catch (error) { return { ok: false, reason: required.args.describeError({ error }) }; }
+}
+/** Import each declared module through the catalog's gate, isolating every provider's fault. */
+async function importTrustedProviders(required: { item: Extract<CatalogItem, { state: 'trusted' }>; descriptors: SourceControlProviderDescriptor[]; args: RegistryLoadArgs; into: RegistryAccumulator }): Promise<void> {
+  const { item, args, into } = required;
+  for (const descriptor of required.descriptors) {
+    try {
+      const candidate = await item.importModule({ relativePath: descriptor.module });
+      const reason = sourceControlProviderModuleError({ value: candidate });
+      if (reason) into.refusals.push(`${item.pluginId}/${descriptor.id}: ${reason}`);
+      else into.providers.push({ descriptor, pluginId: item.pluginId, module: candidate as SourceControlProviderModule });
+    } catch (error) { into.refusals.push(`${item.pluginId}/${descriptor.id}: ${args.describeError({ error })}`); }
+  }
+}
+async function loadCatalogItem(required: { item: CatalogItem; args: RegistryLoadArgs; into: RegistryAccumulator }): Promise<void> {
+  const { item, into } = required;
+  if (item.state === 'refused') { into.refusals.push(`${item.pluginId}: ${item.reason}`); return; }
+  const parsed = parseCatalogDescriptors({ descriptorText: item.descriptorText, args: required.args });
+  if (!parsed.ok) { into.refusals.push(`${item.pluginId}: ${parsed.reason}`); return; }
+  if (item.state === 'inactive') {
+    // Inactive plugins never import; the first plugin in id order owns each switched-off id.
+    for (const descriptor of parsed.descriptors) if (!into.switchedOff.has(descriptor.id)) into.switchedOff.set(descriptor.id, item.pluginId);
+    return;
+  }
+  await importTrustedProviders({ item, descriptors: parsed.descriptors, args: required.args, into });
+}
 /** Fresh instance-local registry; only the catalog can grant the ability to import trusted modules. */
 export async function loadSourceControlProviderRegistry(required: {
   workspaceId: string; descriptorFileName: string; catalog: ProviderCatalogPort; readExtensions: DescriptorExtensionReader;
   describeError(required: { error: unknown }): string;
 }): Promise<SourceControlProviderRegistry> {
-  const packages = [...await required.catalog.list({ workspaceId: required.workspaceId, descriptorFileName: required.descriptorFileName })].sort((a, b) => a.pluginId < b.pluginId ? -1 : a.pluginId > b.pluginId ? 1 : 0);
-  const providers: LoadedSourceControlProvider[] = [];
-  const refusals: string[] = [];
-  const switchedOff = new Map<string, string>();
-  for (const item of packages) {
-    if (item.state === 'refused') { refusals.push(`${item.pluginId}: ${item.reason}`); continue; }
-    let parsed: ParseResult;
-    try { parsed = parseSourceControlProvidersFile({ raw: item.descriptorText, readExtensions: required.readExtensions }); }
-    catch (error) { refusals.push(`${item.pluginId}: ${required.describeError({ error })}`); continue; }
-    if (!parsed.ok) { refusals.push(`${item.pluginId}: ${parsed.reason}`); continue; }
-    if (item.state === 'inactive') {
-      for (const descriptor of parsed.descriptors) if (!switchedOff.has(descriptor.id)) switchedOff.set(descriptor.id, item.pluginId);
-      continue;
-    }
-    for (const descriptor of parsed.descriptors) {
-      try {
-        const candidate = await item.importModule({ relativePath: descriptor.module });
-        const reason = sourceControlProviderModuleError({ value: candidate });
-        if (reason) { refusals.push(`${item.pluginId}/${descriptor.id}: ${reason}`); continue; }
-        providers.push({ descriptor, pluginId: item.pluginId, module: candidate as SourceControlProviderModule });
-      } catch (error) { refusals.push(`${item.pluginId}/${descriptor.id}: ${required.describeError({ error })}`); }
-    }
-  }
-  const frozen = Object.freeze(providers.slice());
-  return { list: () => frozen, get: ({ providerId }) => frozen.find(provider => provider.descriptor.id === providerId), refusals: Object.freeze(refusals.slice()), switchedOff };
+  const packages = [...await required.catalog.list({ workspaceId: required.workspaceId, descriptorFileName: required.descriptorFileName })].sort(byPluginId);
+  const into: RegistryAccumulator = { providers: [], refusals: [], switchedOff: new Map<string, string>() };
+  for (const item of packages) await loadCatalogItem({ item, args: required, into });
+  const frozen = Object.freeze(into.providers.slice());
+  return { list: () => frozen, get: ({ providerId }) => frozen.find(provider => provider.descriptor.id === providerId), refusals: Object.freeze(into.refusals.slice()), switchedOff: into.switchedOff };
 }
 /** Build operations and host facts without allowing module operations to overwrite declared facts. */
 export interface SharedLoadedProvider<Kit, Operations> {

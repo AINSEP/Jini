@@ -201,18 +201,16 @@ export function evaluateDiskArea({ area, onDisk, coverage }: { area: CoverageAre
   };
 }
 
-/** One area's result, rendered. The unmeasured files are named on EVERY run — a gap nobody is told
- *  about is the trap; a gap printed every run is a decision.
- *  @complexity O(n). */
-export function formatDiskArea({ result, area }: { result: DiskAreaResult; area: CoverageArea }, optional: { noFloorMessage?: string } = {}): string {
-  const lines = [`  ${result.failures.length === 0 ? "OK  " : "FAIL"}  ${result.id}`];
-  const floors: Partial<Record<CoverageAxis, number>> = area.floors ?? {};
-  for (const axis of ["line", "branch", "funcs"] as const) {
+function axisLines(result: DiskAreaResult, floors: Partial<Record<CoverageAxis, number>>, noFloorMessage: string): string[] {
+  return (["line", "branch", "funcs"] as const).map((axis) => {
     const floor = floors[axis];
     const shown = `${result.actual[axis].toFixed(2)}%`;
-    lines.push(`          ${axis.padEnd(6)} ${shown.padStart(7)}  ${typeof floor === "number" ? `(floor ${floor}%)` : (optional.noFloorMessage ?? "(no floor configured)")}`);
-  }
-  lines.push(`          files:  ${result.measuredCount} measured of ${result.onDiskCount} on disk`);
+    return `          ${axis.padEnd(6)} ${shown.padStart(7)}  ${typeof floor === "number" ? `(floor ${floor}%)` : noFloorMessage}`;
+  });
+}
+
+function gapLines(result: DiskAreaResult): string[] {
+  const lines: string[] = [];
   if (result.unmeasured.length > 0) {
     lines.push(`          UNMEASURED (${result.unmeasured.length}, known gap — no test loads these):`);
     for (const p of result.unmeasured) lines.push(`            - ${p}`);
@@ -220,6 +218,18 @@ export function formatDiskArea({ result, area }: { result: DiskAreaResult; area:
   if (result.recovered.length > 0) {
     lines.push(`          NOW COVERED, remove from knownUnmeasured: ${result.recovered.join(", ")}`);
   }
-  for (const f of result.failures) lines.push(`          ! ${f}`);
-  return lines.join("\n");
+  return lines;
+}
+
+/** One area's result, rendered. The unmeasured files are named on EVERY run — a gap nobody is told
+ *  about is the trap; a gap printed every run is a decision.
+ *  @complexity O(n). */
+export function formatDiskArea({ result, area }: { result: DiskAreaResult; area: CoverageArea }, optional: { noFloorMessage?: string } = {}): string {
+  return [
+    `  ${result.failures.length === 0 ? "OK  " : "FAIL"}  ${result.id}`,
+    ...axisLines(result, area.floors ?? {}, optional.noFloorMessage ?? "(no floor configured)"),
+    `          files:  ${result.measuredCount} measured of ${result.onDiskCount} on disk`,
+    ...gapLines(result),
+    ...result.failures.map((f) => `          ! ${f}`),
+  ].join("\n");
 }

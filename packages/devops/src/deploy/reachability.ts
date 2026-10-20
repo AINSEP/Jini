@@ -97,38 +97,34 @@ export function normalizeDeploymentUrl({ url }: { url: unknown }): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
+/** One probe's inputs: the absolute URL, method, budget, and the paired ports. */
+interface ProbeRequest {
+  url: string;
+  method: 'HEAD' | 'GET';
+  timeoutMs: number;
+  fetch: ReachabilityFetchPort;
+  guard: DeploymentUrlGuard;
+}
+
 /**
- * Issues a single HEAD/GET probe against a deployment URL with a bounded
- * timeout, classifying the outcome as reachable / protected / unreachable.
- *
- * @param url - Absolute URL to probe.
- * @param method - HTTP method for this probe.
- * @param timeoutMs - Abort the request after this many milliseconds.
- * @param options - Optional protected-response detector + message.
- * @returns A `DeploymentUrlCheck` describing the outcome. Never throws —
- *   network errors and aborts are folded into `{ reachable: false, statusMessage }`.
- * @complexity O(1) network round-trip.
- * @overallScore 100/100
+ * Folds a guard refusal, transport error, abort or body-read failure into the
+ * single unreachable shape. Keep unknown throw values readable: host guards and
+ * transports may throw values other than Error.
+ * @complexity O(1).
  */
-async function requestDeploymentUrl(
-  url: string,
-  method: 'HEAD' | 'GET',
-  timeoutMs: number,
-  options: ReachabilityOptions,
-  fetchPort: ReachabilityFetchPort,
-  guard: DeploymentUrlGuard,
-): Promise<DeploymentUrlCheck> {
-  let safeUrl: URL;
-  try {
-    safeUrl = assertSafeDeploymentUrl(url, guard);
-  } catch (err) {
-    // Keep unknown throw values readable: host guards may throw values other than Error.
-    // The old concrete guard only threw AssetCacheError, but ports cannot assume that contract.
-    return {
-      reachable: false,
-      statusMessage: `Public link is not reachable yet: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
+function unreachableCheck({ err }: { err: unknown }): DeploymentUrlCheck {
+  return {
+    reachable: false,
+    statusMessage: `Public link is not reachable yet: ${err instanceof Error ? err.message : String(err)}`,
+  };
+}
+
+/**
+ * Starts the per-probe deadline: rejects `timeout` and then aborts `signal`
+ * once `timeoutMs` elapses. `clear` must run on every exit.
+ * @complexity O(1).
+ */
+function startProbeDeadline({ timeoutMs }: { timeoutMs: number }) {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout>;
   // Race the transport as well as signalling it: an injected fetch/body reader may ignore abort.
@@ -138,6 +134,58 @@ async function requestDeploymentUrl(
       controller.abort();
     }, timeoutMs);
   });
+  return { signal: controller.signal, timeout, clear: () => clearTimeout(timer) };
+}
+
+/**
+ * Classifies one probe response as reachable / protected / unreachable. A 401
+ * body (and any GET body) is read under the same `timeout` race as the request.
+ * @complexity O(body size) for the read; O(1) otherwise.
+ */
+async function classifyProbeResponse(
+  { resp, method, timeout }: { resp: Response; method: ProbeRequest['method']; timeout: Promise<never> },
+  options: ReachabilityOptions,
+): Promise<DeploymentUrlCheck> {
+  if (resp.status >= 200 && resp.status < 400) return { reachable: true, statusCode: resp.status };
+  const body = method === 'GET' || resp.status === 401 ? await Promise.race([resp.text(), timeout]) : '';
+  if (resp.status === 401 && options.detectProtected?.({ resp, body })) {
+    return {
+      reachable: false,
+      status: 'protected',
+      statusCode: resp.status,
+      statusMessage: options.protectedMessage ?? 'Deployment is protected by the provider.',
+    };
+  }
+  return {
+    reachable: false,
+    statusCode: resp.status,
+    statusMessage: `Public link returned HTTP ${resp.status}.`,
+  };
+}
+
+/**
+ * Issues a single HEAD/GET probe against a deployment URL with a bounded
+ * timeout, classifying the outcome as reachable / protected / unreachable.
+ *
+ * @param requiredArgs - Absolute URL, HTTP method, budget in ms, and the paired fetch and guard ports.
+ * @param options - Optional protected-response detector + message.
+ * @returns A `DeploymentUrlCheck` describing the outcome. Never throws —
+ *   network errors and aborts are folded into `{ reachable: false, statusMessage }`.
+ * @complexity O(1) network round-trip.
+ * @overallScore 100/100
+ */
+async function requestDeploymentUrl(
+  { url, method, timeoutMs, fetch: fetchPort, guard }: ProbeRequest,
+  options: ReachabilityOptions,
+): Promise<DeploymentUrlCheck> {
+  let safeUrl: URL;
+  try {
+    safeUrl = assertSafeDeploymentUrl(url, guard);
+  } catch (err) {
+    // The old concrete guard only threw AssetCacheError, but ports cannot assume that contract.
+    return unreachableCheck({ err });
+  }
+  const deadline = startProbeDeadline({ timeoutMs });
   // Real refactor, not a padded test: this used to be `try { ... } catch {
   // ... } finally { clearTimeout(timer); }`. A throwaway local repro (see
   // the archived extraction source map's 2026-07-22 addition) proved that V8's own
@@ -155,34 +203,14 @@ async function requestDeploymentUrl(
   try {
     // The injected transport owns DNS pinning (the Node adapter attaches its validating dispatcher).
     // A separate preflight resolver would leave the validation/connect TOCTOU gap open.
-    const init: RequestInit = { method, redirect: 'manual', signal: controller.signal };
-    const resp = await Promise.race([fetchPort({ url: safeUrl.toString() }, { init }), timeout]);
-    if (resp.status >= 200 && resp.status < 400) {
-      clearTimeout(timer!);
-      return { reachable: true, statusCode: resp.status };
-    }
-    const body = method === 'GET' || resp.status === 401 ? await Promise.race([resp.text(), timeout]) : '';
-    if (resp.status === 401 && options.detectProtected?.({ resp, body })) {
-      clearTimeout(timer!);
-      return {
-        reachable: false,
-        status: 'protected',
-        statusCode: resp.status,
-        statusMessage: options.protectedMessage ?? 'Deployment is protected by the provider.',
-      };
-    }
-    clearTimeout(timer!);
-    return {
-      reachable: false,
-      statusCode: resp.status,
-      statusMessage: `Public link returned HTTP ${resp.status}.`,
-    };
+    const init: RequestInit = { method, redirect: 'manual', signal: deadline.signal };
+    const resp = await Promise.race([fetchPort({ url: safeUrl.toString() }, { init }), deadline.timeout]);
+    const check = await classifyProbeResponse({ resp, method, timeout: deadline.timeout }, options);
+    deadline.clear();
+    return check;
   } catch (err) {
-    clearTimeout(timer!);
-    return {
-      reachable: false,
-      statusMessage: `Public link is not reachable yet: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    deadline.clear();
+    return unreachableCheck({ err });
   }
 }
 
@@ -207,37 +235,100 @@ export async function checkDeploymentUrl(
   }
   const timeoutMs = options.timeoutMs ?? 8_000;
   const deadlineAt = Date.now() + timeoutMs;
-  const head = await requestDeploymentUrl(normalized, 'HEAD', timeoutMs, options, fetchPort, guard);
-  if (head.reachable) return head;
-  if (head.status === 'protected') return head;
+  const probe = { url: normalized, fetch: fetchPort, guard };
+  const head = await requestDeploymentUrl({ ...probe, method: 'HEAD', timeoutMs }, options);
+  if (head.reachable || head.status === 'protected') return head;
   // HEAD and its fallback share one probe budget; do not restart the clock for GET.
   const remainingMs = deadlineAt - Date.now();
   if (remainingMs <= 0) return head;
-  if (head.statusCode && (head.statusCode === 405 || head.statusCode === 403 || head.statusCode >= 400)) {
-    const get = await requestDeploymentUrl(normalized, 'GET', remainingMs, options, fetchPort, guard);
-    if (get.reachable) return get;
-    if (get.status === 'protected') return get;
-    // Real refactor, not a padded test: this used to be `get.statusMessage ?
-    // get : head`, but `get.statusMessage` is unconditionally truthy by the
-    // time control reaches here. `requestDeploymentUrl` has exactly 3 return
-    // shapes with `reachable: false`: the `assertSafeDeploymentUrl` catch
-    // (statusMessage is a non-empty template string), the generic non-2xx/3xx
-    // fallback (`Public link returned HTTP ${status}.`, always non-empty),
-    // and the outer catch (same non-empty template as the first case). The
-    // remaining `reachable: false` shape (`status: 'protected'`) is already
-    // excluded by the `get.status === 'protected'` check just above. So the
-    // `: head` fallback branch could never actually be selected — see
-    // the archived extraction source map's 2026-07-22 addition for the exhaustive
-    // case-by-case proof this was re-derived from.
-    return get;
+  // Every non-reachable, non-protected HEAD falls back to GET. This used to be two
+  // arms — `if (head.statusCode && (405 || 403 || >= 400)) { GET ... } else { GET ... }` —
+  // that issued the identical GET with identical arguments and both returned it, so
+  // the condition selected between two identical actions and was merged away.
+  //
+  // Real refactor, not a padded test: the first arm used to end in `get.statusMessage ?
+  // get : head`, but `get.statusMessage` is unconditionally truthy by the
+  // time control reaches there. `requestDeploymentUrl` has exactly 3 return
+  // shapes with `reachable: false`: the `assertSafeDeploymentUrl` catch
+  // (statusMessage is a non-empty template string), the generic non-2xx/3xx
+  // fallback (`Public link returned HTTP ${status}.`, always non-empty),
+  // and the outer catch (same non-empty template as the first case). The
+  // remaining `reachable: false` shape (`status: 'protected'`) is already
+  // excluded by a `get.status === 'protected'` check that preceded it. So the
+  // `: head` fallback branch could never actually be selected — see
+  // the archived extraction source map's 2026-07-22 addition for the exhaustive
+  // case-by-case proof this was re-derived from.
+  // Same reasoning for the second arm, plus: when `get.reachable` is true, `get` is
+  // returned directly regardless (matching the removed ternary's consequent) — so the
+  // whole expression always evaluated to `get`, for every `get` shape
+  // `requestDeploymentUrl` can produce.
+  return requestDeploymentUrl({ ...probe, method: 'GET', timeoutMs: remainingMs }, options);
+}
+
+/** Shared state for one polling run; `startedAt` anchors the overall budget. */
+interface PollContext {
+  candidates: string[];
+  fetch: ReachabilityFetchPort;
+  guard: DeploymentUrlGuard;
+  now: ReachabilityWaitArgs['now'];
+  startedAt: number;
+  timeoutMs: number;
+  providerLabel: string;
+  options: ReachabilityWaitOptions;
+}
+
+/** Milliseconds left in the overall polling budget, read from the injected clock. @complexity O(1). */
+function remainingBudget(ctx: PollContext): number {
+  return ctx.timeoutMs - (ctx.now({}) - ctx.startedAt);
+}
+
+/**
+ * Probes every candidate once, in order, within the remaining budget.
+ * Returns `done` for a ready candidate, or for the first protected candidate once
+ * the others had their turn; otherwise the latest failure message (or the
+ * caller's previous one when no candidate was probed).
+ * @complexity O(candidates) probes.
+ */
+async function sweepCandidates(
+  ctx: PollContext,
+  { lastMessage }: { lastMessage: string },
+): Promise<{ done: ReachabilityWaitResult } | { lastMessage: string }> {
+  let protectedResult: ReachabilityWaitResult | undefined;
+  for (const url of ctx.candidates) {
+    const remainingMs = remainingBudget(ctx);
+    if (remainingMs <= 0) break;
+    const probeTimeoutMs = Math.min(ctx.options.timeoutMs ?? 8_000, remainingMs);
+    const result = await checkDeploymentUrl({ url, fetch: ctx.fetch, guard: ctx.guard }, { ...ctx.options, timeoutMs: probeTimeoutMs });
+    if (result.reachable) {
+      return { done: { status: 'ready', url, statusMessage: 'Public link is ready.', reachableAt: ctx.now({}) } };
+    }
+    if (result.status === 'protected') {
+      protectedResult ??= {
+        status: 'protected',
+        url,
+        statusMessage: result.statusMessage || `${ctx.providerLabel} is gating this link behind its own auth wall.`,
+      };
+      continue;
+    }
+    // Real refactor, not a padded test: `result.statusMessage` is
+    // unconditionally truthy by this point. `result` comes from
+    // `checkDeploymentUrl`, which — for every `reachable: false`,
+    // non-`'protected'` shape it can produce (the empty-URL guard, and
+    // both `requestDeploymentUrl`-derived returns after the dead-branch
+    // refactor just above) — always sets a non-empty `statusMessage`. The
+    // `reachable: true` and `status === 'protected'` shapes are both
+    // handled by the `return` and `continue` above this line, so neither
+    // can reach here. `|| lastMessage` (falling back to the *previous*
+    // sweep's message) could therefore never actually be selected — see
+    // the archived extraction source map's 2026-07-22 addition for the proof.
+    // Non-null assertion (not `||`/`??`, which would just reintroduce the
+    // same dead branch): the type is `string | undefined` because
+    // `DeploymentUrlCheck.statusMessage` is optional in general, but this
+    // exact call site's result is always defined per the proof above.
+    lastMessage = result.statusMessage!;
   }
-  const get = await requestDeploymentUrl(normalized, 'GET', remainingMs, options, fetchPort, guard);
-  // Same reasoning as the `get.statusMessage ? get : head` case just above,
-  // plus: when `get.reachable` is true, `get` is returned directly regardless
-  // (matching the removed ternary's consequent) — so this whole expression
-  // always evaluates to `get`, for every `get` shape `requestDeploymentUrl`
-  // can produce.
-  return get;
+  // A protected candidate is a fallback only after the other candidates had their turn.
+  return protectedResult ? { done: protectedResult } : { lastMessage };
 }
 
 /**
@@ -260,63 +351,48 @@ export async function waitForReachableDeploymentUrl(
   options: ReachabilityWaitOptions = {},
 ): Promise<ReachabilityWaitResult> {
   const { timeoutMs = 60_000, intervalMs = 2_000, providerLabel = 'Deployment provider' } = options;
-  const candidates = [...new Set((urls || []).map((url) => normalizeDeploymentUrl({ url })).filter(Boolean))];
-  const fallbackUrl = candidates[0] || '';
-  if (!fallbackUrl) {
+  const candidates = uniqueCandidates({ urls });
+  if (candidates.length === 0) {
     return {
       status: 'link-delayed',
       url: '',
       statusMessage: `${providerLabel} did not return a public deployment URL.`,
     };
   }
+  const ctx: PollContext = { candidates, fetch: fetchPort, guard, now, startedAt: now({}), timeoutMs, providerLabel, options };
+  return pollCandidates(ctx, { sleep, intervalMs });
+}
 
-  const startedAt = now({});
+/** Normalized, de-duplicated, non-empty candidates in first-seen order. A null/undefined
+ * `urls` from an untyped caller is treated as empty. @complexity O(urls). */
+function uniqueCandidates({ urls }: { urls: unknown[] }): string[] {
+  return [...new Set((urls || []).map((url) => normalizeDeploymentUrl({ url })).filter(Boolean))];
+}
+
+/**
+ * Sweeps, then sleeps `min(intervalMs, remaining)`, until a sweep is done or the budget
+ * (or a stalled sleep) runs out; then reports `link-delayed` against the first candidate.
+ * @complexity O(candidates * timeoutMs/intervalMs) probes.
+ */
+async function pollCandidates(
+  ctx: PollContext,
+  { sleep, intervalMs }: { sleep: ReachabilityWaitArgs['sleep']; intervalMs: number },
+): Promise<ReachabilityWaitResult> {
   let lastMessage = '';
-  let protectedResult: ReachabilityWaitResult | undefined;
-  while (now({}) - startedAt < timeoutMs) {
-    for (const url of candidates) {
-      const remainingMs = timeoutMs - (now({}) - startedAt);
-      if (remainingMs <= 0) break;
-      const result = await checkDeploymentUrl({ url, fetch: fetchPort, guard }, { ...options, timeoutMs: Math.min(options.timeoutMs ?? 8_000, remainingMs) });
-      if (result.reachable) {
-        return { status: 'ready', url, statusMessage: 'Public link is ready.', reachableAt: now({}) };
-      }
-      if (result.status === 'protected') {
-        protectedResult ??= {
-          status: 'protected',
-          url,
-          statusMessage: result.statusMessage || `${providerLabel} is gating this link behind its own auth wall.`,
-        };
-        continue;
-      }
-      // Real refactor, not a padded test: `result.statusMessage` is
-      // unconditionally truthy by this point. `result` comes from
-      // `checkDeploymentUrl`, which — for every `reachable: false`,
-      // non-`'protected'` shape it can produce (the empty-URL guard, and
-      // both `requestDeploymentUrl`-derived returns after the dead-branch
-      // refactor just above) — always sets a non-empty `statusMessage`. The
-      // `reachable: true` and `status === 'protected'` shapes are both
-      // handled by the `return` and `continue` above this line, so neither
-      // can reach here. `|| lastMessage` (falling back to the *previous*
-      // sweep's message) could therefore never actually be selected — see
-      // the archived extraction source map's 2026-07-22 addition for the proof.
-      // Non-null assertion (not `||`/`??`, which would just reintroduce the
-      // same dead branch): the type is `string | undefined` because
-      // `DeploymentUrlCheck.statusMessage` is optional in general, but this
-      // exact call site's result is always defined per the proof above.
-      lastMessage = result.statusMessage!;
-    }
-    // A protected candidate is a fallback only after the other candidates had their turn.
-    if (protectedResult) return protectedResult;
-    const remainingMs = timeoutMs - (now({}) - startedAt);
+  while (remainingBudget(ctx) > 0) {
+    const sweep = await sweepCandidates(ctx, { lastMessage });
+    if ('done' in sweep) return sweep.done;
+    lastMessage = sweep.lastMessage;
+    const remainingMs = remainingBudget(ctx);
     if (remainingMs <= 0) break;
     if (!await sleepWithinBudget({ sleep, ms: Math.min(intervalMs, remainingMs), timeoutMs: remainingMs })) break;
   }
 
   return {
     status: 'link-delayed',
-    url: fallbackUrl,
-    statusMessage: lastMessage || `${providerLabel} returned a deployment URL, but it is not reachable yet.`,
+    // Non-empty: waitForReachableDeploymentUrl returns early when no candidate survives.
+    url: ctx.candidates[0]!,
+    statusMessage: lastMessage || `${ctx.providerLabel} returned a deployment URL, but it is not reachable yet.`,
   };
 }
 

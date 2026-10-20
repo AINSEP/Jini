@@ -103,3 +103,100 @@ test('every provider failure code is preserved and provider throws are safely ma
   f.args.adapter.commitSite = async () => { throw new Error('token=secret'); };
   assert.deepEqual(await commitSiteToSourceControl(f.args), { ok: false, code: 'PROVIDER_ERROR', message: 'safe failure' });
 });
+
+// --- Characterization pins (written on the pre-refactor code) ---
+
+test('a missing credential refuses with the provider named and never exports', async () => {
+  const f = fixture();
+  f.args.credentials.resolve = async () => null;
+  assert.deepEqual(await commitSiteToSourceControl(f.args), { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: "No source control credential is configured for 'example'." });
+  assert.deepEqual(f.events, []);
+});
+
+test('a credential for another provider refuses with the expected provider named', async () => {
+  const f = fixture();
+  f.args.credentials.resolve = async () => ({ providerId: 'other', token: 'secret' });
+  assert.deepEqual(await commitSiteToSourceControl(f.args), { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: "The resolved default credential is not a 'example' connection." });
+});
+
+test('the credential lookup is scoped to the workspace and provider', async () => {
+  const f = fixture();
+  let seen: unknown;
+  f.args.credentials.resolve = async input => { seen = input; return null; };
+  await commitSiteToSourceControl(f.args);
+  assert.deepEqual(seen, { workspaceId: 'workspace', providerId: 'example' });
+});
+
+test('a host validateTarget refusal stops before credentials are resolved', async () => {
+  const f = fixture();
+  f.args.credentials.resolve = async () => { f.events.push('credential'); return null; };
+  assert.deepEqual(await commitSiteToSourceControl(f.args, { validateTarget: () => 'host refused' }), { ok: false, code: 'INVALID_CONFIG', message: 'host refused' });
+  assert.deepEqual(f.events, []);
+});
+
+test('an invalid branch refuses as INVALID_CONFIG before credentials are resolved', async () => {
+  const f = fixture();
+  assert.deepEqual(await commitSiteToSourceControl(f.args, { branch: 'bad branch' }), { ok: false, code: 'INVALID_CONFIG', message: "invalid branch name 'bad branch'" });
+  assert.deepEqual(f.events, []);
+});
+
+test('the branch option is forwarded to the adapter and omitted when not given', async () => {
+  const seen: unknown[] = [];
+  const f = fixture();
+  f.args.adapter.commitSite = async (_input, optional) => { seen.push(optional); return { ok: true, branch: 'b', branchCreated: false, commitSha: 's', commitUrl: 'u', filesChanged: 0, filesDeleted: 0 }; };
+  await commitSiteToSourceControl(f.args, { branch: 'release/1' });
+  await commitSiteToSourceControl(f.args);
+  assert.deepEqual(seen, [{ branch: 'release/1' }, {}]);
+});
+
+test('provider divergedPaths are returned unchanged', async () => {
+  const f = fixture();
+  f.args.adapter.commitSite = async () => ({ ok: true, branch: 'b', branchCreated: false, commitSha: 's', commitUrl: 'u', filesChanged: 1, filesDeleted: 0, divergedPaths: ['a.html'] });
+  const result = await commitSiteToSourceControl(f.args);
+  if (!result.ok) assert.fail(result.message);
+  assert.deepEqual(result.divergedPaths, ['a.html']);
+});
+
+test('a throwing output-directory port fails the export without calling cleanup', async () => {
+  const f = fixture();
+  f.args.layout.outputDirectory = () => { throw new Error('secret'); };
+  assert.deepEqual(await commitSiteToSourceControl(f.args), { ok: false, code: 'EXPORT_FAILED', message: 'export failed before committing could start: safe failure' });
+  assert.deepEqual(f.events, ['credential']);
+});
+
+test('a throwing cleanup is ignored and the commit still succeeds', async () => {
+  const f = fixture();
+  f.args.layout.cleanup = async () => { f.events.push('cleanup'); throw new Error('busy'); };
+  const result = await commitSiteToSourceControl(f.args);
+  assert.equal(result.ok, true);
+  assert.deepEqual(f.events, ['credential', 'export:/artifacts/run-1', 'cleanup', 'commit']);
+});
+
+test('the export uses a clean output directory derived from workspace, provider and a fresh run id', async () => {
+  const f = fixture();
+  const seen: unknown[] = [];
+  f.args.layout.outputDirectory = input => { seen.push(input); return '/out'; };
+  f.args.files.export = async (required, optional) => { seen.push([required, optional]); return f.report; };
+  await previewCommitExport(f.args);
+  assert.deepEqual(seen, [{ workspaceId: 'workspace', providerId: 'example', runId: 'run-1' }, [{ outputDir: '/out' }, { clean: true }]]);
+});
+
+test('preview refuses invalid config without exporting', async () => {
+  const f = fixture();
+  assert.deepEqual(await previewCommitExport({ ...f.args, commitMessage: ' ' }), { ok: false, code: 'INVALID_CONFIG', message: 'commitMessage must be 1-500 characters' });
+  assert.deepEqual(f.events, []);
+});
+
+test('preview reports an export failure with the first failed route', async () => {
+  const f = fixture();
+  f.report.routes.failed.push({ path: '/broken', kind: 'page', reason: 'expected 200, got 500' }, { path: '/b2', kind: 'page', reason: 'x' });
+  assert.deepEqual(await previewCommitExport(f.args), { ok: false, code: 'EXPORT_FAILED', message: "refused to commit: 2 route(s) failed to export (first: '/broken' — expected 200, got 500)" });
+});
+
+test('a describeError that throws while reporting an export fault propagates and still cleans up', async () => {
+  const f = fixture();
+  f.args.files.export = async () => { throw new Error('export'); };
+  f.args.describeError = () => { throw new Error('describer crashed'); };
+  await assert.rejects(commitSiteToSourceControl(f.args), /describer crashed/);
+  assert.deepEqual(f.events, ['credential', 'cleanup:/artifacts/run-1']);
+});

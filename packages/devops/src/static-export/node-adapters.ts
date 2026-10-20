@@ -1,5 +1,5 @@
 import { once } from 'node:events';
-import { constants } from 'node:fs';
+import { constants, type Stats } from 'node:fs';
 import { lstat, mkdir, open, readdir, realpath, rm } from 'node:fs/promises';
 import { createServer, type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -7,25 +7,31 @@ import path from 'node:path';
 import { ExportPathError, type AppFactoryPort, type ArtifactWriterPort, type AssetSourcePort } from './contracts.js';
 import { safeRelativeOutputFile } from './transforms.js';
 
+/** Create one directory level; an existing entry is left for the caller's lstat check. */
+async function makeDirectory(directory: string): Promise<void> {
+  try { await mkdir(directory); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+}
+/** True only for macOS's own /tmp or /var symlink into /private. */
+async function isSystemTempAlias(current: string, info: Stats): Promise<boolean> {
+  // macOS exposes its system temporary roots through these fixed OS aliases. Arbitrary
+  // symlinks still fail closed; rejecting /var would reject Node's own tmpdir() output.
+  if (process.platform !== 'darwin' || (current !== '/tmp' && current !== '/var') || !info.isSymbolicLink()) return false;
+  return await realpath(current) === '/private' + current;
+}
 /** Require regular directories at every ancestor. Hosts must use canonical absolute storage paths.
  * The storage hierarchy must be caller-owned; cross-process hostile ancestor swaps require host isolation.
  */
 async function ensureDirectory({ directory, label }: { directory: string; label: 'Output' | 'Artifact' | 'Theme' }, optional: { create?: boolean } = {}): Promise<void> {
   if (!path.isAbsolute(directory)) throw new ExportPathError(`${label} path must be absolute.`);
   const resolved = path.resolve(directory);
-  const segments = resolved.slice(path.parse(resolved).root.length).split(path.sep).filter(Boolean);
-  let current = path.parse(resolved).root;
-  for (const segment of segments) {
+  const { root } = path.parse(resolved);
+  let current = root;
+  for (const segment of resolved.slice(root.length).split(path.sep).filter(Boolean)) {
     current = path.join(current, segment);
-    if (optional.create) {
-      try { await mkdir(current); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
-    }
+    if (optional.create) await makeDirectory(current);
     const info = await lstat(current);
-    // macOS exposes its system temporary roots through these fixed OS aliases. Arbitrary
-    // symlinks still fail closed; rejecting /var would reject Node's own tmpdir() output.
-    const systemAlias = process.platform === 'darwin' && (current === '/tmp' || current === '/var')
-      && info.isSymbolicLink() && await realpath(current) === '/private' + current;
-    if (!systemAlias && (!info.isDirectory() || info.isSymbolicLink())) throw new ExportPathError(`${label} path must be a regular directory.`);
+    if (await isSystemTempAlias(current, info)) continue;
+    if (!info.isDirectory() || info.isSymbolicLink()) throw new ExportPathError(`${label} path must be a regular directory.`);
   }
 }
 /** Overlay exports in a caller-owned directory; only explicit clean removes unrelated files.

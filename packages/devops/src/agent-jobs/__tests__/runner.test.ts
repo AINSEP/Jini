@@ -76,3 +76,85 @@ test('rerun clears failed marker on success and rejects duplicate/unsafe IDs bef
   for (const concurrency of [0, -1, 1.5, Infinity]) await assert.rejects(runAgentJobs({ jobs: [{ id: 'x', prompt: '' }], options: { ...options, concurrency }, fs, runner }));
   assert.deepEqual([...files], before);
 });
+
+// --- Characterization pins (written on the pre-refactor code) ---
+
+test('a final message that already ends in a newline is not given a second one', () => {
+  assert.deepEqual(parseCodexRun({ jsonl: event({ type: 'item.completed', item: { type: 'agent_message', text: 'done\n' } }) + '\n' + complete }), { success: true, finalMessage: 'done\n', usage: { input_tokens: 3 } });
+});
+
+test('a completed turn without usage reports null usage', () => {
+  assert.deepEqual(parseCodexRun({ jsonl: message + '\n' + event({ type: 'turn.completed' }) }), { success: true, finalMessage: 'final\n', usage: null });
+});
+
+test('blank and whitespace-only lines are skipped', () => {
+  assert.deepEqual(parseCodexRun({ jsonl: '\n   \n' + message + '\n\t\n' + complete + '\n' }), { success: true, finalMessage: 'final\n', usage: { input_tokens: 3 } });
+});
+
+test('a later agent message with non-string text clears the earlier final message', () => {
+  assert.deepEqual(parseCodexRun({ jsonl: successful + '\n' + event({ type: 'item.completed', item: { type: 'agent_message', text: 5 } }) }), { success: false, reason: 'no agent_message' });
+});
+
+test('completed items that are not agent messages, or have a non-object item, are ignored', () => {
+  const noise = [event({ type: 'item.completed', item: { type: 'reasoning', text: 'x' } }), event({ type: 'item.completed', item: 'str' }), event({ type: 'item.completed' }), event({ type: 'other' }), event([1])].join('\n');
+  assert.deepEqual(parseCodexRun({ jsonl: successful + '\n' + noise }), { success: true, finalMessage: 'final\n', usage: { input_tokens: 3 } });
+});
+
+test('missing completion is reported before a missing message', () => {
+  assert.deepEqual(parseCodexRun({ jsonl: '' }), { success: false, reason: 'no turn.completed event' });
+  assert.deepEqual(parseCodexRun({ jsonl: complete }), { success: false, reason: 'no agent_message' });
+});
+
+test('every error event is reported in stream order, with the whole event when no detail field exists', () => {
+  const jsonl = [successful, event({ type: 'turn.failed', error: { message: 'crash' } }), event({ type: 'turn.failed' }), event({ type: 'error', message: 'denied' }), event({ type: 'error' })].join('\n');
+  assert.deepEqual(parseCodexRun({ jsonl }), { success: false, reason: 'turn.failed: {"message":"crash"}\nturn.failed: {"type":"turn.failed"}\nerror: denied\nerror: {"type":"error"}' });
+});
+
+test('an error event without completion still reports the error rather than the missing completion', () => {
+  assert.deepEqual(parseCodexRun({ jsonl: event({ type: 'error', message: 'denied' }) }), { success: false, reason: 'error: denied' });
+});
+
+test('a supplied decoder replaces JSON parsing and a throwing decode skips only that line', () => {
+  const decoded: string[] = [];
+  const decoder = { decode: ({ line }: { line: string }) => { decoded.push(line); if (line === 'bad') throw new Error('bad'); return line === 'm' ? { type: 'item.completed', item: { type: 'agent_message', text: 'hi' } } : { type: 'turn.completed', usage: 1 }; } };
+  assert.deepEqual(parseCodexRun({ jsonl: 'm\nbad\nc' }, { decoder }), { success: true, finalMessage: 'hi\n', usage: 1 });
+  assert.deepEqual(decoded, ['m', 'bad', 'c']);
+});
+
+test('option validation names the failing option', () => {
+  const cases: [Partial<AgentJobOptions>, string][] = [
+    [{ concurrency: 0 }, 'concurrency must be a positive integer'], [{ concurrency: 1.5 }, 'concurrency must be a positive integer'],
+    // Malformed-input fixture: the sandbox type only allows the two supported modes.
+    [{ sandbox: 'danger-full-access' as AgentJobOptions['sandbox'] }, 'sandbox must be read-only or workspace-write'],
+    [{ repository: 'repo' }, 'repository, outputDirectory and addDirs must be absolute paths'], [{ outputDirectory: 'out' }, 'repository, outputDirectory and addDirs must be absolute paths'], [{ addDirs: ['/a', 'b'] }, 'repository, outputDirectory and addDirs must be absolute paths'],
+    [{ executable: ' ' }, 'executable is required'], [{ model: '' }, 'model is required'], [{ effort: '\t' }, 'effort is required'], [{ dispatchPrefix: '' }, 'dispatchPrefix is required'],
+  ];
+  for (const [change, messageText] of cases) assert.throws(() => buildCodexInvocation({ options: { ...options, ...change }, prompt: 'p' }), { message: messageText });
+});
+
+test('non-Error runner and artifact failures are stringified into the job reason', async () => {
+  const { fs } = memoryFs();
+  const runner: AgentCliRunnerPort = { run: async () => { throw 'spawn refused'; } };
+  const first = await runAgentJobs({ jobs: [{ id: 'a', prompt: 'p' }], options, fs, runner });
+  assert.deepEqual(first.results, [{ id: 'a', status: 'failed', reason: 'runner: spawn refused' }]);
+  const failingFs: JobFilesystemPort = { ...memoryFs().fs, write: async ({ path }) => { if (path.endsWith('.failed')) throw 'disk full'; } };
+  const second = await runAgentJobs({ jobs: [{ id: 'a', prompt: 'p' }], options, fs: failingFs, runner: { run: async () => ({ exitCode: 1 }) } });
+  assert.deepEqual(second.results, [{ id: 'a', status: 'failed', reason: 'artifact: disk full', exitCode: 1 }]);
+});
+
+test('event types that name Object prototype members are ignored', () => {
+  const jsonl = [successful, event({ type: 'constructor' }), event({ type: '__proto__' }), event({ type: 'toString' })].join('\n');
+  assert.deepEqual(parseCodexRun({ jsonl }), { success: true, finalMessage: 'final\n', usage: { input_tokens: 3 } });
+});
+
+test('a supplied decoder never sees blank or whitespace-only lines', () => {
+  const decoded: string[] = [];
+  parseCodexRun({ jsonl: 'a\n\n   \nb' }, { decoder: { decode: ({ line }) => { decoded.push(line); return null; } } });
+  assert.deepEqual(decoded, ['a', 'b']);
+});
+
+test('a decoded array is not an event even when it carries a type property', () => {
+  const completedArray = Object.assign([], { type: 'turn.completed' });
+  const decoder = { decode: ({ line }: { line: string }) => line === 'c' ? completedArray : { type: 'item.completed', item: { type: 'agent_message', text: 'hi' } } };
+  assert.deepEqual(parseCodexRun({ jsonl: 'm\nc' }, { decoder }), { success: false, reason: 'no turn.completed event' });
+});

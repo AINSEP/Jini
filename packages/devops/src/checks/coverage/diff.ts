@@ -24,20 +24,30 @@ function tier(record: FileCoverage | undefined, threshold: number, label: string
   return { ok: pctValue >= threshold, pctValue, detail: `${pctValue.toFixed(2)}% branch` };
 }
 
+function assertThresholds(thresholds: TierThresholds): void {
+  for (const value of Object.values(thresholds)) if (!Number.isFinite(value) || value < 0 || value > 100) throw new RangeError('tier thresholds must be percentages from 0 to 100');
+}
+
+/** The branch total both tiers agree on, or why no trustworthy total exists. */
+function sharedBranchTotal(unitRec: FileCoverage | undefined, integrationRec: FileCoverage | undefined): number | { failure: string } {
+  const brf = unitRec?.brf ?? integrationRec?.brf;
+  if (brf === undefined) return { failure: 'no coverage record on either tier' };
+  if (unitRec && integrationRec && unitRec.brf !== integrationRec.brf) return { failure: 'inconsistent branch totals between tiers' };
+  return brf;
+}
+
+function bothTiers(file: string, result: TierResult): FileTierEvaluation {
+  return { file, unit: { ...result }, integration: { ...result }, ok: result.ok };
+}
+
 /** Evaluate two independent tiers; missing records differ from a known branchless source file. */
 export function evaluateFileTiers({ file, unitRec, integrationRec, thresholds }: {
   file: string; unitRec: FileCoverage | undefined; integrationRec: FileCoverage | undefined; thresholds: TierThresholds;
 }): FileTierEvaluation {
-  for (const value of Object.values(thresholds)) if (!Number.isFinite(value) || value < 0 || value > 100) throw new RangeError('tier thresholds must be percentages from 0 to 100');
-  const brf = unitRec?.brf ?? integrationRec?.brf;
-  if (brf === undefined || (unitRec && integrationRec && unitRec.brf !== integrationRec.brf)) {
-    const detail = brf === undefined ? 'no coverage record on either tier' : 'inconsistent branch totals between tiers';
-    return { file, unit: { ok: false, pctValue: 0, detail }, integration: { ok: false, pctValue: 0, detail }, ok: false };
-  }
-  if (brf === 0) {
-    const result = { ok: true, pctValue: 100, detail: '0 branches in this file (vacuously passes both tiers)' };
-    return { file, unit: { ...result }, integration: { ...result }, ok: true };
-  }
+  assertThresholds(thresholds);
+  const brf = sharedBranchTotal(unitRec, integrationRec);
+  if (typeof brf !== 'number') return bothTiers(file, { ok: false, pctValue: 0, detail: brf.failure });
+  if (brf === 0) return bothTiers(file, { ok: true, pctValue: 100, detail: '0 branches in this file (vacuously passes both tiers)' });
   const unit = tier(unitRec, thresholds.unit, 'unit');
   const integration = tier(integrationRec, thresholds.integration, 'integration');
   return { file, unit, integration, ok: unit.ok && integration.ok };

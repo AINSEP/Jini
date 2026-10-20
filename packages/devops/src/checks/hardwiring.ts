@@ -23,6 +23,14 @@ export interface HardwiringSource {
   resolveImport?: (specifier: string, file: string) => string | undefined;
 }
 
+/** Parse diagnostics can quote source literals; location is sufficient and does not expose secrets. */
+export function syntaxError({ tree, file }: { tree: ts.SourceFile; file: string }, _options: Record<string, never> = {}): Error | undefined {
+  const [first] = (tree as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] }).parseDiagnostics;
+  if (!first) return undefined;
+  const line = tree.getLineAndCharacterOfPosition(first.start ?? 0).line + 1;
+  return new Error(`Cannot parse ${file}: syntax error at line ${line}.`);
+}
+
 export const HARDWIRING_RULES = [
   'HW1-env-default', 'HW2-vendor-adapter', 'HW3-module-state', 'HW4-injected-fetch',
   'HW5-jini-export', 'HW6-boot-default', 'HW7-public-react', 'HW8-provider-url', 'HW9-plugin-import',
@@ -36,12 +44,8 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
   function parse({ file, source }: { file: string; source: string }, _options: Record<string, never> = {}): ts.SourceFile {
     const tree = c.createSourceFile(file, source, c.ScriptTarget.Latest, true,
       /\.[jt]sx$/.test(file) ? c.ScriptKind.TSX : /\.[cm]?js$/.test(file) ? c.ScriptKind.JS : c.ScriptKind.TS);
-    const diagnostics = (tree as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] }).parseDiagnostics;
-    if (diagnostics.length) {
-      const line = tree.getLineAndCharacterOfPosition(diagnostics[0]!.start ?? 0).line + 1;
-      // Diagnostics can quote source literals; location is sufficient and does not expose secrets.
-      throw new Error(`Cannot parse ${file}: syntax error at line ${line}.`);
-    }
+    const failure = syntaxError({ tree, file });
+    if (failure) throw failure;
     return tree;
   }
 
@@ -66,19 +70,25 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
     return node.importClause?.isTypeOnly === true;
   }
 
-  function erasedExport(node: ts.ExportDeclaration): boolean {
-    return node.isTypeOnly;
+  function kept(literal: ts.Node, typeOnly: boolean, includeTypeOnly: boolean): ts.Node | undefined {
+    return includeTypeOnly || !typeOnly ? literal : undefined;
+  }
+
+  function declarationLiteral(node: ts.Node, includeTypeOnly: boolean): ts.Node | undefined {
+    if (c.isImportDeclaration(node)) return kept(node.moduleSpecifier, erasedImport(node), includeTypeOnly);
+    if (c.isExportDeclaration(node) && node.moduleSpecifier) return kept(node.moduleSpecifier, node.isTypeOnly, includeTypeOnly);
+    if (c.isImportEqualsDeclaration(node) && c.isExternalModuleReference(node.moduleReference)) return kept(node.moduleReference.expression, node.isTypeOnly, includeTypeOnly);
+    return undefined;
+  }
+
+  function loadCallLiteral(node: ts.Node): ts.Node | undefined {
+    if (!c.isCallExpression(node)) return undefined;
+    const load = node.expression.kind === c.SyntaxKind.ImportKeyword || (c.isIdentifier(node.expression) && node.expression.text === 'require');
+    return load ? node.arguments[0] : undefined;
   }
 
   function importLiteral(node: ts.Node, includeTypeOnly: boolean): ts.Node | undefined {
-    if (c.isImportDeclaration(node)) return includeTypeOnly || !erasedImport(node) ? node.moduleSpecifier : undefined;
-    if (c.isExportDeclaration(node)) return includeTypeOnly || !erasedExport(node) ? node.moduleSpecifier : undefined;
-    if (c.isCallExpression(node)) {
-      const load = node.expression.kind === c.SyntaxKind.ImportKeyword || (c.isIdentifier(node.expression) && node.expression.text === 'require');
-      return load ? node.arguments[0] : undefined;
-    }
-    if (c.isImportEqualsDeclaration(node) && (includeTypeOnly || !node.isTypeOnly) && c.isExternalModuleReference(node.moduleReference)) return node.moduleReference.expression;
-    return undefined;
+    return loadCallLiteral(node) ?? declarationLiteral(node, includeTypeOnly);
   }
 
   function imports({ tree, includeTypeOnly = false }: { tree: ts.SourceFile; includeTypeOnly?: boolean }, _options: Record<string, never> = {}): RuntimeImport[] {
@@ -155,19 +165,21 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
     return true;
   }
 
-  function bindsFetch(node: ts.Node): boolean {
-    if (c.isIdentifier(node)) return node.text === 'fetch';
-    if (c.isObjectBindingPattern(node) || c.isArrayBindingPattern(node)) return node.elements.some((e) => c.isBindingElement(e) && bindsFetch(e.name));
+  /** BindingName is Identifier | ObjectBindingPattern | ArrayBindingPattern; array holes are OmittedExpressions. */
+  function bindsFetch(name: ts.BindingName): boolean {
+    if (c.isIdentifier(name)) return name.text === 'fetch';
+    return name.elements.some((e) => c.isBindingElement(e) && bindsFetch(e.name));
+  }
+
+  function scopeBindsFetch(scope: ts.Node): boolean {
+    if (c.isFunctionLike(scope)) return scope.parameters.some((p) => bindsFetch(p.name));
+    if (c.isCatchClause(scope)) return Boolean(scope.variableDeclaration && bindsFetch(scope.variableDeclaration.name));
+    if (c.isBlock(scope) || c.isSourceFile(scope)) return scope.statements.some(statementBindsFetch);
     return false;
   }
 
   function hasLocalFetch(node: ts.Node): boolean {
-    for (let scope: ts.Node | undefined = node.parent; scope; scope = scope.parent) {
-      if (c.isFunctionLike(scope) && scope.parameters.some((p) => bindsFetch(p.name))) return true;
-      if (c.isCatchClause(scope) && scope.variableDeclaration && bindsFetch(scope.variableDeclaration.name)) return true;
-      if (!c.isBlock(scope) && !c.isSourceFile(scope)) continue;
-      if (scope.statements.some(statementBindsFetch)) return true;
-    }
+    for (let scope: ts.Node | undefined = node.parent; scope; scope = scope.parent) if (scopeBindsFetch(scope)) return true;
     return false;
   }
 
@@ -233,14 +245,20 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
     return /https:\/\/api\./i.test(node.text);
   }
 
+  /** Resolution runs for every edge, even without a plugin identity: a host resolver may fail closed on unresolved code. */
+  function targetPlugin(input: HardwiringSource, specifier: string): string | undefined {
+    const target = input.resolveImport?.(specifier, input.file);
+    return target ? input.pluginIdentity?.(target) : undefined;
+  }
+
   function inspectImports(input: HardwiringSource, tree: ts.SourceFile, refs: readonly RuntimeImport[]): HardwiringViolation[] {
     const found: HardwiringViolation[] = [];
     const plugin = input.pluginIdentity?.(input.file);
+    const vendorOwner = adapter(input.file);
     for (const ref of refs) {
-      if (vendor(ref.specifier) && !adapter(input.file)) found.push(violation(tree, ref.node, 'HW2-vendor-adapter', 'Driver/vendor dependency belongs in an adapter, kernel or provider.', ref.specifier));
-      const target = input.resolveImport?.(ref.specifier, input.file);
-      const targetPlugin = target && input.pluginIdentity?.(target);
-      if (plugin && targetPlugin && targetPlugin !== plugin) found.push(violation(tree, ref.node, 'HW9-plugin-import', `Import crosses ${plugin} → ${targetPlugin}; plugins must communicate through host ports.`, ref.specifier));
+      if (!vendorOwner && vendor(ref.specifier)) found.push(violation(tree, ref.node, 'HW2-vendor-adapter', 'Driver/vendor dependency belongs in an adapter, kernel or provider.', ref.specifier));
+      const other = targetPlugin(input, ref.specifier);
+      if (plugin && other && other !== plugin) found.push(violation(tree, ref.node, 'HW9-plugin-import', `Import crosses ${plugin} → ${other}; plugins must communicate through host ports.`, ref.specifier));
     }
     return found;
   }
@@ -253,15 +271,19 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
     const report = (node: ts.Node, rule: string, reason: string, identity: string) => found.push(violation(tree, node, rule, reason, identity));
     const jini = input.mode === 'jini';
     const envExempt = /(?:^|\/)(?:bin|cli|testing)(?:\/|\.)/.test(input.file);
+    const ownsUrls = urlOwner(input.file);
     if (!jini && !refs.some((ref) => ref.specifier.startsWith('@jini-ai/'))) {
       for (const item of exportedFunctions({ tree })) if (input.jiniExports?.has(item.name)) report(item.node, 'HW5-jini-export', `Export ${item.name} duplicates a Jini function without using its owner.`, item.name);
     }
+    function visitJini(node: ts.Node): void {
+      if (!envExempt && env(node) && !isEnvDefault(node)) report(node, 'HW1-env-default', 'process.env is allowed only as an injected environment default (?? process.env or env = process.env).', envKey(node.parent) ?? 'process.env');
+      if (mutableModuleState(node, tree)) report(node, 'HW3-module-state', 'Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.', declarationIdentity((node as ts.VariableDeclaration).name));
+      if (input.server && globalFetchCall(node)) report(node, 'HW4-injected-fetch', 'Call an injected fetch port; the global fetch may only supply its default.', (node as ts.CallExpression).expression.getText(tree));
+    }
     function visit(node: ts.Node): void {
-      if (jini && !envExempt && env(node) && !isEnvDefault(node)) report(node, 'HW1-env-default', 'process.env is allowed only as an injected environment default (?? process.env or env = process.env).', envKey(node.parent) ?? 'process.env');
-      if (jini && mutableModuleState(node, tree)) report(node, 'HW3-module-state', 'Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.', declarationIdentity((node as ts.VariableDeclaration).name));
-      if (jini && input.server && globalFetchCall(node)) report(node, 'HW4-injected-fetch', 'Call an injected fetch port; the global fetch may only supply its default.', (node as ts.CallExpression).expression.getText(tree));
+      if (jini) visitJini(node);
       if (uncoveredDefault(node, input.bootCoveredEnv)) report(node, 'HW6-boot-default', 'Unsafe development default has no matching environment check in the production refusal gate.', envKey((node as ts.BinaryExpression).left) ?? (node as ts.BinaryExpression).left.getText(tree));
-      if (!urlOwner(input.file) && apiUrl(node)) report(node, 'HW8-provider-url', 'Vendor API URL belongs in a provider, adapter or catalog.', (node as ts.StringLiteralLike).text);
+      if (!ownsUrls && apiUrl(node)) report(node, 'HW8-provider-url', 'Vendor API URL belongs in a provider, adapter or catalog.', (node as ts.StringLiteralLike).text);
       c.forEachChild(node, visit);
     }
     visit(tree);
@@ -277,6 +299,10 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
     }
     visit(tree);
     return jsx;
+  }
+
+  function reactSpecifier(specifier: string): boolean {
+    return /^react(?:-dom)?(?:\/|$)/.test(specifier) || /(?:^|\/)node_modules\/react(?:-dom)?(?:\/|$)/.test(specifier);
   }
 
   function implicitReact(tree: ts.SourceFile, file: string, displayFile: (file: string) => string): HardwiringViolation | undefined {
@@ -309,13 +335,10 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
           fingerprint: createHash('sha256').update(item.file).digest('hex') });
       } else found.push(item);
     }
-    for (let cursor = 0; cursor < pending.length; cursor++) {
-      const file = pending[cursor]!;
-      if (seen.has(file)) continue;
-      seen.add(file);
+    function scanModule(file: string): void {
       const tree = parse({ file, source: readSource(file) });
       for (const ref of imports({ tree })) {
-        if (/^react(?:-dom)?(?:\/|$)/.test(ref.specifier) || /(?:^|\/)node_modules\/react(?:-dom)?(?:\/|$)/.test(ref.specifier)) {
+        if (reactSpecifier(ref.specifier)) {
           reportGraph({ ...violation(tree, ref.node, 'HW7-public-react', 'Public-site runtime graph must not load React or React DOM.', ref.specifier), file: displayFile(file) });
           continue;
         }
@@ -324,6 +347,12 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
       }
       const implicit = implicitReact(tree, file, displayFile);
       if (implicit) reportGraph(implicit);
+    }
+    for (let cursor = 0; cursor < pending.length; cursor++) {
+      const file = pending[cursor]!;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      scanModule(file);
     }
     return found;
   }

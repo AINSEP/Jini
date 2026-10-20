@@ -13,11 +13,23 @@ export interface DistImportInput {
   fs: PackagingFilesystemPort; imports: ImportReaderPort; aliases: ImportAliasPort;
 }
 const builtins = new Set(builtinModules);
-/** Walk reachable files once. The injected AST parser owns import syntax and comment handling. */
+/** The file a specifier points at (host alias first, then relative/absolute paths), or undefined for a bare package. */
+function localTarget(required: { specifier: string; file: string; distDir: string; aliases: ImportAliasPort }): string | undefined {
+  const { specifier, file, distDir, aliases } = required;
+  return aliases.resolve({ specifier, fromFile: file, distDir })
+    ?? (specifier.startsWith('.') || path.isAbsolute(specifier) ? path.resolve(path.dirname(file), specifier) : undefined);
+}
+/** The package a bare specifier names, unless it is a builtin or declared. */
+function undeclaredPackage(required: { specifier: string; declared: ReadonlySet<string> }): string | undefined {
+  const { specifier, declared } = required;
+  const name = specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
+  return specifier.startsWith('node:') || builtins.has(name) || declared.has(name) ? undefined : name;
+}
 /**
  * Every bare import reachable from `entry` that is neither a builtin nor in `declared`, as
  * `"<package> (<file relative to distDir>)"`, in walk order. A relative import whose target file
  * does not exist is reported too, so a broken walk can never read as a clean one.
+ * Walk reachable files once. The injected AST parser owns import syntax and comment handling.
  *
  * @complexity O(files + imports) reachable from `entry`; each file is read once.
  */
@@ -26,25 +38,29 @@ export function undeclaredDistImports(required: DistImportInput): string[] {
   const queue = [path.resolve(entry)];
   const seen = new Set(queue);
   const problems: string[] = [];
-  for (let index = 0; index < queue.length; index++) {
-    const file = queue[index]!;
-    if (!fs.exists({ path: file })) { problems.push(`${path.relative(distDir, file)} (entry file not found)`); continue; }
+  /** Queue an unseen local target once; a missing one is reported once, against its first importer. */
+  const visit = (target: string, specifier: string, relative: string): void => {
+    const absolute = path.resolve(target);
+    if (seen.has(absolute)) return;
+    seen.add(absolute);
+    if (fs.exists({ path: absolute })) queue.push(absolute);
+    else problems.push(`${specifier} (${relative}: file not found)`);
+  };
+  /** Check one reachable file's imports: follow local targets, report undeclared packages. */
+  const scan = (file: string, relative: string): void => {
     const source = Buffer.from(fs.read({ path: file })).toString('utf8');
     for (const specifier of imports.imports({ file, source })) {
-      const alias = aliases.resolve({ specifier, fromFile: file, distDir });
-      const target = alias ?? (specifier.startsWith('.') || path.isAbsolute(specifier) ? path.resolve(path.dirname(file), specifier) : undefined);
-      const relative = path.relative(distDir, file);
-      if (target !== undefined) {
-        const absolute = path.resolve(target);
-        if (seen.has(absolute)) continue;
-        seen.add(absolute);
-        if (fs.exists({ path: absolute })) queue.push(absolute);
-        else problems.push(`${specifier} (${relative}: file not found)`);
-        continue;
-      }
-      const name = specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
-      if (!specifier.startsWith('node:') && !builtins.has(name) && !declared.has(name)) problems.push(`${name} (${relative})`);
+      const target = localTarget({ specifier, file, distDir, aliases });
+      const name = target === undefined ? undeclaredPackage({ specifier, declared }) : undefined;
+      if (target !== undefined) visit(target, specifier, relative);
+      else if (name !== undefined) problems.push(`${name} (${relative})`);
     }
+  };
+  for (let index = 0; index < queue.length; index++) {
+    const file = queue[index]!;
+    const relative = path.relative(distDir, file);
+    if (fs.exists({ path: file })) scan(file, relative);
+    else problems.push(`${relative} (entry file not found)`);
   }
   return problems;
 }
