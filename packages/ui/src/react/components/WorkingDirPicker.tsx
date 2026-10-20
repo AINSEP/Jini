@@ -232,6 +232,215 @@ export function useWorkingDirPicker(input: UseWorkingDirPickerInput): UseWorking
   };
 }
 
+const MENU_ITEM_SELECTOR = '[role="menuitem"]:not(:disabled)';
+const RECENT_ITEM_SELECTOR = '[data-testid="working-dir-recent"]';
+const RECENT_LIST_SELECTOR = '[data-testid="working-dir-recent-list"]';
+
+/**
+ * The menu item a navigation key moves focus to, or `null` for any other key. `count` is never 0:
+ * the "Choose folder" item is always rendered and never disabled. ArrowUp from `currentIndex` -1
+ * (focus on no menu item) yields `count - 2`, pinned as-is by the component tests.
+ */
+function resolveMenuNavigationIndex({ key, currentIndex, count }: { key: string; currentIndex: number; count: number }): number | null {
+  if (key === 'Home') return 0;
+  if (key === 'End') return count - 1;
+  if (key === 'ArrowDown') return (currentIndex + 1 + count) % count;
+  if (key === 'ArrowUp') return (currentIndex - 1 + count) % count;
+  return null;
+}
+
+/** Arrow/Home/End roving focus across the panel's enabled menu items; true when the key was handled. */
+function handleMenuNavigationKey({ event }: { event: ReactKeyboardEvent<HTMLDivElement> }): boolean {
+  const menuItems = [...event.currentTarget.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR)];
+  const currentIndex = menuItems.indexOf(document.activeElement as HTMLElement);
+  const nextIndex = resolveMenuNavigationIndex({ key: event.key, currentIndex, count: menuItems.length });
+  if (nextIndex === null) return false;
+  event.preventDefault();
+  menuItems[nextIndex]?.focus();
+  return true;
+}
+
+/** ArrowRight on "Recent folders" opens its flyout; ArrowLeft inside the flyout closes it again. */
+function handleRecentFlyoutKey({ event, showRecent, hideRecent }: {
+  event: ReactKeyboardEvent<HTMLDivElement>; showRecent: () => void; hideRecent: () => void;
+}): void {
+  const panel = event.currentTarget;
+  if (event.key === 'ArrowRight' && event.target === panel.querySelector(RECENT_ITEM_SELECTOR)) {
+    event.preventDefault();
+    showRecent();
+    window.setTimeout(() => {
+      panel.querySelector<HTMLElement>(`${RECENT_LIST_SELECTOR} [role="menuitem"]`)?.focus();
+    }, 0);
+    return;
+  }
+  if (
+    event.key === 'ArrowLeft'
+    && event.target instanceof HTMLElement
+    && event.target.closest(RECENT_LIST_SELECTOR)
+  ) {
+    event.preventDefault();
+    hideRecent();
+    panel.querySelector<HTMLElement>(RECENT_ITEM_SELECTOR)?.focus();
+  }
+}
+
+/** Focus the first menu item on open; return focus to the trigger after the panel closes. */
+function useWorkingDirFocusHandoff({ open, triggerRef, panelRef }: {
+  open: boolean;
+  triggerRef: MutableRefObject<HTMLButtonElement | null>;
+  panelRef: MutableRefObject<HTMLDivElement | null>;
+}): void {
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true;
+      panelRef.current?.querySelector<HTMLElement>(MENU_ITEM_SELECTOR)?.focus();
+      return;
+    }
+    if (!wasOpenRef.current) return;
+    wasOpenRef.current = false;
+    const timeout = window.setTimeout(() => triggerRef.current?.focus(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [open, panelRef, triggerRef]);
+}
+
+function WorkingDirTrigger({ triggerRef, workingDir, invalid, open, panelId, t, toggle }: {
+  triggerRef: MutableRefObject<HTMLButtonElement | null>;
+  workingDir: string | null;
+  invalid: boolean;
+  open: boolean;
+  panelId: string;
+  t: ResolvedWorkingDirLabels;
+  toggle: () => void;
+}) {
+  return (
+    <div className="jini-working-dir-trigger-row">
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`jini-working-dir-trigger${invalid ? ' invalid' : ''}`}
+        data-testid="working-dir-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={panelId}
+        title={invalid ? t.missing : (workingDir ?? t.hint)}
+        onClick={toggle}
+      >
+        <Icon name="folder" size={13} className="jini-working-dir-trigger-icon" />
+        <span className="jini-working-dir-trigger-label">
+          {workingDir ? basename(workingDir) : t.trigger}
+        </span>
+        <Icon name="chevron-down" size={11} className="jini-working-dir-trigger-chevron" />
+      </button>
+    </div>
+  );
+}
+
+function WorkingDirRecentFlyout({ recentDirs, placement, t, selectRecent }: {
+  recentDirs: string[];
+  placement: WorkingDirPlacement;
+  t: ResolvedWorkingDirLabels;
+  selectRecent: (dir: string) => void;
+}) {
+  return (
+    <div
+      className={`jini-working-dir-flyout${placement === 'up' ? ' up' : ''}`}
+      role="menu"
+      data-testid="working-dir-recent-list"
+    >
+      {recentDirs.length === 0 ? (
+        <div className="jini-working-dir-empty">{t.recentEmpty}</div>
+      ) : (
+        recentDirs.map((dir) => (
+          <button
+            key={dir}
+            type="button"
+            role="menuitem"
+            className="jini-working-dir-recent-item"
+            title={dir}
+            onClick={() => selectRecent(dir)}
+          >
+            <Icon name="folder" size={13} className="jini-working-dir-item-icon" />
+            <span className="jini-working-dir-recent-name">{basename(dir)}</span>
+            <span className="jini-working-dir-recent-path">{dir}</span>
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+function WorkingDirPanel({ panelRef, panelId, placement, workingDir, recentDirs, canClear, t, picker, onKeyDown }: {
+  panelRef: MutableRefObject<HTMLDivElement | null>;
+  panelId: string;
+  placement: WorkingDirPlacement;
+  workingDir: string | null;
+  recentDirs: string[];
+  canClear: boolean;
+  t: ResolvedWorkingDirLabels;
+  picker: Pick<UseWorkingDirPickerResult, 'recentOpen' | 'pick' | 'selectRecent' | 'clear' | 'showRecent' | 'hideRecent' | 'toggleRecent'>;
+  onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
+}) {
+  const { recentOpen, pick, selectRecent, clear, showRecent, hideRecent, toggleRecent } = picker;
+  return (
+    <div
+      ref={panelRef}
+      id={panelId}
+      className={`jini-working-dir-panel${placement === 'up' ? ' up' : ''}`}
+      role="menu"
+      data-testid="working-dir-panel"
+      onKeyDown={onKeyDown}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        className="jini-working-dir-item"
+        data-testid="working-dir-pick"
+        onClick={pick}
+      >
+        <Icon name="folder" size={14} className="jini-working-dir-item-icon" />
+        <span>{workingDir ? t.replace : t.pick}</span>
+      </button>
+
+      <div
+        className="jini-working-dir-submenu-row"
+        onMouseEnter={showRecent}
+        onMouseLeave={hideRecent}
+      >
+        <button
+          type="button"
+          role="menuitem"
+          className="jini-working-dir-item"
+          aria-haspopup="menu"
+          aria-expanded={recentOpen}
+          data-testid="working-dir-recent"
+          onClick={toggleRecent}
+        >
+          <Icon name="history" size={14} className="jini-working-dir-item-icon" />
+          <span>{t.recent}</span>
+          <Icon name="chevron-right" size={12} className="jini-working-dir-item-chevron" />
+        </button>
+        {recentOpen ? (
+          <WorkingDirRecentFlyout recentDirs={recentDirs} placement={placement} t={t} selectRecent={selectRecent} />
+        ) : null}
+      </div>
+
+      {canClear ? (
+        <button
+          type="button"
+          role="menuitem"
+          className="jini-working-dir-item"
+          data-testid="working-dir-clear"
+          onClick={clear}
+        >
+          <Icon name="close" size={14} className="jini-working-dir-item-icon" />
+          <span>{t.clear}</span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * Working-directory picker: a borderless trigger that opens a panel with
  * "Choose folder" and a "Recent folders" submenu. Layout is left to the host
@@ -254,80 +463,13 @@ export function WorkingDirPicker({
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const wasOpenRef = useRef(false);
-  const {
-    open,
-    recentOpen,
-    wrapRef,
-    labels: t,
-    toggle,
-    pick,
-    selectRecent,
-    clear,
-    showRecent,
-    hideRecent,
-    toggleRecent,
-  } = useWorkingDirPickerHook({ onPickDirectory, onSelectRecent, onClear, onOpen, labels });
-
-  useEffect(() => {
-    if (open) {
-      wasOpenRef.current = true;
-      panelRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
-      return;
-    }
-    if (!wasOpenRef.current) return;
-    wasOpenRef.current = false;
-    const timeout = window.setTimeout(() => triggerRef.current?.focus(), 0);
-    return () => window.clearTimeout(timeout);
-  }, [open]);
+  const picker = useWorkingDirPickerHook({ onPickDirectory, onSelectRecent, onClear, onOpen, labels });
+  const { open, wrapRef, labels: t, toggle, showRecent, hideRecent } = picker;
+  useWorkingDirFocusHandoff({ open, triggerRef, panelRef });
 
   const handlePanelKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const menuItems = [...(panelRef.current?.querySelectorAll<HTMLElement>(
-      '[role="menuitem"]:not(:disabled)',
-    ) ?? [])];
-    const currentIndex = menuItems.indexOf(document.activeElement as HTMLElement);
-    if (
-      event.key === 'ArrowDown'
-      || event.key === 'ArrowUp'
-      || event.key === 'Home'
-      || event.key === 'End'
-    ) {
-      if (menuItems.length === 0) return;
-      event.preventDefault();
-      const nextIndex = event.key === 'Home'
-        ? 0
-        : event.key === 'End'
-          ? menuItems.length - 1
-          : event.key === 'ArrowDown'
-            ? (currentIndex + 1 + menuItems.length) % menuItems.length
-            : (currentIndex - 1 + menuItems.length) % menuItems.length;
-      menuItems[nextIndex]?.focus();
-      return;
-    }
-    if (
-      event.key === 'ArrowRight'
-      && event.target === panelRef.current?.querySelector('[data-testid="working-dir-recent"]')
-    ) {
-      event.preventDefault();
-      showRecent();
-      window.setTimeout(() => {
-        panelRef.current
-          ?.querySelector<HTMLElement>('[data-testid="working-dir-recent-list"] [role="menuitem"]')
-          ?.focus();
-      }, 0);
-      return;
-    }
-    if (
-      event.key === 'ArrowLeft'
-      && event.target instanceof HTMLElement
-      && event.target.closest('[data-testid="working-dir-recent-list"]')
-    ) {
-      event.preventDefault();
-      hideRecent();
-      panelRef.current
-        ?.querySelector<HTMLElement>('[data-testid="working-dir-recent"]')
-        ?.focus();
-    }
+    if (handleMenuNavigationKey({ event })) return;
+    handleRecentFlyoutKey({ event, showRecent, hideRecent });
   }, [hideRecent, showRecent]);
 
   return (
@@ -336,105 +478,28 @@ export function WorkingDirPicker({
       className={`jini-working-dir-picker${className ? ` ${className}` : ''}`}
       data-testid="working-dir-picker"
     >
-      <div className="jini-working-dir-trigger-row">
-        <button
-          ref={triggerRef}
-          type="button"
-          className={`jini-working-dir-trigger${invalid ? ' invalid' : ''}`}
-          data-testid="working-dir-trigger"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-controls={panelId}
-          title={invalid ? t.missing : (workingDir ?? t.hint)}
-          onClick={toggle}
-        >
-          <Icon name="folder" size={13} className="jini-working-dir-trigger-icon" />
-          <span className="jini-working-dir-trigger-label">
-            {workingDir ? basename(workingDir) : t.trigger}
-          </span>
-          <Icon name="chevron-down" size={11} className="jini-working-dir-trigger-chevron" />
-        </button>
-      </div>
+      <WorkingDirTrigger
+        triggerRef={triggerRef}
+        workingDir={workingDir}
+        invalid={invalid}
+        open={open}
+        panelId={panelId}
+        t={t}
+        toggle={toggle}
+      />
 
       {open ? (
-        <div
-          ref={panelRef}
-          id={panelId}
-          className={`jini-working-dir-panel${placement === 'up' ? ' up' : ''}`}
-          role="menu"
-          data-testid="working-dir-panel"
+        <WorkingDirPanel
+          panelRef={panelRef}
+          panelId={panelId}
+          placement={placement}
+          workingDir={workingDir}
+          recentDirs={recentDirs}
+          canClear={Boolean(workingDir && onClear)}
+          t={t}
+          picker={picker}
           onKeyDown={handlePanelKeyDown}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="jini-working-dir-item"
-            data-testid="working-dir-pick"
-            onClick={pick}
-          >
-            <Icon name="folder" size={14} className="jini-working-dir-item-icon" />
-            <span>{workingDir ? t.replace : t.pick}</span>
-          </button>
-
-          <div
-            className="jini-working-dir-submenu-row"
-            onMouseEnter={showRecent}
-            onMouseLeave={hideRecent}
-          >
-            <button
-              type="button"
-              role="menuitem"
-              className="jini-working-dir-item"
-              aria-haspopup="menu"
-              aria-expanded={recentOpen}
-              data-testid="working-dir-recent"
-              onClick={toggleRecent}
-            >
-              <Icon name="history" size={14} className="jini-working-dir-item-icon" />
-              <span>{t.recent}</span>
-              <Icon name="chevron-right" size={12} className="jini-working-dir-item-chevron" />
-            </button>
-            {recentOpen ? (
-              <div
-                className={`jini-working-dir-flyout${placement === 'up' ? ' up' : ''}`}
-                role="menu"
-                data-testid="working-dir-recent-list"
-              >
-                {recentDirs.length === 0 ? (
-                  <div className="jini-working-dir-empty">{t.recentEmpty}</div>
-                ) : (
-                  recentDirs.map((dir) => (
-                    <button
-                      key={dir}
-                      type="button"
-                      role="menuitem"
-                      className="jini-working-dir-recent-item"
-                      title={dir}
-                      onClick={() => selectRecent(dir)}
-                    >
-                      <Icon name="folder" size={13} className="jini-working-dir-item-icon" />
-                      <span className="jini-working-dir-recent-name">{basename(dir)}</span>
-                      <span className="jini-working-dir-recent-path">{dir}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
-          </div>
-
-          {workingDir && onClear ? (
-            <button
-              type="button"
-              role="menuitem"
-              className="jini-working-dir-item"
-              data-testid="working-dir-clear"
-              onClick={clear}
-            >
-              <Icon name="close" size={14} className="jini-working-dir-item-icon" />
-              <span>{t.clear}</span>
-            </button>
-          ) : null}
-        </div>
+        />
       ) : null}
     </div>
   );
