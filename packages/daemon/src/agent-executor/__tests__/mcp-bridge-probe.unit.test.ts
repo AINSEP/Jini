@@ -149,3 +149,63 @@ describe('bridgeUnavailableMessage', () => {
     expect(bridgeUnavailableMessage('failed', { ...failed, stderrTail: 'first\nlast\n' })).toBe(`${original} Bridge exited with code 1: last`);
   });
 });
+
+describe('probeMcpBridge (characterization)', () => {
+  it('still returns the original diagnostic when killing the bridge throws', async () => {
+    const fake = fakeBridge();
+    fake.child.kill.mockImplementation(() => { throw new Error('kill ESRCH'); });
+    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    fake.child.emit('exit', 3, null);
+    expect(await pending).toEqual({ ok: false, exitCode: 3, signal: null, stderrTail: '', elapsedMs: 0 });
+    expect(fake.child.kill.mock.calls).toEqual([['SIGKILL']]);
+  });
+
+  it('tolerates a child without stdio streams and reports its exit', async () => {
+    const child = Object.assign(new EventEmitter(), { stdin: null, stdout: null, stderr: null, kill: vi.fn(() => true) });
+    // Malformed-input fixture: a ChildProcess whose stdio pipes are all absent.
+    const spawn = (() => child as unknown as ChildProcess) as typeof nodeSpawn;
+    const pending = probeMcpBridge({ entry }, { spawn, baseEnv: {}, now: () => 0 });
+    child.emit('exit', 0, null);
+    expect(await pending).toEqual({ ok: false, exitCode: 0, signal: null, stderrTail: '', elapsedMs: 0 });
+    expect(child.kill.mock.calls).toEqual([['SIGKILL']]);
+  });
+
+  it('keeps waiting past non-object and result-less id 1 replies', async () => {
+    vi.useFakeTimers();
+    const fake = fakeBridge();
+    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, timeoutMs: 5, now: () => 0 });
+    fake.child.stdout.write('1\n[{"id":1,"result":{}}]\n{"id":"1","result":{}}\n{"id":1}\nnull\n');
+    await vi.advanceTimersByTimeAsync(5);
+    expect((await pending).ok).toBe(false);
+  });
+
+  it('accepts an id 1 reply whose result is null', async () => {
+    const fake = fakeBridge();
+    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    fake.child.stdout.write('{"id":1,"result":null}\n');
+    expect((await pending).ok).toBe(true);
+  });
+
+  it('reports a stdout stream error through the line reader', async () => {
+    const fake = fakeBridge();
+    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    fake.child.stdout.emit('error', new Error('read EIO'));
+    expect(await pending).toEqual({ ok: false, exitCode: null, signal: null, stderrTail: 'read EIO', elapsedMs: 0 });
+  });
+
+  it('keeps the first outcome when the bridge exits after replying', async () => {
+    const fake = fakeBridge();
+    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    fake.child.stdout.write('{"id":1,"result":{}}\n');
+    fake.child.emit('exit', 9, null);
+    expect((await pending).ok).toBe(true);
+  });
+
+  it('appends an error message after existing stderr and redacts a daemon token assignment in any case', async () => {
+    const fake = fakeBridge();
+    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    fake.child.stderr.write(['jini_daemon_token', '=abc'].join(''));
+    fake.child.emit('error', new Error('boom'));
+    expect((await pending).stderrTail).toBe('[REDACTED:daemon_token]\nboom');
+  });
+});
