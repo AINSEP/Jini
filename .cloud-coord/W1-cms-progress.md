@@ -17,7 +17,7 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 | L151 | content-types index-provisioning, write-service | merged | done (22 tool calls) | e39b6c22, d07e78b9 | 19/20 → 8/8 | 100/100/100 (was 93.96/92.04) | eslint 0, tsc 0, 168 ✓ |
 | L164 | entries field-validation, write-service | merged | done (27 tool calls) | 41882661, 5f80579f | 17/16 → 9/6 (9 = untouched conformsToKind) | 100/100/100 (was 96.9/87.5) | eslint 0, tsc 0, entries+widgets ✓; 45 new tests green on old code |
 | L169 | taxonomy write-service | merged | done (38 tool calls) | d08fe497 | 16/20 → ≤10/≤10 | 100/100/100 (was 98.5/95.1) | eslint 0, tsc 0, taxonomy 123 ✓; 20 new tests green on old code |
-| L176 | forms forms, submission-attempts, submit-service | running | | | 18/16 → | | |
+| L176 | forms forms, submission-attempts, submit-service | merged | done (42 tool calls) | dafbf6b0, d3fe65a2, a357fe15 | 18/16 → ≤10/≤10 | 100/100/100 (was 94.3/93.5 submit-service) | eslint 0, tsc 0, forms 524 ✓; 34 new tests green on old code |
 
 ## Problems
 - Baseline whole suite on unmodified tree (66 s): 2549/2550 pass; 1 pre-existing FAIL `src/media/__tests__/video-frames.ffmpeg.test.ts > reports temporary files that cannot be removed and still releases the lock` (out of scope; container runs as root).
@@ -30,4 +30,5 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 - L169 flagged (outside lot): `validateHierarchyAssignment` (taxonomy/validation-chain.ts) never reads its required `termId`, so importTerm’s existing?id:"__new__" argument is inert.
 - L073 bug pinned: embed-service reorder can leave a slot with undefined widgetEntryId (count check counts only string-id embeds, rewrite touches all).
 - L073 flagged: `collectWidgetConfigStrings` has no callers but is publicly re-exported via widgets/index.ts.
+- L176 flagged: `SubmitFormOptional.validateEmails` appears inert (field-registry already rejects bad emails as invalid_email; flipping it fails no test). Public option — left as is.
 ## Next
