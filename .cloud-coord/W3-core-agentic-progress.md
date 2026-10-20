@@ -24,7 +24,7 @@ Cloud-proof commit 396b8ed0.
 | L078a | MERGED | 80944035 | settings 12/12→10/8; agent-value-write-tools 20/15→9/7; tool-registrations 12/11→7/6 | 100/100/100/100 all 3 (coord re-run, 35 files / 325 tests) | eslint 0, tsc ok, no Errors line, guard 31 |
 | L078b | MERGED | 1a46d33e | ensure-definitions 13/13→7/5; cms-adapter 15/22→6/8; http 14/11→9/6 (+ new http-request.ts 8/2); stream 19/0→9/8 | 100/100/100/100 all 5 (coord re-run, 35 files / 403 tests) | eslint 0, tsc ok, no Errors line, guard 31 |
 | L177-L251-L270 | MERGED | d4ef02a4 | sanitize stripControlSequences 14/28→4/5 (file worst 8/5); paths 14/11→6/6; gateway execute 12/11→6/4 | 100/100/100/100 all 3 (coord re-run, 9 files / 148 tests) | eslint 0, tsc ok, no Errors line, guard 32→31 (fixed the sanitize HW3 line) |
-| L038-L097 | dispatched | | 40/45 → | | |
+| L038-L097 | MERGED | 21f49932 | archive 16/20→8/5; github 40/23→8/2; state 13/0→8/6; validation 33/44→8/7; site-guide 29/45→6/8 | 100/100/100/100 all 5 (coord re-run, 42 files / 534 tests) | eslint 0, tsc ok (both), no Errors line, guard 31 |
 | L101-L249 | MERGED | ff26a2a6 | json-pointer 17/27→6/6; resolve 20/20→6/6; tree 7/11→7/9; encoder 15/0→8/6 | 100/100/100/100 all 4 (coord re-run, 30 files / 468 tests) | eslint 0, tsc ok (tsconfig + tsconfig.dom), no Errors line, guard 31 |
 
 ## Merges / RED checks / removed checks / bugs / security
@@ -70,5 +70,13 @@ Cloud-proof commit 396b8ed0.
 - Removed: the array-index regex (3x) and try/parse (2x), each now one helper; joinPointer reuses isRootPointer; a redundant `!head ||` (the index regex already rejects ""); the resolve-internal round trip through the public resolveDynamicValue; an unused import; the duplicated stage_start/stage_end encoding; the child-push loop is extracted.
 - Removed check (with proof): the `index < length` test before splice in the array delete. splice past the end removes nothing, and this is pinned by "deleting an out-of-range array index returns an unchanged copy". It is not a validation check.
 - Security (pinned, reported not fixed): (1) resolve.ts resolveArgs: an agent arg named `__proto__` sets the prototype of the args object handed to the host impl (`resolvedArgs[key] =`), so the impl sees inherited properties like `isAdmin`. The global prototype is not polluted. (2) json-pointer setAtPointer has no upper bound on array indexes, so one message can set length to about 4e9 (memory/CPU DoS). (3) writes ignore an empty middle segment (`//x`) while reads honour it; this was already documented.
+
+### L038-L097 (subagent: ~191k tokens, 84 tool calls)
+- Pins 0d400b20, 3c68fffb, c06440cf, 92dfbb18, 17f3d275. Differentials (temp, deleted): 3k archives, 4k URL/tree/blob/status cases, 5k state records, 6k bundles plus 2k SKILL.md texts, and 5k site-guide scenarios, compared on results, messages, request order and port-call logs.
+- Checks removed: none. Every path, size, host, mode and validation check is kept in its original order; the coordinator verified the URL-shape boolean equivalence by hand.
+- Removed: a bare block in archive, the URL help text (4x) and two try blocks in github, repeated constants, and the duplicated pointer/workflow permission loop in site-guide. Four refusals now carry `cause`; no message text changed.
+- Bugs pinned: github.ts lets malformed GitHub JSON escape as a raw SyntaxError and a `null` tree row as a raw TypeError; state.ts lets malformed JSON escape as a raw SyntaxError.
+- Security (pinned): state.ts fail-open parsing: `commit: ["<40 hex>"]` passes because `RegExp.test` stringifies the array.
+- Outside scope: packages/mcp consumes site-guide through the built dist, so its tests did not exercise this source until the final build.
 
 ## Next
