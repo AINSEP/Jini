@@ -147,3 +147,82 @@ describe('run activity line — one table, exact words', () => {
     expect(b.visibleCount).toBe(1);
   });
 });
+
+describe('run activity boundaries', () => {
+  it('says Still working instead of Writing after 20 s with nothing new', () => {
+    expect(line([{ kind: 'text', text: 'Hi' }], 30, 20_000)).toBe('Still working… 30 s');
+  });
+
+  it('treats an empty text delta as invisible', () => {
+    expect(deriveRunActivity({ events: [{ kind: 'text', text: '' }] })).toEqual({ activity: { kind: 'thinking' }, key: 'thinking:-1', visibleCount: 0 });
+  });
+
+  it('reads missing events as thinking with nothing visible', () => {
+    expect(deriveRunActivity({ events: undefined })).toEqual({ activity: { kind: 'thinking' }, key: 'thinking:-1', visibleCount: 0 });
+  });
+
+  it('keeps only the fields of an API retry that are well-typed', () => {
+    const state = deriveRunActivity({ events: [{ kind: 'status', label: 'api_retry', code: 'api_retry', data: { attempt: 2, maxAttempts: Infinity, service: '' } }] });
+    expect(state).toEqual({ activity: { kind: 'retrying', attempt: 2 }, key: 'retry:-1', visibleCount: 0 });
+    expect(describeRunActivity({ activity: state.activity, clock: { seconds: 0, idleMs: 0 }, t })).toBe('The AI service is busy — retrying…');
+  });
+
+  it('ignores a tool_progress report without a finite elapsedSeconds', () => {
+    const state = deriveRunActivity({ events: [
+      { kind: 'tool_use', id: 't1', name: 'Bash', input: {} },
+      { kind: 'status', label: 'tool_progress', code: 'tool_progress', data: { elapsedSeconds: 'soon' } },
+    ] });
+    expect(state.activity).toEqual({ kind: 'running-tool', tool: 'Bash' });
+  });
+
+  it('keeps the last valid tool_progress when a later report has no elapsedSeconds', () => {
+    const state = deriveRunActivity({ events: [
+      { kind: 'tool_use', id: 't1', name: 'Bash', input: {} },
+      { kind: 'status', label: 'tool_progress', code: 'tool_progress', data: { elapsedSeconds: 40 } },
+      { kind: 'status', label: 'tool_progress', code: 'tool_progress', data: {} },
+    ] });
+    expect(state.activity).toEqual({ kind: 'running-tool', tool: 'Bash', reportedSeconds: 40 });
+  });
+
+  it('leaves unreported optional fields absent rather than undefined', () => {
+    const tool = deriveRunActivity({ events: [{ kind: 'tool_use', id: 't1', name: 'Bash', input: {} }] });
+    expect(Object.keys(tool.activity)).toEqual(['kind', 'tool']);
+    const retry = deriveRunActivity({ events: [{ kind: 'status', label: 'api_retry', code: 'api_retry' }] });
+    expect(Object.keys(retry.activity)).toEqual(['kind']);
+  });
+
+  it('ignores a tool_progress report that predates the newest open call', () => {
+    const state = deriveRunActivity({ events: [
+      { kind: 'tool_use', id: 't1', name: 'Bash', input: {} },
+      { kind: 'status', label: 'tool_progress', code: 'tool_progress', data: { elapsedSeconds: 30 } },
+      { kind: 'tool_use', id: 't2', name: 'Read', input: {} },
+    ] });
+    expect(state).toEqual({ activity: { kind: 'running-tool', tool: 'Read' }, key: 'tool:t2', visibleCount: 2 });
+  });
+
+  it('re-sent tool_use with the same id becomes the newest open call once', () => {
+    const state = deriveRunActivity({ events: [
+      { kind: 'tool_use', id: 't1', name: 'Bash', input: {} },
+      { kind: 'tool_use', id: 't2', name: 'Read', input: {} },
+      { kind: 'tool_use', id: 't1', name: 'Bash', input: {} },
+      { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+    ] });
+    expect(state.key).toBe('tool:t2');
+  });
+
+  it('ignores ext events that are not cards', () => {
+    const state = deriveRunActivity({ events: [
+      { kind: 'tool_use', id: 't1', name: 'Bash', input: {} },
+      { kind: 'ext', name: 'progress', data: {} },
+    ] });
+    expect(state.activity.kind).toBe('running-tool');
+  });
+
+  it('keeps an mcp__ name with no tool segment whole', () => {
+    expect(humanizeToolName({ name: 'mcp__server' })).toBe('Mcp Server');
+  });
+
+  it('falls back to the wrapper name when its input names no toolId', () => {
+    expect(humanizeToolName({ name: 'execute_readonly_delegated_tool' }, { input: { toolId: '' } })).toBe('Execute Readonly Delegated Tool');
+  });
+});

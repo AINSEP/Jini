@@ -59,6 +59,12 @@ interface Watch {
 }
 
 type StreamResult = { kind: "ended"; status: RunSettlement["status"] } | { kind: "gone" } | { kind: "dropped" };
+type OpenedStream = { kind: "open"; body: ReadableStream<Uint8Array> } | StreamResult;
+
+/** An error frame keeps a later successful end from settling as a success. */
+function endStatus({ failed, terminal }: { failed: boolean; terminal: RunSettlement["status"] }, _optional = {}): RunSettlement["status"] {
+  return failed && terminal === "succeeded" ? "failed" : terminal;
+}
 
 /** Follow replayable run streams and save through atomic host ledger operations.
  * The host retains authorization, owner scope, kernel transactions, boot reconciliation, HTTP
@@ -80,10 +86,14 @@ export function createAssistantRunFinalizer(args: AssistantRunFinalizerArgs, opt
   }
   const active = new Map<string, { watch: Watch; done: Promise<void> }>();
 
-  async function settle(watch: Watch, status: RunSettlement["status"], events: AgentEvent[]): Promise<void> {
-    watch.terminal = true;
+  function clearTrailing(watch: Watch): void {
     if (watch.trailing) scheduler.cancel({ handle: watch.trailing.handle });
     watch.trailing = undefined;
+  }
+
+  async function settle(watch: Watch, status: RunSettlement["status"], events: AgentEvent[]): Promise<void> {
+    watch.terminal = true;
+    clearTrailing(watch);
     await args.ledger.settle({
       conversationId: watch.conversationId,
       messageId: watch.messageId,
@@ -114,8 +124,7 @@ export function createAssistantRunFinalizer(args: AssistantRunFinalizerArgs, opt
       }
       return;
     }
-    if (watch.trailing) scheduler.cancel({ handle: watch.trailing.handle });
-    watch.trailing = undefined;
+    clearTrailing(watch);
     watch.checkpointedEvents = watch.events.length;
     watch.checkpointedAt = now();
     watch.checkpointPending = true;
@@ -134,27 +143,35 @@ export function createAssistantRunFinalizer(args: AssistantRunFinalizerArgs, opt
       });
   }
 
-  async function readStream(watch: Watch): Promise<StreamResult> {
+  /** The connection's event body, or why it cannot be followed. Non-success bodies are cancelled. */
+  async function openStream(watch: Watch): Promise<OpenedStream> {
     const response = await daemon.openEvents({ runId: watch.runId, principalId: watch.principalId });
-    if (response.status === 404 || !response.ok || !response.body) {
-      await response.body?.cancel().catch(() => undefined);
-      return response.status === 404 ? { kind: "gone" } : { kind: "dropped" };
-    }
+    if (response.ok && response.body) return { kind: "open", body: response.body };
+    await response.body?.cancel().catch(() => undefined);
+    return response.status === 404 ? { kind: "gone" } : { kind: "dropped" };
+  }
+
+  async function consumeFrames(watch: Watch, body: ReadableStream<Uint8Array>): Promise<StreamResult> {
     // Each connection replays the complete history, rather than appending duplicate deltas.
     watch.events = [];
     watch.failed = false;
     const carry = {};
-    for await (const frame of readSseFrames({ body: response.body })) {
+    for await (const frame of readSseFrames({ body })) {
       const outcome = translateRunFrame({ kind: frame.event, raw: frame.data, notices: args.notices }, { carry });
       watch.events.push(...outcome.events);
       if (outcome.error) watch.failed = true;
       if (outcome.terminal) {
         watch.terminal = true;
-        return { kind: "ended", status: watch.failed && outcome.terminal === "succeeded" ? "failed" : outcome.terminal };
+        return { kind: "ended", status: endStatus({ failed: watch.failed, terminal: outcome.terminal }) };
       }
       void checkpoint(watch);
     }
     return { kind: "dropped" };
+  }
+
+  async function readStream(watch: Watch): Promise<StreamResult> {
+    const opened = await openStream(watch);
+    return opened.kind === "open" ? consumeFrames(watch, opened.body) : opened;
   }
 
   async function follow(watch: Watch): Promise<void> {
@@ -193,8 +210,7 @@ export function createAssistantRunFinalizer(args: AssistantRunFinalizerArgs, opt
         })
         .finally(() => {
           watch.terminal = true;
-          if (watch.trailing) scheduler.cancel({ handle: watch.trailing.handle });
-          watch.trailing = undefined;
+          clearTrailing(watch);
           active.delete(runId);
         });
       active.set(runId, { watch, done });

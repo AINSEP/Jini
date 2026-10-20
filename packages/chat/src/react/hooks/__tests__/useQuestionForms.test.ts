@@ -88,6 +88,37 @@ describe('useQuestionForms', () => {
     // Not the last message anymore, so it's also not interactive.
     expect(form.interactive).toBe(false);
   });
+
+  it('lists every form oldest first with only the last one active, carrying raw and messageId', () => {
+    const messages: ChatMessage[] = [
+      { id: 'a1', role: 'assistant', content: FORM_CONTENT },
+      { id: 'u1', role: 'user', content: 'skip that' },
+      { id: 'a2', role: 'assistant', content: 'no form in this one' },
+      { id: 'a3', role: 'assistant', content: FORM_CONTENT },
+    ];
+    const { result } = renderHook(() => useQuestionForms({ messages: messages }));
+    expect(result.current.forms.map((f) => [f.messageId, f.interactive])).toEqual([
+      ['a1', false],
+      ['a3', true],
+    ]);
+    expect(result.current.forms[1]?.raw).toContain('<question-form id="discovery"');
+    expect(result.current.activeForm).toBe(result.current.forms[1]);
+  });
+
+  it('does not read answers from a following assistant message even if it looks like a form reply', () => {
+    const messages: ChatMessage[] = [
+      { id: '2', role: 'assistant', content: FORM_CONTENT },
+      { id: '3', role: 'assistant', content: '[form answers — discovery]\n- Platform: Mobile' },
+    ];
+    const { result } = renderHook(() => useQuestionForms({ messages: messages }));
+    expect(result.current.forms[0]?.submittedAnswers).toBeUndefined();
+  });
+
+  it('ignores a form-shaped block inside a user message', () => {
+    const messages: ChatMessage[] = [{ id: '1', role: 'user', content: FORM_CONTENT }];
+    const { result } = renderHook(() => useQuestionForms({ messages: messages }));
+    expect(result.current.forms).toEqual([]);
+  });
 });
 
 describe('parseSubmittedAnswers', () => {

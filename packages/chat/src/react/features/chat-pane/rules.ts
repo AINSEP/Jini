@@ -19,44 +19,59 @@ function validatedOptionId(
   return fallback;
 }
 
+/** Builds a selection, leaving out the model/reasoning keys rather than setting them to `undefined`. */
+function selectionOf({ agentId, model, reasoning }: {
+  agentId: string;
+  model: string | undefined;
+  reasoning: string | undefined;
+}): ChatPaneAgentSelection {
+  return {
+    agentId,
+    ...(model === undefined ? {} : { model }),
+    ...(reasoning === undefined ? {} : { reasoning }),
+  };
+}
+
+function isSelectableAgent(agent: ChatPaneAgent): boolean {
+  return agent.id !== 'gemini' && agent.available !== false;
+}
+
+/** A concrete custom model passes through when the agent accepts one; anything else must be on the picker list. */
+function resolveRequestedModel({ agent, requested, fallback }: {
+  agent: ChatPaneAgent;
+  requested: string | undefined;
+  fallback: string | undefined;
+}): string | undefined {
+  const acceptsCustom = agent.supportsCustomModel && agent.supportsConcreteModelSelection !== false;
+  if (requested && acceptsCustom && isConcretePickerModel(requested)) return requested;
+  return validatedOptionId(pickerModelOptions(agent), requested, fallback);
+}
+
 export function defaultChatPaneSelection({ agent }: { agent: ChatPaneAgent }): ChatPaneAgentSelection {
   // Legacy hosts without structured resolution retain their first-concrete-entry behavior.
   // Use that fallback for unresolved native defaults too: an off-list alias must not strand
   // a usable catalog. The picker still excludes aliases without concrete model evidence.
   const model = configuredPickerModel(agent) || pickerModelOptions(agent)[0]?.id;
   const reasoning = preferredOptionId(agent.reasoningOptions);
-  return {
-    agentId: agent.id,
-    ...(model === undefined ? {} : { model }),
-    ...(reasoning === undefined ? {} : { reasoning }),
-  };
+  return selectionOf({ agentId: agent.id, model, reasoning });
 }
 
 export function resolveChatPaneSelection({ agents, requested }: { agents: readonly ChatPaneAgent[]; requested: ChatPaneAgentSelection }
 ): ChatPaneAgentSelection {
   const requestedAgent = agents.find(
-    (agent) => agent.id === requested.agentId && agent.id !== 'gemini' && agent.available !== false,
+    (agent) => agent.id === requested.agentId && isSelectableAgent(agent),
   );
-  const agent = requestedAgent ?? agents.find((candidate) => candidate.id !== 'gemini' && candidate.available !== false);
+  const agent = requestedAgent ?? agents.find(isSelectableAgent);
   if (!agent) return { agentId: '' };
   const defaults = defaultChatPaneSelection({ agent: agent });
   if (agent !== requestedAgent) return defaults;
-  const model = requested.model
-    && isConcretePickerModel(requested.model)
-    && agent.supportsCustomModel
-    && agent.supportsConcreteModelSelection !== false
-    ? requested.model
-    : validatedOptionId(pickerModelOptions(agent), requested.model, defaults.model);
+  const model = resolveRequestedModel({ agent, requested: requested.model, fallback: defaults.model });
   const reasoning = validatedOptionId(
     agent.reasoningOptions,
     requested.reasoning,
     defaults.reasoning,
   );
-  return {
-    agentId: agent.id,
-    ...(model === undefined ? {} : { model }),
-    ...(reasoning === undefined ? {} : { reasoning }),
-  };
+  return selectionOf({ agentId: agent.id, model, reasoning });
 }
 
 /**
@@ -146,12 +161,33 @@ export function isChatPaneFileDropEnabled({
  * @returns The first blocker found, or `null` when sending is allowed.
  */
 export function findChatPaneSendBlocker(state: ChatPaneSendability): ChatPaneSendBlocker | null {
-  if (state.selectedAgent === undefined) {
-    if (!state.apiModeConfigured) return 'no-agent-selected';
-  } else if (state.selectedAgent.available === false) {
-    return 'agent-unavailable';
-  }
-  if (!state.apiModeConfigured && state.selectedAgent && (state.selectedAgent.modelCatalog || state.selectedAgent.supportsConcreteModelSelection === false) && (!state.model || !isConcretePickerModel(state.model) || state.selectedAgent.supportsConcreteModelSelection === false)) return 'model-unresolved';
+  return findAgentSendBlocker(state) ?? findReadinessSendBlocker(state);
+}
+
+/**
+ * Whether a catalog-backed (or concrete-selection-refusing) agent lacks a concrete model to run.
+ * An agent that refuses concrete selection can never resolve one, whatever `model` says.
+ */
+function isModelUnresolved({ agent, model }: {
+  agent: NonNullable<ChatPaneSendability['selectedAgent']>;
+  model: string | undefined;
+}): boolean {
+  const refusesConcrete = agent.supportsConcreteModelSelection === false;
+  if (!agent.modelCatalog && !refusesConcrete) return false;
+  return refusesConcrete || !model || !isConcretePickerModel(model);
+}
+
+/** The agent/model half of {@link findChatPaneSendBlocker}: a configured API mode stands in for a missing CLI. */
+function findAgentSendBlocker(state: ChatPaneSendability): ChatPaneSendBlocker | null {
+  const agent = state.selectedAgent;
+  if (agent === undefined) return state.apiModeConfigured ? null : 'no-agent-selected';
+  if (agent.available === false) return 'agent-unavailable';
+  if (!state.apiModeConfigured && isModelUnresolved({ agent, model: state.model })) return 'model-unresolved';
+  return null;
+}
+
+/** The run/upload/working-directory half of {@link findChatPaneSendBlocker}, in priority order. */
+function findReadinessSendBlocker(state: ChatPaneSendability): ChatPaneSendBlocker | null {
   if (state.isStreaming) return 'streaming';
   if (state.activeUploadCount > 0) return 'uploads-pending';
   if (state.workingDirectoryPending) return 'working-directory-pending';
@@ -242,15 +278,25 @@ export function findAwaitedTypedAnswerId({ messages, toolName }: {
   const openCalls = new Map<string, boolean>();
   const awaited = new Set<string>();
   for (const event of newest.events ?? []) {
-    if (event.kind === 'tool_use') openCalls.set(event.id, openCalls.get(event.id) === true || event.name === toolName);
-    if (event.kind === 'tool_result') {
-      openCalls.delete(event.toolUseId);
-      awaited.delete(event.toolUseId);
-    }
-    const owner = event.kind === 'ext' ? [...openCalls].at(-1) : undefined;
-    if (owner?.[1] === true) awaited.add(owner[0]);
+    trackTypedAnswerEvent({ event, toolName, openCalls, awaited });
   }
   return [...awaited].at(-1) ?? null;
+}
+
+/** Folds one event into {@link findAwaitedTypedAnswerId}'s open-call and awaited-question state. */
+function trackTypedAnswerEvent({ event, toolName, openCalls, awaited }: {
+  event: NonNullable<ChatMessage['events']>[number];
+  toolName: string;
+  openCalls: Map<string, boolean>;
+  awaited: Set<string>;
+}): void {
+  if (event.kind === 'tool_use') openCalls.set(event.id, openCalls.get(event.id) === true || event.name === toolName);
+  if (event.kind === 'tool_result') {
+    openCalls.delete(event.toolUseId);
+    awaited.delete(event.toolUseId);
+  }
+  const owner = event.kind === 'ext' ? [...openCalls].at(-1) : undefined;
+  if (owner?.[1] === true) awaited.add(owner[0]);
 }
 
 /**

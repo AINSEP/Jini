@@ -41,31 +41,32 @@ export interface UseQuestionFormsResult {
   buildSubmission: (form: QuestionForm, answers: QuestionFormAnswers) => string;
 }
 
-export function useQuestionForms({ messages }: { messages: ReadonlyArray<ChatMessage> | undefined }): UseQuestionFormsResult {
-  const forms = useMemo<ParsedQuestionForm[]>(() => {
-    if (!messages || messages.length === 0) return [];
-    const out: ParsedQuestionForm[] = [];
-    for (let i = 0; i < messages.length; i += 1) {
-      const message = messages[i];
-      if (!message || message.role !== 'assistant') continue;
-      const found = findFirstQuestionForm({ input: message.content });
-      if (!found) continue;
-      const nextMessage = messages[i + 1];
-      const submittedAnswers =
-        nextMessage && nextMessage.role === 'user' ? parseSubmittedAnswers({ form: found.form, userMessageContent: nextMessage.content }) ?? undefined : undefined;
-      const interactive = submittedAnswers === undefined && i === messages.length - 1;
-      out.push({ form: found.form, raw: found.raw, messageId: message.id, interactive, submittedAnswers });
-    }
-    return out;
-  }, [messages]);
+/**
+ * The question-form on `messages[index]`, or `null` when that message is not
+ * an assistant message or carries no form. Answers come from the message right
+ * after it, and only when that one is a user reply.
+ */
+function parseFormAt(messages: ReadonlyArray<ChatMessage>, { index }: { index: number }): ParsedQuestionForm | null {
+  // Only called with an index `flatMap` is visiting (it skips holes), so the
+  // element is always defined.
+  const message = messages[index]!;
+  if (message.role !== 'assistant') return null;
+  const found = findFirstQuestionForm({ input: message.content });
+  if (!found) return null;
+  const nextMessage = messages[index + 1];
+  const submittedAnswers =
+    nextMessage?.role === 'user' ? parseSubmittedAnswers({ form: found.form, userMessageContent: nextMessage.content }) ?? undefined : undefined;
+  const interactive = submittedAnswers === undefined && index === messages.length - 1;
+  return { form: found.form, raw: found.raw, messageId: message.id, interactive, submittedAnswers };
+}
 
-  const activeForm = useMemo(() => {
-    for (let i = forms.length - 1; i >= 0; i -= 1) {
-      const form = forms[i];
-      if (form?.interactive) return form;
-    }
-    return null;
-  }, [forms]);
+export function useQuestionForms({ messages }: { messages: ReadonlyArray<ChatMessage> | undefined }): UseQuestionFormsResult {
+  const forms = useMemo<ParsedQuestionForm[]>(
+    () => (messages ?? []).flatMap((_, index, all) => parseFormAt(all, { index }) ?? []),
+    [messages],
+  );
+
+  const activeForm = useMemo(() => forms.findLast((form) => form.interactive) ?? null, [forms]);
 
   const buildSubmission = useCallback((form: QuestionForm, answers: QuestionFormAnswers) => formatFormAnswers({ form: form, answers: answers }), []);
 

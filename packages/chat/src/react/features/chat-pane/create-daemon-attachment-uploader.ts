@@ -107,6 +107,85 @@ async function messageForFailedUpload(response: Response, fallback: string): Pro
   }
 }
 
+interface UploadQuota {
+  readonly maxAttachmentBytes: number;
+  readonly maxAttachmentCount: number;
+  readonly maxBatchBytes: number;
+}
+
+/** Refuses a selection that would break a per-file, per-turn count, or per-turn byte quota. */
+function assertWithinQuota({ files, current, incomingBytes, quota }: {
+  files: readonly File[];
+  current: BatchUsage;
+  incomingBytes: number;
+  quota: UploadQuota;
+}): void {
+  if (files.some((file) => file.size > quota.maxAttachmentBytes)) {
+    throw new Error(`Each attachment must be ${formatByteLimit(quota.maxAttachmentBytes)} or smaller.`);
+  }
+  if (current.count + files.length > quota.maxAttachmentCount) {
+    throw new Error(`You can attach at most ${quota.maxAttachmentCount} files to one message.`);
+  }
+  if (current.bytes + incomingBytes > quota.maxBatchBytes) {
+    throw new Error(`Attachments for one message must total ${formatByteLimit(quota.maxBatchBytes)} or less.`);
+  }
+}
+
+/** Forwards the composer's abort (including one that already happened) into `controller`; returns the unlink. */
+function linkParentAbort({ controller, parent }: {
+  controller: AbortController;
+  parent: AbortSignal | undefined;
+}): () => void {
+  if (parent === undefined) return () => {};
+  const abortFromParent = () => controller.abort(parent.reason);
+  parent.addEventListener('abort', abortFromParent, { once: true });
+  if (parent.aborted) abortFromParent();
+  return () => parent.removeEventListener('abort', abortFromParent);
+}
+
+/**
+ * Runs `concurrency` workers over a shared index, writing each result at its input position in
+ * `uploaded`. Never rejects: the first failure is returned (and aborts the rest) instead.
+ */
+async function uploadInOrder({ files, concurrency, controller, uploaded, uploadOne }: {
+  files: readonly File[];
+  concurrency: number;
+  controller: AbortController;
+  uploaded: Array<ChatAttachment | undefined>;
+  uploadOne: (file: File) => Promise<ChatAttachment>;
+}): Promise<unknown> {
+  let nextIndex = 0;
+  let firstError: unknown;
+  const worker = async (): Promise<void> => {
+    while (!controller.signal.aborted) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const file = files[index];
+      if (file === undefined) return;
+      try {
+        uploaded[index] = await uploadOne(file);
+      } catch (error) {
+        // Kept, not thrown: aborting stops the sibling worker, and the *first* failure is the one
+        // worth reporting — the aborts it causes are noise.
+        firstError ??= error;
+        controller.abort();
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return firstError;
+}
+
+/** Throws the turn's first upload failure, else the abort that stopped it; returns when neither happened. */
+function throwIfUploadFailed({ firstError, signal }: { firstError: unknown; signal: AbortSignal }): void {
+  if (firstError !== undefined) throw firstError;
+  if (signal.aborted) {
+    throw signal.reason instanceof Error
+      ? signal.reason
+      : new Error('Attachment upload was canceled.');
+  }
+}
+
 /**
  * Builds a `ChatPaneProps['uploadAttachments']` bound to one daemon.
  *
@@ -115,18 +194,22 @@ async function messageForFailedUpload(response: Response, fallback: string): Pro
  */
 export function createDaemonAttachmentUploader({ baseUrl, fetch }: { baseUrl: string; fetch?: typeof globalThis.fetch }, options: CreateDaemonAttachmentUploaderOptions = {}
 ): NonNullable<ChatPaneProps['uploadAttachments']> {
-  const maxAttachmentBytes = options.maxAttachmentBytes ?? DEFAULTS.maxAttachmentBytes;
-  const maxAttachmentCount = options.maxAttachmentCount ?? DEFAULTS.maxAttachmentCount;
-  const maxBatchBytes = options.maxBatchBytes ?? DEFAULTS.maxBatchBytes;
+  const quota: UploadQuota = {
+    maxAttachmentBytes: options.maxAttachmentBytes ?? DEFAULTS.maxAttachmentBytes,
+    maxAttachmentCount: options.maxAttachmentCount ?? DEFAULTS.maxAttachmentCount,
+    maxBatchBytes: options.maxBatchBytes ?? DEFAULTS.maxBatchBytes,
+  };
   const timeoutMs = options.timeoutMs ?? DEFAULTS.timeoutMs;
   const concurrency = options.concurrency ?? DEFAULTS.concurrency;
   const endpoint = `${baseUrl.replace(/\/$/u, '')}/api/attachments`;
+  // Read per request rather than captured once, so a global installed after construction is used.
+  const send: typeof globalThis.fetch = (input, init) => (fetch ?? globalThis.fetch)(input, init);
   // Per-uploader, not module-level: two panes pointed at two daemons must not share a quota.
   const batchUsage = new Map<string, BatchUsage>();
 
   async function uploadOne(file: File, batchId: string, signal: AbortSignal): Promise<ChatAttachment> {
     const query = new URLSearchParams({ batch: batchId, name: file.name });
-    const response = await (fetch ?? globalThis.fetch)(`${endpoint}?${query}`, {
+    const response = await send(`${endpoint}?${query}`, {
       method: 'POST',
       // Fixed, not `file.type` — see this module's doc.
       headers: { 'content-type': 'application/octet-stream' },
@@ -153,7 +236,7 @@ export function createDaemonAttachmentUploader({ baseUrl, fetch }: { baseUrl: st
       // caller-supplied signal to compose with and no large body — it is a small best-effort JSON
       // DELETE, and an unprotected `fetch` here would hang `uploadAttachments`'s rejection (the
       // `await` below) on a stalled daemon instead of surfacing `firstError` promptly.
-      await (fetch ?? globalThis.fetch)(
+      await send(
         endpoint,
         {
           method: 'DELETE',
@@ -178,15 +261,7 @@ export function createDaemonAttachmentUploader({ baseUrl, fetch }: { baseUrl: st
     const batchId = uploadOptions?.batchId ?? crypto.randomUUID();
     const incomingBytes = files.reduce((total, file) => total + file.size, 0);
     const current = batchUsage.get(batchId) ?? { count: 0, bytes: 0, touchedAt: now };
-    if (files.some((file) => file.size > maxAttachmentBytes)) {
-      throw new Error(`Each attachment must be ${formatByteLimit(maxAttachmentBytes)} or smaller.`);
-    }
-    if (current.count + files.length > maxAttachmentCount) {
-      throw new Error(`You can attach at most ${maxAttachmentCount} files to one message.`);
-    }
-    if (current.bytes + incomingBytes > maxBatchBytes) {
-      throw new Error(`Attachments for one message must total ${formatByteLimit(maxBatchBytes)} or less.`);
-    }
+    assertWithinQuota({ files, current, incomingBytes, quota });
 
     // Reserved up front and rolled back on failure, so two overlapping calls for the same turn
     // cannot each see the same free headroom.
@@ -196,32 +271,12 @@ export function createDaemonAttachmentUploader({ baseUrl, fetch }: { baseUrl: st
       touchedAt: now,
     });
     const controller = new AbortController();
-    const abortFromParent = () => controller.abort(uploadOptions?.signal.reason);
-    uploadOptions?.signal.addEventListener('abort', abortFromParent, { once: true });
-    if (uploadOptions?.signal.aborted) abortFromParent();
+    const unlinkParentAbort = linkParentAbort({ controller, parent: uploadOptions?.signal });
     const timeout = globalThis.setTimeout(
       () => controller.abort(new DOMException('Attachment upload timed out', 'TimeoutError')),
       timeoutMs,
     );
     const uploaded: Array<ChatAttachment | undefined> = new Array(files.length);
-    let nextIndex = 0;
-    let firstError: unknown;
-    const worker = async (): Promise<void> => {
-      while (!controller.signal.aborted) {
-        const index = nextIndex;
-        nextIndex += 1;
-        const file = files[index];
-        if (file === undefined) return;
-        try {
-          uploaded[index] = await uploadOne(file, batchId, controller.signal);
-        } catch (error) {
-          // Kept, not thrown: aborting stops the sibling worker, and the *first* failure is the one
-          // worth reporting — the aborts it causes are noise.
-          firstError ??= error;
-          controller.abort();
-        }
-      }
-    };
     const settled = (): ChatAttachment[] =>
       uploaded.filter((attachment): attachment is ChatAttachment => attachment !== undefined);
 
@@ -231,19 +286,20 @@ export function createDaemonAttachmentUploader({ baseUrl, fetch }: { baseUrl: st
     let failure: unknown;
     let succeeded = false;
     try {
-      await Promise.all(Array.from({ length: concurrency }, worker));
-      if (firstError !== undefined) throw firstError;
-      if (controller.signal.aborted) {
-        throw controller.signal.reason instanceof Error
-          ? controller.signal.reason
-          : new Error('Attachment upload was canceled.');
-      }
+      const firstError = await uploadInOrder({
+        files,
+        concurrency,
+        controller,
+        uploaded,
+        uploadOne: (file) => uploadOne(file, batchId, controller.signal),
+      });
+      throwIfUploadFailed({ firstError, signal: controller.signal });
       succeeded = true;
     } catch (error) {
       failure = error;
     } finally {
       globalThis.clearTimeout(timeout);
-      uploadOptions?.signal.removeEventListener('abort', abortFromParent);
+      unlinkParentAbort();
     }
     if (succeeded) return settled();
     // Roll the reservation back only after the daemon-side files are gone, so a retry of this turn

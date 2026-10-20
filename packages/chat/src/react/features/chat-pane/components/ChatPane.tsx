@@ -181,14 +181,112 @@ function ChatPaneNoUsableCliMessage({
   );
 }
 
-interface ChatPaneStatusMessagesProps {
+interface ChatPaneAvailabilityStatusProps {
   unavailable: boolean;
   scanningAgents: boolean;
   connectingAgents: boolean;
   executionMode: 'local' | 'api';
   apiModeAvailable: boolean;
   onExecutionModeChange: ((mode: 'local' | 'api') => void) | undefined;
-  conversationError: Error | null;
+  t: (key: string) => string;
+}
+
+/**
+ * `unavailable` alone conflates "inventory still loading" with "inventory loaded, nothing
+ * usable" — both present as `selectedAgent === undefined`. `scanningAgents` is the signal
+ * that tells them apart, mirroring the `workingDirectoryPending`/`workingDirectoryInvalid`
+ * pair below: a pending detection is a `status`, only a *finished* detection that found
+ * nothing is an `alert`. `connectingAgents` is a third state: the inventory could not be
+ * read at all (the host is unreachable, typically a daemon restart) and a retry is
+ * pending — a plain status too, never "No usable CLI", which only a SUCCESSFUL answer can
+ * establish.
+ */
+function ChatPaneAvailabilityStatus({
+  unavailable,
+  scanningAgents,
+  connectingAgents,
+  executionMode,
+  apiModeAvailable,
+  onExecutionModeChange,
+  t,
+}: ChatPaneAvailabilityStatusProps): ReactNode {
+  if (!unavailable) return null;
+  if (connectingAgents) {
+    return (
+      <div className="jini-chat-pane__status" role="status">
+        {t('Connecting to the assistant…')}
+      </div>
+    );
+  }
+  if (scanningAgents) {
+    return (
+      <div className="jini-chat-pane__status" role="status">
+        {t('Loading available CLIs')}
+      </div>
+    );
+  }
+  return (
+    <ChatPaneNoUsableCliMessage
+      executionMode={executionMode}
+      apiModeAvailable={apiModeAvailable}
+      onExecutionModeChange={onExecutionModeChange}
+      t={t}
+    />
+  );
+}
+
+function ChatPaneWorkingDirectoryStatus({
+  workingDirectoryPending,
+  workingDirectoryInvalid,
+  t,
+}: {
+  workingDirectoryPending: boolean;
+  workingDirectoryInvalid: boolean;
+  t: (key: string) => string;
+}): ReactNode {
+  if (workingDirectoryPending) {
+    return (
+      <div className="jini-chat-pane__status" role="status">
+        {t('Checking working directory…')}
+      </div>
+    );
+  }
+  if (!workingDirectoryInvalid) return null;
+  return (
+    <div className="jini-chat-pane__error" role="alert">
+      {t('Working directory is unavailable.')}
+    </div>
+  );
+}
+
+function ChatPaneTypedAnswerNotice({
+  typedAnswerNotice,
+  onSendAsNewMessage,
+  t,
+}: {
+  typedAnswerNotice: TypedAnswerNotice | null;
+  onSendAsNewMessage: () => void;
+  t: (key: string) => string;
+}): ReactNode {
+  if (!typedAnswerNotice) return null;
+  return (
+    <div className="jini-chat-pane__error" role="alert">
+      {t(describeTypedAnswerNotice({ notice: typedAnswerNotice }))}
+      {/* The held answer's only way into a new run besides clearing the draft — an explicit
+          choice, so a closed question never turns an answer into a paid run on a second Enter. */}
+      {typedAnswerNotice === 'not-pending' ? (
+        <>
+          {' '}
+          <button type="button" className="jini-chat-pane__error-action" onClick={onSendAsNewMessage}>
+            {t('Send as a new message')}
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+interface ChatPaneStatusMessagesProps extends ChatPaneAvailabilityStatusProps {
   attachmentError: Error | null;
   dropReadError: string | null;
   workingDirectoryError: Error | null;
@@ -197,18 +295,11 @@ interface ChatPaneStatusMessagesProps {
   runtimeInventoryError: Error | null;
   typedAnswerNotice: TypedAnswerNotice | null;
   onSendAsNewMessage: () => void;
-  t: (key: string) => string;
 }
 
 /** The pane's stack of mutually-independent error/status banners — each condition is its own
  * source of truth, so they are rendered as siblings rather than folded into one derived state. */
 function ChatPaneStatusMessages({
-  unavailable,
-  scanningAgents,
-  connectingAgents,
-  executionMode,
-  apiModeAvailable,
-  onExecutionModeChange,
   attachmentError,
   dropReadError,
   workingDirectoryError,
@@ -217,34 +308,12 @@ function ChatPaneStatusMessages({
   runtimeInventoryError,
   typedAnswerNotice,
   onSendAsNewMessage,
-  t,
+  ...availability
 }: ChatPaneStatusMessagesProps): ReactNode {
+  const { t } = availability;
   return (
     <>
-      {/* `unavailable` alone conflates "inventory still loading" with "inventory loaded, nothing
-          usable" — both present as `selectedAgent === undefined`. `scanningAgents` is the signal
-          that tells them apart, mirroring the `workingDirectoryPending`/`workingDirectoryInvalid`
-          pair below: a pending detection is a `status`, only a *finished* detection that found
-          nothing is an `alert`. `connectingAgents` is a third state: the inventory could not be
-          read at all (the host is unreachable, typically a daemon restart) and a retry is
-          pending — a plain status too, never "No usable CLI", which only a SUCCESSFUL answer can
-          establish. */}
-      {unavailable && connectingAgents ? (
-        <div className="jini-chat-pane__status" role="status">
-          {t('Connecting to the assistant…')}
-        </div>
-      ) : unavailable && scanningAgents ? (
-        <div className="jini-chat-pane__status" role="status">
-          {t('Loading available CLIs')}
-        </div>
-      ) : unavailable ? (
-        <ChatPaneNoUsableCliMessage
-          executionMode={executionMode}
-          apiModeAvailable={apiModeAvailable}
-          onExecutionModeChange={onExecutionModeChange}
-          t={t}
-        />
-      ) : null}
+      <ChatPaneAvailabilityStatus {...availability} />
       {/* Run failures render once on their assistant message; pane banners remain for
           attachment, working-directory and other errors that have no message binding. */}
       {attachmentError ? (
@@ -256,36 +325,18 @@ function ChatPaneStatusMessages({
       {workingDirectoryError ? (
         <div className="jini-chat-pane__error" role="alert">{workingDirectoryError.message}</div>
       ) : null}
-      {workingDirectoryPending ? (
-        <div className="jini-chat-pane__status" role="status">
-          {t('Checking working directory…')}
-        </div>
-      ) : workingDirectoryInvalid ? (
-        <div className="jini-chat-pane__error" role="alert">
-          {t('Working directory is unavailable.')}
-        </div>
-      ) : null}
+      <ChatPaneWorkingDirectoryStatus
+        workingDirectoryPending={workingDirectoryPending}
+        workingDirectoryInvalid={workingDirectoryInvalid}
+        t={t}
+      />
       {/* While connecting, the transport error is transient noise the retry is already handling. */}
-      {runtimeInventoryError && !connectingAgents ? (
+      {runtimeInventoryError && !availability.connectingAgents ? (
         <div className="jini-chat-pane__error" role="alert">
           {runtimeInventoryError.message}
         </div>
       ) : null}
-      {typedAnswerNotice ? (
-        <div className="jini-chat-pane__error" role="alert">
-          {t(describeTypedAnswerNotice({ notice: typedAnswerNotice }))}
-          {/* The held answer's only way into a new run besides clearing the draft — an explicit
-              choice, so a closed question never turns an answer into a paid run on a second Enter. */}
-          {typedAnswerNotice === 'not-pending' ? (
-            <>
-              {' '}
-              <button type="button" className="jini-chat-pane__error-action" onClick={onSendAsNewMessage}>
-                {t('Send as a new message')}
-              </button>
-            </>
-          ) : null}
-        </div>
-      ) : null}
+      <ChatPaneTypedAnswerNotice typedAnswerNotice={typedAnswerNotice} onSendAsNewMessage={onSendAsNewMessage} t={t} />
     </>
   );
 }
@@ -494,119 +545,55 @@ function ChatPaneComposerArea({
   );
 }
 
-/**
- * Renders the self-contained chat-pane composition, including runtime and
- * working-directory orchestration owned by `@jini-ai/chat-react`.
- *
- * @complexity Time/space: O(n) in rendered messages, agents, and suggestions.
- * @overallScore 100/100
- */
-export function ChatPane({
-  transport,
-  agents: injectedAgents = EMPTY_AGENTS,
-  runtimeAccess,
-  runtimeStatusPollMs = 5_000,
-  title,
-  variant = 'workspace',
-  initialMessages,
-  refreshSignal,
-  conversationId,
-  initialSelection,
-  selection: controlledSelection,
-  onSelectionChange,
-  runContext,
-  agentControl,
-  onActivityChange,
-  onMessagesChange,
-  redactUserText,
-  onSecretRedacted,
-  onRescanAgents,
-  scanningAgents = false,
-  daemonOnline = true,
-  executionMode = 'local',
-  apiModeAvailable = false,
-  onExecutionModeChange,
-  byokRuntime,
-  onByokModelChange,
-  initialDraft,
-  composerHistoryScope,
-  composerHistoryStorage,
-  validateAttachments,
-  deliverTypedAnswer,
-  deliverMidRunMessage,
-  composerHandle,
-  placeholder,
-  placeholders,
-  suggestions = [],
-  emptyState,
-  workingDirectory,
-  initialWorkingDirectory,
-  onChangeWorkingDirectory,
-  workingDirectoryAccess,
-  workingDirectoryControlPlacement = 'below',
-  projectFileNames,
-  toolCallDisplay = 'show',
-  showUsageLine = true,
-  showThinking = false,
-  agentPluginsMode = 'auto',
-  uploadAttachments,
-  attachmentAccept,
-  disabled = false,
-  runtimePickerPlacement = 'up',
-  composerSlots,
-  header,
-  leadingAccessory,
-  footer,
-  className,
-  style,
-}: ChatPaneProps) {
-  const t = useT();
-  const surface = useChatPaneSurface({ variant, composerSlots, workingDirectoryControlPlacement, uploadAttachments });
-  const composerPlaceholder = useChatPaneComposerPlaceholder({ placeholder: placeholder, placeholders: placeholders });
-  const inventory = useChatPaneRuntimeInventory(definedProps({ source: {
-    access: runtimeAccess,
-    initialAgents: injectedAgents,
-    pollIntervalMs: runtimeStatusPollMs,
-  } }));
-  const runtimeView = resolveRuntimeAccessView(
-    runtimeAccess,
-    injectedAgents,
-    scanningAgents,
-    daemonOnline,
-    onRescanAgents,
-    inventory,
-  );
-  // Computed once and threaded into both `useChatPane` (so `sendBlocker` agrees) and this
-  // component's own `unavailable` below (so the status banner and composer agree) — see
-  // `isChatPaneApiModeConfigured` for why API mode alone isn't enough.
-  const apiModeConfigured = isChatPaneApiModeConfigured({ executionMode, apiModeAvailable, byokRuntime });
-  const pane = useChatPane(definedProps({ source: {
-    transport,
-    agents: runtimeView.agents,
-    initialMessages,
-    refreshSignal,
-    conversationId,
-    initialSelection,
-    selection: controlledSelection,
-    onSelectionChange,
-    runContext,
-    initialDraft,
-    composerHistoryScope,
-    composerHistoryStorage,
-    validateAttachments,
-    uploadAttachments,
-    onActivityChange,
-    onMessagesChange,
-    redactUserText,
-    onSecretRedacted,
-    workingDirectory,
-    initialWorkingDirectory,
-    onChangeWorkingDirectory,
-    workingDirectoryAccess,
-    apiModeConfigured,
-    deliverTypedAnswer,
-    deliverMidRunMessage,
-  } }));
+/** Every prop `ChatPane` defaults, and its default — applied only where the caller left the prop
+ * `undefined`, exactly like the destructuring defaults this replaced. */
+type ChatPaneDefaultedProp =
+  | 'agents' | 'runtimeStatusPollMs' | 'variant' | 'scanningAgents' | 'daemonOnline' | 'executionMode'
+  | 'apiModeAvailable' | 'suggestions' | 'workingDirectoryControlPlacement' | 'toolCallDisplay'
+  | 'showUsageLine' | 'showThinking' | 'agentPluginsMode' | 'disabled' | 'runtimePickerPlacement';
+
+type ResolvedChatPaneProps = ChatPaneProps & Required<Pick<ChatPaneProps, ChatPaneDefaultedProp>>;
+
+const EMPTY_SUGGESTIONS: readonly string[] = [];
+
+const CHAT_PANE_DEFAULTS: Required<Pick<ChatPaneProps, ChatPaneDefaultedProp>> = {
+  agents: EMPTY_AGENTS,
+  runtimeStatusPollMs: 5_000,
+  variant: 'workspace',
+  scanningAgents: false,
+  daemonOnline: true,
+  executionMode: 'local',
+  apiModeAvailable: false,
+  suggestions: EMPTY_SUGGESTIONS,
+  workingDirectoryControlPlacement: 'below',
+  toolCallDisplay: 'show',
+  showUsageLine: true,
+  showThinking: false,
+  agentPluginsMode: 'auto',
+  disabled: false,
+  runtimePickerPlacement: 'up',
+};
+
+function applyChatPaneDefaults(props: ChatPaneProps): ResolvedChatPaneProps {
+  const resolved: ResolvedChatPaneProps = { ...props, ...CHAT_PANE_DEFAULTS };
+  for (const key of Object.keys(CHAT_PANE_DEFAULTS) as ChatPaneDefaultedProp[]) {
+    if (props[key] !== undefined) Object.assign(resolved, { [key]: props[key] });
+  }
+  return resolved;
+}
+
+function resolveAgentControlOptions(agentControl: ChatPaneProps['agentControl']) {
+  return definedProps({ source: {
+    enabled: agentControl?.enabled ?? false,
+    bridgeAccess: agentControl?.bridgeAccess,
+    webmcp: agentControl?.webmcp,
+  } });
+}
+
+function useComposerHandlePublisher(
+  { pane }: { pane: UseChatPaneResult },
+  { composerHandle }: { composerHandle?: ChatPaneProps['composerHandle'] },
+): void {
   // Mirrors `Composer.tsx`'s own `draftRef`: `composerHandle.insertText` (below) is called from
   // OUTSIDE any render, so it cannot close over `pane.composer.draft` directly — that would freeze
   // it at whatever the draft was on the render that captured it. Reassigned unconditionally every
@@ -628,52 +615,12 @@ export function ChatPane({
     // closure on every render rather than genuinely skipping renders — cheap, and it keeps
     // `pane.composer.setDraft` from ever going stale if that reference ever changes.
   }, [composerHandle, pane.composer]);
-  // No `runContext` here on purpose: agent-driven sends go through `pane.sendPrompt`, which builds
-  // the context from the SAME `runContext` already handed to `useChatPane` above. A second copy
-  // would be a second source of truth that could silently drift from the composer's.
-  useChatPaneAgentControl({ pane: pane }, definedProps({ source: {
-    enabled: agentControl?.enabled ?? false,
-    bridgeAccess: agentControl?.bridgeAccess,
-    webmcp: agentControl?.webmcp,
-  } }));
-  // Selection resolution only returns available agents, so absence normally means nothing usable
-  // is selected — except a configured BYOK turn (`apiModeConfigured`, computed above), which calls
-  // the provider directly over HTTP and never touches the CLI inventory.
-  const unavailable = pane.selectedAgent === undefined && !apiModeConfigured;
-  const fileDrop = useChatPaneFileDrop({
-    enabled: isChatPaneFileDropEnabled({
-      canUpload: surface.uploadAttachments !== undefined,
-      disabled,
-      unavailable,
-      uploading: pane.isUploadingAttachments,
-    }),
-    onFiles: pane.addAttachments,
-  });
-  // `composerSlots`'s type excludes both `leadingAccessories` and `footerAccessories` (see
-  // `ChatPaneProps.composerSlots`'s doc), so the two explicit keys below are never overwriting a
-  // caller-supplied value — they are the ONLY source for both.
-  const slots: ComposerSlots = definedProps({ source: {
-    ...surface.composerSlots,
-    leadingAccessories: surface.embed ? undefined : leadingAccessory,
-    footerAccessories: surface.embed ? undefined : (
-      <AgentRuntimePicker
-        agents={runtimeView.agents}
-        value={pane.selection}
-        onChange={pane.setSelection}
-        {...definedProps({ source: { onRescan: runtimeView.rescanAgents } })}
-        scanning={runtimeView.scanningAgents}
-        daemonOnline={runtimeView.daemonOnline}
-        placement={runtimePickerPlacement}
-        executionMode={executionMode}
-        apiModeAvailable={apiModeAvailable}
-        {...definedProps({ source: { onExecutionModeChange, byokRuntime, onByokModelChange } })}
-      />
-    ),
-  } });
+}
 
-  const { rootRef, controlsRef } = useChatPaneControlsHeight();
-  const selectSuggestion = useChatPaneSuggestion({ rootRef, setDraft: pane.composer.setDraft });
-  const openLinkInNewTab = useChatPaneNewTabLinks();
+function useChatPaneTranscriptProps(
+  { pane }: { pane: UseChatPaneResult },
+  { projectFileNames }: { projectFileNames?: ChatPaneProps['projectFileNames'] },
+) {
   // `MessageList` is memoized so a composer keystroke does not re-render the transcript; these two
   // props would otherwise be fresh objects on every render and defeat it.
   const { queuedPrompt, cancelQueued } = pane;
@@ -685,50 +632,234 @@ export function ChatPane({
     () => (projectFileNames === undefined ? undefined : new Set(projectFileNames)),
     [projectFileNames],
   );
+  return { pendingPrompt, projectFileNameSet };
+}
+
+/** `composerSlots`'s type excludes both `leadingAccessories` and `footerAccessories` (see
+ * `ChatPaneProps.composerSlots`'s doc), so the two explicit keys below are never overwriting a
+ * caller-supplied value — they are the ONLY source for both. */
+function buildChatPaneSlots(
+  { surfaceSlots, embed, renderRuntimePicker }: {
+    surfaceSlots: ReturnType<typeof useChatPaneSurface>['composerSlots'];
+    embed: boolean;
+    renderRuntimePicker: () => ReactNode;
+  },
+  { leadingAccessory }: { leadingAccessory?: ReactNode },
+): ComposerSlots {
+  return definedProps({ source: {
+    ...surfaceSlots,
+    leadingAccessories: embed ? undefined : leadingAccessory,
+    footerAccessories: embed ? undefined : renderRuntimePicker(),
+  } });
+}
+
+interface ChatPaneTranscriptProps {
+  pane: UseChatPaneResult;
+  emptyState: ReactNode;
+  embed: boolean;
+  suggestions: readonly string[];
+  onSelectSuggestion: (suggestion: string) => void;
+  pendingPrompt: { text: string; onCancel: () => void } | null;
+  projectFileNameSet: Set<string> | undefined;
+  toolCallDisplay: ResolvedChatPaneProps['toolCallDisplay'];
+  showUsageLine: boolean;
+  showThinking: boolean;
+  t: (key: string) => string;
+}
+
+function ChatPaneTranscript({
+  pane,
+  emptyState,
+  embed,
+  suggestions,
+  onSelectSuggestion,
+  pendingPrompt,
+  projectFileNameSet,
+  toolCallDisplay,
+  showUsageLine,
+  showThinking,
+  t,
+}: ChatPaneTranscriptProps): ReactNode {
+  if (pane.conversation.messages.length === 0 && emptyState) {
+    return (
+      <div className="jini-message-list jini-message-list--empty">
+        {emptyState}
+        {embed && <ChatPaneSuggestionsRow suggestions={suggestions} onSelect={onSelectSuggestion} t={t} />}
+      </div>
+    );
+  }
+  return (
+    <MessageList
+      messages={pane.conversation.messages}
+      isStreaming={pane.conversation.isStreaming}
+      scrollIntent={pane.conversation.scrollIntent}
+      onScrolled={pane.conversation.acknowledgeScroll}
+      pendingPrompt={pendingPrompt}
+      toolCallDisplay={toolCallDisplay}
+      showUsageLine={showUsageLine}
+      showThinking={showThinking}
+      {...(projectFileNameSet === undefined ? {} : { projectFileNames: projectFileNameSet })}
+    />
+  );
+}
+
+/** The controls-area suggestions row shows on every workspace surface, and on the embed surface
+ * only when the empty transcript has no `emptyState` to host it instead. */
+function showsControlsSuggestions(embed: boolean, messageCount: number, emptyState: ReactNode): boolean {
+  return !embed || (messageCount === 0 && !emptyState);
+}
+
+/**
+ * Renders the self-contained chat-pane composition, including runtime and
+ * working-directory orchestration owned by `@jini-ai/chat-react`.
+ *
+ * @complexity Time/space: O(n) in rendered messages, agents, and suggestions.
+ * @overallScore 100/100
+ */
+export function ChatPane(props: ChatPaneProps) {
+  const p = applyChatPaneDefaults(props);
+  const t = useT();
+  const surface = useChatPaneSurface({
+    variant: p.variant,
+    composerSlots: p.composerSlots,
+    workingDirectoryControlPlacement: p.workingDirectoryControlPlacement,
+    uploadAttachments: p.uploadAttachments,
+  });
+  const composerPlaceholder = useChatPaneComposerPlaceholder({ placeholder: p.placeholder, placeholders: p.placeholders });
+  const inventory = useChatPaneRuntimeInventory(definedProps({ source: {
+    access: p.runtimeAccess,
+    initialAgents: p.agents,
+    pollIntervalMs: p.runtimeStatusPollMs,
+  } }));
+  const runtimeView = resolveRuntimeAccessView(
+    p.runtimeAccess,
+    p.agents,
+    p.scanningAgents,
+    p.daemonOnline,
+    p.onRescanAgents,
+    inventory,
+  );
+  // Computed once and threaded into both `useChatPane` (so `sendBlocker` agrees) and this
+  // component's own `unavailable` below (so the status banner and composer agree) — see
+  // `isChatPaneApiModeConfigured` for why API mode alone isn't enough.
+  const apiModeConfigured = isChatPaneApiModeConfigured({
+    executionMode: p.executionMode,
+    apiModeAvailable: p.apiModeAvailable,
+    byokRuntime: p.byokRuntime,
+  });
+  const pane = useChatPane(definedProps({ source: {
+    transport: p.transport,
+    agents: runtimeView.agents,
+    initialMessages: p.initialMessages,
+    refreshSignal: p.refreshSignal,
+    conversationId: p.conversationId,
+    initialSelection: p.initialSelection,
+    selection: p.selection,
+    onSelectionChange: p.onSelectionChange,
+    runContext: p.runContext,
+    initialDraft: p.initialDraft,
+    composerHistoryScope: p.composerHistoryScope,
+    composerHistoryStorage: p.composerHistoryStorage,
+    validateAttachments: p.validateAttachments,
+    uploadAttachments: p.uploadAttachments,
+    onActivityChange: p.onActivityChange,
+    onMessagesChange: p.onMessagesChange,
+    redactUserText: p.redactUserText,
+    onSecretRedacted: p.onSecretRedacted,
+    workingDirectory: p.workingDirectory,
+    initialWorkingDirectory: p.initialWorkingDirectory,
+    onChangeWorkingDirectory: p.onChangeWorkingDirectory,
+    workingDirectoryAccess: p.workingDirectoryAccess,
+    apiModeConfigured,
+    deliverTypedAnswer: p.deliverTypedAnswer,
+    deliverMidRunMessage: p.deliverMidRunMessage,
+  } }));
+  useComposerHandlePublisher({ pane }, definedProps({ source: { composerHandle: p.composerHandle } }));
+  // No `runContext` here on purpose: agent-driven sends go through `pane.sendPrompt`, which builds
+  // the context from the SAME `runContext` already handed to `useChatPane` above. A second copy
+  // would be a second source of truth that could silently drift from the composer's.
+  useChatPaneAgentControl({ pane: pane }, resolveAgentControlOptions(p.agentControl));
+  // Selection resolution only returns available agents, so absence normally means nothing usable
+  // is selected — except a configured BYOK turn (`apiModeConfigured`, computed above), which calls
+  // the provider directly over HTTP and never touches the CLI inventory.
+  const unavailable = pane.selectedAgent === undefined && !apiModeConfigured;
+  const fileDrop = useChatPaneFileDrop({
+    enabled: isChatPaneFileDropEnabled({
+      canUpload: surface.uploadAttachments !== undefined,
+      disabled: p.disabled,
+      unavailable,
+      uploading: pane.isUploadingAttachments,
+    }),
+    onFiles: pane.addAttachments,
+  });
+  const slots = buildChatPaneSlots({
+    surfaceSlots: surface.composerSlots,
+    embed: surface.embed,
+    renderRuntimePicker: () => (
+      <AgentRuntimePicker
+        agents={runtimeView.agents}
+        value={pane.selection}
+        onChange={pane.setSelection}
+        {...definedProps({ source: { onRescan: runtimeView.rescanAgents } })}
+        scanning={runtimeView.scanningAgents}
+        daemonOnline={runtimeView.daemonOnline}
+        placement={p.runtimePickerPlacement}
+        executionMode={p.executionMode}
+        apiModeAvailable={p.apiModeAvailable}
+        {...definedProps({ source: {
+          onExecutionModeChange: p.onExecutionModeChange,
+          byokRuntime: p.byokRuntime,
+          onByokModelChange: p.onByokModelChange,
+        } })}
+      />
+    ),
+  }, { leadingAccessory: p.leadingAccessory });
+
+  const { rootRef, controlsRef } = useChatPaneControlsHeight();
+  const selectSuggestion = useChatPaneSuggestion({ rootRef, setDraft: pane.composer.setDraft });
+  const openLinkInNewTab = useChatPaneNewTabLinks();
+  const { pendingPrompt, projectFileNameSet } = useChatPaneTranscriptProps(
+    { pane },
+    definedProps({ source: { projectFileNames: p.projectFileNames } }),
+  );
 
   return (
     <section
-      className={chatPaneClassName(variant, className)}
-      style={style}
+      className={chatPaneClassName(p.variant, p.className)}
+      style={p.style}
       data-activity={pane.activity}
       ref={rootRef}
       onClickCapture={openLinkInNewTab}
     >
       <style data-jini-chat-pane-styles="true">{CHAT_PANE_STYLES}</style>
-      {resolveChatPaneHeader(header, title, pane.reset, t)}
-      {agentPluginsMode !== 'off' && <AgentPluginUsage conversationId={pane.conversation.conversationId} messages={pane.conversation.messages} />}
+      {resolveChatPaneHeader(p.header, p.title, pane.reset, t)}
+      {p.agentPluginsMode !== 'off' && <AgentPluginUsage conversationId={pane.conversation.conversationId} messages={pane.conversation.messages} />}
       <div className="jini-chat-pane__body">
-        {pane.conversation.messages.length === 0 && emptyState ? (
-          <div className="jini-message-list jini-message-list--empty">
-            {emptyState}
-            {surface.embed && <ChatPaneSuggestionsRow suggestions={suggestions} onSelect={selectSuggestion} t={t} />}
-          </div>
-        ) : (
-        <MessageList
-          messages={pane.conversation.messages}
-          isStreaming={pane.conversation.isStreaming}
-          scrollIntent={pane.conversation.scrollIntent}
-          onScrolled={pane.conversation.acknowledgeScroll}
+        <ChatPaneTranscript
+          pane={pane}
+          emptyState={p.emptyState}
+          embed={surface.embed}
+          suggestions={p.suggestions}
+          onSelectSuggestion={selectSuggestion}
           pendingPrompt={pendingPrompt}
-          toolCallDisplay={toolCallDisplay}
-          showUsageLine={showUsageLine}
-          showThinking={showThinking}
-          {...(projectFileNameSet === undefined ? {} : { projectFileNames: projectFileNameSet })}
+          projectFileNameSet={projectFileNameSet}
+          toolCallDisplay={p.toolCallDisplay}
+          showUsageLine={p.showUsageLine}
+          showThinking={p.showThinking}
+          t={t}
         />
-        )}
         <div className="jini-chat-pane__controls" ref={controlsRef}>
-          {(!surface.embed || (pane.conversation.messages.length === 0 && !emptyState)) && (
-            <ChatPaneSuggestionsRow suggestions={suggestions} onSelect={selectSuggestion} t={t} />
+          {showsControlsSuggestions(surface.embed, pane.conversation.messages.length, p.emptyState) && (
+            <ChatPaneSuggestionsRow suggestions={p.suggestions} onSelect={selectSuggestion} t={t} />
           )}
           {pane.secretRedacted ? <div className="jini-chat-pane__notice" role="status">{t(SECRET_REDACTED_NOTICE)}</div> : null}
           <ChatPaneStatusMessages
             unavailable={unavailable}
             scanningAgents={runtimeView.scanningAgents}
             connectingAgents={runtimeView.connectingAgents}
-            executionMode={executionMode}
-            apiModeAvailable={apiModeAvailable}
-            onExecutionModeChange={onExecutionModeChange}
-            conversationError={pane.conversation.error}
+            executionMode={p.executionMode}
+            apiModeAvailable={p.apiModeAvailable}
+            onExecutionModeChange={p.onExecutionModeChange}
             attachmentError={pane.attachmentError}
             dropReadError={fileDrop.dropReadError}
             workingDirectoryError={pane.workingDirectoryError}
@@ -743,18 +874,18 @@ export function ChatPane({
             fileDrop={fileDrop}
             uploadAttachments={surface.uploadAttachments}
             pane={pane}
-            disabled={disabled}
+            disabled={p.disabled}
             unavailable={unavailable}
             placeholder={composerPlaceholder}
             slots={slots}
-            attachmentAccept={attachmentAccept}
-            workingDirectoryAccess={workingDirectoryAccess}
+            attachmentAccept={p.attachmentAccept}
+            workingDirectoryAccess={p.workingDirectoryAccess}
             workingDirectoryControlPlacement={surface.workingDirectoryControlPlacement}
             t={t}
           />
         </div>
       </div>
-      {footer}
+      {p.footer}
     </section>
   );
 }

@@ -107,3 +107,32 @@ it('does not create usage from timestamps alone', () => {
   expect(conversationUsage({ messages: [{ id: 'a', role: 'assistant', content: 'Finished',
     startedAt: 1_000, endedAt: 32_525 }] }).get('a')).toBeUndefined();
 });
+
+it('reads missing events as no usage', () => {
+  expect(turnUsage({ events: undefined })).toBeUndefined();
+});
+
+it('keeps a late usage with the reply before even after status and raw lines, but not after real output', () => {
+  const late: AgentEvent = { kind: 'usage', outputTokens: 1 };
+  const status: AgentEvent = { kind: 'status', label: 'thinking' };
+  const raw: AgentEvent = { kind: 'raw', line: 'x' };
+  const text: AgentEvent = { kind: 'text', text: 'second' };
+  const after: AgentEvent = { kind: 'usage', outputTokens: 2 };
+  expect(replySegments({ events: [boundary('m1'), status, raw, late, text, after] })).toEqual([[late], [status, raw, text, after]]);
+});
+
+it('starts a fresh reply after every boundary, so a usage right after the second boundary joins the second reply', () => {
+  const text: AgentEvent = { kind: 'text', text: 'two' };
+  const late: AgentEvent = { kind: 'usage', outputTokens: 4 };
+  expect(replySegments({ events: [boundary('m1'), text, boundary('m2'), late] })).toEqual([[], [text, late], []]);
+});
+
+it('skips user messages and leaves a reply without usage as an undefined segment', () => {
+  const user: ChatMessage = { id: 'u', role: 'user', content: 'hi', events: [{ kind: 'usage', outputTokens: 9 }] };
+  const assistant: ChatMessage = { id: 'a', role: 'assistant', content: 'x', events: [
+    { kind: 'text', text: 'no usage' }, boundary('m1'), { kind: 'text', text: 'second' }, { kind: 'usage', costUsd: 0.5 },
+  ] };
+  const usage = conversationUsage({ messages: [user, assistant] });
+  expect([...usage.keys()]).toEqual(['a']);
+  expect(usage.get('a')).toEqual({ kind: 'usage', costUsd: 0.5, totalCostUsd: 0.5, segments: [undefined, { kind: 'usage', costUsd: 0.5, totalCostUsd: 0.5 }] });
+});

@@ -60,32 +60,35 @@ export function applyToolCallDisplay<Row extends ToolDisplayRow>(
   { blocks, mode }: { blocks: readonly MessageBlock<Row>[]; mode: ToolCallDisplay },
 ): readonly MessageBlock<Row>[] {
   if (mode === 'show') return blocks;
-  if (mode === 'hidden') {
-    const out: MessageBlock<Row>[] = [];
-    for (const block of blocks) {
-      if (block.kind !== 'tools') {
-        out.push(block);
-        continue;
-      }
-      const failed = block.rows.filter((row) => isFailedToolRow({ row }));
-      if (failed.length > 0) out.push({ kind: 'tools', rows: failed, key: block.key });
-    }
-    return out;
-  }
+  return mode === 'hidden' ? hideToolCalls({ blocks }) : collapseToolCalls({ blocks });
+}
+
+/** `'hidden'`: keeps only failed rows and drops `tools` blocks left empty. */
+function hideToolCalls<Row extends ToolDisplayRow>({ blocks }: { blocks: readonly MessageBlock<Row>[] }): MessageBlock<Row>[] {
   const out: MessageBlock<Row>[] = [];
-  let turnToolsIndex = -1;
   for (const block of blocks) {
-    if (block.kind === 'reply-end') turnToolsIndex = -1;
     if (block.kind !== 'tools') {
       out.push(block);
       continue;
     }
+    const failed = block.rows.filter((row) => isFailedToolRow({ row }));
+    if (failed.length > 0) out.push({ kind: 'tools', rows: failed, key: block.key });
+  }
+  return out;
+}
+
+/** `'collapsed'`: merges every `tools` block of a turn into the turn's first one (see above). */
+function collapseToolCalls<Row extends ToolDisplayRow>({ blocks }: { blocks: readonly MessageBlock<Row>[] }): MessageBlock<Row>[] {
+  const out: MessageBlock<Row>[] = [];
+  let turnToolsIndex = -1;
+  for (const block of blocks) {
+    if (block.kind === 'reply-end') turnToolsIndex = -1;
     const first = turnToolsIndex === -1 ? undefined : out[turnToolsIndex];
-    if (first && first.kind === 'tools') {
+    if (block.kind === 'tools' && first?.kind === 'tools') {
       out[turnToolsIndex] = { kind: 'tools', rows: [...first.rows, ...block.rows], key: first.key };
       continue;
     }
-    turnToolsIndex = out.length;
+    if (block.kind === 'tools') turnToolsIndex = out.length;
     out.push(block);
   }
   return out;

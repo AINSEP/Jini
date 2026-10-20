@@ -465,3 +465,36 @@ it('cleans a partial upload through the same injected fetch with a quick deadlin
   }));
   expect(timeout).toHaveBeenCalledWith(15_000);
 });
+
+describe('createDaemonAttachmentUploader without an injected fetch', () => {
+  it('uploads and cleans up through the global fetch, read at call time', async () => {
+    const upload = createDaemonAttachmentUploader({ baseUrl: '' }, { concurrency: 1 });
+    const fetchMock = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(jsonResponse({ attachment: uploadedFile }, 201))
+      .mockResolvedValueOnce(jsonResponse({ message: 'second rejected' }, 500))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    // Installed after the uploader was built: the global is looked up per request, not captured.
+    globalThis.fetch = fetchMock;
+
+    await expect(upload([new File(['a'], 'a.txt'), new File(['b'], 'b.txt')], signalOptions('global')))
+      .rejects.toThrow('second rejected');
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/attachments?batch=global&name=a.txt', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/attachments', expect.objectContaining({
+      method: 'DELETE',
+      body: JSON.stringify({ batchId: 'global', paths: [uploadedFile.path] }),
+    }));
+  });
+
+  it('uploads without any composer options, minting its own batch id', async () => {
+    const fetchMock = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({ attachment: uploadedFile }, 201));
+    globalThis.fetch = fetchMock;
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000000');
+    const upload = createDaemonAttachmentUploader({ baseUrl: 'http://daemon' });
+
+    await expect(upload([new File(['a'], 'a.txt')])).resolves.toEqual([uploadedFile]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://daemon/api/attachments?batch=00000000-0000-4000-8000-000000000000&name=a.txt',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+});

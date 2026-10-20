@@ -69,4 +69,41 @@ describe('useExtEventGroups', () => {
     const { result } = renderHook(() => useExtEventGroups({ events: events }));
     expect(result.current[0]?.call).toEqual({ name: 'assistant_ask_choice', input: {} });
   });
+
+  it('leaves call unset for a group whose first event arrives after its call already closed', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 't1', name: 'Bash', input: {} },
+      { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+      { kind: 'ext', name: 'mcp-ui', data: 'card' },
+    ];
+    const { result } = renderHook(() => useExtEventGroups({ events: events }));
+    expect(result.current).toEqual([{ name: 'mcp-ui', slot: 'mcp-ui', events: ['card'] }]);
+    expect('call' in result.current[0]!).toBe(false);
+  });
+
+  it('pins the owning call at the group\'s first event, ignoring calls open for later events', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'first', name: 'ask_one', input: 1 },
+      { kind: 'ext', name: 'mcp-ui', data: 'a' },
+      { kind: 'tool_use', id: 'second', name: 'ask_two', input: 2 },
+      { kind: 'ext', name: 'mcp-ui', data: 'b' },
+      { kind: 'tool_result', toolUseId: 'second', content: 'two', isError: true },
+    ];
+    const { result } = renderHook(() => useExtEventGroups({ events: events }));
+    expect(result.current).toEqual([{ name: 'mcp-ui', slot: 'mcp-ui', events: ['a', 'b'], call: { name: 'ask_one', input: 1 } }]);
+  });
+
+  it('splits one name into separate groups by the slot slotOf returns, passing it the event data', () => {
+    const events: AgentEvent[] = [
+      { kind: 'ext', name: 'mcp-ui', data: { key: 'x' } },
+      { kind: 'ext', name: 'mcp-ui', data: { key: 'y' } },
+      { kind: 'ext', name: 'mcp-ui', data: { key: 'x' } },
+    ];
+    const slotOf = (name: string, data: unknown) => `${name}:${(data as { key: string }).key}`;
+    const { result } = renderHook(() => useExtEventGroups({ events: events }, { slotOf: slotOf }));
+    expect(result.current).toEqual([
+      { name: 'mcp-ui', slot: 'mcp-ui:x', events: [{ key: 'x' }, { key: 'x' }] },
+      { name: 'mcp-ui', slot: 'mcp-ui:y', events: [{ key: 'y' }] },
+    ]);
+  });
 });

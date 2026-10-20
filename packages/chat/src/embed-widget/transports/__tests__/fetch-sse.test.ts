@@ -696,3 +696,208 @@ describe('mapping and setup failures', () => {
     assert.equal(map('error', '{}').error!.message, 'failure');
   });
 });
+
+describe('settlement races (boundary pins)', () => {
+  type Args = Parameters<typeof createFetchSseTransport>[0];
+  type Options = Parameters<typeof createFetchSseTransport>[1];
+  const textFrame = (delta: string) => ({ event: 'text', data: JSON.stringify({ delta }) });
+  const build = (overrides: Partial<Args>, options?: Options) => createFetchSseTransport({ endpoint: '/host', agentId: 'agent',
+    fetch: async () => streamResponse([]), ids: () => 'run', decode: decodeSseStream, requestBuilder: buildJsonChatRequest,
+    frameMapper: ({ frame }) => mapJsonChatSseFrame({ frame, directiveEventName: 'page', streamError: 'stream failure' }),
+    maxHistoryMessages: 2, maxHistoryMessageChars: 10,
+    copy: { noUserMessage: 'missing question', missingBody: 'missing body', requestFailed: ({ status }) => `HTTP ${status}` },
+    ...overrides }, options);
+  function gate() {
+    let open!: () => void;
+    const opened = new Promise<void>((resolve) => { open = resolve; });
+    return { open, opened };
+  }
+
+  it('never calls fetch when the input signal was aborted before startRun', async () => {
+    let fetches = 0;
+    const transport = build({ fetch: async () => { fetches += 1; return streamResponse([]); } });
+    const controller = new AbortController();
+    controller.abort();
+    const result = makeHandlers();
+    await transport.startRun(baseInput([userMessage('hi')], controller.signal), result.handlers);
+    await result.donePromise;
+    await flushStream();
+    assert.equal(fetches, 0);
+  });
+
+  it('falls back to the stream-error copy when an error frame carries an empty message', () => {
+    const mapped = mapJsonChatSseFrame({ frame: { event: 'error', data: '{"message":""}' }, directiveEventName: 'page', streamError: 'stream failure' });
+    assert.equal(mapped.error!.message, 'stream failure');
+  });
+
+  it('falls back to the status copy when a non-ok body carries an empty error string', async () => {
+    const transport = build({ fetch: async () => new Response(JSON.stringify({ error: '' }), { status: 502 }) });
+    const result = makeHandlers();
+    await transport.startRun(baseInput([userMessage('hi')]), result.handlers);
+    await result.donePromise;
+    assert.deepEqual(result.errors.map(e => e.message), ['HTTP 502']);
+  });
+
+  it('aborts the host-created controller and reports started, aborted, settled in order', async () => {
+    const hostController = new AbortController();
+    const phases: string[] = [];
+    const pending = abortableFetchStub();
+    const transport = build({ fetch: pending.fetch },
+      { createAbortController: () => hostController, onLifecycle: ({ phase }) => phases.push(phase) });
+    const result = makeHandlers();
+    await transport.startRun(baseInput([userMessage('hi')]), result.handlers);
+    await transport.stopRun('run');
+    await result.donePromise;
+    assert.equal(pending.signal(), hostController.signal);
+    assert.equal(hostController.signal.aborted, true);
+    assert.deepEqual(phases, ['started', 'aborted', 'settled']);
+  });
+
+  it('cancels the response body when fetch resolves after the run was stopped', async () => {
+    const release = gate();
+    let cancellations = 0;
+    const transport = build({ fetch: async () => {
+      await release.opened;
+      return new Response(new ReadableStream<Uint8Array>({ cancel() { cancellations += 1; } }));
+    } });
+    const result = makeHandlers();
+    await transport.startRun(baseInput([userMessage('hi')]), result.handlers);
+    await transport.stopRun('run');
+    release.open();
+    await result.donePromise;
+    await flushStream();
+    assert.equal(cancellations, 1);
+    assert.deepEqual(result.errors, []);
+  });
+
+  it('swallows a body-cancel failure when fetch resolves after the run was stopped', async () => {
+    const release = gate();
+    const transport = build({ fetch: async () => {
+      await release.opened;
+      return new Response(new ReadableStream<Uint8Array>({ cancel() { throw new Error('cancel refused'); } }));
+    } });
+    const result = makeHandlers();
+    await transport.startRun(baseInput([userMessage('hi')]), result.handlers);
+    await transport.stopRun('run');
+    release.open();
+    await result.donePromise;
+    await flushStream();
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.doneCount(), 1);
+  });
+
+  it('settles quietly when a bodiless response resolves after the run was stopped', async () => {
+    const release = gate();
+    const transport = build({ fetch: async () => { await release.opened; return new Response(null, { status: 204 }); } });
+    const result = makeHandlers();
+    await transport.startRun(baseInput([userMessage('hi')]), result.handlers);
+    await transport.stopRun('run');
+    release.open();
+    await result.donePromise;
+    await flushStream();
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.doneCount(), 1);
+  });
+
+  it('does not report a non-ok response whose error body arrives after the run was stopped', async () => {
+    const body = controlledStreamResponse();
+    const transport = build({ fetch: async () => new Response(body.response.body, { status: 500 }) });
+    const result = makeHandlers();
+    await transport.startRun(baseInput([userMessage('hi')]), result.handlers);
+    await flushStream();
+    await transport.stopRun('run');
+    body.send(JSON.stringify({ error: 'late failure' }));
+    body.close();
+    await flushStream();
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.doneCount(), 1);
+  });
+
+  it('cancels the open response reader when the run is stopped mid-stream', async () => {
+    let cancellations = 0;
+    const encoder = new TextEncoder();
+    const transport = build({ fetch: async () => new Response(new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(encoder.encode(sseFrame('text', { delta: 'first' }))); },
+      cancel() { cancellations += 1; },
+    })) });
+    const result = makeHandlers();
+    await transport.startRun(baseInput([userMessage('hi')]), result.handlers);
+    await flushStream();
+    await transport.stopRun('run');
+    await result.donePromise;
+    await flushStream();
+    assert.deepEqual(result.events, [{ kind: 'text', text: 'first' }]);
+    assert.equal(cancellations, 1);
+  });
+
+  it('ends a source iteration that starts only after the run was stopped instead of waiting on the open stream', async () => {
+    const release = gate();
+    const drained = gate();
+    const transport = build({
+      fetch: async () => new Response(new ReadableStream<Uint8Array>()),
+      decode: async function* ({ source }) {
+        await release.opened;
+        for await (const chunk of source) void chunk;
+        drained.open();
+      },
+    });
+    const result = makeHandlers();
+    await transport.startRun(baseInput([userMessage('hi')]), result.handlers);
+    await flushStream();
+    await transport.stopRun('run');
+    await result.donePromise;
+    release.open();
+    await drained.opened;
+    assert.equal(result.doneCount(), 1);
+  });
+
+  it('drops a frame the decoder yields after the run was stopped', async () => {
+    const release = gate();
+    const transport = build({ decode: async function* () {
+      yield textFrame('first');
+      await release.opened;
+      yield textFrame('late');
+    } });
+    const result = makeHandlers();
+    await transport.startRun(baseInput([userMessage('hi')]), result.handlers);
+    await flushStream();
+    await transport.stopRun('run');
+    release.open();
+    await flushStream();
+    assert.deepEqual(result.events, [{ kind: 'text', text: 'first' }]);
+    assert.deepEqual(result.doneEvents(), [{ kind: 'text', text: 'first' }]);
+  });
+
+  it('does not report the error half of a frame when onEvent stopped the run', async () => {
+    let transport!: ChatTransport;
+    transport = build({
+      decode: async function* () { yield textFrame('x'); },
+      frameMapper: () => ({ event: { kind: 'text', text: 'x' }, error: new Error('after stop') }),
+    });
+    const result = makeHandlers();
+    const handlers: RunHandlers = { ...result.handlers, onEvent: (event) => { result.handlers.onEvent(event); void transport.stopRun('run'); } };
+    await transport.startRun(baseInput([userMessage('hi')]), handlers);
+    await result.donePromise;
+    await flushStream();
+    assert.deepEqual(result.events, [{ kind: 'text', text: 'x' }]);
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.doneCount(), 1);
+  });
+
+  it('settles once when onError stops the run on a frame that also carries done', async () => {
+    let transport!: ChatTransport;
+    const phases: string[] = [];
+    transport = build({
+      decode: async function* () { yield textFrame('x'); },
+      frameMapper: () => ({ error: new Error('fatal'), done: true }),
+    }, { onLifecycle: ({ phase }) => phases.push(phase) });
+    const result = makeHandlers();
+    const handlers: RunHandlers = { ...result.handlers, onError: (error) => { result.handlers.onError(error); void transport.stopRun('run'); } };
+    await transport.startRun(baseInput([userMessage('hi')]), handlers);
+    await result.donePromise;
+    await flushStream();
+    assert.deepEqual(result.errors.map(e => e.message), ['fatal']);
+    assert.equal(result.doneCount(), 1);
+    assert.deepEqual(phases, ['started', 'error', 'aborted', 'settled']);
+  });
+});

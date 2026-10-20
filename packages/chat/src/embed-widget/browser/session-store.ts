@@ -45,7 +45,6 @@ export function createBrowserSessionStore(args: BrowserSessionStoreArgs): Browse
   // The smallest envelope (open=false) is 28 UTF-8 bytes.
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 28) throw new Error('Invalid byte limit');
   const empty = (): PersistedEmbedState => ({ open: false, messages: [] });
-  const bytes = (value: string) => new TextEncoder().encode(value).length;
   const clear = (_args: Record<string, never>): void => {
     try { storage.removeItem(transcriptKey); } catch { /* unavailable storage */ }
   };
@@ -55,20 +54,14 @@ export function createBrowserSessionStore(args: BrowserSessionStoreArgs): Browse
       try { raw = storage.getItem(transcriptKey); } catch { return empty(); }
       if (raw === null) return empty();
       try {
-        if (bytes(raw) > maxBytes) throw new Error('Transcript exceeds byte limit');
-        const value: unknown = JSON.parse(raw);
-        if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Invalid envelope');
-        const state = value as Record<string, unknown>;
-        if (typeof state.open !== 'boolean' || !Array.isArray(state.messages)
-          || state.messages.length > maxMessages || !state.messages.every(value => validateMessage({ value }))) throw new Error('Invalid transcript');
-        return { open: state.open, messages: state.messages as ChatMessage[] };
+        return parseTranscript({ raw, maxBytes, maxMessages, validateMessage });
       } catch { clear({}); return empty(); }
     },
     save({ state }) {
       try {
         let messages = maxMessages === 0 ? [] : state.messages.slice(-maxMessages);
         let serialized = JSON.stringify({ open: state.open, messages });
-        while (messages.length > 0 && bytes(serialized) > maxBytes) {
+        while (messages.length > 0 && utf8Bytes(serialized) > maxBytes) {
           messages = messages.slice(1);
           serialized = JSON.stringify({ open: state.open, messages });
         }
@@ -90,4 +83,25 @@ export function createBrowserSessionStore(args: BrowserSessionStoreArgs): Browse
       try { return JSON.parse(raw) as unknown; } catch { return null; }
     },
   };
+}
+
+const utf8Bytes = (value: string): number => new TextEncoder().encode(value).length;
+
+interface ParseTranscriptArgs extends Pick<BrowserSessionStoreArgs, 'maxBytes' | 'maxMessages' | 'validateMessage'> {
+  readonly raw: string;
+}
+
+/**
+ * Parses and validates one stored transcript envelope. Throws on any defect so the caller can
+ * clear the whole entry (no partial recovery). Oversized envelopes are rejected before parsing.
+ */
+function parseTranscript(args: ParseTranscriptArgs): PersistedEmbedState {
+  const { raw, maxBytes, maxMessages, validateMessage } = args;
+  if (utf8Bytes(raw) > maxBytes) throw new Error('Transcript exceeds byte limit');
+  const value: unknown = JSON.parse(raw);
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Invalid envelope');
+  const state = value as Record<string, unknown>;
+  if (typeof state.open !== 'boolean' || !Array.isArray(state.messages)) throw new Error('Invalid transcript');
+  if (state.messages.length > maxMessages || !state.messages.every(value => validateMessage({ value }))) throw new Error('Invalid transcript');
+  return { open: state.open, messages: state.messages as ChatMessage[] };
 }

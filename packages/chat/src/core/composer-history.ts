@@ -58,40 +58,64 @@ export function createComposerHistoryState(
   return { entries: [], index: null, draft: null };
 }
 
+type ComposerHistoryKeyAction = 'previous' | 'next' | 'restore';
+type ComposerHistoryTransition = { state: ComposerHistoryState; text: string; handled: boolean };
+
+function hasModifierOrPopup({ input }: { input: ComposerHistoryKeyInput }, _optional: {} = {}): boolean {
+  return Boolean(input.shiftKey || input.ctrlKey || input.altKey || input.metaKey || input.isComposing || input.popupOpen);
+}
+
+/**
+ * Whether the selection sits on the first/last line. A selection spanning a newline is on
+ * neither, because text[0, end) and text[start, ∞) both contain the selected newline.
+ */
+function caretBoundaries(
+  { input }: { input: ComposerHistoryKeyInput },
+  _optional: {} = {},
+): { firstLine: boolean; lastLine: boolean } {
+  const start = Math.min(input.selectionStart, input.selectionEnd);
+  const end = Math.max(input.selectionStart, input.selectionEnd);
+  return {
+    firstLine: !input.text.slice(0, end).includes('\n') && input.firstLine !== false,
+    lastLine: !input.text.slice(start).includes('\n') && input.lastLine !== false,
+  };
+}
+
 export function composerHistoryKeyAction(
   input: ComposerHistoryKeyInput,
   _optional: {} = {},
-): 'previous' | 'next' | 'restore' | null {
-  if (input.shiftKey || input.ctrlKey || input.altKey || input.metaKey || input.isComposing || input.popupOpen) return null;
+): ComposerHistoryKeyAction | null {
+  if (hasModifierOrPopup({ input })) return null;
   if (input.key === 'Escape') return 'restore';
-  const start = Math.min(input.selectionStart, input.selectionEnd);
-  const end = Math.max(input.selectionStart, input.selectionEnd);
-  if (input.text.slice(start, end).includes('\n')) return null;
-  const firstLine = !input.text.slice(0, end).includes('\n') && input.firstLine !== false;
-  const lastLine = !input.text.slice(start).includes('\n') && input.lastLine !== false;
-  if (input.key === 'ArrowUp' && firstLine) return 'previous';
-  if (input.key === 'ArrowDown' && lastLine) return 'next';
+  const lines = caretBoundaries({ input });
+  if (input.key === 'ArrowUp' && lines.firstLine) return 'previous';
+  if (input.key === 'ArrowDown' && lines.lastLine) return 'next';
   return null;
+}
+
+function startBrowsing(
+  { state, action, text, entries }: { state: ComposerHistoryState; action: string; text: string; entries: readonly string[] },
+  _optional: {} = {},
+): ComposerHistoryTransition {
+  if (action !== 'previous' || entries.length === 0) return { state, text, handled: false };
+  const snapshot = [...entries];
+  const index = snapshot.length - 1;
+  return { state: { entries: snapshot, index, draft: text }, text: snapshot[index]!, handled: true };
 }
 
 export function transitionComposerHistory(
   { state, action, text, entries }: {
     state: ComposerHistoryState;
-    action: 'previous' | 'next' | 'restore' | 'edit' | 'reset';
+    action: ComposerHistoryKeyAction | 'edit' | 'reset';
     text: string;
     entries: readonly string[];
   },
   _optional: {} = {},
-): { state: ComposerHistoryState; text: string; handled: boolean } {
+): ComposerHistoryTransition {
   if (action === 'edit' || action === 'reset') {
     return { state: createComposerHistoryState({}), text, handled: false };
   }
-  if (state.index === null) {
-    if (action !== 'previous' || entries.length === 0) return { state, text, handled: false };
-    const snapshot = [...entries];
-    const index = snapshot.length - 1;
-    return { state: { entries: snapshot, index, draft: text }, text: snapshot[index]!, handled: true };
-  }
+  if (state.index === null) return startBrowsing({ state, action, text, entries });
   if (action === 'restore' || (action === 'next' && state.index === state.entries.length - 1)) {
     return { state: createComposerHistoryState({}), text: state.draft ?? '', handled: true };
   }
