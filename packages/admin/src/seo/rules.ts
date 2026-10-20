@@ -190,9 +190,15 @@ function parseMediaRefAssetId(ref: string): string | null {
  * URLs and incomplete input remain editable. @complexity O(n) in value length; no I/O.
  */
 export function isStoredMediaRef({ value }: { value: string }, _optional: Record<string, never> = {}): boolean {
-  const trimmed = typeof value === "string" ? value.trim() : "";
+  const trimmed = trimmedText(value);
   // A URL typed one character at a time reaches "https:/" before it reaches "https://".
   return !trimmed.includes(":/") && parseMediaRefAssetId(trimmed) !== null;
+}
+
+/** A field value trimmed, or `""` for a non-string — the `value` props arrive through `??` fallback
+ * chains that do not replace a wrong-typed result, and these rules never throw over one bad value. */
+function trimmedText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -210,12 +216,24 @@ export function describeMediaRef({ value, media }: { value: string; media?: read
   /** `image/png` → `.png`; injected (the host UI kit owns the table) so this file stays pure. */
   extensionFor?: ((contentType: string) => string) | undefined;
 } = {}): { name: string; size: string | null } | null {
-  const trimmed = typeof value === 'string' ? value.trim() : '';
+  const trimmed = trimmedText(value);
   if (!trimmed) return null;
   const key = parseMediaRefAssetId(trimmed);
-  const row = key ? media?.find(item => item.id === key || item.slug === key) : undefined;
-  const name = row?.title ? withExtension({ name: row.title, extension: row.contentType && extensionFor ? extensionFor(row.contentType) : '' }) : fallbackMediaName({ key, value: trimmed, t });
+  const row = findMediaRow({ key, media });
+  const name = libraryFileName({ row }, { extensionFor }) ?? fallbackMediaName({ key, value: trimmed, t });
   return { name, size: pixelSize(row?.width ?? width, row?.height ?? height) };
+}
+
+/** The library row an id-or-slug reference names, when the host could list media at all. */
+function findMediaRow({ key, media }: { key: string | null; media?: readonly AdminSeoMediaSummary[] | null | undefined }, _optional: Record<string, never> = {}): AdminSeoMediaSummary | undefined {
+  return key ? media?.find(item => item.id === key || item.slug === key) : undefined;
+}
+
+/** A titled library row's display name with its stored type's extension; `null` for no row or an
+ * untitled one, so the caller's fallback name applies. */
+function libraryFileName({ row }: { row: AdminSeoMediaSummary | undefined }, { extensionFor }: { extensionFor?: ((contentType: string) => string) | undefined } = {}): string | null {
+  if (!row?.title) return null;
+  return withExtension({ name: row.title, extension: row.contentType && extensionFor ? extensionFor(row.contentType) : '' });
 }
 
 /** A library title reads as a file name (owner, 2026-10-15: "it should be testing-page.png or
@@ -288,7 +306,7 @@ export function buildMediaRef({ item }: { item: { id: string; slug?: string } },
  * @complexity O(1) — string parsing only, no I/O (the returned URL is a template; the browser
  * performs the actual fetch only once it is used as an `<img src>`). */
 export function resolveMediaRefPreviewUrl({ value, mediaOriginalUrl }: { value: string; mediaOriginalUrl: (id: string) => string }, { siteOrigin }: { siteOrigin?: string | undefined } = {}): string | null {
-  const trimmed = typeof value === "string" ? value.trim() : "";
+  const trimmed = trimmedText(value);
   if (!trimmed) return null;
   if (isAbsoluteMediaRef(trimmed)) {
     const key = siteOrigin ? localRenditionAssetKey({ value: trimmed, siteOrigin }) : null;
@@ -321,15 +339,31 @@ export function shareImageWarning({ value, previewUrl, width, height, byteSize, 
   value: string; previewUrl: string | null; width?: number | undefined; height?: number | undefined; byteSize?: number | null | undefined;
   error?: string | null | undefined; previewFailed?: boolean | undefined;
 }, { t = key => key }: { t?: SeoTranslator | undefined } = {}): string | null {
-  if (typeof value !== 'string' || !value.trim()) return t('No share image is selected. Link previews may show no picture.');
+  const blocker = shareImageBlocker({ value, previewUrl, error, previewFailed }, { t });
+  if (blocker !== null) return blocker;
+  const reasons = shareImageShortfalls({ width, height, byteSize }, { t });
+  return reasons.length ? reasons.join(' ') : null;
+}
+
+/** Why there is nothing to measure: no value, an unparseable one, a metadata error, or a failed
+ * decode — checked in that order. `null` when the image loaded and can be measured. */
+function shareImageBlocker({ value, previewUrl, error, previewFailed }: {
+  value: string; previewUrl: string | null; error?: string | null | undefined; previewFailed?: boolean | undefined;
+}, { t }: { t: SeoTranslator }): string | null {
+  if (!trimmedText(value)) return t('No share image is selected. Link previews may show no picture.');
   if (!previewUrl) return t('The share image reference is invalid. Choose an image or enter an absolute image URL.');
   if (error) return error;
-  if (previewFailed) return t('The share image could not be loaded. Choose an available image.');
+  return previewFailed ? t('The share image could not be loaded. Choose an available image.') : null;
+}
+
+/** Each measured dimension or size below the share-card minimum, as its own sentence. An unknown
+ * measurement (`undefined`, or a `null` byte size) is never reported. */
+function shareImageShortfalls({ width, height, byteSize }: { width?: number | undefined; height?: number | undefined; byteSize?: number | null | undefined }, { t }: { t: SeoTranslator }): string[] {
   const reasons: string[] = [];
   if (width !== undefined && width < 1200) reasons.push(interpolate({ template: t('The share image is only {width} px wide; use an image at least 1200 px wide.', { width }), vars: { width } }));
   if (height !== undefined && height < 630) reasons.push(interpolate({ template: t('The share image is only {height} px tall; use an image at least 630 px tall.', { height }), vars: { height } }));
   if (byteSize !== undefined && byteSize !== null && byteSize < 5120) reasons.push(interpolate({ template: t('The share image is only {byteSize} bytes; use an image of at least 5 KB (5120 bytes).', { byteSize }), vars: { byteSize } }));
-  return reasons.length ? reasons.join(' ') : null;
+  return reasons;
 }
 
 /** One `FormData` field as a string, with the caller's fallback for an absent field. Its own named

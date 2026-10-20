@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { actionLabel, buildMediaRef, orEmpty, overrideOrClear, resolveMediaRefPreviewUrl, sortIssuesBySeverity } from "../react/__tests__/harness/rules.js";
-import { describeMediaRef, entryPickerOptions, scoreTone, inheritedXFor, ogImageInherited, xIsCustomized, xResolvedValue } from "../rules.js";
+import { buildSeoSettingsPatch, describeMediaRef, shareImageWarning, resolveMediaRefPreviewUrl as resolvePreviewUrl, entryPickerOptions, scoreTone, inheritedXFor, ogImageInherited, xIsCustomized, xResolvedValue } from "../rules.js";
 import type { SeoEntryMeta } from "../models.js";
 import type { SeoIssue } from "../models.js";
 
@@ -319,5 +319,94 @@ describe("ogImageInherited", () => {
     expect(ogImageInherited({ meta: { ...content, openGraph: { ...content.openGraph, imageOverridden: true } }, defaultOgImage: undefined, touched: {} })).toBe(false);
     const { image: _image, imageRef: _ref, ...openGraph } = content.openGraph;
     expect(ogImageInherited({ meta: { ...content, openGraph }, defaultOgImage: undefined, touched: {} })).toBe(false);
+  });
+});
+
+describe('describeMediaRef boundaries', () => {
+  it('falls back to the reference slug when the matching library row has an empty title', () => {
+    const media = [{ id: 'a1', slug: 'hero', title: '', width: 10, height: 20 }];
+    expect(describeMediaRef({ value: 'hero:public', media })).toEqual({ name: 'hero', size: '10 × 20' });
+  });
+
+  it('matches a library row by id as well as slug', () => {
+    const media = [{ id: 'a1', slug: 'hero', title: 'Hero' }];
+    expect(describeMediaRef({ value: 'a1:public', media }, { width: 3, height: 4 })).toEqual({ name: 'Hero', size: '3 × 4' });
+  });
+
+  it('names an absolute URL by its file name without consulting the library', () => {
+    const media = [{ id: 'pic.png', slug: 'pic.png', title: 'Wrong' }];
+    expect(describeMediaRef({ value: 'https://cdn.test/a/pic.png', media })).toEqual({ name: 'pic.png', size: null });
+  });
+
+  it('returns null for a whitespace-only value', () => {
+    expect(describeMediaRef({ value: '   ' })).toBeNull();
+  });
+});
+
+describe('shareImageWarning boundaries', () => {
+  const loaded = { value: 'cover:public', previewUrl: '/cover' };
+
+  it('reports a non-string value as no selection', () => {
+    expect(shareImageWarning({ value: 42 as unknown as string, previewUrl: '/cover' })).toBe('No share image is selected. Link previews may show no picture.');
+  });
+
+  it('reports a whitespace-only value as no selection even with a preview URL', () => {
+    expect(shareImageWarning({ value: '  ', previewUrl: '/cover' })).toBe('No share image is selected. Link previews may show no picture.');
+  });
+
+  it('returns the metadata error ahead of a failed preview', () => {
+    expect(shareImageWarning({ ...loaded, error: 'HTTP 404 for the original.', previewFailed: true })).toBe('HTTP 404 for the original.');
+  });
+
+  it('ignores an empty metadata error and measures the image', () => {
+    expect(shareImageWarning({ ...loaded, error: '', width: 1200, height: 630 })).toBeNull();
+  });
+
+  it('reports a failed preview ahead of measured shortfalls', () => {
+    expect(shareImageWarning({ ...loaded, previewFailed: true, width: 1 })).toBe('The share image could not be loaded. Choose an available image.');
+  });
+
+  it('reports a byte size under 5120 and accepts exactly 5120', () => {
+    expect(shareImageWarning({ ...loaded, byteSize: 5119 })).toBe('The share image is only 5119 bytes; use an image of at least 5 KB (5120 bytes).');
+    expect(shareImageWarning({ ...loaded, byteSize: 5120 })).toBeNull();
+  });
+
+  it('treats a null byte size as unknown', () => {
+    expect(shareImageWarning({ ...loaded, byteSize: null })).toBeNull();
+  });
+
+  it('joins every measured shortfall in width, height, size order', () => {
+    expect(shareImageWarning({ ...loaded, width: 0, height: 0, byteSize: 0 })).toBe(
+      'The share image is only 0 px wide; use an image at least 1200 px wide. The share image is only 0 px tall; use an image at least 630 px tall. The share image is only 0 bytes; use an image of at least 5 KB (5120 bytes).',
+    );
+  });
+});
+
+describe('resolveMediaRefPreviewUrl boundaries', () => {
+  it('keeps an absolute URL as-is when the site origin cannot be parsed', () => {
+    expect(resolvePreviewUrl({ value: 'https://site.test/m/cover/og.v2/image.jpg', mediaOriginalUrl: id => `/original/${id}` }, { siteOrigin: 'not a url' })).toBe('https://site.test/m/cover/og.v2/image.jpg');
+  });
+});
+
+describe('remaining rules.ts boundaries', () => {
+  it('sorts an unrecognized severity after every known one', () => {
+    const issues = [{ code: 'b', severity: 'bogus', message: 'b' }, { code: 'a', severity: 'info', message: 'a' }, { code: 'c', severity: 'odd', message: 'c' }] as unknown as SeoIssue[];
+    expect(sortIssuesBySeverity(issues).map(issue => issue.code)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('names a URL with no path segment by its host name', () => {
+    expect(describeMediaRef({ value: 'https://cdn.test/' })?.name).toBe('cdn.test');
+  });
+
+  it('names a URL with neither path segment nor host by the raw value', () => {
+    expect(describeMediaRef({ value: 'file:///' })?.name).toBe('file:///');
+  });
+
+  it('keeps a same-origin URL that is not a rendition path', () => {
+    expect(resolvePreviewUrl({ value: 'https://site.test/other.jpg', mediaOriginalUrl: id => `/original/${id}` }, { siteOrigin: 'https://site.test' })).toBe('https://site.test/other.jpg');
+  });
+
+  it('defaults an absent title template field to "%s"', () => {
+    expect(buildSeoSettingsPatch({ form: new FormData() }).titleTemplate).toBe('%s');
   });
 });

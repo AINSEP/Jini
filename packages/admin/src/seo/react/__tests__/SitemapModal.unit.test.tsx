@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { SitemapModal } from "../components/SitemapModal.js";
+import { parseSitemapXml } from "../../rules.js";
 import { useSitemapModal } from "./harness/hooks.js";
 import { createFakeSitemapPort } from "./harness/api.js";
 import type { SitemapPort } from "./harness/api.js";
@@ -275,5 +276,15 @@ describe("SitemapModal — focus", () => {
 
     expect(screen.getByRole("dialog").tagName).toBe("DIALOG");
     expect(screen.getByRole("dialog")).toHaveAttribute("open");
+  });
+});
+
+describe("parseSitemapXml boundaries", () => {
+  it("parses nothing from a malformed sitemap document", () => {
+    expect(parseSitemapXml({ xmlText: "<urlset><url>" })).toEqual([]);
+  });
+
+  it("drops a sitemap <url> that has no <loc>", () => {
+    expect(parseSitemapXml({ xmlText: "<urlset><url><lastmod>2026-01-01</lastmod></url><url><loc> /a </loc></url></urlset>" })).toEqual([{ loc: "/a", lastmod: null }]);
   });
 });
