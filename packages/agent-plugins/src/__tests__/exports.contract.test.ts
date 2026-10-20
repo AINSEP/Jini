@@ -15,6 +15,7 @@ test('runtime metadata and export targets agree for every code entry', async () 
     ['./lifecycle', 'lifecycle/index', 'node'],
     ['./lifecycle/node', 'lifecycle/node', 'node'],
     ['./lifecycle/yauzl', 'lifecycle/yauzl-archive-reader', 'node'],
+    ['./lifecycle/tools', 'lifecycle/tools/index', 'node'],
     ['./admin-surfaces', 'admin-surfaces/index', 'universal'],
     ['./admin-surfaces/client', 'admin-surfaces/surface-client', 'universal'],
   ] as const) {
