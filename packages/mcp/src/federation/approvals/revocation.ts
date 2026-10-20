@@ -1,5 +1,7 @@
 import type { FederatedCallTarget } from "../ports.js";
 import { refusalForAdmittedToolUnderCurrentGrants } from "../trust.js";
+import { revocationReasonForToolRefusal } from "./revocation-reason.js";
+import { scopeOption } from "./scope-option.js";
 
 export type ExternalMcpRevocationReason = "removed" | "turned-off" | "disconnected" | "changed" | "tool-not-allowed" | "write-not-allowed" | "unverifiable";
 
@@ -42,8 +44,24 @@ export function rosterRefusalFor({ record, call }: { record: ConnectionRosterSna
   if (record.admissionRevision !== call.origin.admissionRevision) return "changed";
   if (!record.enabled) return "turned-off";
   if (record.disconnected) return "disconnected";
-  const refusal = refusalForAdmittedToolUnderCurrentGrants({ tool: call, grants: record.grants });
-  return refusal === null ? null : refusal === "remote-declares-not-read-only" ? "write-not-allowed" : "tool-not-allowed";
+  return revocationReasonForToolRefusal(refusalForAdmittedToolUnderCurrentGrants({ tool: call, grants: record.grants }));
+}
+
+/** One roster read plus its refusal. A failed read or check is reported and fails closed as
+ *  `"unverifiable"`, so the driver error never reaches the refusal. @complexity O(1). */
+async function readRosterRefusal(
+  { roster, connectionId, call }: { roster: ConnectionRosterReader; connectionId: string; call: FederatedCallTarget },
+  { scope, report }: { scope: string | undefined; report: (required: FederatedRevocationDiagnostic) => void },
+): Promise<{ record: ConnectionRosterSnapshot | null; reason: ExternalMcpRevocationReason | null }> {
+  // A row that was read but cannot be judged keeps its label on the refusal.
+  let record: ConnectionRosterSnapshot | null = null;
+  try {
+    record = await roster.findByServerId({ serverId: connectionId }, scopeOption(scope));
+    return { record, reason: rosterRefusalFor({ record, call }) };
+  } catch (error) {
+    report({ connectionId, stage: "store", error });
+    return { record, reason: "unverifiable" };
+  }
 }
 
 /** Revocation half of a connection gate; credential refresh/reauth checks are composed by the host.
@@ -61,15 +79,10 @@ export function createFederatedConnectionRevocationGate(required: {
   };
   return async ({ connectionId, call }) => {
     if (call.origin?.kind === "preset") return;
-    let record: ConnectionRosterSnapshot | null = null;
-    let reason: ExternalMcpRevocationReason | null;
-    try {
-      record = await required.roster.findByServerId({ serverId: connectionId }, optional.scope === undefined ? {} : { scope: optional.scope });
-      reason = rosterRefusalFor({ record, call });
-    } catch (error) { report({ connectionId, stage: "store", error }); reason = "unverifiable"; }
+    const { record, reason } = await readRosterRefusal({ roster: required.roster, connectionId, call }, { scope: optional.scope, report });
     if (reason === null) return;
     const refusal = { serverId: connectionId, label: record?.label ?? null, remoteName: call.remoteName, reason };
-    try { await optional.webhooks?.connectionRefused(refusal, optional.scope === undefined ? {} : { scope: optional.scope }); }
+    try { await optional.webhooks?.connectionRefused(refusal, scopeOption(optional.scope)); }
     catch (error) { report({ connectionId, stage: "webhook", error }); }
     throw required.errorFactory.create(refusal);
   };

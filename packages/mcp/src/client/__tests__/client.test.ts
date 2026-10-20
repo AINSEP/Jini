@@ -249,4 +249,63 @@ describe('extractRelativeRefs', () => {
   it('recognizes typescript mime as JS-like', () => {
     expect(extractRelativeRefs({ text: "import x from './m.ts'", fromPath: 'a.unknownext', fromMime: 'application/typescript' })).toEqual(['m.ts']);
   });
+
+  describe('characterization pins (before refactor)', () => {
+    it('emits refs in pattern order, then srcset candidates, keeping first-seen order on dedupe', () => {
+      const html = '<img srcset="s1.png 1x, s2.png 2x"><img src="i.png"><script src="j.js"></script><link href="l.css"><div style="background:url(u.png)">';
+      expect(extractRelativeRefs({ text: html, fromPath: 'index.html', fromMime: 'text/html' })).toEqual([
+        'j.js', 'l.css', 'i.png', 'u.png', 's1.png', 's2.png',
+      ]);
+    });
+
+    it('skips protocol-relative, mailto:, tel:, fragment-only and http refs case-insensitively', () => {
+      const css = ['url(//cdn/x.png)', 'url(MAILTO:a@b)', 'url(tel:123)', 'url(#frag)', 'url(HTTP://x/y.png)', 'url(keep.png)'].join(' ');
+      expect(extractRelativeRefs({ text: css, fromPath: 'a.css', fromMime: 'text/css' })).toEqual(['keep.png']);
+    });
+
+    it('strips query strings and fragments before normalizing', () => {
+      const css = 'url(a.png?v=1) url(b.png#frag) url(c.png?x#y)';
+      expect(extractRelativeRefs({ text: css, fromPath: 'd/s.css', fromMime: 'text/css' })).toEqual(['d/a.png', 'd/b.png', 'd/c.png']);
+    });
+
+    it('drops a ref that is only a query string or a bare root slash', () => {
+      expect(extractRelativeRefs({ text: 'url(?v=1) url(/)', fromPath: 's.css', fromMime: 'text/css' })).toEqual([]);
+    });
+
+    it('drops a ref whose traversal escapes the root after first descending', () => {
+      expect(extractRelativeRefs({ text: 'url(x/../../y.png) url(x/../z.png)', fromPath: 's.css', fromMime: 'text/css' })).toEqual(['z.png']);
+    });
+
+    it('collapses duplicate slashes and ./ segments in the resolved path', () => {
+      expect(extractRelativeRefs({ text: 'url(a//./b.png)', fromPath: 'p/q/s.css', fromMime: 'text/css' })).toEqual(['p/q/a/b.png']);
+    });
+
+    it('ignores empty srcset parts', () => {
+      expect(extractRelativeRefs({ text: '<img srcset=" , a.png 1x,,">', fromPath: 'i.html', fromMime: 'text/html' })).toEqual(['a.png']);
+    });
+
+    it('drops whitespace-only src and empty srcset parts from a nested file instead of resolving them to its directory', () => {
+      expect(extractRelativeRefs({ text: '<img src="  "><img srcset=" , ">', fromPath: 'p/i.html', fromMime: 'text/html' })).toEqual([]);
+    });
+
+    it('runs CSS patterns when the mime is CSS even though the path is JS-like', () => {
+      expect(extractRelativeRefs({ text: "url(c.png) import x from './m.js'", fromPath: 'a.js', fromMime: 'text/css' })).toEqual(['c.png', 'm.js']);
+    });
+
+    it('does not read srcset outside HTML-like files', () => {
+      expect(extractRelativeRefs({ text: '<img srcset="a.png 1x">', fromPath: 'a.css', fromMime: 'text/css' })).toEqual([]);
+    });
+
+    it('runs JS patterns on a JS file that also matches another set (mime html, path .js)', () => {
+      const text = "<img src=\"h.png\"> import x from './m.js'";
+      expect(extractRelativeRefs({ text, fromPath: 'a.js', fromMime: 'text/html' })).toEqual(['h.png', 'm.js']);
+    });
+
+    it('treats backslash-separated parent segments as one literal segment (reported, not fixed)', () => {
+      // Only "/" splits segments, so a Windows-style "..\\..\\x" survives the
+      // root-escape check as a single literal segment; a consumer that hands this
+      // to a Windows path API would resolve it as traversal.
+      expect(extractRelativeRefs({ text: 'url(..\\..\\secret.txt)', fromPath: 's.css', fromMime: 'text/css' })).toEqual(['..\\..\\secret.txt']);
+    });
+  });
 });

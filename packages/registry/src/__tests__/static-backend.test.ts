@@ -366,4 +366,87 @@ describe('StaticRegistryBackend', () => {
       ).toThrow(/invalid registry publish request/i);
     });
   });
+
+  describe('characterization pins (list/search/doctor branches)', () => {
+    const plain = { name: 'vendor/plain', version: '1.0.0', source: 's', license: 'MIT', capabilitiesSummary: ['x'] };
+    // Malformed-input fixture builder: doctor() audits RAW entries, so these
+    // fixtures deliberately bypass the entry type.
+    const backendOf = (entries: unknown[]) =>
+      new StaticRegistryBackend({ id: 'fixture', trust: 'trusted', manifest: manifestOf(entries as RegistryManifest['entries']) }, { clock: { nowMs: () => 42 } });
+
+    it('list ignores a whitespace-only query instead of filtering everything out', async () => {
+      expect((await backendOf([exampleEntry, plain]).list({}, { query: '   ' })).map((e) => e.name)).toEqual(['vendor/example', 'vendor/plain']);
+    });
+
+    it('list ignores an empty tags filter', async () => {
+      expect((await backendOf([exampleEntry, plain]).list({}, { tags: [] })).map((e) => e.name)).toEqual(['vendor/example', 'vendor/plain']);
+    });
+
+    it('list matches publisher and tags case-insensitively and drops entries with no publisher', async () => {
+      const backend = backendOf([exampleEntry, plain]);
+      expect((await backend.list({}, { publisher: 'VENDOR-GH' })).map((e) => e.name)).toEqual(['vendor/example']);
+      expect((await backend.list({}, { tags: ['FIXTURE'] })).map((e) => e.name)).toEqual(['vendor/example']);
+    });
+
+    it('list keeps an entry when any one query term matches', async () => {
+      expect((await backendOf([exampleEntry, plain]).list({}, { query: 'nomatch plain' })).map((e) => e.name)).toEqual(['vendor/plain']);
+    });
+
+    it('search with an empty query returns every entry with score 0, sorted by name', async () => {
+      const results = await backendOf([plain, exampleEntry]).search({ query: '' });
+      expect(results.map((r) => [r.entry.name, r.score, r.matched])).toEqual([
+        ['vendor/example', 0, []],
+        ['vendor/plain', 0, []],
+      ]);
+    });
+
+    it('search defaults its limit to 100 results', async () => {
+      const many = Array.from({ length: 101 }, (_, i) => ({ ...plain, name: `vendor/p${String(i).padStart(3, '0')}` }));
+      expect(await backendOf(many).search({ query: '' })).toHaveLength(100);
+    });
+
+    it('search matches tags case-insensitively', async () => {
+      expect((await backendOf([exampleEntry, plain]).search({ query: '' }, { tags: ['Fixture'] })).map((r) => r.entry.name)).toEqual(['vendor/example']);
+    });
+
+    it('doctor reports exact issues for a minimal entry, uses the injected clock and counts raw entries', async () => {
+      const report = await backendOf([{ name: 'Vendor/Upper', dist: 'not-an-object', capabilitiesSummary: 'nope', yanked: true }]).doctor({});
+      expect(report).toEqual({
+        ok: false,
+        backendId: 'fixture',
+        checkedAt: 42,
+        entriesChecked: 1,
+        issues: [
+          { severity: 'error', code: 'invalid-name', message: 'Registry entry name must be vendor/name.', pluginName: 'Vendor/Upper' },
+          { severity: 'error', code: 'missing-source', message: 'Registry entry must provide source or dist.archive.', pluginName: 'Vendor/Upper' },
+          { severity: 'warning', code: 'missing-license', message: 'Registry entry should declare a license.', pluginName: 'Vendor/Upper' },
+          { severity: 'warning', code: 'missing-capabilities', message: 'Registry entry should summarize its capabilities.', pluginName: 'Vendor/Upper' },
+          { severity: 'error', code: 'missing-yank-reason', message: 'Yanked entries must keep a human-readable reason.', pluginName: 'Vendor/Upper' },
+        ],
+      });
+    });
+
+    it('doctor reports a non-string name as missing (pluginName undefined) and accepts an empty capabilities array as missing', async () => {
+      const report = await backendOf([{ name: 7, source: 's', license: 'MIT', capabilitiesSummary: [] }]).doctor({});
+      expect(report.issues.map((i) => [i.code, i.pluginName])).toEqual([
+        ['invalid-name', undefined],
+        ['missing-capabilities', undefined],
+      ]);
+    });
+
+    it('doctor stays ok when only warnings are present, and accepts a yanked entry with a reason', async () => {
+      const report = await backendOf([{ name: 'vendor/y', source: 's', yanked: true, yankReason: 'bad build' }]).doctor({});
+      expect(report.ok).toBe(true);
+      expect(report.issues.map((i) => i.code)).toEqual(['missing-license', 'missing-capabilities']);
+    });
+
+    it('doctor counts zero entries checked for a non-array entries envelope', async () => {
+      const backend = new StaticRegistryBackend({ id: 'fixture', trust: 'trusted', manifest: { specVersion: '1.0.0', name: 'f', version: '1.0.0', entries: 'nope' } as never });
+      const report = await backend.doctor({});
+      expect(report.entriesChecked).toBe(0);
+      expect(report.issues).toEqual([
+        { severity: 'error', code: 'malformed-manifest', message: 'Registry manifest "entries" is missing or not an array; no entries could be checked.' },
+      ]);
+    });
+  });
 });

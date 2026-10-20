@@ -88,6 +88,9 @@ export const IDENTITY_STDIO_LAUNCH_RESOLVER: McpStdioLaunchResolver = {
  * toolchain, and the win32 spelling each is also matched under (per plan §2's table). */
 type NodeToolchainCommand = "npx" | "npm" | "node";
 
+/** The npm CLI script each toolchain command runs on Electron's Node; `node` runs its args as-is. */
+const NODE_TOOLCHAIN_CLI: Readonly<Record<NodeToolchainCommand, string | null>> = { npx: "npx-cli.js", npm: "npm-cli.js", node: null };
+
 /** @complexity O(1). */
 function matchNodeToolchainCommand(command: string, platform: NodeJS.Platform): NodeToolchainCommand | null {
   const isWin32 = platform === "win32";
@@ -181,11 +184,25 @@ function isPathCommand(command: string, pathModule: path.PlatformPath): boolean 
   return pathModule.isAbsolute(command) || command.includes("/") || (pathModule === path.win32 && command.includes("\\"));
 }
 
+/** The executable a non-toolchain `command` names, or `null` when nothing executable is there. A
+ *  path command is checked only where the child will exec it (never searched); a bare name is
+ *  searched on `searchDirs`. @complexity O(n) in `searchDirs.length`. */
+function findExecutable(
+  { command, cwd }: { command: string; cwd: string | undefined },
+  { pathModule, searchDirs, isExecutable }: {
+    pathModule: path.PlatformPath; searchDirs: readonly string[]; isExecutable: (required: { candidatePath: string }) => boolean;
+  },
+): string | null {
+  if (!isPathCommand(command, pathModule)) return findOnSearchDirs(command, searchDirs, pathModule, isExecutable);
+  // A relative path runs against the child's own cwd, so that is where it has to exist.
+  return isExecutable({ candidatePath: pathModule.resolve(cwd ?? process.cwd(), command) }) ? command : null;
+}
+
 /** {@link createBundledNodeLaunchResolver}'s config. Only `toolchainDir` and `npmRoot` are ever
  * passed in production; the rest are test seams that default to the real process. */
 export interface BundledNodeLaunchResolverConfig {
-  /** `toolchain env option`: holds `bin/` (shims), `npm-cache/`, `npm-prefix/`. */
   readonly messages: FederationMessages;
+  /** `toolchain env option`: holds `bin/` (shims), `npm-cache/`, `npm-prefix/`. */
   readonly toolchainDir: string;
   /** `npm root env option`: the npm package root; `<npmRoot>/bin/npx-cli.js` must exist (checked
    * by {@link stdioLaunchResolverFromEnv} before this is constructed, not here). */
@@ -234,20 +251,12 @@ export function createBundledNodeLaunchResolver({
     resolve({ spec }: { spec: McpStdioLaunchSpec }): ResolvedStdioLaunch {
       const nodeToolchainCommand = matchNodeToolchainCommand(spec.command, platform);
       if (nodeToolchainCommand !== null) {
-        const cli = nodeToolchainCommand === "npx" ? "npx-cli.js" : nodeToolchainCommand === "npm" ? "npm-cli.js" : null;
+        const cli = NODE_TOOLCHAIN_CLI[nodeToolchainCommand];
         const args = cli === null ? [...spec.args] : [pathModule.join(npmRoot, "bin", cli), ...spec.args];
         return { command: execPath, args, cwd: spec.cwd, env: spec.env, launchEnv: nodeToolchainLaunchEnv, requestedCommand: spec.command };
       }
 
-      if (isPathCommand(spec.command, pathModule)) {
-        // A relative path runs against the child's own cwd, so that is where it has to exist.
-        if (!isExecutable({ candidatePath: pathModule.resolve(spec.cwd ?? process.cwd(), spec.command) })) {
-          throw new McpLaunchUnavailableError({ message: messages.launchUnavailable({ command: spec.command, searchedDirs: searchDirs }) });
-        }
-        return { command: spec.command, args: [...spec.args], cwd: spec.cwd, env: spec.env, launchEnv: otherLaunchEnv };
-      }
-
-      const found = findOnSearchDirs(spec.command, searchDirs, pathModule, isExecutable);
+      const found = findExecutable({ command: spec.command, cwd: spec.cwd }, { pathModule, searchDirs, isExecutable });
       if (found === null) {
         throw new McpLaunchUnavailableError({ message: messages.launchUnavailable({ command: spec.command, searchedDirs: searchDirs }) });
       }

@@ -210,20 +210,28 @@ export class GithubRegistryBackend extends StaticRegistryBackend {
   }
 }
 
+/**
+ * Render the publish PR body. Empty parts (no description, no changelog) are
+ * dropped by `filter(Boolean)`, so the body carries no blank separator lines
+ * apart from the ones embedded in the changelog section.
+ */
 function renderPublishBody(request: RegistryPublishRequest): string {
+  const { entry } = request;
   return [
-    `Publish ${request.entry.name}@${request.entry.version}`,
-    '',
-    request.entry.description ?? '',
-    '',
+    `Publish ${entry.name}@${entry.version}`,
+    entry.description,
     '## Registry metadata',
-    '',
-    `- source: ${request.entry.source}`,
-    `- integrity: ${request.entry.integrity ?? request.entry.dist?.integrity ?? '(pending)'}`,
-    `- manifestDigest: ${request.entry.manifestDigest ?? request.entry.dist?.manifestDigest ?? '(pending)'}`,
-    `- capabilities: ${(request.entry.capabilitiesSummary ?? []).join(', ') || '(none declared)'}`,
-    request.changelog ? `\n## Changelog\n\n${request.changelog}` : '',
+    `- source: ${entry.source}`,
+    `- integrity: ${digestField(entry, 'integrity')}`,
+    `- manifestDigest: ${digestField(entry, 'manifestDigest')}`,
+    `- capabilities: ${(entry.capabilitiesSummary ?? []).join(', ') || '(none declared)'}`,
+    request.changelog && `\n## Changelog\n\n${request.changelog}`,
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+/** A top-level digest wins over the `dist` one; neither yet means the publish pipeline has not computed it. */
+function digestField(entry: RegistryPublishRequest['entry'], key: 'integrity' | 'manifestDigest'): string {
+  return entry[key] ?? entry.dist?.[key] ?? '(pending)';
 }
