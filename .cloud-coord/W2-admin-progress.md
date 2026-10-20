@@ -8,7 +8,7 @@ Setup: 140 s (pnpm install + build; integrations build fails as expected). Wave 
 | Lot | Files | Status | Before cyc/cog | After cyc/cog | Coverage | Commits | Verify |
 |---|---|---|---|---|---|---|---|
 | L214 | redirects conformance + import form hook | pending | 18/11 | | | | |
-| L216 | browser/navigation.ts | pending | 18/11 | | | | |
+| L216 | browser/navigation.ts | merged | 18/11 | 9/4 | 100/100/100 | 06c86059 | PASS: eslint 0, tsc 0, 32 tests, comments moved, no as-any |
 | L246 | media/controllers/library.controller.ts | pending | 12/13 | | | | |
 | L247 | source-control conformance/controller/ProvidersTab hook | pending | 12/≤10 | | | | |
 | L256 | media/html-attributes.ts, media/rules.ts | pending | 13/≤10 | | | | |
