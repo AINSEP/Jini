@@ -41,7 +41,7 @@ export const EMPTY_SKILL_DRAFT: SkillDraft = {
 /** The two origins the source filter offers explicitly. A host may report
  *  others (an org registry, a marketplace); those are counted under `all` and
  *  get no pill of their own, matching the origin's behaviour. */
-const KNOWN_SOURCES: readonly SourceFilter[] = ['all', 'user', 'built-in'];
+const KNOWN_SOURCES: readonly SourceFilter[] = ['user', 'built-in'];
 
 /**
  * The skill's name in `locale`, falling back to the untranslated `name`.
@@ -147,29 +147,51 @@ export function skillFilterOptions(
   dimension: SkillFilterDimension,
 ): { all: number; options: SkillFilterOption[] } {
   const matching = skills.filter((skill) => skillMatchesFilters(skill, filters, locale, dimension));
+  if (dimension === 'source') return sourceFilterOptions({ matching });
+  return valueFilterOptions({ skills, matching, valueOf: dimension === 'mode' ? modeValue : categoryValue });
+}
 
-  if (dimension === 'source') {
-    const counts = new Map<string, number>(KNOWN_SOURCES.filter((s) => s !== 'all').map((s) => [s, 0]));
-    for (const skill of matching) {
-      // `undefined` means an origin outside the known vocabulary (an org
-      // registry, a marketplace). Those are counted in `all` and get no pill.
-      // One lookup, not a `has` + `get` pair with an unreachable `?? 0`.
-      const current = counts.get(skill.source);
-      if (current !== undefined) counts.set(skill.source, current + 1);
-    }
-    return {
-      all: matching.length,
-      options: [...counts.entries()]
-        .map(([value, count]) => [value, count] as SkillFilterOption)
-        .sort((a, b) => a[0].localeCompare(b[0])),
-    };
+/** Sorted by value (`localeCompare`) so the pill row is stable across renders. */
+function sortedOptions(options: SkillFilterOption[]): SkillFilterOption[] {
+  return options.sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+/** The `source` pills: always the known vocabulary, counted over `matching`. */
+function sourceFilterOptions({ matching }: { matching: readonly SkillSummary[] }): {
+  all: number;
+  options: SkillFilterOption[];
+} {
+  const counts = new Map<string, number>(KNOWN_SOURCES.map((s) => [s, 0]));
+  for (const skill of matching) {
+    // `undefined` means an origin outside the known vocabulary (an org
+    // registry, a marketplace). Those are counted in `all` and get no pill.
+    // One lookup, not a `has` + `get` pair with an unreachable `?? 0`.
+    const current = counts.get(skill.source);
+    if (current !== undefined) counts.set(skill.source, current + 1);
   }
+  return {
+    all: matching.length,
+    options: sortedOptions([...counts.entries()].map(([value, count]) => [value, count] as SkillFilterOption)),
+  };
+}
 
-  // `mode` is required on every skill; `category` is optional, so a skill
-  // without one contributes to `all` but to no pill.
-  const valueOf = (skill: SkillSummary): string | null =>
-    dimension === 'mode' ? skill.mode : typeof skill.category === 'string' && skill.category ? skill.category : null;
+// `mode` is required on every skill; `category` is optional, so a skill
+// without one contributes to `all` but to no pill.
+const modeValue = (skill: SkillSummary): string | null => skill.mode;
+const categoryValue = (skill: SkillSummary): string | null =>
+  typeof skill.category === 'string' && skill.category ? skill.category : null;
 
+/** The data-derived pills (`mode`, `category`): option SET from every skill,
+ *  COUNTS from `matching` — see `skillFilterOptions`. */
+function valueFilterOptions({
+  skills,
+  matching,
+  valueOf,
+}: {
+  skills: readonly SkillSummary[];
+  matching: readonly SkillSummary[];
+  valueOf: (skill: SkillSummary) => string | null;
+}): { all: number; options: SkillFilterOption[] } {
   const values = new Set<string>();
   for (const skill of skills) {
     const value = valueOf(skill);
@@ -185,9 +207,7 @@ export function skillFilterOptions(
 
   return {
     all: matching.length,
-    options: [...values]
-      .map((value) => [value, counts.get(value) ?? 0] as SkillFilterOption)
-      .sort((a, b) => a[0].localeCompare(b[0])),
+    options: sortedOptions([...values].map((value) => [value, counts.get(value) ?? 0] as SkillFilterOption)),
   };
 }
 

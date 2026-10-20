@@ -1,6 +1,7 @@
 import { agentHandleProps } from '@jini-ai/agentic';
 import type { SkillDraft, SkillDraftError } from '../../types.js';
 import { useT } from '../../../i18n/index.js';
+import { resolveSkillDraftFormLabels, skillDraftErrorText, skillDraftSubmitLabel } from './SkillDraftForm.labels.js';
 
 export interface SkillDraftFormLabels {
   nameLabel?: string;
@@ -56,26 +57,10 @@ export function SkillDraftForm({
   labels,
   agentHandle,
 }: SkillDraftFormProps) {
-  const t = useT();
-  const nameLabel = labels?.nameLabel ?? t('Name');
-  const namePlaceholder = labels?.namePlaceholder ?? t('my-skill');
-  const triggersLabel = labels?.triggersLabel ?? t('Triggers');
-  const triggersPlaceholder = labels?.triggersPlaceholder ?? t('search the web, summarize');
-  const descriptionLabel = labels?.descriptionLabel ?? t('Description');
-  const descriptionPlaceholder = labels?.descriptionPlaceholder ?? t('What does this skill do? When should it be used?');
-  const bodyLabel = labels?.bodyLabel ?? t('Body');
-  const bodyPlaceholder = labels?.bodyPlaceholder ?? t('# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.');
-  const cancelLabel = labels?.cancelLabel ?? t('Cancel');
-  const createLabel = labels?.createLabel ?? t('Create');
-  const saveLabel = labels?.saveLabel ?? t('Save');
-  const overrideSaveLabel = labels?.overrideSaveLabel ?? t('Save as override');
-  const savingLabel = labels?.savingLabel ?? t('Saving…');
-  const nameRequiredError = labels?.nameRequiredError ?? t('Name is required.');
-  const bodyRequiredError = labels?.bodyRequiredError ?? t('Body is required.');
-
-  const submitLabel = saving ? savingLabel : isEdit ? (isBuiltInOverride ? overrideSaveLabel : saveLabel) : createLabel;
-  const errorText =
-    error?.kind === 'name-required' ? nameRequiredError : error?.kind === 'body-required' ? bodyRequiredError : (error?.message ?? null);
+  const l = resolveSkillDraftFormLabels({ t: useT() }, { labels });
+  const submitLabel = skillDraftSubmitLabel({ labels: l, saving, isEdit, isBuiltInOverride });
+  const errorText = skillDraftErrorText({ labels: l, error });
+  const fieldProps = { draft, onDraftChange, agentHandle };
 
   return (
     <div className="jini-settings-subsection jini-skills-draft" data-testid={isEdit ? 'skills-edit-form' : 'skills-create-form'}>
@@ -86,58 +71,16 @@ export function SkillDraftForm({
         </div>
       </div>
 
-      <div className="jini-settings-field">
-        <label>
-          <span>{nameLabel}</span>
-          <input
-            type="text"
-            value={draft.name}
-            onChange={(event) => onDraftChange((current) => ({ ...current, name: event.target.value }))}
-            placeholder={namePlaceholder}
-            disabled={isEdit}
-            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'name', role: 'field', label: nameLabel }) })}
-          />
-        </label>
-      </div>
-
-      <div className="jini-settings-field">
-        <label>
-          <span>{triggersLabel}</span>
-          <input
-            type="text"
-            value={draft.triggers}
-            onChange={(event) => onDraftChange((current) => ({ ...current, triggers: event.target.value }))}
-            placeholder={triggersPlaceholder}
-            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'triggers', role: 'field', label: triggersLabel }) })}
-          />
-        </label>
-      </div>
-
-      <div className="jini-settings-field">
-        <label>
-          <span>{descriptionLabel}</span>
-          <textarea
-            rows={2}
-            value={draft.description}
-            onChange={(event) => onDraftChange((current) => ({ ...current, description: event.target.value }))}
-            placeholder={descriptionPlaceholder}
-            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'description', role: 'field', label: descriptionLabel }) })}
-          />
-        </label>
-      </div>
-
-      <div className="jini-settings-field">
-        <label>
-          <span>{bodyLabel}</span>
-          <textarea
-            rows={14}
-            value={draft.body}
-            onChange={(event) => onDraftChange((current) => ({ ...current, body: event.target.value }))}
-            placeholder={bodyPlaceholder}
-            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'body', role: 'field', label: bodyLabel }) })}
-          />
-        </label>
-      </div>
+      <SkillDraftField {...fieldProps} field="name" label={l.nameLabel} placeholder={l.namePlaceholder} disabled={isEdit} />
+      <SkillDraftField {...fieldProps} field="triggers" label={l.triggersLabel} placeholder={l.triggersPlaceholder} />
+      <SkillDraftField
+        {...fieldProps}
+        field="description"
+        label={l.descriptionLabel}
+        placeholder={l.descriptionPlaceholder}
+        rows={2}
+      />
+      <SkillDraftField {...fieldProps} field="body" label={l.bodyLabel} placeholder={l.bodyPlaceholder} rows={14} />
 
       {errorText ? (
         <p className="jini-hint jini-hint-error" role="alert">
@@ -151,9 +94,9 @@ export function SkillDraftForm({
           className="jini-button jini-button-ghost"
           onClick={onCancel}
           disabled={saving}
-          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'cancel', role: 'button', label: cancelLabel }) })}
+          {...agentHandleProps({}, { base: agentHandle, action: 'cancel', role: 'button', label: l.cancelLabel })}
         >
-          {cancelLabel}
+          {l.cancelLabel}
         </button>
         <button
           type="button"
@@ -161,11 +104,44 @@ export function SkillDraftForm({
           onClick={onSubmit}
           disabled={saving}
           data-testid="skills-save"
-          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'submit', role: 'button', label: submitLabel }) })}
+          {...agentHandleProps({}, { base: agentHandle, action: 'submit', role: 'button', label: submitLabel })}
         >
           {submitLabel}
         </button>
       </div>
+    </div>
+  );
+}
+
+interface SkillDraftFieldProps {
+  draft: SkillDraft;
+  onDraftChange: SkillDraftFormProps['onDraftChange'];
+  agentHandle: string | undefined;
+  field: keyof SkillDraft;
+  label: string;
+  placeholder: string;
+  /** Only the Name input is ever disabled (while editing — a skill's name is its id). */
+  disabled?: boolean;
+  /** Set for the multi-line fields: renders a `<textarea>` instead of an `<input>`. */
+  rows?: number;
+}
+
+/** One labelled draft field. Attribute order matches the original inline
+ *  markup exactly so the rendered HTML is unchanged. */
+function SkillDraftField({ draft, onDraftChange, agentHandle, field, label, placeholder, disabled, rows }: SkillDraftFieldProps) {
+  const onChange = (event: { target: { value: string } }) =>
+    onDraftChange((current) => ({ ...current, [field]: event.target.value }));
+  const handle = agentHandleProps({}, { base: agentHandle, action: field, role: 'field', label });
+  return (
+    <div className="jini-settings-field">
+      <label>
+        <span>{label}</span>
+        {rows === undefined ? (
+          <input type="text" value={draft[field]} onChange={onChange} placeholder={placeholder} disabled={disabled} {...handle} />
+        ) : (
+          <textarea rows={rows} value={draft[field]} onChange={onChange} placeholder={placeholder} {...handle} />
+        )}
+      </label>
     </div>
   );
 }
