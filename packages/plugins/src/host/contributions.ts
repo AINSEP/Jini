@@ -44,6 +44,18 @@ export function validatePluginRoute(required: { method: string; path: string }, 
   if (!/^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$/.test(required.method)) throw new Error('unsupported plugin route method');
   if (!/^\/(?:[a-zA-Z0-9_-]+|:[a-zA-Z][a-zA-Z0-9_]*)(?:\/(?:[a-zA-Z0-9_-]+|:[a-zA-Z][a-zA-Z0-9_]*))*\/?$/.test(required.path) && required.path !== '/') throw new Error('unsafe plugin route path');
 }
+
+function serializePluginToolSchema(
+  { schema }: { schema: Readonly<Record<string, unknown>> },
+  _optional: Record<string, never> = {},
+): string {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema) || schema.type !== 'object') throw new Error('plugin tool input schema must describe an object');
+  // Detach the JSON schema so later plugin mutations cannot alter the assistant contract.
+  const json = JSON.stringify(schema);
+  if (new TextEncoder().encode(json).byteLength > 65536) throw new Error('plugin tool schema is too large');
+  return json;
+}
+
 /** Bounded registration and detached snapshots; all runtime surfaces require a manifest claim.
  * SDK capability checks remain in buildCapabilityScopedSdk; this owner checks declarations too. */
 export function createPluginContributionCapture(required: { manifest: PluginManifest }, optional: { maxContributions?: number } = {}) {
@@ -75,11 +87,7 @@ export function createPluginContributionCapture(required: { manifest: PluginMani
       check(); named(value.name, manifest.contributes?.tools);
       if (tools.some(tool => tool.name === value.name)) throw new Error('duplicate plugin tool');
       if (typeof value.handler !== 'function' || typeof value.description !== 'string' || !value.description.trim() || value.description.length > 8000) throw new Error('plugin tool handler and description are required');
-      const schema = value.inputSchema;
-      if (!schema || typeof schema !== 'object' || Array.isArray(schema) || schema.type !== 'object') throw new Error('plugin tool input schema must describe an object');
-      // Detach the JSON schema so later plugin mutations cannot alter the assistant contract.
-      const json = JSON.stringify(schema);
-      if (new TextEncoder().encode(json).byteLength > 65536) throw new Error('plugin tool schema is too large');
+      const json = serializePluginToolSchema({ schema: value.inputSchema });
       tools.push(Object.freeze({ ...value, inputSchema: JSON.parse(json) as Record<string, unknown> }));
     } },
     widgets: { add(value: PluginWidgetContribution, _optional: Record<string, never> = {}) {

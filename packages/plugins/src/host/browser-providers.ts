@@ -1,5 +1,6 @@
 /** Bundled chart declarations only. ADR-025 trust comes from composition, never the manifest. */
 import type { PluginValidationError } from './manifest.js';
+import { isNonArrayRecord } from '@jini-ai/core/records';
 
 export interface BrowserProviderDeclaration {
   readonly id: string;
@@ -28,6 +29,38 @@ export function isPluginRelativePath({ path }: { path: string }, _options: Recor
   return path.length > 0 && !/[\\:\u0000-\u001f]/.test(path) && path.split('/').every((segment) => segment.length > 0 && segment !== '.' && segment !== '..');
 }
 
+function validChartKinds({ kinds }: { kinds: unknown }, _options: Record<string, never> = {}): boolean {
+  return Array.isArray(kinds) && kinds.length > 0
+    && !kinds.some((kind) => typeof kind !== 'string' || kind.trim() === '')
+    && new Set(kinds).size === kinds.length;
+}
+
+function validateBrowserProviderDeclaration(
+  { provider, ids }: { provider: Record<string, unknown>; ids: Set<string> },
+  _options: Record<string, never> = {},
+): string[] {
+  const errors: string[] = [];
+  if (Object.keys(provider).some((key) => !['id', 'kind', 'contractVersion', 'kinds', 'javascript', 'stylesheet'].includes(key))) errors.push('Unknown browser provider field.');
+  if (typeof provider.id !== 'string' || !/^[a-z0-9][a-z0-9.-]*$/.test(provider.id) || ids.has(provider.id)) errors.push('Browser provider id must be unique and non-empty.');
+  if (typeof provider.id === 'string') ids.add(provider.id);
+  if (provider.kind !== 'chart' || provider.contractVersion !== 1) errors.push('Only chart contractVersion 1 is supported.');
+  if (!validChartKinds({ kinds: provider.kinds })) errors.push('Chart kinds must be unique non-empty strings.');
+  return errors;
+}
+
+function validateBrowserProviderAssets(
+  { provider, integrity }: { provider: Record<string, unknown>; integrity: Readonly<Record<string, unknown>> },
+  _options: Record<string, never> = {},
+): string[] {
+  const errors: string[] = [];
+  for (const [key, suffix] of [['javascript', /\.(?:m?js)$/], ['stylesheet', /\.css$/]] as const) {
+    const file = provider[key];
+    if (key === 'stylesheet' && file === undefined) continue;
+    if (typeof file !== 'string' || !isPluginRelativePath({ path: file }) || !file.startsWith('client/') || !suffix.test(file) || !/^sha256-[0-9a-f]{64}$/.test(String(integrity[file]))) errors.push(`Browser provider ${key} must name a digest-covered client asset.`);
+  }
+  return errors;
+}
+
 /** Collect static declaration errors; admission additionally requires compiled-in host pins.
  * @example validateBrowserProviders({ browserProviders, integrity })
  */
@@ -41,18 +74,10 @@ export function validateBrowserProviders(
   if (!Array.isArray(browserProviders)) { invalid('browserProviders must be a list.'); return errors; }
   const ids = new Set<string>();
   for (const value of browserProviders) {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) { invalid('Browser provider must be an object.'); continue; }
+    if (!isNonArrayRecord({ value })) { invalid('Browser provider must be an object.'); continue; }
     const provider = value as Record<string, unknown>;
-    if (Object.keys(provider).some((key) => !['id', 'kind', 'contractVersion', 'kinds', 'javascript', 'stylesheet'].includes(key))) invalid('Unknown browser provider field.');
-    if (typeof provider.id !== 'string' || !/^[a-z0-9][a-z0-9.-]*$/.test(provider.id) || ids.has(provider.id)) invalid('Browser provider id must be unique and non-empty.');
-    if (typeof provider.id === 'string') ids.add(provider.id);
-    if (provider.kind !== 'chart' || provider.contractVersion !== 1) invalid('Only chart contractVersion 1 is supported.');
-    if (!Array.isArray(provider.kinds) || provider.kinds.length === 0 || provider.kinds.some((kind) => typeof kind !== 'string' || kind.trim() === '') || new Set(provider.kinds).size !== provider.kinds.length) invalid('Chart kinds must be unique non-empty strings.');
-    for (const [key, suffix] of [['javascript', /\.(?:m?js)$/], ['stylesheet', /\.css$/]] as const) {
-      const file = provider[key];
-      if (key === 'stylesheet' && file === undefined) continue;
-      if (typeof file !== 'string' || !isPluginRelativePath({ path: file }) || !file.startsWith('client/') || !suffix.test(file) || !/^sha256-[0-9a-f]{64}$/.test(String(integrity[file]))) invalid(`Browser provider ${key} must name a digest-covered client asset.`);
-    }
+    validateBrowserProviderDeclaration({ provider, ids }).forEach(invalid);
+    validateBrowserProviderAssets({ provider, integrity }).forEach(invalid);
   }
   return errors;
 }

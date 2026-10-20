@@ -30,6 +30,7 @@ import { PLUGIN_MANIFEST_FILENAME } from "./plugin-format.js";
 import { validateBrowserProviders, type BrowserProviderDeclaration } from "./browser-providers.js";
 
 import { readPluginIdentity, validatePluginIdentity, type PluginIdentityExtension } from "@jini-ai/core/plugin-directory";
+import { isNonArrayRecord } from "@jini-ai/core/records";
 import type { HookPoints, ManifestHostPorts } from "./ports.js";
 
 
@@ -306,12 +307,20 @@ function validateIdentityFields(raw: Readonly<Record<string, unknown>>): PluginV
   if (raw.version !== undefined && (typeof raw.version !== "string" || !isExactSemver(raw.version))) {
     errors.push(malformed(`version '${String(raw.version)}' must be a semver version (e.g. 1.0.0)`));
   }
-  if (raw.integrity === undefined) return errors;
-  if (typeof raw.integrity !== "object" || raw.integrity === null || Array.isArray(raw.integrity)) {
-    errors.push(malformed("'integrity' must be an object mapping packaged file paths to sha256 hashes"));
-    return errors;
+  return [...errors, ...validateIntegrity({ integrity: raw.integrity })];
+}
+
+function validateIntegrity(
+  { integrity }: { integrity: unknown },
+  _optional: Record<string, never> = {},
+): PluginValidationError[] {
+  if (integrity === undefined) return [];
+  const input = { value: integrity };
+  if (!isNonArrayRecord(input)) {
+    return [malformed("'integrity' must be an object mapping packaged file paths to sha256 hashes")];
   }
-  for (const [file, hash] of Object.entries(raw.integrity)) {
+  const errors: PluginValidationError[] = [];
+  for (const [file, hash] of Object.entries(input.value)) {
     if (file === "" || typeof hash !== "string" || !INTEGRITY_HASH_PATTERN.test(hash)) {
       errors.push(malformed(`integrity entry '${file}' must be 'sha256-' followed by 64 lowercase hex characters`));
     }
@@ -520,18 +529,25 @@ function validateContributes(raw: Readonly<Record<string, unknown>>, id: string 
   }
   const errors: PluginValidationError[] = [];
   for (const [key, list] of Object.entries(raw.contributes)) {
-    if (!CONTRIBUTION_KEY_SET.has(key)) {
-      errors.push(contributesInvalid(`unknown contributes key '${key}' (expected one of ${CONTRIBUTION_KEYS.join(", ")})`));
-      continue;
-    }
-    if (!Array.isArray(list) || list.some((entry) => typeof entry !== "string" || entry.trim() === "")) {
-      errors.push(contributesInvalid(`contributes.${key} must be a list of non-empty strings`));
-      continue;
-    }
-    for (const entry of list as string[]) {
-      const error = validateContribution(key, entry, id);
-      if (error) errors.push(error);
-    }
+    errors.push(...validateContributionList({ key, list, id }));
+  }
+  return errors;
+}
+
+function validateContributionList(
+  { key, list, id }: { key: string; list: unknown; id: string | undefined },
+  _optional: Record<string, never> = {},
+): PluginValidationError[] {
+  if (!CONTRIBUTION_KEY_SET.has(key)) {
+    return [contributesInvalid(`unknown contributes key '${key}' (expected one of ${CONTRIBUTION_KEYS.join(", ")})`)];
+  }
+  if (!Array.isArray(list) || list.some((entry) => typeof entry !== "string" || entry.trim() === "")) {
+    return [contributesInvalid(`contributes.${key} must be a list of non-empty strings`)];
+  }
+  const errors: PluginValidationError[] = [];
+  for (const entry of list as string[]) {
+    const error = validateContribution(key, entry, id);
+    if (error) errors.push(error);
   }
   return errors;
 }
