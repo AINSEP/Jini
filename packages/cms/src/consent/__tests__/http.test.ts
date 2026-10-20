@@ -190,6 +190,14 @@ describe('availability and delivery regressions', () => {
     expect(response.headers.get('content-security-policy')).toContain("connect-src 'none'");
     expect(response.headers.get('content-length')).toBeNull(); expect(response.headers.get('etag')).toBeNull();
   });
+  it('an HTML page larger than maxHtmlBytes is served unmodified under the restrictive policy', async () => {
+    const { base, html, failures } = await site({ register: { maxHtmlBytes: 64 } });
+    const response = await fetch(base);
+    expect(await response.text()).toBe(html);
+    expect(response.headers.get('content-security-policy')).toContain("script-src 'none'");
+    expect(failures.map(entry => (entry.error as Error).message)).toEqual(['Consent HTML exceeded 64 bytes, so it was served unmodified under the restrictive consent policy. Raise maxHtmlBytes if pages are legitimately larger.']);
+    expect(() => registerConsentHttp({ app: express(), ports: {} as ConsentHttpPorts }, { maxHtmlBytes: 0 })).toThrow('Consent maxHtmlBytes must be a positive whole number of bytes; got 0.');
+  });
   it('write throttling never prevents public page delivery or receipt status', async () => {
     const { base, ports } = await site({ allowed: false });
     ports.allowWrite = async () => { throw new Error('Limiter unavailable'); };

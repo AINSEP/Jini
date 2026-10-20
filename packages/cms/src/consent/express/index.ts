@@ -3,7 +3,7 @@ import express, { type Express, type Request, type Response } from 'express';
 import { createConsentRecord, googleConsentSignals, readConsentRecord, resolveConsentRegion } from '../policy.js';
 import { CONSENT_MAX_AGE_MS, type ConsentConfig, type ConsentRecord, type ConsentRecordPort } from '../types.js';
 import { gateConsentHtml } from '../html/index.js';
-import { blockConsentResponse, captureConsentHtml } from './response.js';
+import { blockConsentResponse, captureConsentHtml, CONSENT_MAX_HTML_BYTES } from './response.js';
 import type { ConsentGateOptions } from '../html/gate.js';
 
 /** All host effects are explicit. Region defaults to unknown; no geo service is required. */
@@ -58,7 +58,7 @@ function respondError(response: Response, status: number, error: string): void {
   response.status(status).json({ error });
 }
 
-type ConsentHttpOptions = { endpoint?: string; cookieName?: string; nonce?: string | ((required: { request: Request; response: Response }) => string | undefined); necessaryScripts?: ConsentGateOptions['necessaryScripts']; resourceOrigins?: ConsentGateOptions['resourceOrigins']; categoryOrigins?: ConsentGateOptions['categoryOrigins']; delivery?: 'live' | 'static' };
+type ConsentHttpOptions = { endpoint?: string; cookieName?: string; nonce?: string | ((required: { request: Request; response: Response }) => string | undefined); necessaryScripts?: ConsentGateOptions['necessaryScripts']; resourceOrigins?: ConsentGateOptions['resourceOrigins']; categoryOrigins?: ConsentGateOptions['categoryOrigins']; delivery?: 'live' | 'static'; maxHtmlBytes?: number };
 
 const UNAVAILABLE_CONFIG: ConsentConfig = { enabled: true, regionMode: 'opt-in', policyVersion: 'unavailable', privacyPolicyUrl: '', title: 'Cookie preferences', message: 'Optional content is paused while preferences are unavailable.', acceptLabel: 'Accept all', rejectLabel: 'Reject non-essential', preferencesLabel: 'Cookie preferences' };
 
@@ -140,7 +140,8 @@ async function gatedBody({ body, request, response, ports, config, failed }: { b
  * @complexity Per page O(HTML bytes), one config/receipt read; per choice O(1), one durable write.
  */
 export function registerConsentHttp({ app, ports }: { app: Express; ports: ConsentHttpPorts }, options: ConsentHttpOptions = {}): void {
-  const { endpoint = '/api/site-consent', cookieName = 'jini_consent', delivery = 'live' } = options;
+  const { endpoint = '/api/site-consent', cookieName = 'jini_consent', delivery = 'live', maxHtmlBytes = CONSENT_MAX_HTML_BYTES } = options;
+  if (!Number.isSafeInteger(maxHtmlBytes) || maxHtmlBytes < 1) throw new Error(`Consent maxHtmlBytes must be a positive whole number of bytes; got ${maxHtmlBytes}.`);
   const state: { lastGood?: ConsentConfig } = {};
   app.get(`${endpoint}/status`, async (_request, response) => {
     response.set('Cache-Control', 'no-store').json({ ready: true });
@@ -156,7 +157,7 @@ export function registerConsentHttp({ app, ports }: { app: Express; ports: Conse
   });
   app.use((request, response, next) => {
     if (!isPublicPage(request)) { next(); return; }
-    captureConsentHtml({ response, transform: ({ body }) => deliver({ body }) }, { reportError: ({ error }) => ports.reportError({ operation: 'read', error }) });
+    captureConsentHtml({ response, transform: ({ body }) => deliver({ body }) }, { reportError: ({ error }) => ports.reportError({ operation: 'read', error }), maxBytes: maxHtmlBytes });
     async function deliver({ body }: { body: Buffer }, _options = {}): Promise<Buffer> {
       const { config, failed } = await deliveryConfig({ ports, state });
       if (!config.enabled) return body;

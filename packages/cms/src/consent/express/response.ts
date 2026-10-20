@@ -11,6 +11,18 @@ export function blockConsentResponse({ response }: { response: Response }, _opti
 }
 
 
+/** Default capture bound; ordinary rendered pages are far smaller. */
+export const CONSENT_MAX_HTML_BYTES = 5 * 1024 * 1024;
+
+/** Past the capture bound the page is served unmodified under the restrictive policy, so memory
+ * stays bounded and nothing optional runs ungated. @complexity O(collected bytes) once. */
+function overflowBody({ response, chunks, maxBytes, reportError }: { response: Response; chunks: Buffer[]; maxBytes: number; reportError: (required: { error: unknown }) => void }): Buffer {
+  blockConsentResponse({ response });
+  const error = new Error(`Consent HTML exceeded ${maxBytes} bytes, so it was served unmodified under the restrictive consent policy. Raise maxHtmlBytes if pages are legitimately larger.`);
+  try { reportError({ error }); } catch { console.error('Consent error reporter failed; an oversized page was served under the restrictive policy.'); }
+  return Buffer.concat(chunks);
+}
+
 /** @complexity O(chunk length). */
 function toBuffer({ chunk, encoding }: { chunk: unknown; encoding: unknown }): Buffer {
   if (Buffer.isBuffer(chunk)) return chunk;
@@ -55,8 +67,10 @@ async function completeBody({ response, collected, transform, reportError, finis
 /** Intercept actual HTML at the common write/end boundary, including sendFile and pipes.
  * Non-HTML output uses native methods without invoking policy/storage. HTML must be complete
  * before parsing; callbacks acknowledge buffered writes and final completion remains native.
- * @complexity O(n) time/space for n response bytes, plus the injected transformation. */
-export function captureConsentHtml({ response, transform }: { response: Response; transform: (required: { body: Buffer }) => Promise<Buffer> }, { reportError = () => console.error("Consent HTML transform failed; optional content is blocked.") }: { reportError?: (required: { error: unknown }) => void } = {}): void {
+ * At most maxBytes (plus one chunk) is buffered; a larger page streams through unmodified under
+ * the restrictive policy.
+ * @complexity O(min(n, maxBytes)) space and O(n) time for n response bytes, plus the injected transformation. */
+export function captureConsentHtml({ response, transform }: { response: Response; transform: (required: { body: Buffer }) => Promise<Buffer> }, { reportError = () => console.error("Consent HTML transform failed; optional content is blocked."), maxBytes = CONSENT_MAX_HTML_BYTES }: { reportError?: (required: { error: unknown }) => void; maxBytes?: number } = {}): void {
   const write = response.write, end = response.end, writeHead = response.writeHead, flushHeaders = response.flushHeaders;
   const chunks: Buffer[] = [];
   let bytes = 0, buffering = false;
@@ -76,6 +90,11 @@ export function captureConsentHtml({ response, transform }: { response: Response
     buffering = true;
     collect(chunk, encoding);
     const done = typeof encoding === 'function' ? encoding : callback;
+    if (bytes > maxBytes) {
+      const body = overflowBody({ response, chunks, maxBytes, reportError });
+      restore();
+      return Reflect.apply(write, this, [body, done]);
+    }
     if (typeof done === 'function') queueMicrotask(() => done());
     return true;
   } as Response['write'];
@@ -83,6 +102,11 @@ export function captureConsentHtml({ response, transform }: { response: Response
     if (!buffering && !isHtml(chunk)) { restore(); return Reflect.apply(end, this, [chunk, encoding, callback]); }
     if (chunk !== undefined && chunk !== null && typeof chunk !== 'function') collect(chunk, encoding);
     const done = endCallback({ chunk, encoding, callback });
+    if (bytes > maxBytes) {
+      const body = overflowBody({ response, chunks, maxBytes, reportError });
+      restore();
+      return Reflect.apply(end, this, [body, done]);
+    }
     const finish = (body: Buffer) => { restore(); Reflect.apply(end, response, [body, typeof done === 'function' ? done : undefined]); };
     void completeBody({ response, collected: Buffer.concat(chunks, bytes), transform, reportError, finish });
     return this;

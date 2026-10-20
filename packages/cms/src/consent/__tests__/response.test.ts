@@ -127,3 +127,40 @@ describe('captureConsentHtml', () => {
     expect(error).toHaveBeenCalledWith('Consent HTML transform failed; optional content is blocked.');
   });
 });
+
+describe('captureConsentHtml buffer bound', () => {
+  const limitMessage = 'Consent HTML exceeded 10 bytes, so it was served unmodified under the restrictive consent policy. Raise maxHtmlBytes if pages are legitimately larger.';
+  it('streams the original bytes under the restrictive policy once writes pass the limit', async () => {
+    const { response, headers, calls } = fakeResponse('text/html');
+    headers.set('content-length', '14');
+    const errors: unknown[] = [];
+    const transform = vi.fn(upper);
+    captureConsentHtml({ response, transform }, { maxBytes: 10, reportError: ({ error }) => { errors.push((error as Error).message); } });
+    const done = vi.fn();
+    response.write('abcdef');
+    expect(calls).toEqual([]);
+    response.write('ghijkl', done);
+    response.end('mn');
+    await settle();
+    expect(calls).toEqual([['write', Buffer.from('abcdefghijkl'), done], ['end', 'mn']]);
+    expect(transform).not.toHaveBeenCalled(); expect(errors).toEqual([limitMessage]);
+    expect(headers.get('content-security-policy')).toContain("script-src 'none'"); expect(headers.has('content-length')).toBe(false);
+  });
+  it('a final chunk past the limit ends with the original body; a throwing reporter cannot hold it', async () => {
+    const { response, headers, calls } = fakeResponse('text/html');
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    captureConsentHtml({ response, transform: upper }, { maxBytes: 10, reportError: () => { throw new Error('reporter down'); } });
+    const done = vi.fn();
+    response.end('abcdefghijkl', done);
+    await settle();
+    expect(calls).toEqual([['end', Buffer.from('abcdefghijkl'), done]]);
+    expect(headers.get('content-security-policy')).toContain("script-src 'none'");
+  });
+  it('a body at the limit is still transformed', async () => {
+    const { response, calls } = fakeResponse('text/html');
+    captureConsentHtml({ response, transform: upper }, { maxBytes: 10 });
+    response.end('abcdefghij');
+    await settle();
+    expect(calls).toEqual([['end', Buffer.from('ABCDEFGHIJ'), undefined]]);
+  });
+});
