@@ -9,18 +9,32 @@ export interface ToolGapEntry {
   provider: string; toolUsed: string; summary: string; gapLine: string | null;
 }
 
+const GAP_ENTRY_STRING_KEYS = ['id', 'at', 'site', 'chatId', 'runId', 'provider', 'toolUsed', 'summary'] as const;
+
+/** True when a parsed row carries every public metadata field; older rows may omit `type`. */
+function hasToolGapShape(entry: Record<string, unknown>): boolean {
+  if (!GAP_ENTRY_STRING_KEYS.every(key => typeof entry[key] === 'string')) return false;
+  if (entry.gapLine !== null && typeof entry.gapLine !== 'string') return false;
+  return entry.type === undefined || entry.type === 'tool_gap' || entry.type === 'native_tool_used';
+}
+
 /** Decode only the public metadata shape; corrupt/older audit rows are skipped. Pure, O(n) JSON. */
 export function decodeToolGapEntry(required: { json: string | null }, _optional = {}): ToolGapEntry | null {
   try {
     const entry = JSON.parse(required.json ?? 'null') as Record<string, unknown> | null;
-    if (!entry || typeof entry !== 'object') return null;
-    for (const key of ['id', 'at', 'site', 'chatId', 'runId', 'provider', 'toolUsed', 'summary']) {
-      if (typeof entry[key] !== 'string') return null;
-    }
-    if (entry.gapLine !== null && typeof entry.gapLine !== 'string') return null;
-    if (entry.type !== undefined && entry.type !== 'tool_gap' && entry.type !== 'native_tool_used') return null;
+    if (!entry || typeof entry !== 'object' || !hasToolGapShape(entry)) return null;
     return { ...entry, type: entry.type ?? 'tool_gap' } as unknown as ToolGapEntry;
   } catch { return null; }
+}
+
+/** Default 100, at most 200, at least 1; zero/NaN/fractions below 1 fall back to the default. */
+function clampGapLimit(limit: number | undefined): number {
+  return Math.max(1, Math.min(200, Math.trunc(limit ?? 100) || 100));
+}
+
+/** A reserved gap row owned by the requested workspace and principal. */
+function isGapRowFor(row: ToolAttemptEvent, owner: { readonly workspaceId: string; readonly principalId: string }): boolean {
+  return row.toolId === TOOL_GAP_AUDIT_ID && row.workspaceId === owner.workspaceId && row.principalId === owner.principalId;
 }
 
 /** Project the in-memory audit adapter with the SQL reader's same latest-revision semantics.
@@ -28,18 +42,18 @@ export function decodeToolGapEntry(required: { json: string | null }, _optional 
 export function toolGapsFromAuditEvents(required: {
   events: readonly ToolAttemptEvent[]; workspaceId: string; principalId: string;
 }, optional: { limit?: number } = {}): readonly ToolGapEntry[] {
-  const limit = Math.max(1, Math.min(200, Math.trunc(optional.limit ?? 100) || 100));
+  const limit = clampGapLimit(optional.limit);
   const entries = new Map<string, ToolGapEntry>();
   for (let index = required.events.length - 1; index >= 0 && entries.size < limit; index--) {
     const row = required.events[index]!;
-    if (row.toolId !== TOOL_GAP_AUDIT_ID || row.workspaceId !== required.workspaceId || row.principalId !== required.principalId) continue;
+    if (!isGapRowFor(row, required)) continue;
     const entry = decodeToolGapEntry({ json: row.detail ?? null }, {});
     if (entry && !entries.has(entry.id)) entries.set(entry.id, entry);
   }
   return [...entries.values()];
 }
-const CATALOG_BRIDGE_TOOLS = new Set(['search_tools', 'describe_tool', 'execute_delegated_tool', 'execute_readonly_delegated_tool']);
-const FALLBACK_NAMES = new Set([
+const CATALOG_BRIDGE_TOOLS: ReadonlySet<string> = new Set(['search_tools', 'describe_tool', 'execute_delegated_tool', 'execute_readonly_delegated_tool']);
+const FALLBACK_NAMES: ReadonlySet<string> = new Set([
   'Bash', 'BashOutput', 'KillShell', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit',
   'shell', 'shell_command', 'exec_command', 'write_stdin', 'run_shell_command',
   'apply_patch', 'write_file', 'replace', 'edit_file', 'file_change',
@@ -50,19 +64,35 @@ const FALLBACK_NAMES = new Set([
 export function nativeFallbackSummary(required: { name: string; input: unknown }, _optional = {}): string | null {
   const name = required.name.replace(/^functions\./, '');
   if (!FALLBACK_NAMES.has(name)) return null;
-  if (typeof required.input === 'string') {
-    if (name === 'apply_patch') return required.input.split('\n').filter(line => /^\*\*\* (?:Add|Update|Delete) File:/.test(line)).join('; ');
-    return '[native tool input omitted]';
-  }
-  const input = required.input as Record<string, unknown> | null;
-  if (!input || typeof input !== 'object') return '[no command/path reported]';
+  if (typeof required.input === 'string') return summarizeTextInput(name, required.input);
+  return summarizeStructuredInput(required.input);
+}
+
+const NO_COMMAND_OR_PATH = '[no command/path reported]';
+
+/** Raw text input is omitted, except patch file headers. */
+function summarizeTextInput(name: string, text: string): string {
+  if (name === 'apply_patch') return text.split('\n').filter(line => /^\*\*\* (?:Add|Update|Delete) File:/.test(line)).join('; ');
+  return '[native tool input omitted]';
+}
+
+/** Prefer a command, then the first reported path field. */
+function summarizeStructuredInput(value: unknown): string {
+  const input = value as Record<string, unknown> | null;
+  if (!input || typeof input !== 'object') return NO_COMMAND_OR_PATH;
   const command = input.command ?? input.cmd;
   if (typeof command === 'string') return command;
-  const paths = input.file_path ?? input.path ?? input.notebook_path ?? input.paths;
+  return summarizePaths(input.file_path ?? input.path ?? input.notebook_path ?? input.paths);
+}
+
+function summarizePaths(paths: unknown): string {
   if (typeof paths === 'string') return paths;
   if (Array.isArray(paths)) return paths.filter(path => typeof path === 'string').join('; ');
-  return '[no command/path reported]';
+  return NO_COMMAND_OR_PATH;
 }
+
+/** The normalized tool_use payload fields the collector reads. */
+interface ToolUse { readonly id: string; readonly name: string; readonly input: unknown }
 
 /** Observe normalized CLI events, independent of model cooperation. Writes immediately at tool use;
  * a later explanation appends a revision with the same id. One collector per live run.
@@ -98,54 +128,61 @@ export function createToolGapCollector(required: {
     // line announcing a later one. A final explanation is attached on the terminal event.
     explanation = safe(`Tool gap: ${match[1]}`);
   };
+  /** Terminal event: read an unfinished line, then attach a final explanation as a revision. */
+  const finishRun = () => {
+    if (!discardingLine) readLine(tail);
+    if (lastGap && explanation && lastGap.gapLine === null) {
+      lastGap = { ...lastGap, gapLine: explanation };
+      append(lastGap);
+    }
+    tail = ''; explanation = null;
+  };
+  const readDelta = (delta: string) => {
+    const lines = (tail + delta).split('\n');
+    // String.prototype.split always returns at least one element, so the last piece exists.
+    tail = lines.pop()!;
+    for (const line of lines) {
+      if (!discardingLine) readLine(line);
+      discardingLine = false;
+    }
+    // Discard whole oversized lines rather than cutting a secret token before redaction.
+    if (tail.length > 2048) discardingLine = true;
+    if (discardingLine) tail = '';
+  };
+  const recordNativeTool = (tool: ToolUse, ts: number) => {
+    // Never store native/MCP inputs: they may contain prompts, credentials or document bodies.
+    append({ id: `${required.runId}:native:${tool.id}`, type: 'native_tool_used',
+      at: new Date(ts).toISOString(), site: required.site, chatId: required.chatId,
+      runId: required.runId, provider: required.provider, toolUsed: safe(tool.name),
+      summary: 'Native tool used', gapLine: null });
+  };
+  const recordGap = (tool: ToolUse, summary: string, ts: number) => {
+    if (!discardingLine) readLine(tail);
+    tail = ''; discardingLine = false;
+    lastGap = { id: `${required.runId}:gap:${tool.id}`, type: 'tool_gap', at: new Date(ts).toISOString(),
+      site: required.site, chatId: required.chatId, runId: required.runId,
+      provider: required.provider, toolUsed: safe(tool.name), summary: safe(summary), gapLine: explanation };
+    explanation = null;
+    append(lastGap);
+  };
+  const recordToolUse = (tool: ToolUse, ts: number) => {
+    if (seen.has(tool.id)) return;
+    // Catalog bridge calls are already audited by the catalog itself and are never marked seen.
+    if (CATALOG_BRIDGE_TOOLS.has(tool.name.replace(/^(?:mcp__jini__|functions\.)/, ''))) return;
+    seen.add(tool.id);
+    const summary = nativeFallbackSummary({ name: tool.name, input: tool.input }, {});
+    if (summary === null) recordNativeTool(tool, ts);
+    else recordGap(tool, summary, ts);
+  };
   return {
     /** Called synchronously from the run's existing subscription; no recursive run events. */
     observe({ event }: { event: RunProtocolEvent }, _options = {}): void {
       if (event.runId !== required.runId) return;
-      if (event.kind === 'end') {
-        if (!discardingLine) readLine(tail);
-        if (lastGap && explanation && lastGap.gapLine === null) {
-          lastGap = { ...lastGap, gapLine: explanation };
-          append(lastGap);
-        }
-        tail = ''; explanation = null;
-        return;
-      }
+      if (event.kind === 'end') { finishRun(); return; }
       if (event.kind !== 'agent') return;
       const payload = event.payload;
-      if (payload.type === 'text_delta') {
-        const lines = (tail + payload.delta).split('\n');
-        tail = lines.pop() ?? '';
-        for (const line of lines) {
-          if (!discardingLine) readLine(line);
-          discardingLine = false;
-        }
-        // Discard whole oversized lines rather than cutting a secret token before redaction.
-        if (tail.length > 2048) discardingLine = true;
-        if (discardingLine) tail = '';
-        return;
-      }
-      if (payload.type !== 'tool_use' || seen.has(payload.id)) return;
-      const summary = nativeFallbackSummary({ name: payload.name, input: payload.input }, {});
-      const catalogName = payload.name.replace(/^(?:mcp__jini__|functions\.)/, '');
-      if (CATALOG_BRIDGE_TOOLS.has(catalogName)) return;
-      if (summary === null) {
-        seen.add(payload.id);
-        // Never store native/MCP inputs: they may contain prompts, credentials or document bodies.
-        append({ id: `${required.runId}:native:${payload.id}`, type: 'native_tool_used',
-          at: new Date(event.ts).toISOString(), site: required.site, chatId: required.chatId,
-          runId: required.runId, provider: required.provider, toolUsed: safe(payload.name),
-          summary: 'Native tool used', gapLine: null });
-        return;
-      }
-      if (!discardingLine) readLine(tail);
-      tail = ''; discardingLine = false;
-      seen.add(payload.id);
-      lastGap = { id: `${required.runId}:gap:${payload.id}`, type: 'tool_gap', at: new Date(event.ts).toISOString(),
-        site: required.site, chatId: required.chatId, runId: required.runId,
-        provider: required.provider, toolUsed: safe(payload.name), summary: safe(summary), gapLine: explanation };
-      explanation = null;
-      append(lastGap);
+      if (payload.type === 'text_delta') readDelta(payload.delta);
+      else if (payload.type === 'tool_use') recordToolUse(payload, event.ts);
     },
     /** Await outstanding audit writes during graceful shutdown/tests. */
     flush: () => pending,
