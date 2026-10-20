@@ -398,8 +398,12 @@ function hasAvifBrandAt(body: Uint8Array, offset: number): boolean {
 
 /** The `ftyp` box's declared end offset (big-endian size at bytes 0-3), clamped to the bytes
  * actually present so a truncated or size-inflating file can never push the brand scan past the
- * captured signature window. */
-function ftypBoxEnd(body: Uint8Array): number {
+ * captured signature window.
+ *
+ * Exported so its short-body bounds guard can be exercised directly: {@link hasAvifSignature}, its
+ * only caller, already requires 8 bytes before calling it, so no call through that path can reach
+ * the guard — but the guard is what keeps this function safe on its own and stays. */
+export function ftypBoxEnd({ body }: { readonly body: Uint8Array }, _optional: Record<string, never> = {}): number {
   if (body.length < FTYP_MAJOR_BRAND_OFFSET) return 0;
   const declared = ((body[0]! << 24) | (body[1]! << 16) | (body[2]! << 8) | body[3]!) >>> 0;
   return Math.min(declared, body.length);
@@ -423,7 +427,7 @@ export function hasAvifSignature({ body }: { readonly body: Uint8Array }, _optio
   if (!hasIsoBmffFtypTag(body)) return false;
   if (hasAvifBrandAt(body, FTYP_MAJOR_BRAND_OFFSET)) return true;
 
-  const boxEnd = ftypBoxEnd(body);
+  const boxEnd = ftypBoxEnd({ body });
   for (let index = 0; index < MAX_SCANNED_COMPATIBLE_BRANDS; index++) {
     const offset = FTYP_COMPATIBLE_BRANDS_OFFSET + index * 4;
     if (offset + 4 > boxEnd) return false;

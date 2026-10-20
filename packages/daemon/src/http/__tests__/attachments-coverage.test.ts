@@ -3,6 +3,9 @@
  * reach.
  *
  * - `hasAvifSignature`'s compatible-brand scan running to its 16-entry bound without a match.
+ * - `ftypBoxEnd`'s short-body guard, which no `hasAvifSignature` call can reach (its `ftyp` tag
+ *   check already requires 8 bytes) and so is exercised by a direct call — a bounds guard is kept,
+ *   never deleted as "unreachable".
  * - `registerAttachmentRoutes`'s `catch` around the origin guard, for both `POST` and `DELETE`,
  *   driven by a host-injected `adapter.env` whose read throws (the environment `guardSameOrigin`
  *   actually reads). A malformed allowed-origins entry no longer throws — `configuredAllowedOrigins`
@@ -19,6 +22,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ATTACHMENTS_ROUTE_PATH,
   createDiskAttachmentStore,
+  ftypBoxEnd,
   hasAvifSignature,
   registerAttachmentRoutes,
   type AttachmentStore,
@@ -71,6 +75,23 @@ describe('hasAvifSignature — compatible-brand scan bound', () => {
     const brands = [...Array.from({ length: 15 }, () => 'mp41'), 'avif'];
 
     expect(hasAvifSignature({ body: ftypBytes('isom', brands) })).toBe(true);
+  });
+});
+
+describe('ftypBoxEnd', () => {
+  it('returns 0 for a body too short to hold a box header and major brand', () => {
+    expect(ftypBoxEnd({ body: Uint8Array.from([0, 0, 0, 0x40, 0x66, 0x74, 0x79]) })).toBe(0);
+  });
+
+  it('returns the declared box size when the body holds all of it', () => {
+    expect(ftypBoxEnd({ body: ftypBytes('isom', ['mp41']) })).toBe(20);
+  });
+
+  it('clamps a size-inflating declaration to the bytes actually present', () => {
+    const body = ftypBytes('isom', []);
+    body.set([0xff, 0xff, 0xff, 0xff], 0);
+
+    expect(ftypBoxEnd({ body })).toBe(body.length);
   });
 });
 
