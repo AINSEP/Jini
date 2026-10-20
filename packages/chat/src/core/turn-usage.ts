@@ -30,11 +30,16 @@ export function replySegments({ events }: { events: readonly AgentEvent[] | unde
       started = false;
       continue;
     }
-    const target = event.kind === 'usage' && !started && segments.length > 1 ? segments.length - 2 : segments.length - 1;
-    if (event.kind !== 'usage' && event.kind !== 'status' && event.kind !== 'raw') started = true;
-    segments[target]!.push(event);
+    const lateResult = event.kind === 'usage' && !started && segments.length > 1;
+    started ||= producesReplyOutput({ event });
+    segments[segments.length - (lateResult ? 2 : 1)]!.push(event);
   }
   return segments;
+}
+
+/** Usage, status and raw lines are bookkeeping; anything else means the reply has produced output. */
+function producesReplyOutput({ event }: { event: AgentEvent }, _optional = {}): boolean {
+  return event.kind !== 'usage' && event.kind !== 'status' && event.kind !== 'raw';
 }
 
 /** Resolve one charge against this agent/session's last snapshot. State is local to an
@@ -68,14 +73,19 @@ export function turnUsage({ events }: { events: readonly AgentEvent[] | undefine
   for (const event of events ?? []) {
     if (event.kind !== 'usage') continue;
     total ??= { kind: 'usage' };
-    for (const field of ['inputTokens', 'outputTokens', 'durationMs'] as const) {
-      const value = event[field];
-      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) total[field] = (total[field] ?? 0) + value;
-    }
+    addReportedCounts({ total, event });
     const cost = usageCost({ event, agentId, sessions });
     if (cost !== undefined) total.costUsd = (total.costUsd ?? 0) + cost;
   }
   return total;
+}
+
+/** Add an event's well-formed token and duration counts into `total`, in place. */
+function addReportedCounts({ total, event }: { total: UsageEvent; event: UsageEvent }, _optional = {}): void {
+  for (const field of ['inputTokens', 'outputTokens', 'durationMs'] as const) {
+    const value = event[field];
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) total[field] = (total[field] ?? 0) + value;
+  }
 }
 
 /** Add one reply's usage into a message total; fields absent from both stay absent. O(1). */
@@ -100,26 +110,53 @@ export function conversationUsage({ messages }: { messages: readonly ChatMessage
   let totalCostUsd: number | undefined;
   for (const message of messages) {
     if (message.role !== 'assistant') continue;
-    // Replies run in event order through one session map, so their sum equals the whole-message charge.
-    const segments: (ChatUsageSummary | undefined)[] = [];
-    let usage: UsageEvent | undefined;
-    for (const events of replySegments({ events: message.events })) {
-      const segment = turnUsage({ events }, { sessions, agentId: message.agentId ?? '' });
-      usage = addUsage({ total: usage, usage: segment });
-      if (segment?.costUsd !== undefined) totalCostUsd = (totalCostUsd ?? 0) + segment.costUsd;
-      segments.push(segment && { ...segment, ...(totalCostUsd === undefined ? {} : { totalCostUsd }) });
-    }
-    if (!usage) continue;
-    // Tokens-only runtimes still have run timestamps; those cannot time individual mid-run replies.
-    if (segments.length === 1 && usage.durationMs === undefined && message.startedAt !== undefined && message.endedAt !== undefined) {
-      const durationMs = message.endedAt - message.startedAt;
-      if (Number.isFinite(durationMs) && durationMs >= 0) usage.durationMs = durationMs;
-    }
-    summaries.set(message.id, {
-      ...usage,
-      ...(totalCostUsd === undefined ? {} : { totalCostUsd }),
-      ...(segments.length > 1 ? { segments } : {}),
-    });
+    const result = messageUsage({ message, sessions, totalCostUsd });
+    totalCostUsd = result.totalCostUsd;
+    if (result.usage) summaries.set(message.id, messageSummary({ ...result, usage: result.usage, message }));
   }
   return summaries;
+}
+
+/** A message's summary: its usage, the prefix total, and per-reply segments when it holds several replies. */
+function messageSummary(
+  { usage, segments, totalCostUsd, message }: {
+    usage: UsageEvent;
+    segments: (ChatUsageSummary | undefined)[];
+    totalCostUsd: number | undefined;
+    message: ChatMessage;
+  },
+  _optional = {},
+): ChatUsageSummary {
+  // Tokens-only runtimes still have run timestamps; those cannot time individual mid-run replies.
+  if (segments.length === 1) fillRunDuration({ usage, message });
+  return {
+    ...usage,
+    ...(totalCostUsd === undefined ? {} : { totalCostUsd }),
+    ...(segments.length > 1 ? { segments } : {}),
+  };
+}
+
+/** One assistant message's summed usage and per-reply summaries, advancing the conversation's prefix total. */
+function messageUsage(
+  { message, sessions, totalCostUsd }: { message: ChatMessage; sessions: Map<string, SessionCost>; totalCostUsd: number | undefined },
+  _optional = {},
+): { usage: UsageEvent | undefined; segments: (ChatUsageSummary | undefined)[]; totalCostUsd: number | undefined } {
+  // Replies run in event order through one session map, so their sum equals the whole-message charge.
+  const segments: (ChatUsageSummary | undefined)[] = [];
+  let usage: UsageEvent | undefined;
+  let prefixTotal = totalCostUsd;
+  for (const events of replySegments({ events: message.events })) {
+    const segment = turnUsage({ events }, { sessions, agentId: message.agentId ?? '' });
+    usage = addUsage({ total: usage, usage: segment });
+    if (segment?.costUsd !== undefined) prefixTotal = (prefixTotal ?? 0) + segment.costUsd;
+    segments.push(segment && { ...segment, ...(prefixTotal === undefined ? {} : { totalCostUsd: prefixTotal }) });
+  }
+  return { usage, segments, totalCostUsd: prefixTotal };
+}
+
+/** Use the message's elapsed run time when no reply reported a duration; invalid timestamps stay unknown. */
+function fillRunDuration({ usage, message }: { usage: UsageEvent; message: ChatMessage }, _optional = {}): void {
+  if (usage.durationMs !== undefined || message.startedAt === undefined || message.endedAt === undefined) return;
+  const durationMs = message.endedAt - message.startedAt;
+  if (Number.isFinite(durationMs) && durationMs >= 0) usage.durationMs = durationMs;
 }
