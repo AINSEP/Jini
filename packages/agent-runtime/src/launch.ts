@@ -108,16 +108,17 @@ function tryResolveCodexNativeBinary(wrapperPath: string): {
 }
 
 function codexSearchRoots(wrapperPath: string): string[] {
-  const roots = new Set<string>();
-  for (const seed of [wrapperPath, safeRealpath(wrapperPath)]) {
-    if (!seed) continue;
-    let current = path.dirname(seed);
-    while (current !== path.dirname(current)) {
-      roots.add(current);
-      current = path.dirname(current);
-    }
-  }
-  return [...roots];
+  const resolved = safeRealpath(wrapperPath) ?? wrapperPath;
+  const directory = path.dirname(resolved);
+  // npm bin symlinks resolve inside @openai/codex/bin. Only that package's
+  // install directory owns the upgrade; ancestors of the shim or package do not.
+  if (path.basename(directory) !== 'bin' || path.basename(path.dirname(directory)) !== 'codex') return [directory];
+  const packageDir = path.dirname(directory);
+  const scopeDir = path.dirname(packageDir);
+  // Hoisted npm and pnpm layouts put the native package beside @openai/codex in the same
+  // node_modules; that tree already owns the wrapper, so it is not an ancestor search.
+  const ownsHoistedSibling = path.basename(scopeDir) === '@openai' && path.basename(path.dirname(scopeDir)) === 'node_modules';
+  return ownsHoistedSibling ? [packageDir, path.dirname(path.dirname(scopeDir))] : [packageDir];
 }
 
 function codexNativeCandidates(

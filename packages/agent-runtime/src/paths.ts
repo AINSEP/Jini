@@ -15,10 +15,10 @@ export function expandConfiguredEnv({ configuredEnv }: { configuredEnv: unknown 
   return out;
 }
 
-export function expandHomePath({ value }: { value: string }): string {
-  if (value === '~') return homedir();
+export function expandHomePath({ value }: { value: string }, { home = homedir() }: { home?: string } = {}): string {
+  if (value === '~') return home;
   if (value.startsWith('~/') || value.startsWith('~\\')) {
-    return path.join(homedir(), value.slice(2));
+    return path.join(home, value.slice(2));
   }
   return value;
 }

@@ -20,7 +20,7 @@ import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js'
  *    `AGENT_RUNTIME_RESOURCE_ROOT`, with no sandbox dependency. See
  *    `archived provenance ledger` for the exact original names.
  */
-import { accessSync, constants, existsSync, statSync } from 'node:fs';
+import { accessSync, constants, statSync } from 'node:fs';
 import { delimiter } from 'node:path';
 import path from 'node:path';
 import { homedir } from 'node:os';
@@ -142,7 +142,7 @@ function resolvePathDirs(options: ExecutableResolutionOptions = {}) {
     ...userToolchainDirs(options),
   ];
   return dirs.filter((dir) => {
-    if (!dir || seen.has(dir)) return false;
+    if (!path.isAbsolute(dir) || seen.has(dir)) return false;
     seen.add(dir);
     return true;
   });
@@ -174,7 +174,8 @@ export function resolveOnPath({ bin }: { bin: string }, options: ExecutableResol
   for (const dir of dirs) {
     for (const ext of exts) {
       const full = path.join(dir, bin + ext);
-      if (full && existsSync(full)) return full;
+      const executable = executableFilePath(full, options);
+      if (executable) return executable;
     }
   }
   return null;
@@ -191,21 +192,25 @@ function looksExecutableOnWindows(filePath: string, options: ExecutableResolutio
   return executableExts.includes(ext);
 }
 
+// Only a regular file the platform would run counts; directories and non-executable files do not.
+function isRunnableFile(filePath: string, options: ExecutableResolutionOptions): boolean {
+  try {
+    if (!statSync(filePath).isFile()) return false;
+    if (process.platform === 'win32') return looksExecutableOnWindows(filePath, options);
+    accessSync(filePath, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function executableFilePath(raw: string | undefined, options: ExecutableResolutionOptions = {}): string | null {
   if (typeof raw !== 'string' || raw.trim().length === 0) return null;
-  const expanded = expandHomePath({ value: raw.trim() });
+  const env = options.env ?? process.env;
+  // `~` in an override expands from the supplied env, so sandboxed detection never reaches the real home.
+  const expanded = expandHomePath({ value: raw.trim() }, { home: env.HOME || env.USERPROFILE || homedir() });
   if (!path.isAbsolute(expanded)) return null;
-  try {
-    if (!statSync(expanded).isFile()) return null;
-    if (process.platform === 'win32') {
-      if (!looksExecutableOnWindows(expanded, options)) return null;
-    } else {
-      accessSync(expanded, constants.X_OK);
-    }
-    return expanded;
-  } catch {
-    return null;
-  }
+  return isRunnableFile(expanded, options) ? expanded : null;
 }
 
 // Resolve the first available binary for an agent definition. Tries

@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -43,7 +43,8 @@ describe('resolveAgentLaunch', () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-launch-test-'));
+    // Native lookup follows the resolved install; macOS temp roots can themselves be symlinks.
+    dir = realpathSync(mkdtempSync(path.join(tmpdir(), 'agent-runtime-launch-test-')));
   });
 
   afterEach(() => {
@@ -115,7 +116,7 @@ describe('resolveAgentLaunch', () => {
     expect(result.childPathPrepend).toEqual(expect.arrayContaining([path.dirname(wrapperPath), pathDir]));
   });
 
-  it('resolves a relative PATH entry to a non-absolute selectedPath, leaving childPathPrepend empty', () => {
+  it('refuses a relative PATH entry, leaving no launch path or child PATH prepend', () => {
     const binName = 'relative-path-agent-bin';
     const relDir = path.relative(process.cwd(), dir) || '.';
     makeExecutable(path.join(dir, binName));
@@ -124,12 +125,69 @@ describe('resolveAgentLaunch', () => {
     try {
       const def = makeDef({ id: 'relative-path-agent', bin: binName });
       const result = resolveAgentLaunch({ def: def }, { configuredEnv: {} });
-      expect(result.launchPath).not.toBeNull();
-      expect(path.isAbsolute(result.launchPath!)).toBe(false);
+      expect(result.launchPath).toBeNull();
       expect(result.childPathPrepend).toEqual([]);
     } finally {
       process.env.PATH = originalPath;
     }
+  });
+
+  it('codex: ignores native binaries planted above the resolved install directory', () => {
+    const plantedDir = path.join(dir, 'node_modules', '@openai', 'codex-anything');
+    mkdirSync(plantedDir, { recursive: true });
+    makeExecutable(path.join(plantedDir, 'codex'), 'planted native');
+    const install = path.join(dir, 'nested', 'install');
+    mkdirSync(install, { recursive: true });
+    const wrapper = path.join(install, 'codex-wrapper.js');
+    makeExecutable(wrapper);
+    const result = resolveAgentLaunch({ def: makeDef({ id: 'codex', bin: 'codex' }) }, {
+      configuredEnv: { CODEX_BIN: wrapper },
+    });
+    expect(result.launchKind).toBe('selected');
+    expect(result.launchPath).toBe(wrapper);
+    expect(result.diagnostic).toContain('Codex native binary was not found');
+  });
+
+  it('codex: searches the resolved package install, ignoring native binaries beside its bin symlink', () => {
+    const install = path.join(dir, 'packages', 'codex');
+    const wrapper = path.join(install, 'bin', 'codex.js');
+    mkdirSync(path.dirname(wrapper), { recursive: true });
+    makeExecutable(wrapper);
+    const packageName = `codex-${process.platform}-${process.arch}`;
+    const ownNative = path.join(install, 'node_modules', '@openai', packageName, 'codex');
+    mkdirSync(path.dirname(ownNative), { recursive: true });
+    makeExecutable(ownNative, 'own native');
+    const shimDir = path.join(dir, 'shim');
+    const planted = path.join(shimDir, 'node_modules', '@openai', packageName, 'codex');
+    mkdirSync(path.dirname(planted), { recursive: true });
+    makeExecutable(planted, 'planted beside shim');
+    const shim = path.join(shimDir, 'codex');
+    symlinkSync(wrapper, shim);
+    const result = resolveAgentLaunch({ def: makeDef({ id: 'codex', bin: 'codex' }) }, {
+      configuredEnv: { CODEX_BIN: shim },
+    });
+    expect(result.launchKind).toBe('codex-native');
+    expect(result.launchPath).toBe(ownNative);
+    expect(result.childPathPrepend).not.toContain(path.dirname(planted));
+  });
+
+  it('codex: finds a hoisted native sibling in the install node_modules, not one planted above it', () => {
+    const packageName = `codex-${process.platform}-${process.arch}`;
+    const modules = path.join(dir, 'project', 'node_modules');
+    const wrapper = path.join(modules, '@openai', 'codex', 'bin', 'codex.js');
+    mkdirSync(path.dirname(wrapper), { recursive: true });
+    makeExecutable(wrapper);
+    const hoisted = path.join(modules, '@openai', packageName, 'codex');
+    mkdirSync(path.dirname(hoisted), { recursive: true });
+    makeExecutable(hoisted, 'hoisted native');
+    const planted = path.join(dir, 'node_modules', '@openai', packageName, 'codex');
+    mkdirSync(path.dirname(planted), { recursive: true });
+    makeExecutable(planted, 'planted above install');
+    const result = resolveAgentLaunch({ def: makeDef({ id: 'codex', bin: 'codex' }) }, {
+      configuredEnv: { CODEX_BIN: wrapper },
+    });
+    expect(result.launchKind).toBe('codex-native');
+    expect(result.launchPath).toBe(hoisted);
   });
 
   // Simulates an unreadable-but-executable wrapper via a real chmod (0o111 — execute-only:

@@ -103,6 +103,51 @@ describe('resolveOnPath / agentSearchDirs', () => {
     expect(resolveOnPath({ bin: 'my-bin' }, { env, state })).toBe(path.join(dir, 'my-bin'));
   });
 
+  it('skips directories on PATH and finds the next regular executable', () => {
+    const filename = process.platform === 'win32' ? 'secure-bin.EXE' : 'secure-bin';
+    const next = path.join(dir, 'next');
+    mkdirSync(next);
+    mkdirSync(path.join(dir, filename));
+    makeExecutable(path.join(next, filename));
+    env.PATH = [dir, next].join(path.delimiter);
+    expect(resolveOnPath({ bin: 'secure-bin' }, { env, state })).toBe(path.join(next, filename));
+  });
+
+  it.skipIf(process.platform === 'win32')('skips non-executable files on PATH and finds the next executable', () => {
+    const next = path.join(dir, 'next');
+    mkdirSync(next);
+    writeFileSync(path.join(dir, 'secure-bin'), 'not executable', { mode: 0o644 });
+    makeExecutable(path.join(next, 'secure-bin'));
+    env.PATH = [dir, next].join(path.delimiter);
+    expect(resolveOnPath({ bin: 'secure-bin' }, { env, state })).toBe(path.join(next, 'secure-bin'));
+  });
+
+  it('excludes empty, dot and relative PATH entries from resolution and diagnostics', () => {
+    const filename = process.platform === 'win32' ? 'secure-relative-bin.EXE' : 'secure-relative-bin';
+    makeExecutable(path.join(dir, filename));
+    const relative = path.relative(process.cwd(), dir);
+    env.PATH = ['', '.', relative].join(path.delimiter);
+    expect(resolveOnPath({ bin: 'secure-relative-bin' }, { env, state })).toBeNull();
+    const dirs = agentSearchDirs({}, { env, state });
+    expect(dirs).not.toContain(relative);
+    expect(dirs).not.toContain('.');
+    expect(dirs.every(entry => path.isAbsolute(entry))).toBe(true);
+  });
+
+  it.each(['~/', '~\\'])('expands a %s binary override using the supplied HOME', prefix => {
+    const filename = process.platform === 'win32' ? 'sandbox-claude.exe' : 'sandbox-claude';
+    const binary = path.join(dir, filename);
+    makeExecutable(binary);
+    // HOME deliberately differs from both the real home and the detection search override.
+    env.HOME = dir;
+    const def = makeDef({ id: 'claude', bin: 'claude-not-on-path-security-fixture' });
+    const resolution = inspectAgentExecutableResolution({ def }, {
+      env, state, configuredEnv: { CLAUDE_BIN: `${prefix}${filename}` },
+    });
+    expect(resolution.configuredOverridePath).toBe(binary);
+    expect(resolution.selectedPath).toBe(binary);
+  });
+
   it('returns null when the binary is not found anywhere on PATH', () => {
     env.PATH = dir;
     expect(resolveOnPath({ bin: 'totally-nonexistent-binary-xyz' }, { env, state })).toBeNull();
