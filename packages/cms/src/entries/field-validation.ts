@@ -73,9 +73,11 @@ const MAX_JSON_NODES = 10_000;
  * discarding every value it held. A `Date` survives, but as a string — its type changes at the
  * storage boundary, so a later read gets a different kind of value than the one written. Both are
  * exactly the "accepted here, mangled downstream" class this check exists to reject.
+ *
+ * Takes an already-narrowed non-null, non-array object: its only caller,
+ * {@link isBoundedJsonContainer}, has ruled out `null` and arrays before reaching here.
  */
-function isStructurallyPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+function isStructurallyPlainObject(value: object): value is Record<string, unknown> {
   const proto: unknown = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
 }
@@ -106,6 +108,17 @@ function isBoundedJsonValue(value: unknown, budget: { nodes: number }, depth = 0
   budget.nodes -= 1;
 
   if (value === null) return true;
+  if (typeof value === "object") return isBoundedJsonContainer({ value, budget, depth });
+  return isJsonScalar(value);
+}
+
+/**
+ * The non-container half of {@link isBoundedJsonValue}: true for a boolean, a string, or a FINITE
+ * number; false for every other primitive.
+ *
+ * @complexity O(1).
+ */
+function isJsonScalar(value: unknown): boolean {
   switch (typeof value) {
     case "boolean":
     case "string":
@@ -114,19 +127,26 @@ function isBoundedJsonValue(value: unknown, budget: { nodes: number }, depth = 0
       // `NaN`/`Infinity` are numbers that `JSON.stringify` silently rewrites to `null` — a value
       // that reads back as a different type than the one written.
       return Number.isFinite(value);
-    case "object":
-      break;
     default:
       // `undefined`, `function`, `symbol`, `bigint`: dropped, dropped, dropped, and throws.
       return false;
   }
+}
 
-  if (Array.isArray(value)) {
-    return value.every((element) => isBoundedJsonValue(element, budget, depth + 1));
-  }
+/**
+ * The container half of {@link isBoundedJsonValue}: an array of JSON values, or a structurally
+ * plain object with no symbol keys whose values are JSON values. Each child is checked one level
+ * deeper against the SAME shared node budget.
+ *
+ * @complexity O(n) in the number of contained values, bounded as {@link isBoundedJsonValue} is.
+ */
+function isBoundedJsonContainer(required: { value: object; budget: { nodes: number }; depth: number }): boolean {
+  const { value, budget, depth } = required;
+  const isChildJson = (child: unknown): boolean => isBoundedJsonValue(child, budget, depth + 1);
+  if (Array.isArray(value)) return value.every(isChildJson);
   if (!isStructurallyPlainObject(value)) return false;
   if (Object.getOwnPropertySymbols(value).length > 0) return false;
-  return Object.values(value).every((entry) => isBoundedJsonValue(entry, budget, depth + 1));
+  return Object.values(value).every(isChildJson);
 }
 
 /**
@@ -185,36 +205,62 @@ export function validateFieldsAgainstSchema(required: {
   const { schema, fieldsJson } = required;
   const { owner = "site" } = optional;
 
-  const ext = isPlainObject(fieldsJson) ? fieldsJson.ext : undefined;
-  const ownerBag = isPlainObject(ext) ? ext[owner] : undefined;
-  if (!isPlainObject(fieldsJson) || !isPlainObject(ext) || !isPlainObject(ownerBag)) {
+  const ownerBag = readOwnerBag({ fieldsJson, owner });
+  if (!ownerBag) {
     return {
       valid: false,
       fieldErrors: [{ field: "__envelope__", reason: `fieldsJson must be wrapped in the { ext: { ${owner}: {...} } } envelope shape` }],
     };
   }
 
-  const schemaByName = new Map(schema.map((f) => [f.name, f]));
-  const fieldErrors: FieldValidationError[] = [];
+  const fieldErrors = [...collectSubmittedKeyErrors({ schema, ownerBag }), ...collectMissingRequiredErrors({ schema, ownerBag })];
+  return { valid: fieldErrors.length === 0, fieldErrors };
+}
 
-  for (const [key, value] of Object.entries(ownerBag)) {
+/**
+ * Unwraps `fieldsJson.ext[owner]`, or returns `undefined` when any level of the
+ * `{ ext: { <owner>: {...} } }` envelope is missing or not a plain object. The one envelope reader
+ * shared by the strict write-side check and the tolerant read-side projection.
+ *
+ * @complexity O(1).
+ */
+function readOwnerBag(required: { fieldsJson: unknown; owner: string }): Record<string, unknown> | undefined {
+  const { fieldsJson, owner } = required;
+  const ext = isPlainObject(fieldsJson) ? fieldsJson.ext : undefined;
+  const ownerBag = isPlainObject(ext) ? ext[owner] : undefined;
+  return isPlainObject(ownerBag) ? ownerBag : undefined;
+}
+
+/**
+ * The per-key pass: every submitted key must name a field in the current schema, and its value
+ * must conform to that field's declared kind. Errors are reported in submitted-key order.
+ *
+ * @complexity O(f + k) in schema fields and submitted keys.
+ */
+function collectSubmittedKeyErrors(required: { schema: ContentTypeFieldDef[]; ownerBag: Record<string, unknown> }): FieldValidationError[] {
+  const schemaByName = new Map(required.schema.map((f) => [f.name, f]));
+  const fieldErrors: FieldValidationError[] = [];
+  for (const [key, value] of Object.entries(required.ownerBag)) {
     const def = schemaByName.get(key);
     if (!def) {
       fieldErrors.push({ field: key, reason: "unrecognized field: not present in the current content-type schema" });
-      continue;
-    }
-    if (!conformsToKind(value, def.kind)) {
+    } else if (!conformsToKind(value, def.kind)) {
       fieldErrors.push({ field: key, reason: `value does not conform to the declared kind '${def.kind}'` });
     }
   }
+  return fieldErrors;
+}
 
-  for (const def of schema) {
-    if (def.required && !Object.prototype.hasOwnProperty.call(ownerBag, def.name)) {
-      fieldErrors.push({ field: def.name, reason: "required field is missing" });
-    }
-  }
-
-  return { valid: fieldErrors.length === 0, fieldErrors };
+/**
+ * The required-field pass: every `required` schema field must be an OWN key of the owner bag.
+ * Errors are reported in schema order.
+ *
+ * @complexity O(f) in schema fields.
+ */
+function collectMissingRequiredErrors(required: { schema: ContentTypeFieldDef[]; ownerBag: Record<string, unknown> }): FieldValidationError[] {
+  return required.schema
+    .filter((def) => def.required && !Object.prototype.hasOwnProperty.call(required.ownerBag, def.name))
+    .map((def) => ({ field: def.name, reason: "required field is missing" }));
 }
 
 /**
@@ -230,13 +276,11 @@ export function selectVisibleEntryFields(required: {
   entry: { fieldsJson: unknown };
   contentType: { fields: ContentTypeFieldDef[] };
 }): Record<string, unknown> {
-  const fieldsJson = required.entry.fieldsJson;
-  const ext = isPlainObject(fieldsJson) ? fieldsJson.ext : undefined;
-  const site = isPlainObject(ext) ? ext.site : undefined;
+  const site = readOwnerBag({ fieldsJson: required.entry.fieldsJson, owner: "site" });
   const allowedNames = new Set(required.contentType.fields.map((f) => f.name));
 
   const visible: Record<string, unknown> = {};
-  if (!isPlainObject(site)) return visible;
+  if (!site) return visible;
   for (const [key, value] of Object.entries(site)) {
     if (allowedNames.has(key)) visible[key] = value;
   }
