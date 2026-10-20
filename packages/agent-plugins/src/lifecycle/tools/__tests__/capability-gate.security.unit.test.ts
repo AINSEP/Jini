@@ -1,8 +1,9 @@
 /**
  * @file Security unit tests for the shared capability gate's credential scans: a result or error is
  * released only when its serialized form cannot be shown to omit every token this plugin obtained.
- * Unserializable values fail closed, escaped tokens are still found, and an error's `cause` chain is
- * probed past the JSON-invisible `cause` field. Tokens are built at runtime; no credential literal.
+ * Unserializable values fail closed, escaped tokens are still found, and an error is walked through
+ * every own property (the JSON-invisible `cause` and `AggregateError.errors` too), Map and Set
+ * contents, to any depth within a node bound; an unreadable or oversized error is withheld. Tokens are built at runtime; no credential literal.
  */
 import { describe, expect, test } from 'vitest';
 import {
@@ -78,6 +79,65 @@ describe('sanitize (error gate)', () => {
 
   test('a thrown non-error value is scanned as itself', () => {
     expect(gateWith([TOKEN]).gate.sanitize({ error: `raw ${TOKEN}` })).toEqual(new Error(WITHHELD_ERROR_MESSAGE));
+  });
+
+  test('a token inside an AggregateError (non-enumerable errors) is withheld', () => {
+    const error = new AggregateError([new Error('first'), new Error(`Authorization: Bearer ${TOKEN}`)], 'all failed');
+    expect(gateWith([TOKEN]).gate.sanitize({ error })).toEqual(new Error(WITHHELD_ERROR_MESSAGE));
+  });
+
+  test('a clean AggregateError passes through as the same error', () => {
+    const error = new AggregateError([new Error('first'), new Error('second')], 'all failed');
+    expect(gateWith([TOKEN]).gate.sanitize({ error })).toBe(error);
+  });
+
+  test('a token six causes deep is withheld', () => {
+    expect(gateWith([TOKEN]).gate.sanitize({ error: chain(6, `upstream said ${TOKEN}`) })).toEqual(new Error(WITHHELD_ERROR_MESSAGE));
+  });
+
+  test('a token in an error held by a plain-object cause is withheld', () => {
+    const error = new Error('failed', { cause: { response: { inner: new Error(`echo ${TOKEN}`) } } });
+    expect(gateWith([TOKEN]).gate.sanitize({ error })).toEqual(new Error(WITHHELD_ERROR_MESSAGE));
+  });
+
+  test('a token in a non-enumerable own field is withheld', () => {
+    const error = Object.defineProperty(new Error('failed'), 'header', { value: `Bearer ${TOKEN}`, enumerable: false });
+    expect(gateWith([TOKEN]).gate.sanitize({ error })).toEqual(new Error(WITHHELD_ERROR_MESSAGE));
+  });
+
+  test('a token held in a Map inside the cause is withheld', () => {
+    const error = new Error('failed', { cause: { headers: new Map([['authorization', `Bearer ${TOKEN}`]]) } });
+    expect(gateWith([TOKEN]).gate.sanitize({ error })).toEqual(new Error(WITHHELD_ERROR_MESSAGE));
+  });
+
+  test('a token held in a Set inside the cause is withheld', () => {
+    const error = new Error('failed', { cause: new Set([`Bearer ${TOKEN}`]) });
+    expect(gateWith([TOKEN]).gate.sanitize({ error })).toEqual(new Error(WITHHELD_ERROR_MESSAGE));
+  });
+
+  test('a cause chain too long to scan fails closed', () => {
+    expect(gateWith([TOKEN]).gate.sanitize({ error: chain(300, 'clean all the way down') })).toEqual(new Error(WITHHELD_ERROR_MESSAGE));
+  });
+
+  test('a cyclic cause chain is scanned once and passes through when clean', () => {
+    const error = new Error('loop');
+    error.cause = error;
+    expect(gateWith([TOKEN]).gate.sanitize({ error })).toBe(error);
+  });
+
+  test('a field whose getter throws fails closed', () => {
+    const error = Object.defineProperty(new Error('failed'), 'detail', { get() { throw new Error('unreadable'); }, enumerable: false });
+    expect(gateWith([TOKEN]).gate.sanitize({ error })).toEqual(new Error(WITHHELD_ERROR_MESSAGE));
+  });
+
+  test('an error holding a very large array of strings is scanned without throwing', () => {
+    const error = Object.assign(new Error('failed'), { lines: Array.from({ length: 300_000 }, () => 'clean') });
+    expect(gateWith([TOKEN]).gate.sanitize({ error })).toBe(error);
+  });
+
+  test('with no token issued, any error passes through untouched', () => {
+    const error = chain(300, 'clean');
+    expect(gateWith([]).gate.sanitize({ error })).toBe(error);
   });
 });
 

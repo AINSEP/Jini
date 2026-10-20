@@ -106,23 +106,69 @@ function remember(issued: IssuedTokenMemory, token: string): void {
   if (issued.size > ISSUED_TOKEN_MEMORY_LIMIT) issued.delete(issued.values().next().value!);
 }
 
+/** True when `text` holds any issued token, raw or JSON-escaped. @complexity O(n * t). */
+function textMentions(text: string, issued: ReadonlySet<string>): boolean {
+  for (const token of issued) if (text.includes(token) || text.includes(JSON.stringify(token).slice(1, -1))) return true;
+  return false;
+}
+
 /** True when `value` (serialized) mentions any issued token. Unserializable values fail closed.
  * @complexity O(n * t) for serialized size n and t issued tokens (t ≤ ISSUED_TOKEN_MEMORY_LIMIT). */
 function mentionsToken(value: unknown, issued: ReadonlySet<string>): boolean {
   if (issued.size === 0) return false;
   let text: string | undefined;
   try { text = JSON.stringify(value); } catch { return true; }
-  if (text === undefined) return false;
-  for (const token of issued) if (text.includes(token) || text.includes(JSON.stringify(token).slice(1, -1))) return true;
+  return text !== undefined && textMentions(text, issued);
+}
+
+/**
+ * Objects an error scan visits before it gives up and withholds the error. Generous for any real
+ * error (a few causes, an `AggregateError` of a few dozen), small enough to bound a hostile graph.
+ */
+const ERROR_SCAN_NODE_LIMIT = 256;
+
+/**
+ * Everything one object can hold a token in: every own property, non-enumerable and symbol-keyed
+ * ones too (`message`, `stack`, `cause`, `AggregateError.errors`), plus Map and Set contents.
+ * Null when reading it threw (a hostile getter or proxy): the caller fails closed.
+ * @complexity O(own properties + entries).
+ */
+function childrenOf(value: object): unknown[] | null {
+  try {
+    const own = Reflect.ownKeys(value).map(key => (value as Record<PropertyKey, unknown>)[key]);
+    if (value instanceof Map) return [...own, ...value.keys(), ...value.values()];
+    return value instanceof Set ? [...own, ...value.values()] : own;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True when any string reachable from `error` mentions an issued token. JSON would miss the
+ * non-enumerable `cause` and `AggregateError.errors`, and errors held in plain objects, so this walks
+ * the object graph instead, to any depth. It fails closed: an unreadable object, or a graph past
+ * `ERROR_SCAN_NODE_LIMIT` objects, counts as mentioning a token.
+ * @complexity O(v * t) for v visited values (objects bounded by the node limit) and t issued tokens.
+ */
+function errorMentionsToken(error: unknown, issued: ReadonlySet<string>): boolean {
+  if (issued.size === 0) return false;
+  const seen = new Set<object>();
+  const pending: unknown[] = [error];
+  while (pending.length > 0) {
+    const next = scanStep(pending.pop(), issued, seen);
+    if (next === true) return true;
+    // A loop, not push(...next): a huge array would exceed the engine's argument limit.
+    for (const child of next) pending.push(child);
+  }
   return false;
 }
 
-/** A serializable view of an error: own fields (code, retryable…), message, stack and `cause`,
- * which is non-enumerable and invisible to JSON. Causes nest `depth` levels deep.
- * @complexity O(depth) levels plus own-field copies. */
-function errorProbe(error: unknown, depth: number): unknown {
-  if (!(error instanceof Error)) return error;
-  return { ...error, message: error.message, stack: error.stack, cause: depth > 0 ? errorProbe(error.cause, depth - 1) : String(error.cause) };
+/** One value of the scan: `true` when it mentions a token or cannot be scanned, else what it holds. */
+function scanStep(value: unknown, issued: ReadonlySet<string>, seen: Set<object>): true | readonly unknown[] {
+  if (typeof value === 'string') return textMentions(value, issued) || [];
+  if (typeof value !== 'object' || value === null || seen.has(value)) return [];
+  seen.add(value);
+  return (seen.size > ERROR_SCAN_NODE_LIMIT ? null : childrenOf(value)) ?? true;
 }
 
 /**
@@ -154,7 +200,7 @@ export function openCapabilityGate(required: { readonly isLive: () => boolean; r
     },
     /** The error itself, or a credential-free replacement without `cause` (the cause may hold it). */
     sanitize({ error }: { readonly error: unknown }): unknown {
-      return mentionsToken(errorProbe(error, 2), issued) ? new Error(WITHHELD_ERROR_MESSAGE) : error;
+      return errorMentionsToken(error, issued) ? new Error(WITHHELD_ERROR_MESSAGE) : error;
     },
   };
 }
