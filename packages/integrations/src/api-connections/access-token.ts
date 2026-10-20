@@ -5,12 +5,14 @@
  * token by `connectionRef` immediately before an HTTP call. Only `connected` records are served,
  * an optional frozen account id stops a binding from silently following an account switch (checked
  * again after the token is read, so a switch landing in between cannot leak through), and a
- * rejected refresh moves the record to `reconnect-required`.
+ * rejected refresh or unreadable credential moves the record to `reconnect-required`. Unreadable
+ * credentials are preserved, and their internal store errors become a clear reconnect instruction.
  */
 import { createTokenRefresher, OAuthError, refreshAccessToken, type TokenRefreshPort } from '@jini-ai/oauth';
 import type { ApiConnectionServiceDeps } from './deps.js';
 import { ApiConnectionError, type ApiConnectionErrorCode } from './errors.js';
 import { loadOwnedRecord, writeRecord, type OwnedRecordArgs } from './records.js';
+import { isUnreadableTokenRecord } from './token-store/errors.js';
 import type { ApiConnectionRecord, ApiConnectionStatus } from './types.js';
 
 export interface ApiConnectionAccessTokens {
@@ -34,10 +36,18 @@ function assertServable(record: ApiConnectionRecord, expectedAccountId: string |
   }
 }
 
-/** Status write after a terminal refresh failure; only a still-connected record is downgraded. */
-async function markReconnectRequired(deps: ApiConnectionServiceDeps, key: string): Promise<void> {
+/**
+ * Status write after a terminal credential failure; only a still-connected record is downgraded.
+ * When a failed read names a generation, a newer sign-in is left alone. Revision CAS also
+ * protects changes landing after this read. Tokens are preserved; storage failures propagate.
+ * @complexity One record read and at most one CAS write.
+ */
+async function markReconnectRequired(deps: ApiConnectionServiceDeps, key: string,
+  options: { readonly expectedGeneration?: number } = {}): Promise<void> {
   const record = await deps.records.read({ key });
-  if (record?.status === 'connected') await writeRecord(deps, record, { status: 'reconnect-required' });
+  if (record?.status !== 'connected') return;
+  if (options.expectedGeneration !== undefined && record.generation !== options.expectedGeneration) return;
+  await writeRecord(deps, record, { status: 'reconnect-required' });
 }
 
 /**
@@ -79,7 +89,11 @@ export function createApiConnectionAccessTokens(deps: ApiConnectionServiceDeps):
       const { expectedAccountId } = optionalArgs;
       const record = await loadOwnedRecord(deps, requiredArgs);
       assertServable(record, expectedAccountId);
-      const accessToken = await refresher.getAccessToken({ key: record.key }).catch((error: unknown) => {
+      const accessToken = await refresher.getAccessToken({ key: record.key }).catch(async (error: unknown) => {
+        if (isUnreadableTokenRecord(error)) {
+          await markReconnectRequired(deps, record.key, { expectedGeneration: record.generation });
+          throw new ApiConnectionError(REFUSALS['reconnect-required'], { cause: error });
+        }
         if (error instanceof OAuthError && error.code === 'OAUTH_INVALID_GRANT') {
           throw new ApiConnectionError(REFUSALS['reconnect-required'], { cause: error });
         }

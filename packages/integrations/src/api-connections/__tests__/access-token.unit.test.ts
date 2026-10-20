@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { OAuthError } from '@jini-ai/oauth';
 import { ApiConnectionError } from '../errors.js';
+import { OAuthTokenStoreError } from '../token-store/errors.js';
 import { createApiConnectionAccessTokens } from '../access-token.js';
 import type { ApiConnectionTokenStore } from '../ports.js';
 import { memoryTokenStore } from './fixtures/harness.js';
@@ -69,6 +70,35 @@ describe('records that may not serve', () => {
 });
 
 describe('refresher failures', () => {
+  it.each(['invalid-record', 'owner-mismatch'] as const)('maps %s to a clear reconnect refusal and preserves credentials', async code => {
+    const failure = new OAuthTokenStoreError({ code });
+    const store = memoryTokenStore();
+    store.entries.set(KEY, tokens('legacy'));
+    const deps = unitDeps({ tokens: { ...store, load: async () => { throw failure; } } });
+    await seedRecord(deps, connectedRecord());
+    const error = await caught(served(deps));
+    expect(error).toBeInstanceOf(ApiConnectionError);
+    expect(error).toMatchObject({ code: 'reconnect-required', cause: failure,
+      message: 'This connection needs to be reconnected. Reconnect the account in the connection settings.' });
+    expect((await deps.records.read({ key: KEY }))?.status).toBe('reconnect-required');
+    expect(store.entries.get(KEY)).toEqual(tokens('legacy'));
+  });
+
+  it('does not downgrade a newer sign-in when an older credential read fails', async () => {
+    const store = memoryTokenStore();
+    const deps = unitDeps({ tokens: { ...store, load: async () => {
+      const current = (await deps.records.read({ key: KEY }))!;
+      await deps.records.compareAndSet({ key: KEY, expectedRevision: current.revision,
+        record: { ...current, generation: current.generation + 1, revision: current.revision + 1 } });
+      store.entries.set(KEY, tokens('new-sign-in'));
+      throw new OAuthTokenStoreError({ code: 'invalid-record' });
+    } } });
+    await seedRecord(deps, connectedRecord());
+    expect(await caught(served(deps))).toMatchObject({ code: 'reconnect-required' });
+    expect(await deps.records.read({ key: KEY })).toMatchObject({ status: 'connected', generation: 2 });
+    expect(store.entries.get(KEY)).toEqual(tokens('new-sign-in'));
+  });
+
   it('passes a token-store failure through unchanged', async () => {
     const failure = new Error('vault unavailable');
     expect(await caught(served(await withTokens({ load: async () => { throw failure; } })))).toBe(failure);

@@ -107,8 +107,15 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
   sealed for another OAuth client id, or is malformed) is deleted locally and reported `pending`
   with status `disconnected`: nothing is left to retry with, so the person removes the access on
   the provider's account page, and a new sign-in is allowed.
-- **Access tokens** are served only for `connected` records; a rejected refresh moves the record
-  to `reconnect-required`. The record is read again after the token: a switch, disconnect or
+- **Status** reads a never-created connection as `disconnected` without reading tokens. A
+  connected record with missing, incompatible or differently owned tokens reads as
+  `reconnect-required`; this read preserves both the record and credential. Vault outages and
+  other storage failures still propagate instead of being misreported as a reconnect problem.
+- **Access tokens** are served only for `connected` records; a rejected refresh or an unreadable
+  token record moves the record to `reconnect-required`. Unreadable credentials are preserved,
+  and callers receive a clear reconnect instruction instead of an internal token-store error.
+  A failed read from an older generation cannot downgrade a newer sign-in.
+  The record is read again after the token: a switch, disconnect or
   reconnect that landed in between refuses the call (`account-changed`, the status code, or
   `storage-conflict`; a retry sees the new state) instead of serving another credential.
 

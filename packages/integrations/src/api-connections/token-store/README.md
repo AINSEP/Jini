@@ -55,6 +55,11 @@ to this folder (`./index.ts`), so hosts read `code`, never `instanceof`.
    `createVaultMetaParsers({}, { parsers: { [kind]: parseOAuthTokenVaultMeta } })`. The platform
    ships the dedicated `api-connection` vault kind for these rows (not copyable between workspaces);
    the store never chooses a kind itself.
+   If a host shares that kind with connection records, attempts or plugin settings, its owning
+   parser must dispatch on `credentialFormat` and use this parser only for OAuth token rows.
+   Register that same dispatcher in boot validation, recovery and feature reads. Host recovery
+   annotations must be validated and separated before the strict format parser, then preserved;
+   an annotated settings row is still settings, and must never fall through to the OAuth parser.
 2. Own `readGeneration`: increment it **before** disconnect, account switch or reconnect.
 3. Write tokens from a connect or switch flow with `install`, passing the generation the flow
    moved the connection to (the api-connections service does this). `persist` stays the

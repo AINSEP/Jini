@@ -6,6 +6,7 @@
  */
 import type { ApiConnectionServiceDeps } from './deps.js';
 import { connectionNotFound, isOwnedRecord, type OwnedRecordArgs } from './records.js';
+import { isUnreadableTokenRecord } from './token-store/errors.js';
 import type { ApiConnectionAccount, ApiConnectionRecord, ApiConnectionRevocationFailure, ApiConnectionStatus } from './types.js';
 
 export interface ApiConnectionStatusView {
@@ -28,9 +29,14 @@ export function toStatusView(record: ApiConnectionRecord): ApiConnectionStatusVi
   };
 }
 
-/** A connection that was never created reads as disconnected. */
+/**
+ * A connection that was never created reads as disconnected, without opening credentials.
+ * A connected record with missing or incompatible tokens reads as reconnect-required; status
+ * never rewrites or deletes the stored credential. Other storage failures still propagate.
+ * @complexity One record read and, only for a connected record, one token-store load; no HTTP.
+ */
 export async function getApiConnectionStatus(
-  deps: Pick<ApiConnectionServiceDeps, 'records' | 'descriptor'>,
+  deps: Pick<ApiConnectionServiceDeps, 'records' | 'descriptor' | 'tokens'>,
   requiredArgs: OwnedRecordArgs,
 ): Promise<ApiConnectionStatusView> {
   const record = await deps.records.read({ key: requiredArgs.connectionRef });
@@ -39,5 +45,12 @@ export async function getApiConnectionStatus(
       revocationFailure: null };
   }
   if (!isOwnedRecord(record, deps, requiredArgs.workspaceId)) throw connectionNotFound();
+  if (record.status === 'connected') {
+    const tokens = await deps.tokens.load({ key: record.key }).catch((error: unknown) => {
+      if (isUnreadableTokenRecord(error)) return null;
+      throw error;
+    });
+    if (tokens === null) return toStatusView({ ...record, status: 'reconnect-required' });
+  }
   return toStatusView(record);
 }
