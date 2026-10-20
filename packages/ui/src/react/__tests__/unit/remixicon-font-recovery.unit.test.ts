@@ -133,4 +133,64 @@ describe('RemixIcon font recovery (fontretry)', () => {
     expect(set.applied).toEqual([]);
     expect(timers.pending.size).toBe(0);
   });
+
+  it('a probe that settles after disposal schedules nothing', async () => {
+    const timers = new FakeTimers();
+    const set = fakeFontSet({ initial: 'unchecked' });
+    const dispose = startRemixIconFontRecovery({ fonts: set.fonts, timers, createFace: () => ({ load: async () => set.loaded }) });
+    dispose();
+    await settle();
+    expect(timers.delays).toEqual([]);
+    expect(set.applied).toEqual([]);
+  });
+
+  it('a probe that fails after disposal schedules nothing', async () => {
+    const timers = new FakeTimers();
+    const set = fakeFontSet();
+    const dispose = startRemixIconFontRecovery({ fonts: set.fonts, timers, createFace: () => ({ load: async () => set.loaded }) });
+    dispose();
+    await settle();
+    expect(timers.delays).toEqual([]);
+  });
+
+  it('a retry that fails after disposal schedules no further retry', async () => {
+    const timers = new FakeTimers();
+    const set = fakeFontSet();
+    let fail!: (error: Error) => void;
+    const dispose = startRemixIconFontRecovery({ fonts: set.fonts, timers, createFace: () => ({
+      load: () => new Promise<FontFace>((_resolve, reject) => { fail = reject; }),
+    }) });
+    await settle();
+    timers.fire();
+    dispose();
+    fail(new Error('offline')); await settle();
+    expect(timers.delays).toEqual([1000]);
+    expect(timers.pending.size).toBe(0);
+  });
+
+  it('a retry whose timer port could not cancel it does nothing once disposed', async () => {
+    const timers = new FakeTimers();
+    let scheduled!: () => void;
+    const uncancellable: FontRetryTimers = { setTimeout(run) { scheduled = run; return 1; }, clearTimeout() {} };
+    const set = fakeFontSet();
+    let faces = 0;
+    const dispose = startRemixIconFontRecovery({ fonts: set.fonts, timers: uncancellable, createFace: () => { faces++; return { load: async () => set.loaded }; } });
+    await settle();
+    dispose();
+    scheduled(); await settle();
+    expect(faces).toBe(0);
+    expect(set.applied).toEqual([]);
+    expect(timers.delays).toEqual([]);
+  });
+
+  it('honours custom retry delays', async () => {
+    const timers = new FakeTimers();
+    const set = fakeFontSet();
+    startRemixIconFontRecovery({ fonts: set.fonts, timers, createFace: () => ({ load: async () => { throw new Error('offline'); } }) }, { retryDelays: [5] });
+    await settle();
+    timers.fire(); await settle();
+    expect(timers.delays).toEqual([5]);
+    expect(timers.pending.size).toBe(0);
+  });
 });
+

@@ -248,6 +248,93 @@ describe('CustomSelect keyboard navigation', () => {
   });
 });
 
+describe('CustomSelect Home/End navigation', () => {
+  const open = (trigger: HTMLElement) => act(() => { fireEvent.keyDown(trigger, { key: 'ArrowDown' }); });
+
+  it('moves the active option to the last enabled option on End', () => {
+    render(<CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    const trigger = screen.getByRole('combobox');
+    open(trigger);
+    act(() => { fireEvent.keyDown(trigger, { key: 'End' }); });
+    expect(trigger.getAttribute('aria-activedescendant')).toBe(optionButton('Beta').id);
+  });
+
+  it('moves the active option to the first enabled option on Home', () => {
+    render(<CustomSelect value="b" options={OPTIONS3} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    const trigger = screen.getByRole('combobox');
+    open(trigger);
+    act(() => { fireEvent.keyDown(trigger, { key: 'Home' }); });
+    expect(trigger.getAttribute('aria-activedescendant')).toBe(optionButton('Alpha').id);
+  });
+
+  it('clears the active option on Home when every option is disabled', () => {
+    render(<CustomSelect value="a" options={ALL_DISABLED} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    const trigger = screen.getByRole('combobox');
+    open(trigger);
+    act(() => { fireEvent.keyDown(trigger, { key: 'Home' }); });
+    expect(trigger.hasAttribute('aria-activedescendant')).toBe(false);
+  });
+});
+
+describe('CustomSelect menu rows and geometry', () => {
+  it('renders every option of a group inside that group, and flat items beside it', async () => {
+    const user = userEvent.setup();
+    const items = [{ label: 'Greek letters', options: OPTIONS3.slice(0, 2) }, { value: 'z', label: 'Zed' }];
+    render(<CustomSelect value="a" options={items} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    await user.click(screen.getByRole('combobox'));
+    const group = screen.getByText('Greek letters').closest('.jini-select-group')!;
+    expect(Array.from(group.querySelectorAll('[role=option]'), (option) => option.textContent)).toEqual(['Alpha', 'Beta']);
+    expect(optionButton('Zed').closest('.jini-select-group')).toBeNull();
+  });
+
+  it('positions a portalled menu with the measured trigger geometry', async () => {
+    const user = userEvent.setup();
+    render(<CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" />);
+    const trigger = screen.getByRole('combobox');
+    await user.click(trigger);
+    const expected = computeCustomSelectMenuPosition(trigger.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight });
+    const { style } = screen.getByRole('listbox');
+    expect([style.top, style.left, style.width, style.maxHeight]).toEqual(
+      [`${expected.top}px`, `${expected.left}px`, `${expected.width}px`, `${expected.maxHeight}px`],
+    );
+  });
+
+  it('leaves an inline menu without inline geometry', async () => {
+    const user = userEvent.setup();
+    render(<CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    await user.click(screen.getByRole('combobox'));
+    expect(screen.getByRole('listbox').hasAttribute('style')).toBe(false);
+  });
+});
+
+describe('resolveCustomSelectOriginTheme attribute edge cases', () => {
+  function originTheme(attributes: Record<string, string>) {
+    const trigger = document.createElement('button');
+    for (const [name, value] of Object.entries(attributes)) trigger.setAttribute(name, value);
+    return resolveCustomSelectOriginTheme({ trigger });
+  }
+
+  it('maps a legacy light/dark theme to the scheme too', () => {
+    expect(originTheme({ 'data-theme': 'dark' })).toEqual({ 'data-color-scheme': 'dark', 'data-theme': 'dark' });
+  });
+
+  it('mirrors a canonical scheme into data-theme', () => {
+    expect(originTheme({ 'data-color-scheme': 'light' })).toEqual({ 'data-color-scheme': 'light', 'data-theme': 'light' });
+  });
+
+  it('omits an empty theme identity', () => {
+    expect(originTheme({ 'data-admin-theme': '', 'data-theme': 'custom' })).toEqual({ 'data-theme': 'custom' });
+  });
+
+  it('lets an empty canonical scheme shadow a legacy scheme on the same node, copying data-theme as empty', () => {
+    expect(originTheme({ 'data-color-scheme': '', 'data-theme': 'dark' })).toEqual({ 'data-theme': '' });
+  });
+
+  it('copies nothing when both scheme attributes are empty', () => {
+    expect(originTheme({ 'data-color-scheme': '', 'data-theme': '' })).toEqual({});
+  });
+});
+
 describe('CustomSelect outside interaction & portal', () => {
   it('closes when a mousedown lands outside the trigger and menu', async () => {
     const user = userEvent.setup();

@@ -56,29 +56,53 @@ export function placeInfoTipBubble(
 ): InfoTipPlacement {
   const { anchor, bubble, viewport } = input;
   const width = bubble && bubble.width > 0 ? bubble.width : MAX_BUBBLE_WIDTH_PX;
-  const anchorCentre = anchor.left + anchor.width / 2;
+  const height = bubble && bubble.height > 0 ? bubble.height : 0;
+  const { left, arrowLeft } = placeHorizontally({ anchor, width, viewportWidth: viewport.width }, { bounds });
+  const placement = placeVertically({ anchor, height, viewportHeight: viewport.height }, { preferred });
+  return { placement, top: placement === "above" ? anchor.top : anchor.top + anchor.height, left, arrowLeft };
+}
 
-  const viewportSpan = { lo: EDGE_MARGIN_PX, hi: viewport.width - EDGE_MARGIN_PX };
+/**
+ * The horizontal half of {@link placeInfoTipBubble}: the bubble's centre x and the arrow's offset.
+ * @param input.width The bubble's measured width, or the worst-case estimate before measurement.
+ * @param options.bounds A host panel's limits; used only when the bubble fits inside them.
+ * @returns The bubble's centre x and the arrow's x inside the bubble.
+ * @complexity O(1).
+ */
+function placeHorizontally(
+  { anchor, width, viewportWidth }: { anchor: { left: number; width: number }; width: number; viewportWidth: number },
+  { bounds }: { bounds?: { left: number; right: number } | undefined },
+): { left: number; arrowLeft: number } {
+  const anchorCentre = anchor.left + anchor.width / 2;
+  const viewportSpan = { lo: EDGE_MARGIN_PX, hi: viewportWidth - EDGE_MARGIN_PX };
   const boundsSpan = bounds
-    ? { lo: Math.max(bounds.left, 0) + EDGE_MARGIN_PX, hi: Math.min(bounds.right, viewport.width) - EDGE_MARGIN_PX }
+    ? { lo: Math.max(bounds.left, 0) + EDGE_MARGIN_PX, hi: Math.min(bounds.right, viewportWidth) - EDGE_MARGIN_PX }
     : null;
   const span = boundsSpan && boundsSpan.hi - boundsSpan.lo >= width ? boundsSpan : viewportSpan;
   const left = span.hi - span.lo < width
-    ? viewport.width / 2
+    ? viewportWidth / 2
     : Math.min(Math.max(anchorCentre, span.lo + width / 2), span.hi - width / 2);
 
   const bubbleLeftEdge = left - width / 2;
   const arrowLeft = Math.min(Math.max(anchorCentre - bubbleLeftEdge, ARROW_INSET_PX), width - ARROW_INSET_PX);
+  return { left, arrowLeft };
+}
 
-  const anchorBottom = anchor.top + anchor.height;
-  const height = bubble && bubble.height > 0 ? bubble.height : 0;
+/**
+ * The vertical half of {@link placeInfoTipBubble}: which side of the icon the bubble opens on.
+ * @param input.height The bubble's measured height, or 0 before measurement.
+ * @param options.preferred A host's preferred side; only "bottom" changes the default above-first rule.
+ * @returns The side the bubble opens on.
+ * @complexity O(1).
+ */
+function placeVertically(
+  { anchor, height, viewportHeight }: { anchor: { top: number; height: number }; height: number; viewportHeight: number },
+  { preferred }: { preferred?: "top" | "bottom" | undefined },
+): InfoTipPlacement["placement"] {
   const fitsAbove = height > 0 ? anchor.top >= height + GAP_PX : anchor.top >= ABOVE_HEADROOM_PX;
-  const fitsBelow = height === 0 || anchorBottom + GAP_PX + height <= viewport.height;
-  const placement = preferred === "bottom"
-    ? (!fitsBelow && fitsAbove ? "above" : "below")
-    : fitsAbove ? "above" : "below";
-
-  return { placement, top: placement === "above" ? anchor.top : anchorBottom, left, arrowLeft };
+  if (preferred !== "bottom") return fitsAbove ? "above" : "below";
+  const fitsBelow = height === 0 || anchor.top + anchor.height + GAP_PX + height <= viewportHeight;
+  return !fitsBelow && fitsAbove ? "above" : "below";
 }
 
 /**

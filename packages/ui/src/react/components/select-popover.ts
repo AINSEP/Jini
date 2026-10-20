@@ -15,12 +15,17 @@ export function focusableInDomOrder({ exclude }: { exclude: HTMLElement | null }
   );
 }
 
+/** The open dialog that owns the trigger, but only when it is modal (its neighbours are inert). */
+function modalDialogOf({ trigger }: { trigger: HTMLElement | null }): Element | null {
+  const dialog = trigger?.closest("dialog[open]");
+  // An open non-modal dialog permits focus outside it; only showModal() creates inert neighbours.
+  return dialog?.matches(":modal") ? dialog : null;
+}
+
 /** Find the trigger's Tab neighbour, wrapping within its modal dialog to avoid inert page controls. */
 export function resolveTabTarget({ panel, trigger, shiftKey }: { panel: HTMLElement | null; trigger: HTMLElement | null; shiftKey: boolean }, _optional: Record<string, never> = {}
 ): HTMLElement | null {
-  const dialog = trigger?.closest("dialog[open]");
-  // An open non-modal dialog permits focus outside it; only showModal() creates inert neighbours.
-  const modalDialog = dialog?.matches(":modal") ? dialog : null;
+  const modalDialog = modalDialogOf({ trigger });
   const nodes = focusableInDomOrder({ exclude: panel }, { root: modalDialog ?? document });
   const triggerIndex = trigger ? nodes.indexOf(trigger) : -1;
   if (triggerIndex < 0) return null;
@@ -42,19 +47,25 @@ export function isSelectEventInside({ target, trigger, panel }: {
   return Boolean(trigger?.contains(target) || panel?.contains(target));
 }
 
+/** True when the trigger's rect lies wholly outside the viewport on any side. */
+function isOutsideViewport(rect: DOMRect): boolean {
+  return rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth;
+}
+
+/** True when hit-testing is available and something unrelated to the trigger is topmost at its centre. */
+function isObscured({ trigger, rect }: { trigger: HTMLElement; rect: DOMRect }): boolean {
+  if (typeof document.elementFromPoint !== 'function') return false;
+  const topmostAtCenter = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  return !topmostAtCenter || !(trigger.contains(topmostAtCenter) || topmostAtCenter.contains(trigger));
+}
+
 /** Apply the variant's geometry port; widget selects additionally dismiss a clipped/obscured trigger. */
 export function repositionSelectPopover<P>({ trigger, measurePosition, setPosition }: {
   trigger: HTMLElement; measurePosition: (input: { trigger: HTMLElement }) => P; setPosition: (position: P) => void;
 }, { onOutOfView }: { onOutOfView?: (() => void) | undefined } = {}) {
   if (onOutOfView) {
     const rect = trigger.getBoundingClientRect();
-    const outOfViewport = rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth;
-    if (outOfViewport) { onOutOfView(); return; }
-    if (typeof document.elementFromPoint === 'function') {
-      const topmostAtCenter = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      const obscured = !topmostAtCenter || !(trigger.contains(topmostAtCenter) || topmostAtCenter.contains(trigger));
-      if (obscured) { onOutOfView(); return; }
-    }
+    if (isOutsideViewport(rect) || isObscured({ trigger, rect })) { onOutOfView(); return; }
   }
   setPosition(measurePosition({ trigger }));
 }
@@ -192,12 +203,22 @@ export function openSelectOnKey({ event, open, openPanel }: {
   event.preventDefault(); openPanel(); return true;
 }
 
-/** Shared keyboard dispatch; adapters map navigation onto their enabled-value or filtered-index contract. */
-export function applySelectNavigationKey({ key, actions }: { key: string; actions: {
+type SelectNavigationActions = {
   preventDefault: () => void; move: (delta: 1 | -1) => void; edge: (edge: 'first' | 'last') => void; choose: () => void;
-} }, { spaceChooses = false }: { spaceChooses?: boolean } = {}): boolean {
-  if (key === 'ArrowDown' || key === 'ArrowUp') { actions.preventDefault(); actions.move(key === 'ArrowDown' ? 1 : -1); return true; }
-  if (key === 'Home' || key === 'End') { actions.preventDefault(); actions.edge(key === 'Home' ? 'first' : 'last'); return true; }
-  if (key === 'Enter' || (spaceChooses && key === ' ')) { actions.preventDefault(); actions.choose(); return true; }
-  return false;
+};
+
+// A Map rather than an object literal so an inherited key such as `toString` never matches.
+const NAVIGATION_KEY_ACTIONS = new Map<string, (actions: SelectNavigationActions) => void>([
+  ['ArrowDown', (actions) => actions.move(1)],
+  ['ArrowUp', (actions) => actions.move(-1)],
+  ['Home', (actions) => actions.edge('first')],
+  ['End', (actions) => actions.edge('last')],
+  ['Enter', (actions) => actions.choose()],
+]);
+
+/** Shared keyboard dispatch; adapters map navigation onto their enabled-value or filtered-index contract. */
+export function applySelectNavigationKey({ key, actions }: { key: string; actions: SelectNavigationActions }, { spaceChooses = false }: { spaceChooses?: boolean } = {}): boolean {
+  const apply = spaceChooses && key === ' ' ? NAVIGATION_KEY_ACTIONS.get('Enter') : NAVIGATION_KEY_ACTIONS.get(key);
+  if (!apply) return false;
+  actions.preventDefault(); apply(actions); return true;
 }

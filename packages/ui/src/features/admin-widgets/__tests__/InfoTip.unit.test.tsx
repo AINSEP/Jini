@@ -240,4 +240,53 @@ describe("InfoTip tip-hook injection", () => {
       ["•", "Show: every call."], ["•", "Hidden: failed calls only."],
     ]);
   });
+
+  it("publishes an agent handle on the icon with button semantics and the icon's name", () => {
+    render(<InfoTip label={LABEL} triggerLabel="About folders" agentHandle="folder-tip" />);
+    const icon = screen.getByRole("button", { name: "About folders" });
+    expect(icon).toHaveAttribute("data-agent-element", "folder-tip");
+    expect(icon).toHaveAttribute("data-agent-role", "button");
+    expect(icon).toHaveAttribute("data-agent-label", "About folders");
+  });
+
+  it("refuses an invalid agent handle with the handle and the rule it broke", () => {
+    expect(() => render(<InfoTip label={LABEL} agentHandle="Bad Handle" />)).toThrow(
+      'invalid element handle "Bad Handle": handles are lowercase words joined by single hyphens, and are never CSS selectors',
+    );
+  });
+
+  it("without an agent handle the icon carries no agent attributes", () => {
+    render(<InfoTip label={LABEL} />);
+    expect(screen.getByRole("button").getAttributeNames().filter((name) => name.startsWith("data-agent"))).toEqual([]);
+  });
+
+  it("a bulleted label keeps its plain lines as lines, separated by newlines except after the last", async () => {
+    render(<InfoTip label={"Pick one:\n• Show: all.\nThen save."} />);
+    await userEvent.setup().hover(screen.getByRole("button"));
+    const bubble = document.querySelector(".info-tip-bubble");
+    expect([...bubble!.children].map((line) => [line.className, line.textContent])).toEqual([
+      ["info-tip-line", "Pick one:\n"], ["info-tip-bullet", "• Show: all.\n"], ["info-tip-line", "Then save."],
+    ]);
+  });
+
+  it("inside a modal dialog the bubble portals into that dialog, not body", async () => {
+    const dialog = document.createElement("dialog");
+    dialog.setAttribute("open", "");
+    document.body.appendChild(dialog);
+    render(<InfoTip label={LABEL} />, { container: dialog });
+    await userEvent.setup().hover(screen.getByRole("button"));
+    expect(document.querySelector(".info-tip-bubble")?.parentElement).toBe(dialog);
+    dialog.remove();
+  });
+
+  it("closed inline help shows no copy of its label beside the icon", () => {
+    const { container } = render(<InfoTip label={LABEL} placement="inline" />);
+    expect(container.querySelector(".info-tip-inline-copy")).toBeNull();
+  });
+
+  it("without a short name, a caller's descriptionId still gets the hidden copy but the icon is not described by it", () => {
+    render(<InfoTip label={LABEL} descriptionId="field-help" />);
+    expect(document.getElementById("field-help")).toHaveTextContent(LABEL);
+    expect(screen.getByRole("button", { name: LABEL })).not.toHaveAttribute("aria-describedby");
+  });
 });

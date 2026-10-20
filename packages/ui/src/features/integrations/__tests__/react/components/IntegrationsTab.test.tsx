@@ -159,4 +159,75 @@ describe('IntegrationsTab', () => {
     );
     expect(await screen.findByRole('button', { name: 'Copier' })).toBeInTheDocument();
   });
+
+  it('renders the host-supplied capabilities title and lines instead of the defaults', async () => {
+    const port = createFakeMcpIntegrationsPort();
+    render(<IntegrationsTab serverName="acme-mcp" port={port} capabilitiesTitle="Acme can" capabilities={['Ship rockets', 'Land rockets']} />);
+    await waitFor(() => expect(screen.getByText(/acme-mcp/)).toBeInTheDocument());
+    expect(screen.getByText('Acme can')).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Ship rockets', 'Land rockets']);
+    expect(screen.queryByText('What this server can do')).not.toBeInTheDocument();
+  });
+
+  it('renders the default capabilities title and lines when the host supplies none', async () => {
+    const port = createFakeMcpIntegrationsPort();
+    render(<IntegrationsTab serverName="acme-mcp" port={port} />);
+    expect(screen.getByText('What this server can do')).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'Read your project files',
+      'Pull context into the conversation',
+      'Use default, safe tool permissions',
+    ]);
+    await waitFor(() => expect(screen.getByText(/acme-mcp/)).toBeInTheDocument());
+  });
+
+  it('shows the loading placeholder and no method label before install info resolves', async () => {
+    const port = createFakeMcpIntegrationsPort();
+    render(<IntegrationsTab serverName="acme-mcp" port={port} />);
+    expect(screen.getByText('Loading install paths…')).toBeInTheDocument();
+    expect(screen.queryByText('CLI command')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/acme-mcp/)).toBeInTheDocument());
+  });
+
+  it('shows the unresolved placeholder in the snippet block after a daemon fetch error', async () => {
+    const port = { fetchInstallInfo: () => Promise.reject(new Error('daemon unreachable')) };
+    render(<IntegrationsTab serverName="acme-mcp" port={port} />);
+    expect(await screen.findByText('Could not resolve install paths.')).toBeInTheDocument();
+    expect(screen.getByText('Could not reach the daemon: daemon unreachable')).toHaveClass('jini-empty-card jini-empty-card-error');
+  });
+
+  it('derives the picker, Codex toggle, and deeplink agent handles from the one host base handle', async () => {
+    const port = createFakeMcpIntegrationsPort();
+    const { container } = render(<IntegrationsTab serverName="acme-mcp" port={port} agentHandle="integrations" />);
+    await waitFor(() => expect(screen.getByText(/acme-mcp/)).toBeInTheDocument());
+    expect(container.querySelector('[data-agent-element="integrations-client-trigger"]')).not.toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /Claude Code/ }));
+    await userEvent.click(screen.getByRole('option', { name: /Codex/ }));
+    expect(await screen.findByRole('button', { name: 'One-click install' })).toHaveAttribute('data-agent-element', 'integrations-codex-toggle');
+    await userEvent.click(screen.getByRole('button', { name: /Codex/ }));
+    await userEvent.click(screen.getByRole('option', { name: /Cursor/ }));
+    const link = await screen.findByRole('link', { name: 'One-click install' });
+    expect(link).toHaveAttribute('data-agent-element', 'integrations-one-click-install');
+    expect(link).toHaveAttribute('data-agent-role', 'link');
+    expect(link).toHaveAttribute('data-agent-label', 'One-click install');
+  });
+
+  it('publishes no agent handles anywhere when the host supplies no base handle', async () => {
+    const port = createFakeMcpIntegrationsPort();
+    const { container } = render(<IntegrationsTab serverName="acme-mcp" port={port} />);
+    await waitFor(() => expect(screen.getByText(/acme-mcp/)).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: /Claude Code/ }));
+    await userEvent.click(screen.getByRole('option', { name: /Cursor/ }));
+    await screen.findByRole('link', { name: 'One-click install' });
+    expect(container.querySelector('[data-agent-element]')).toBeNull();
+  });
+
+  it('renders no instruction, deeplink, or Codex toggle when the host supplies an empty clients list', async () => {
+    const port = createFakeMcpIntegrationsPort();
+    const { container } = render(<IntegrationsTab serverName="acme-mcp" port={port} clients={[]} />);
+    await waitFor(() => expect(screen.queryByText('Loading install paths…')).not.toBeInTheDocument());
+    expect(container.querySelector('.jini-mcp-instruction')).toBeNull();
+    expect(container.querySelector('.jini-mcp-deeplink-row')).toBeNull();
+    expect(container.querySelector('.jini-codex-install-row')).toBeNull();
+  });
 });

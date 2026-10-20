@@ -247,6 +247,52 @@ describe('OnboardingDropdown', () => {
     expect(screen.getByPlaceholderText('Search teams…')).toBeInTheDocument();
   });
 
+  it('names the search input with the custom searchPlaceholder', async () => {
+    render(
+      <OnboardingDropdown
+        label="Team"
+        placeholder="Choose a team"
+        options={OPTIONS}
+        value=""
+        onChange={() => {}}
+        searchable
+        searchPlaceholder="Search teams…"
+      />,
+    );
+    await userEvent.click(screen.getByRole('button'));
+    expect(screen.getByRole('searchbox')).toHaveAccessibleName('Search teams…');
+  });
+
+  it('names the search input with the field label and uses the field placeholder when no searchPlaceholder is given', async () => {
+    render(
+      <OnboardingDropdown label="Team" placeholder="Choose a team" options={OPTIONS} value="" onChange={() => {}} searchable />,
+    );
+    await userEvent.click(screen.getByRole('button'));
+    const search = screen.getByRole('searchbox');
+    expect(search).toHaveAccessibleName('Team');
+    expect(search).toHaveAttribute('placeholder', 'Choose a team');
+  });
+
+  it('keeps search keystrokes other than Escape from reaching document key handlers', async () => {
+    const documentKeys: string[] = [];
+    const onDocumentKey = (event: KeyboardEvent) => documentKeys.push(event.key);
+    document.addEventListener('keydown', onDocumentKey);
+    try {
+      render(
+        <OnboardingDropdown label="Team" placeholder="Choose a team" options={OPTIONS} value="" onChange={() => {}} searchable />,
+      );
+      await userEvent.click(screen.getByRole('button'));
+      const search = screen.getByRole('searchbox');
+      fireEvent.keyDown(search, { key: 'a' });
+      expect(documentKeys).toEqual([]);
+      fireEvent.keyDown(search, { key: 'Escape' });
+      expect(documentKeys).toEqual(['Escape']);
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    } finally {
+      document.removeEventListener('keydown', onDocumentKey);
+    }
+  });
+
   it('flips to top placement when there is more room above than below', async () => {
     mockRect({ top: 400, bottom: 420 });
     render(

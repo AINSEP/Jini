@@ -1,0 +1,58 @@
+# W2 — package `ui` — coordinator progress
+
+Coordinator branch: `cloud/w2-ui` (from `origin/general-work` @ 6bdca722). Lot branches: `cloud/w2-ui-<LOT>`, worktrees `/home/user/wt-<LOT>`.
+
+- STEP 0: `Linux vm 6.18.44-fc-v139 x86_64 / vm / /home/user/Jini / 2026-10-20T01:25:53Z` → commit 3c8dc15f
+- Personas loaded by coordinator: software-architect/skills.md ✅, code-inspection/skills.md ✅ (AI-Dev-Shop cloned to /home/user/AI-Dev-Shop)
+- Setup: install + `pnpm --no-bail -r build` = 129 s (integrations tsc fails on its tests as expected; dist emitted). Worktree creation x5 in parallel = 11 s.
+- Temp complexity config: `eslint.tmp-cx.mjs` at repo root (untracked, in .git/info/exclude).
+
+## Architect lens: ordering / boundaries
+Lots are file-disjoint; no lot changes a public export, so lots are independent and can merge in any order. L089 is largest (7 files, 11 fns) and holds McpUiHost (untrusted MCP UI: behaviour must be provably identical) → started first. Merge conflicts only possible in shared test folders (none shared across lots).
+
+## Baseline (eslint cyc/cog ≤10, origin/general-work)
+| Lot | worst fn (cyc/cog) |
+|---|---|
+| L089 | WorkingDirPicker arrow 20/16; WorkingDirPicker 17/20; Toast 16; resolveCustomSelectOriginTheme 15; OnboardingDropdown 15; remixicon 12; select-popover 12; McpUiHost 11 |
+| L091 | TabbedDialog 50/26 |
+| L102 | AssetTreeBrowser 37/27; rules.ts cog 17 |
+| L103 | CommentSidePanel 23/20 (+ arrow 17/11); MarkdownSplitPane 16; useCommentReorder 13/12; rules.ts 11/17 |
+| L111 | FileDropzone 28/21; Lightbox renderStage 17/16; ThumbnailGrid renderThumb 12/13 |
+| L117 | dom.ts 15/22 worst (5 fns); SketchEditor 15/11 |
+| L122 | recordNavigation 24/15; mergeHistoryEntry 22/13; normalizeBrowserAddress 13/13 |
+| L127 | IntegrationsTab 33/23; CodexInstallToggleButton 11 |
+| L132 | validateAdminTheme 29/26 |
+| L133 | InfoTip 21/15; placeInfoTipBubble 17/16; handleKey 13/13 |
+
+## Lot status
+| Lot | status | subagent | commits | before→after | coverage | verify |
+|---|---|---|---|---|---|---|
+| L089 | MERGED (f719acb1) + L089b (8a530154, 31c28548: +4 select-popover tests → 100/100/100) | 1 agent, 85 calls, 215k tok, 20.8 min | 475d0676 a500e441 0b714cc4 90daf320 90a47d23 ed1f80b2 f53708ed | McpUiHost 11→4; select-popover 12→8/6; remixicon 12→6; Toast 16→8; Onboarding 15→7; CustomSelect 15→8; WorkingDirPicker 20/20→7/6 | 100/100/100 on 7 files EXCEPT select-popover 95.83% branch / 94.44% func (coordinator run; subagent over-reported) → L089b | eslint 0, tsc 0, 608 tests green; McpUiHost diff reviewed line-by-line: only pure height/session-key logic moved, sandbox/messaging untouched; why-comments grep-verified |
+| L091 | MERGED (75e42a6b) | 1 agent, 24 tool calls, 101k tok, 6.3 min | bb71753b | TabbedDialog 50/26 → 8/5 | 100/100/100 on 5 files; 21→34 tests (+12 view-helper tests) | eslint 0, tsc 0, 41 tests green, why-comments moved (verified by grep) |
+| L102 | MERGED (52f48f6e) | 1 agent, 54 calls, 150k tok, 11.4 min | 9ad0cad8 7006529a | AssetTreeBrowser 37/27→8/6; rules 17cog→7/7 | 100/100/100 (rules + 3 component files); +8 tests | eslint 0, tsc 0, 266 tests green, 4 why-comment blocks moved (grep-verified) |
+| L103 | MERGED (14d15f11) | 1 agent, 47 calls, 137k tok, 13.4 min | 87e6e4e8 6e1d21b1 aad8a988 55e7405f 80ec22fc | CommentSidePanel 23/20→10/6; MarkdownSplitPane 16→9/5; useCommentReorder 13→9/4; rules 11/17→5/7 | 100/100/100 on 4 files; +25 tests | eslint 0, tsc 0, 208 tests green; comment-line counts only grew |
+| L111 | MERGED (057659f7) | 1 agent, 45 calls, 130k tok, 11.3 min | 47de0d8c 83cb4cdb a7a0bdb7 bc25286e 49d139bb | FileDropzone 28/21→10/5; Lightbox 17/16→3/1; Grid 12/13→3/1 | 100/100/100 (4 files incl. new FileDropzoneZone.tsx); 66→81 tests | eslint 0, tsc 0, 163 tests green, why-comment moved to FileDropzoneZone |
+| L117 | MERGED (a6a5bc52) | 1 agent, 34 calls, 125k tok, 9 min | f8b3b81a e90842b1 | dom.ts 15/22→8/10; SketchEditor 15/11→9/2 | 100/100/100 both; +28 tests | eslint 0, tsc 0, 196 tests green; comment lines 57→68 / 30→33 |
+| L122 | MERGED (32307e21) | 1 agent, 23 calls, 104k tok, 6 min | 38edb604 | recordNavigation 24/15, mergeHistoryEntry 22/13, normalizeBrowserAddress 13/13 → file worst 9/9 | 100/100/100 (was 98.65% branch); 58→95 tests | eslint 0, tsc 0, 140 tests green; coordinator re-derived equivalence of removed labelFromUrl fallback |
+| L127 | MERGED (51d293c0) | 1 agent, 31 calls, 116k tok, 6.7 min | b61c79cb 8960d87b | Codex 11/10→6/5; IntegrationsTab 33/23→10/4 | 100/100/100 both (Tab was 95.74% branch); 18→29 tests | eslint 0, tsc 0, 60 tests green; comment lines grew |
+| L132 | MERGED (259f28e9) | 1 agent, 10 calls, 76k tok, 3 min | 2c2ea6e4 | validateAdminTheme 29/26→6/5 | 100/100/100; new __tests__/theme/validation.test.ts (78 tests, exact messages) | eslint 0, tsc 0, 84 tests green; 400+ input differential (deleted) |
+| L133 | MERGED (846a762a) | 1 agent, 40 calls, 112k tok, 9.2 min | e22080e0 d0cd8355 1b47ccfb | placeInfoTipBubble 17/16→7/6; handleKey 13/13→8/7; InfoTip 21/15→10/7 | 100/100/100 on 3 files; 40→83 tests | eslint 0, tsc 0, 222 tests green; removed `picked!==undefined` guard re-derived safe (current is clamped to matches.length) |
+
+## Problems / notes
+- L091: label explicitly `undefined` falls back to default — untestable under exactOptionalPropertyTypes without a cast (noted, not an issue).
+
+- L111: commit 47de0d8c has broken test imports (fixed in 83cb4cdb) — don't bisect onto it. useFileDropzone/useFileDropzonePreviews override props only used by tests (public props; kept). Existing FileDropzone.test.tsx has 3 pre-existing `as any` (not introduced).
+- L102: KNOWN FOLLOW-UP (deps not behind wired hook) unchanged; new useAssetTreeBrowserController could host it — design decision for owner.
+- L103: rules.ts commit message says 6/6, measured 5/7. aad8a988 had a tsc error fixed in 55e7405f (don't bisect onto it). CommentSidePanel useCommentReorder override prop only used by tests (kept).
+- L117: f8b3b81a subject says 15->5/22->7; measured 8/10. BUG PINNED (reported, not fixed): duplicated allow-list action or duplicate <li> action → 'already ordered' check never passes → menu re-appended every MutationObserver tick. Export toast 5000 vs 2200 ms not pinned.
+- L127: IntegrationsTabProps.serverName doc says 'Required' but prop is optional (public; left). Sibling ClientPicker.tsx (out of scope) has same needless spread.
+- L089: BUG PINNED (reported, not fixed): WorkingDirPicker ArrowUp with focus on no menu item jumps to second-to-last item, not last. Quirk pinned: CustomSelect empty data-color-scheme="" hides legacy data-theme="dark". Subagent's '100% on all files' claim was false for select-popover.ts.
+- L133: e22080e0 message says 4/2, measured 7/6.
+
+## Final gate (02:00Z)
+- `pnpm --filter @jini-ai/ui build` OK. Whole ui suite (maxWorkers=4): **555 files / 7547 tests, all pass**, 2m38s. Baseline origin/general-work: 549 / 7224, all pass. No failures to attribute.
+- `tsc --noEmit -p packages/ui` 0. eslint (cyc/cog ≤10) on every added/modified ui src file: 0. No file outside lot scope changed; no temp/orig files.
+
+## Next
+- Wave complete. cloud/w2-ui is ready for owner review/merge into general-work (coordinator never pushes there).
+- Owner decisions: test-only hook-override props (FileDropzone, CommentSidePanel, AssetTreeBrowser, Toast/Onboarding/WorkingDirPicker); AssetTreeBrowser KNOWN FOLLOW-UP; 2 pinned bugs (L117 duplicate allow-list churn, L089 WorkingDirPicker ArrowUp); IntegrationsTabProps.serverName doc.

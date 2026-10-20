@@ -9,7 +9,7 @@
 // `CustomSelectOptionButton` leaf, and the dumb `CustomSelect` render.
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent, MutableRefObject, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEvent, MutableRefObject, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer } from './select-popover.js';
 import { Icon } from './Icon.js';
@@ -365,18 +365,29 @@ export interface CustomSelectOriginTheme {
   'data-theme'?: string;
 }
 
+/** Scheme attributes from one boundary node: canonical `data-color-scheme` wins; a legacy
+ * `data-theme` supplies the scheme only when it is `light`/`dark`, but is always mirrored. */
+function resolveCustomSelectSchemeAttributes({ canonical, legacy }: {
+  canonical: string | null | undefined; legacy: string | null | undefined;
+}): Pick<CustomSelectOriginTheme, 'data-color-scheme' | 'data-theme'> {
+  const scheme = canonical ?? (legacy === 'light' || legacy === 'dark' ? legacy : undefined);
+  return {
+    ...(scheme ? { 'data-color-scheme': scheme } : {}),
+    ...(canonical || legacy ? { 'data-theme': canonical ?? legacy! } : {}),
+  };
+}
+
 /** Resolve theme identity and the nearest scheme separately, so a local light pin beats a dark root.
  * @complexity O(d) time, O(1) space for d DOM ancestors. No host-specific theme ids are needed. */
 export function resolveCustomSelectOriginTheme({ trigger }: { trigger: HTMLElement | null }, _optional: Record<string, never> = {}): CustomSelectOriginTheme {
   const identity = trigger?.closest('[data-admin-theme]')?.getAttribute('data-admin-theme');
   const boundary = trigger?.closest('[data-color-scheme], [data-theme]');
-  const canonical = boundary?.getAttribute('data-color-scheme');
-  const legacy = boundary?.getAttribute('data-theme');
-  const scheme = canonical ?? (legacy === 'light' || legacy === 'dark' ? legacy : undefined);
   return {
     ...(identity ? { 'data-admin-theme': identity } : {}),
-    ...(scheme ? { 'data-color-scheme': scheme } : {}),
-    ...(canonical || legacy ? { 'data-theme': canonical ?? legacy! } : {}),
+    ...resolveCustomSelectSchemeAttributes({
+      canonical: boundary?.getAttribute('data-color-scheme'),
+      legacy: boundary?.getAttribute('data-theme'),
+    }),
   };
 }
 
@@ -423,6 +434,60 @@ export function useCustomSelectOriginTheme({ buttonRef, open, portal }: {
     return () => observer.disconnect();
   }, [buttonRef, open, portal]);
   return portal ? attributes : {};
+}
+
+/** Inline geometry for a portalled menu once it has been measured; an inline menu is laid out by CSS. */
+function customSelectMenuStyle({ portal, position }: {
+  portal: boolean; position: CustomSelectMenuPosition | null;
+}): CSSProperties | undefined {
+  return portal && position
+    ? {
+        top: position.top,
+        left: position.left,
+        width: position.width,
+        maxHeight: position.maxHeight,
+      }
+    : undefined;
+}
+
+/** Where an open menu renders: inline, or portalled only after its first measurement. */
+function mountCustomSelectMenu({ menu, portal, position, trigger }: {
+  menu: ReactNode; portal: boolean; position: CustomSelectMenuPosition | null; trigger: HTMLElement | null;
+}, { container }: { container?: Element | DocumentFragment | null | undefined } = {}): ReactNode {
+  if (!portal) return menu;
+  return position ? createPortal(menu, resolveSelectPortalContainer({ trigger }, { container })) : null;
+}
+
+/** The listbox rows: groups render a labelled block of option buttons, flat options render directly. */
+function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue, onChoose, onActive }: {
+  options: CustomSelectProps['options'];
+  value: string;
+  activeValue: string;
+  optionIdByValue: Map<string, string>;
+  onChoose: (value: string) => void;
+  onActive: (value: string) => void;
+}) {
+  const renderOption = (option: CustomSelectOption) => (
+    <CustomSelectOptionButton
+      key={option.value}
+      option={option}
+      selected={option.value === value}
+      active={option.value === activeValue}
+      id={optionIdByValue.get(option.value)}
+      onChoose={onChoose}
+      onActive={onActive}
+    />
+  );
+  return (
+    <>
+      {options.map((item) => (isCustomSelectGroup(item) ? (
+        <div className="jini-select-group" key={`group:${item.label}`}>
+          <div className="jini-select-group-label">{item.label}</div>
+          {item.options.map(renderOption)}
+        </div>
+      ) : renderOption(item)))}
+    </>
+  );
 }
 
 /**
@@ -482,49 +547,17 @@ export function CustomSelect({
       ].filter(Boolean).join(' ')}
       role="listbox"
       aria-label={ariaLabel}
-      style={
-        portal && position
-          ? {
-              top: position.top,
-              left: position.left,
-              width: position.width,
-              maxHeight: position.maxHeight,
-            }
-          : undefined
-      }
+      style={customSelectMenuStyle({ portal, position })}
     >
       {menuHeader}
-      {options.map((item) => {
-        if (isCustomSelectGroup(item)) {
-          return (
-            <div className="jini-select-group" key={`group:${item.label}`}>
-              <div className="jini-select-group-label">{item.label}</div>
-              {item.options.map((option) => (
-                <CustomSelectOptionButton
-                  key={option.value}
-                  option={option}
-                  selected={option.value === value}
-                  active={option.value === activeValue}
-                  id={optionIdByValue.get(option.value)}
-                  onChoose={choose}
-                  onActive={setActiveValue}
-                />
-              ))}
-            </div>
-          );
-        }
-        return (
-          <CustomSelectOptionButton
-            key={item.value}
-            option={item}
-            selected={item.value === value}
-            active={item.value === activeValue}
-            id={optionIdByValue.get(item.value)}
-            onChoose={choose}
-            onActive={setActiveValue}
-          />
-        );
-      })}
+      <CustomSelectMenuOptions
+        options={options}
+        value={value}
+        activeValue={activeValue}
+        optionIdByValue={optionIdByValue}
+        onChoose={choose}
+        onActive={setActiveValue}
+      />
     </div>
   );
 
@@ -553,7 +586,7 @@ export function CustomSelect({
         </span>
         <Icon name="chevron-down" size={14} />
       </button>
-      {open ? (portal ? (position ? createPortal(menu, resolveSelectPortalContainer({ trigger: buttonRef.current }, { container: portalContainer })) : null) : menu) : null}
+      {open ? mountCustomSelectMenu({ menu, portal, position, trigger: buttonRef.current }, { container: portalContainer }) : null}
     </div>
   );
 }
