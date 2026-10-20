@@ -659,3 +659,130 @@ describe('probeAgentModels — the model half of detection, for hosts with their
     expect(result.defaultModelResolution?.status).toBe('unresolved');
   });
 });
+
+describe('probeAgentModels — option boundaries', () => {
+  let dir: string;
+  const cursorDef = () => AGENT_DEFS.find((def) => def.id === 'cursor-agent')!;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-probe-options-test-'));
+    mockState.responses.clear();
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function liveBin(): string {
+    const bin = path.join(dir, 'cursor-agent');
+    makeExecutable(bin);
+    mockState.responses.set(JSON.stringify(['models']), { stdout: 'gpt-opt - GPT Opt\n' });
+    return bin;
+  }
+
+  it('serves a repeat probe from the discovery cache and re-lists on force', async () => {
+    const bin = liveBin(); const deps = modelDeps(); let runs = 0;
+    const run = deps.process.run;
+    deps.process.run = async (input) => { runs++; return run(input); };
+    const listings = () => runs;
+    await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin }, deps });
+    const before = listings();
+    await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin }, deps });
+    expect(listings()).toBe(before);
+    await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin }, deps, force: true });
+    expect(listings()).toBe(before + 1);
+  });
+
+  it('discovers against a host-supplied context instead of the launch path', async () => {
+    const bin = liveBin();
+    const context = { executable: '/host/cursor', cwd: '/host', env: {}, model: 'gpt-opt' };
+    const result = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin }, context });
+    expect(result.catalog?.defaultSelectionId).toBe('gpt-opt');
+  });
+
+  it('scopes the catalog fingerprint to the supplied version', async () => {
+    const bin = liveBin();
+    const one = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin }, version: '1' });
+    const two = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin }, version: '2' });
+    expect(one.catalog?.launchFingerprint).not.toBe(two.catalog?.launchFingerprint);
+  });
+
+  it('reports a discovery failure as an unavailable executable (reported, not fixed)', async () => {
+    // probeAgentModels' catch-all maps ANY throw — here the injected clock — to the
+    // "Agent executable is unavailable." resolution, although the binary was found.
+    const bin = liveBin();
+    const deps = { ...modelDeps(), clock: { now: (): number => { throw new Error('clock unavailable'); } } };
+    const result = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin }, deps });
+    expect(result.source).toBe('fallback');
+    expect(result.defaultModelResolution).toEqual({ status: 'unresolved', reason: 'Agent executable is unavailable.' });
+  });
+});
+
+describe('detectAgents — fault isolation and option plumbing', () => {
+  const env = { PATH: '/missing', HOME: '/missing' };
+
+  it('reports only the agent whose probe throws as unavailable, without diagnostics', async () => {
+    const state = createAgentRuntimeState({});
+    const results = await nativeDetectAgents({}, { state, env, modelDiscoveryDeps: modelDeps(), probeAgent: async ({ def }) => {
+      if (def.id === 'claude') throw new Error('probe exploded');
+      return { ...def, available: true, models: [], modelsSource: 'live' };
+    } });
+    const claude = results.find(agent => agent.id === 'claude')!;
+    expect(claude).toMatchObject({ available: false, modelsSource: 'fallback', defaultModelResolution: { status: 'unresolved', reason: 'Agent executable is unavailable.' } });
+    expect(claude.diagnostics).toBeUndefined();
+    expect(results.find(agent => agent.id === 'codex')?.available).toBe(true);
+  });
+
+  it('reports every agent unavailable when the launch environment cannot be read', async () => {
+    const hostile: NodeJS.ProcessEnv = { HOME: '/missing' };
+    Object.defineProperty(hostile, 'PATH', { enumerable: true, get() { throw new Error('PATH unreadable'); } });
+    let probes = 0;
+    const results = await nativeDetectAgents({}, { state: createAgentRuntimeState({}), env: hostile, modelDiscoveryDeps: modelDeps(),
+      probeAgent: async ({ def }) => { probes++; return { ...def, available: true, models: [], modelsSource: 'live' }; } });
+    expect(results.every(agent => agent.available === false)).toBe(true);
+    expect(probes).toBe(0);
+  });
+
+  it('hands each agent its own model context and the injected deps', async () => {
+    const deps = modelDeps(); const seen = new Map<string, unknown>();
+    const context = { executable: '/x', cwd: '/w', env: {} };
+    await nativeDetectAgents({}, { state: createAgentRuntimeState({}), env, modelDiscoveryDeps: deps, modelContextByAgent: { claude: context },
+      probeAgent: async ({ def }, options) => { seen.set(def.id, options.context); expect(options.deps).toBe(deps); return { ...def, available: false, models: [], modelsSource: 'fallback' }; } });
+    expect(seen.get('claude')).toBe(context);
+    expect(seen.get('codex')).toBeUndefined();
+  });
+
+  it('falls back to the runtime discovery deps when none are injected', async () => {
+    let deps: unknown;
+    await nativeDetectAgents({}, { state: createAgentRuntimeState({}), env,
+      probeAgent: async ({ def }, options) => { deps = options.deps; return { ...def, available: false, models: [], modelsSource: 'fallback' }; } });
+    expect(deps).toEqual(expect.objectContaining({ cache: expect.any(Map) }));
+  });
+
+  it('streams with the same per-agent context, deps and probe as the batch path', async () => {
+    const deps = modelDeps(); const context = { executable: '/x', cwd: '/w', env: {} }; const seen: unknown[] = [];
+    for await (const agent of nativeDetectAgentsStream({}, { state: createAgentRuntimeState({}), env, modelDiscoveryDeps: deps, modelContextByAgent: { claude: context },
+      probeAgent: async ({ def }, options) => { if (def.id === 'claude') seen.push(options.context, options.deps); return { ...def, available: false, models: [], modelsSource: 'fallback' }; } })) {
+      expect(agent.available).toBe(false);
+    }
+    expect(seen).toEqual([context, deps]);
+  });
+
+  it('streams with the runtime discovery deps when none are injected', async () => {
+    let probes = 0;
+    for await (const agent of nativeDetectAgentsStream({}, { state: createAgentRuntimeState({}), env,
+      probeAgent: async ({ def }, options) => { probes++; expect(options.deps?.cache).toBeInstanceOf(Map); return { ...def, available: false, models: [], modelsSource: 'fallback' }; } })) {
+      expect(agent.available).toBe(false);
+    }
+    expect(probes).toBe(AGENT_DEFS.length);
+  });
+
+  it('keeps a cached agent without a version as-is while its catalog is fresh', async () => {
+    const state = createAgentRuntimeState({}); let probes = 0;
+    const options = { state, env, modelDiscoveryDeps: modelDeps(), probeAgent: async ({ def }: { def: (typeof AGENT_DEFS)[number] }) => { probes++; return { ...def, available: true, models: [], modelsSource: 'live' as const }; } };
+    const [first] = await nativeDetectAgents({}, options);
+    const [second] = await nativeDetectAgents({}, options);
+    expect(second).toBe(first);
+    expect(probes).toBe(AGENT_DEFS.length);
+  });
+});
