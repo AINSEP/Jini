@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { deriveAboutUpdateControl, isAboutUpdateActionDisabled } from '../../rules.js';
-import type { AboutUpdatePrimaryAction, AppVersionInfo, UpdaterModel } from '../../types.js';
+import type { AboutUpdateControl, AboutUpdatePrimaryAction, AppVersionInfo, UpdaterModel } from '../../types.js';
 import { useSilentUpdatesToggle } from '../hooks/useSilentUpdatesToggle.js';
+import type { UseSilentUpdatesToggleResult } from '../hooks/useSilentUpdatesToggle.js';
 
 /**
  * Superset of this feature's own `AppVersionInfo` (`../../types.js`) with
@@ -66,6 +68,183 @@ export interface AboutTabProps {
   labels?: AboutTabLabels;
 }
 
+type Translate = ReturnType<typeof useT>;
+type ResolvedAboutTabLabels = Required<AboutTabLabels>;
+
+/** Built-in (untranslated) copy for every label a host may override. */
+const DEFAULT_LABELS: ResolvedAboutTabLabels = {
+  versionLabel: 'Version',
+  runtimeLabel: 'Runtime',
+  packagedLabel: 'Packaged',
+  developmentLabel: 'Development build',
+  channelLabel: 'Channel',
+  platformLabel: 'Platform',
+  archLabel: 'Architecture',
+  releaseLinkLabel: 'View releases',
+  actionFailedLabel: 'Something went wrong. Try again.',
+  versionUnavailableLabel: 'Version information is unavailable.',
+  silentUpdatesLabel: 'Install updates automatically',
+  silentUpdatesHint: 'Apply updates in the background without asking first.',
+};
+
+const LABEL_KEYS = Object.keys(DEFAULT_LABELS) as Array<keyof AboutTabLabels>;
+
+/** Each label is the host override when given, else the translated default. */
+function resolveLabels({ t }: { t: Translate }, { labels }: { labels?: AboutTabLabels | undefined }): ResolvedAboutTabLabels {
+  const resolved = { ...DEFAULT_LABELS };
+  for (const key of LABEL_KEYS) resolved[key] = labels?.[key] ?? t(DEFAULT_LABELS[key]);
+  return resolved;
+}
+
+/**
+ * The one thing that's genuinely render-local: whether an update action this
+ * tab itself kicked off is still in flight, and whether the last one failed.
+ */
+function useUpdateActionRunner({
+  onPerformUpdateAction,
+}: Pick<AboutTabProps, 'onPerformUpdateAction'>) {
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionFailed, setActionFailed] = useState(false);
+  const run = (action: AboutUpdatePrimaryAction) => {
+    setActionBusy(true);
+    setActionFailed(false);
+    void onPerformUpdateAction(action).then(
+      () => setActionBusy(false),
+      () => {
+        setActionBusy(false);
+        setActionFailed(true);
+      },
+    );
+  };
+  return { actionBusy, actionFailed, run };
+}
+
+interface UpdateActionsProps {
+  control: AboutUpdateControl;
+  primaryLabel: string | null;
+  actionDisabled: boolean;
+  onPrimaryAction: (() => void) | undefined;
+  onOpenReleaseLink: () => void;
+  releaseLinkLabel: string;
+}
+
+function UpdateActions({
+  control,
+  primaryLabel,
+  actionDisabled,
+  onPrimaryAction,
+  onOpenReleaseLink,
+  releaseLinkLabel,
+}: UpdateActionsProps) {
+  // Origin styled 'download'/'install'/'quit' as primary and left 'check'
+  // plain; simplified to "any actionable state reads as primary, any inert
+  // one reads as ghost" — same visual intent, one fewer hardcoded branch,
+  // and it falls straight out of a field `deriveAboutUpdateControl` already
+  // computes rather than re-deriving OD's three-way action match.
+  const primaryButtonClassName = `jini-button${control.primaryAction ? ' jini-button-primary' : ' jini-button-ghost'}`;
+  return (
+    <div className="jini-settings-about-actions">
+      {primaryLabel ? (
+        <button
+          type="button"
+          className={primaryButtonClassName}
+          disabled={actionDisabled}
+          onClick={onPrimaryAction}
+          data-testid="about-update-action"
+        >
+          {primaryLabel}
+        </button>
+      ) : null}
+      {control.showReleaseLink ? (
+        <button
+          type="button"
+          className="jini-button jini-button-ghost"
+          onClick={onOpenReleaseLink}
+          data-testid="about-release-link"
+        >
+          {releaseLinkLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** A `<dt>/<dd>` row rendered only when the host supplied a value for it. */
+function OptionalFactRow({ label, value }: { label: string; value: string | undefined }) {
+  return value ? (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  ) : null;
+}
+
+interface VersionDetailsProps {
+  appVersionInfo: AboutAppVersionInfo;
+  labels: ResolvedAboutTabLabels;
+  statusTone: AboutUpdateControl['statusTone'];
+  statusText: string;
+  actions: ReactNode;
+  actionFailed: boolean;
+}
+
+function VersionDetails({ appVersionInfo, labels, statusTone, statusText, actions, actionFailed }: VersionDetailsProps) {
+  return (
+    <dl className="jini-settings-about-list">
+      <div className="jini-settings-about-version-row">
+        <div className="jini-settings-about-version-copy">
+          <dt>{labels.versionLabel}</dt>
+          <span className="jini-settings-about-version-num">{appVersionInfo.version}</span>
+          <dd aria-live="polite" className={`jini-settings-about-status jini-settings-about-status--${statusTone}`}>
+            {statusText}
+          </dd>
+        </div>
+        {actions}
+      </div>
+
+      {actionFailed ? (
+        <p className="jini-hint jini-settings-about-error" role="status">
+          {labels.actionFailedLabel}
+        </p>
+      ) : null}
+
+      <div>
+        <dt>{labels.runtimeLabel}</dt>
+        <dd>{appVersionInfo.packaged === false ? labels.developmentLabel : labels.packagedLabel}</dd>
+      </div>
+      <OptionalFactRow label={labels.channelLabel} value={appVersionInfo.channel} />
+      <OptionalFactRow label={labels.platformLabel} value={appVersionInfo.platform} />
+      <OptionalFactRow label={labels.archLabel} value={appVersionInfo.arch} />
+    </dl>
+  );
+}
+
+function SilentUpdatesToggle({
+  silentUpdates,
+  labels,
+}: {
+  silentUpdates: UseSilentUpdatesToggleResult;
+  labels: ResolvedAboutTabLabels;
+}) {
+  return (
+    <div className="jini-settings-subsection jini-settings-about-silent-updates">
+      <label className="jini-settings-about-toggle">
+        <input
+          type="checkbox"
+          checked={silentUpdates.allowSilentUpdates}
+          disabled={silentUpdates.busy}
+          onChange={(event) => silentUpdates.toggle(event.currentTarget.checked)}
+          data-testid="about-silent-updates-toggle"
+        />
+        <span className="jini-settings-about-toggle-copy">
+          <span>{labels.silentUpdatesLabel}</span>
+          <span className="jini-hint">{labels.silentUpdatesHint}</span>
+        </span>
+      </label>
+    </div>
+  );
+}
+
 /**
  * App version + auto-update panel, plus the "allow silent updates"
  * preference. Origin: the `activeSection === 'about'` block in
@@ -96,148 +275,48 @@ export function AboutTab({
   labels,
 }: AboutTabProps) {
   const t = useT();
-  const [actionBusy, setActionBusy] = useState(false);
-  const [actionFailed, setActionFailed] = useState(false);
+  const { actionBusy, actionFailed, run } = useUpdateActionRunner({ onPerformUpdateAction });
   const silentUpdates = useSilentUpdatesToggle({ allowSilentUpdates, onSilentUpdatePreferenceChange });
 
   const control = useMemo(
-    () => deriveAboutUpdateControl(updaterModel, appVersionInfo ?? null),
+    () => deriveAboutUpdateControl(updaterModel, appVersionInfo),
     [updaterModel, appVersionInfo],
   );
   const actionDisabled = isAboutUpdateActionDisabled(control, updaterModel, actionBusy);
-
-  const versionLabel = labels?.versionLabel ?? t('Version');
-  const runtimeLabel = labels?.runtimeLabel ?? t('Runtime');
-  const packagedLabel = labels?.packagedLabel ?? t('Packaged');
-  const developmentLabel = labels?.developmentLabel ?? t('Development build');
-  const channelLabel = labels?.channelLabel ?? t('Channel');
-  const platformLabel = labels?.platformLabel ?? t('Platform');
-  const archLabel = labels?.archLabel ?? t('Architecture');
-  const releaseLinkLabel = labels?.releaseLinkLabel ?? t('View releases');
-  const actionFailedLabel = labels?.actionFailedLabel ?? t('Something went wrong. Try again.');
-  const versionUnavailableLabel = labels?.versionUnavailableLabel ?? t('Version information is unavailable.');
-  const silentUpdatesLabel = labels?.silentUpdatesLabel ?? t('Install updates automatically');
-  const silentUpdatesHint = labels?.silentUpdatesHint ?? t('Apply updates in the background without asking first.');
-
-  const statusText = t(control.statusKey, control.statusVars);
-  const primaryLabel = control.primaryLabelKey ? t(control.primaryLabelKey) : null;
-  // Origin styled 'download'/'install'/'quit' as primary and left 'check'
-  // plain; simplified to "any actionable state reads as primary, any inert
-  // one reads as ghost" — same visual intent, one fewer hardcoded branch,
-  // and it falls straight out of a field `deriveAboutUpdateControl` already
-  // computes rather than re-deriving OD's three-way action match.
-  const primaryButtonClassName = `jini-button${control.primaryAction ? ' jini-button-primary' : ' jini-button-ghost'}`;
+  const resolvedLabels = resolveLabels({ t }, { labels });
 
   // `handlePrimaryAction` only exists when there is an action to run — it is
   // `undefined` in every state that renders the button disabled-and-inert
   // (e.g. "downloading"), so there is no dead "disabled but somehow clicked"
   // branch to guard against inside the handler itself.
   const { primaryAction } = control;
-  const handlePrimaryAction =
-    primaryAction == null
-      ? undefined
-      : () => {
-          setActionBusy(true);
-          setActionFailed(false);
-          void onPerformUpdateAction(primaryAction).then(
-            () => setActionBusy(false),
-            () => {
-              setActionBusy(false);
-              setActionFailed(true);
-            },
-          );
-        };
+  const handlePrimaryAction = primaryAction == null ? undefined : () => run(primaryAction);
 
   return (
     <section className="jini-settings-section jini-settings-about">
       {appVersionInfo ? (
-        <dl className="jini-settings-about-list">
-          <div className="jini-settings-about-version-row">
-            <div className="jini-settings-about-version-copy">
-              <dt>{versionLabel}</dt>
-              <span className="jini-settings-about-version-num">{appVersionInfo.version}</span>
-              <dd
-                aria-live="polite"
-                className={`jini-settings-about-status jini-settings-about-status--${control.statusTone}`}
-              >
-                {statusText}
-              </dd>
-            </div>
-            <div className="jini-settings-about-actions">
-              {primaryLabel ? (
-                <button
-                  type="button"
-                  className={primaryButtonClassName}
-                  disabled={actionDisabled}
-                  onClick={handlePrimaryAction}
-                  data-testid="about-update-action"
-                >
-                  {primaryLabel}
-                </button>
-              ) : null}
-              {control.showReleaseLink ? (
-                <button
-                  type="button"
-                  className="jini-button jini-button-ghost"
-                  onClick={onOpenReleaseLink}
-                  data-testid="about-release-link"
-                >
-                  {releaseLinkLabel}
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {actionFailed ? (
-            <p className="jini-hint jini-settings-about-error" role="status">
-              {actionFailedLabel}
-            </p>
-          ) : null}
-
-          <div>
-            <dt>{runtimeLabel}</dt>
-            <dd>{appVersionInfo.packaged === false ? developmentLabel : packagedLabel}</dd>
-          </div>
-          {appVersionInfo.channel ? (
-            <div>
-              <dt>{channelLabel}</dt>
-              <dd>{appVersionInfo.channel}</dd>
-            </div>
-          ) : null}
-          {appVersionInfo.platform ? (
-            <div>
-              <dt>{platformLabel}</dt>
-              <dd>{appVersionInfo.platform}</dd>
-            </div>
-          ) : null}
-          {appVersionInfo.arch ? (
-            <div>
-              <dt>{archLabel}</dt>
-              <dd>{appVersionInfo.arch}</dd>
-            </div>
-          ) : null}
-        </dl>
+        <VersionDetails
+          appVersionInfo={appVersionInfo}
+          labels={resolvedLabels}
+          statusTone={control.statusTone}
+          statusText={t(control.statusKey, control.statusVars)}
+          actionFailed={actionFailed}
+          actions={
+            <UpdateActions
+              control={control}
+              primaryLabel={control.primaryLabelKey ? t(control.primaryLabelKey) : null}
+              actionDisabled={actionDisabled}
+              onPrimaryAction={handlePrimaryAction}
+              onOpenReleaseLink={onOpenReleaseLink}
+              releaseLinkLabel={resolvedLabels.releaseLinkLabel}
+            />
+          }
+        />
       ) : (
-        <div className="jini-empty-card">{versionUnavailableLabel}</div>
+        <div className="jini-empty-card">{resolvedLabels.versionUnavailableLabel}</div>
       )}
 
-      {onSilentUpdatePreferenceChange ? (
-        <div className="jini-settings-subsection jini-settings-about-silent-updates">
-          <label className="jini-settings-about-toggle">
-            <input
-              type="checkbox"
-              checked={silentUpdates.allowSilentUpdates}
-              disabled={silentUpdates.busy}
-              onChange={(event) => silentUpdates.toggle(event.currentTarget.checked)}
-              data-testid="about-silent-updates-toggle"
-            />
-            <span className="jini-settings-about-toggle-copy">
-              <span>{silentUpdatesLabel}</span>
-              <span className="jini-hint">{silentUpdatesHint}</span>
-            </span>
-          </label>
-        </div>
-      ) : null}
+      {onSilentUpdatePreferenceChange ? <SilentUpdatesToggle silentUpdates={silentUpdates} labels={resolvedLabels} /> : null}
     </section>
   );
 }
