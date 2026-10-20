@@ -18,7 +18,7 @@ Started 2026-10-19 23:59 UTC. Setup 23:59:40→00:02:28 (2m48s); integrations bu
 | L192 | forms/conformance | 20/15 | merged | 8/4 (eslint 0) | 100/100/100 | e8c0d8f8 | eslint 0, tsc 0, 16/16 green; 20 check names/order/API sequence unchanged; original test assertions intact (fixture extracted); BUG PINNED: cross-form trash accepted by host → harness crashes ('form definition s1 was not found') instead of reporting a failure; 3m/79k tok |
 | L207 | forms/react | 14/12 | merged | 6/5, 9/9, 9/5 (eslint 0) | 100/100/100 (incl. 3 new part files) | fdad80f7,5fc2ab6e,a9a4390f | eslint 0, tsc 0, src/forms/react 19 files/134 tests green; markup parity proven; 3 new sibling part files; FLAGGED: stray FormEditorHeaderText doc comment at end of FormEditorFieldsBody.tsx and stale 'Not useMemo'd' comment in FormSubmissions.tsx (both need out-of-lot edits); 9m/119k tok |
 
-## Final (2026-10-20 ~01:10 UTC)
+## Final (2026-10-20 00:48 UTC; wall time 49 min)
 
 - All 10 lots merged into `cloud/w1-admin`. Aggregate temp-eslint (cyc/cog 10) over all 55 changed admin src files: **0** (baseline 95).
 - `pnpm --filter @jini-ai/admin build` OK; `tsc --noEmit -p packages/admin` 0; whole package suite `vitest run --maxWorkers=4`: **166 files / 2218 tests passed** (74 s). No failures, so no origin/general-work comparison needed.
