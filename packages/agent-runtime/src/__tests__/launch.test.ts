@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -315,5 +315,169 @@ describe('applyAgentLaunchEnv', () => {
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     }
+  });
+});
+
+// Characterization pins (L174): native-binary search order and acceptance
+// for the Codex launch upgrade, written green against the pre-refactor code
+// and kept unchanged through the refactor.
+describe('resolveAgentLaunch characterization', () => {
+  let dir: string;
+  const suffix = `${process.platform}-${process.arch}`;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-launch-char-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function codexWrapper(at: string): string {
+    mkdirSync(path.dirname(at), { recursive: true });
+    makeExecutable(at, '#!/usr/bin/env node\n');
+    return at;
+  }
+
+  function nativeAt(filePath: string): string {
+    mkdirSync(path.dirname(filePath), { recursive: true });
+    makeExecutable(filePath, 'native');
+    return filePath;
+  }
+
+  function launchCodex(wrapperPath: string) {
+    return resolveAgentLaunch({ def: makeDef({ id: 'codex', bin: 'codex' }) }, { configuredEnv: { CODEX_BIN: wrapperPath } });
+  }
+
+  it('prefers vendor/<triple>/codex/codex over the other layouts in the same package dir', () => {
+    const pkg = path.join(dir, 'node_modules', '@openai', `codex-${suffix}`);
+    const vendor = nativeAt(path.join(pkg, 'vendor', targetTripleForCurrentHost(), 'codex', 'codex'));
+    nativeAt(path.join(pkg, 'codex'));
+    nativeAt(path.join(pkg, 'bin', 'codex'));
+    expect(launchCodex(codexWrapper(path.join(dir, 'codex'))).launchPath).toBe(vendor);
+  });
+
+  it('prefers <pkg>/codex over <pkg>/bin/codex and <pkg>/vendor/codex', () => {
+    const pkg = path.join(dir, 'node_modules', '@openai', `codex-${suffix}`);
+    const top = nativeAt(path.join(pkg, 'codex'));
+    nativeAt(path.join(pkg, 'bin', 'codex'));
+    nativeAt(path.join(pkg, 'vendor', 'codex'));
+    expect(launchCodex(codexWrapper(path.join(dir, 'codex'))).launchPath).toBe(top);
+  });
+
+  it('prefers <pkg>/bin/codex over <pkg>/vendor/codex', () => {
+    const pkg = path.join(dir, 'node_modules', '@openai', `codex-${suffix}`);
+    const bin = nativeAt(path.join(pkg, 'bin', 'codex'));
+    nativeAt(path.join(pkg, 'vendor', 'codex'));
+    expect(launchCodex(codexWrapper(path.join(dir, 'codex'))).launchPath).toBe(bin);
+  });
+
+  it('accepts the <pkg>/bin/codex.exe layout when it is the only candidate', () => {
+    const pkg = path.join(dir, 'node_modules', '@openai', `codex-${suffix}`);
+    const exe = nativeAt(path.join(pkg, 'bin', 'codex.exe'));
+    expect(launchCodex(codexWrapper(path.join(dir, 'codex'))).launchPath).toBe(exe);
+  });
+
+  it('checks the exact platform package before other codex-* packages', () => {
+    const scoped = path.join(dir, 'node_modules', '@openai');
+    nativeAt(path.join(scoped, 'codex-aaa-other', 'codex'));
+    const exact = nativeAt(path.join(scoped, `codex-${suffix}`, 'bin', 'codex'));
+    expect(launchCodex(codexWrapper(path.join(dir, 'codex'))).launchPath).toBe(exact);
+  });
+
+  it('ignores @openai entries that are files or not codex-* prefixed', () => {
+    const scoped = path.join(dir, 'node_modules', '@openai');
+    nativeAt(path.join(scoped, 'other-pkg', 'codex'));
+    writeFileSync(path.join(scoped, 'codex-file'), 'x');
+    const result = launchCodex(codexWrapper(path.join(dir, 'codex')));
+    expect(result.launchKind).toBe('selected');
+  });
+
+  it('searches the nearest ancestor of the wrapper first', () => {
+    nativeAt(path.join(dir, 'node_modules', '@openai', `codex-${suffix}`, 'codex'));
+    const inner = nativeAt(path.join(dir, 'a', 'node_modules', '@openai', `codex-${suffix}`, 'codex'));
+    expect(launchCodex(codexWrapper(path.join(dir, 'a', 'b', 'codex'))).launchPath).toBe(inner);
+  });
+
+  it('also searches the ancestors of the wrapper\'s realpath (symlinked npm bin)', () => {
+    const real = codexWrapper(path.join(dir, 'lib', 'pkg', 'codex.js'));
+    const native = nativeAt(path.join(dir, 'lib', 'node_modules', '@openai', `codex-${suffix}`, 'codex'));
+    mkdirSync(path.join(dir, 'bin'));
+    symlinkSync(real, path.join(dir, 'bin', 'codex'));
+    // The symlink's own ancestors (dir/bin, dir, ...) are searched before the
+    // realpath's, so keep dir itself free of a node_modules tree.
+    expect(launchCodex(path.join(dir, 'bin', 'codex')).launchPath).toBe(native);
+  });
+
+  it('launches a codex-* native binary from ANY ancestor directory up to the filesystem root, under any codex-* package name (reported, not fixed)', () => {
+    const planted = nativeAt(path.join(dir, 'node_modules', '@openai', 'codex-anything', 'codex'));
+    const result = launchCodex(codexWrapper(path.join(dir, 'x', 'y', 'z', 'codex')));
+    expect(result.launchKind).toBe('codex-native');
+    expect(result.launchPath).toBe(planted);
+  });
+
+  it('skips a native candidate that is not executable on posix', () => {
+    const pkg = path.join(dir, 'node_modules', '@openai', `codex-${suffix}`);
+    nativeAt(path.join(pkg, 'codex'));
+    chmodSync(path.join(pkg, 'codex'), 0o644);
+    const fallback = nativeAt(path.join(pkg, 'bin', 'codex'));
+    expect(launchCodex(codexWrapper(path.join(dir, 'codex'))).launchPath).toBe(fallback);
+  });
+
+  it('prepends the wrapper dir, then the vendor path dir only when it exists', () => {
+    const pkg = path.join(dir, 'node_modules', '@openai', `codex-${suffix}`);
+    nativeAt(path.join(pkg, 'codex'));
+    const wrapper = codexWrapper(path.join(dir, 'codex'));
+    expect(launchCodex(wrapper).childPathPrepend).toEqual([dir]);
+  });
+
+  it('never upgrades a non-codex agent even when a native codex tree is present', () => {
+    nativeAt(path.join(dir, 'node_modules', '@openai', `codex-${suffix}`, 'codex'));
+    const wrapper = codexWrapper(path.join(dir, 'claude'));
+    const result = resolveAgentLaunch({ def: makeDef({ id: 'claude', bin: 'claude' }) }, { configuredEnv: { CLAUDE_BIN: wrapper } });
+    expect(result).toMatchObject({ launchPath: wrapper, launchKind: 'selected', childPathPrepend: [dir], diagnostic: null });
+  });
+
+  it('sniffs only the first 64000 bytes of the wrapper for a node marker', () => {
+    const wrapper = path.join(dir, 'codex');
+    makeExecutable(wrapper, `${'x'.repeat(64_000)}node`);
+    expect(launchCodex(wrapper).diagnostic).toBeNull();
+  });
+
+  it('matches the wrapper markers case-insensitively and names suffix, triple and wrapper in the diagnostic', () => {
+    const wrapper = path.join(dir, 'codex');
+    makeExecutable(wrapper, 'require("@OpenAI/Codex")');
+    expect(launchCodex(wrapper).diagnostic).toBe(
+      `Codex native binary was not found for ${suffix}/${targetTripleForCurrentHost()}; falling back to wrapper ${wrapper}. Set CODEX_BIN to a native Codex binary if this wrapper cannot launch from a GUI environment.`,
+    );
+  });
+});
+
+describe('applyAgentLaunchEnv characterization', () => {
+  it('keeps PATH entries case-sensitive on posix', () => {
+    const result = applyAgentLaunchEnv({ env: { PATH: '/Foo' }, launch: { childPathPrepend: ['/foo'] } }, { nodeBinDir: '', appendPathDirs: [] });
+    expect(result.PATH).toBe(['/foo', '/Foo'].join(path.delimiter));
+  });
+
+  it('dedupes trailing-slash variants on posix, keeping the first spelling', () => {
+    const result = applyAgentLaunchEnv({ env: { PATH: '/usr/bin/' }, launch: { childPathPrepend: [] } }, { nodeBinDir: '/usr/bin', appendPathDirs: ['/usr/bin//'] });
+    expect(result.PATH).toBe('/usr/bin');
+  });
+
+  it('returns a new env object and leaves the input untouched', () => {
+    const env = { PATH: '/usr/bin', OTHER: 'x' };
+    const result = applyAgentLaunchEnv({ env, launch: { childPathPrepend: ['/agent'] } }, { nodeBinDir: '', appendPathDirs: [] });
+    expect(env).toEqual({ PATH: '/usr/bin', OTHER: 'x' });
+    expect(result).toEqual({ PATH: ['/agent', '/usr/bin'].join(path.delimiter), OTHER: 'x' });
+  });
+
+  it('updates the first path-shaped key when several differ only by case', () => {
+    const result = applyAgentLaunchEnv({ env: { Path: '/a', PATH: '/b' }, launch: { childPathPrepend: [] } }, { nodeBinDir: '/n', appendPathDirs: [] });
+    expect(result).toEqual({ Path: ['/n', '/a'].join(path.delimiter), PATH: '/b' });
+  });
+
+  it('builds PATH from appendPathDirs alone when nothing is prepended', () => {
+    const result = applyAgentLaunchEnv({ env: {}, launch: { childPathPrepend: [] } }, { nodeBinDir: '', appendPathDirs: ['/tool'] });
+    expect(result).toEqual({ PATH: '/tool' });
   });
 });
