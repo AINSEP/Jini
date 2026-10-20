@@ -221,4 +221,134 @@ describe('createFsAttachmentStaging', () => {
         const staged = await staging2.stage({ imagePaths: [externalFile] }, { uploadRoot: outside });
         expect(staged).toHaveLength(1);
     });
+    it('accepts exactly maxItems paths (the limit is inclusive)', async () => {
+        const staging = createFsAttachmentStaging({ cwd: cwd }, { maxItems: 2 });
+        const inside = path.join(cwd, 'a.png');
+        await fs.promises.writeFile(inside, 'x');
+        const real = await fs.promises.realpath(inside);
+        expect(await staging.stage({ imagePaths: [inside, inside] })).toEqual([real, real]);
+    });
+    it('rejects too many paths with a message naming the count and the limit', async () => {
+        const staging = createFsAttachmentStaging({ cwd: cwd }, { maxItems: 1 });
+        await expect(staging.stage({ imagePaths: ['a', 'b'] })).rejects.toThrow('attachment staging: 2 paths exceeds the 1-item limit');
+    });
+    it('copies a file of exactly maxBytesPerFile bytes (the size limit is inclusive)', async () => {
+        const staging = createFsAttachmentStaging({ cwd: cwd }, { maxBytesPerFile: 4 });
+        const externalFile = path.join(outside, 'four.png');
+        await fs.promises.writeFile(externalFile, 'abcd');
+        const [staged] = await staging.stage({ imagePaths: [externalFile] }, { uploadRoot: outside });
+        expect(await fs.promises.readFile(staged!, 'utf8')).toBe('abcd');
+    });
+    it('names the unresolvable uploadRoot and keeps the fs reason in the message', async () => {
+        const staging = createFsAttachmentStaging({ cwd: cwd });
+        const missingRoot = path.join(outside, 'does-not-exist');
+        await expect(staging.stage({ imagePaths: ['x'] }, { uploadRoot: missingRoot })).rejects.toThrow(`attachment staging: uploadRoot ${JSON.stringify(missingRoot)} could not be resolved: ENOENT`);
+    });
+    it('rejects an unresolvable uploadRoot before creating the staging directory', async () => {
+        const staging = createFsAttachmentStaging({ cwd: cwd });
+        await expect(staging.stage({ imagePaths: ['x'] }, { uploadRoot: path.join(outside, 'nope') })).rejects.toThrow('could not be resolved');
+        expect(fs.existsSync(path.join(cwd, '.media-attachments'))).toBe(false);
+    });
+    it('rejects the item limit before creating the staging directory', async () => {
+        const staging = createFsAttachmentStaging({ cwd: cwd }, { maxItems: 1 });
+        await expect(staging.stage({ imagePaths: ['a', 'b'] })).rejects.toThrow('exceeds the 1-item limit');
+        expect(fs.existsSync(path.join(cwd, '.media-attachments'))).toBe(false);
+    });
+    it('creates the staging directory even when every path is skipped', async () => {
+        const staging = createFsAttachmentStaging({ cwd: cwd });
+        expect(await staging.stage({ imagePaths: ['   '] })).toEqual([]);
+        expect(fs.existsSync(path.join(cwd, '.media-attachments'))).toBe(true);
+    });
+    it('names the symlinked staging directory in the refusal', async () => {
+        const elsewhere = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'jini-media-staging-elsewhere-'));
+        try {
+            await fs.promises.symlink(elsewhere, path.join(cwd, '.media-attachments'), 'dir');
+            const staging = createFsAttachmentStaging({ cwd: cwd });
+            await expect(staging.stage({ imagePaths: ['x'] })).rejects.toThrow(`attachment staging: staging directory ${path.join(path.resolve(cwd), '.media-attachments')} is a symlink, refusing to use it`);
+        }
+        finally {
+            await fs.promises.rm(elsewhere, { recursive: true, force: true });
+        }
+    });
+    it('uses an in-cwd file as-is even when it lies outside the supplied uploadRoot', async () => {
+        const inside = path.join(cwd, 'here.png');
+        await fs.promises.writeFile(inside, 'x');
+        const staging = createFsAttachmentStaging({ cwd: cwd });
+        expect(await staging.stage({ imagePaths: [inside] }, { uploadRoot: outside })).toEqual([await fs.promises.realpath(inside)]);
+    });
+    it('resolves a relative path against process.cwd(), not the staging cwd', async () => {
+        const inside = path.join(cwd, 'rel.png');
+        await fs.promises.writeFile(inside, 'x');
+        const staging = createFsAttachmentStaging({ cwd: cwd });
+        const relative = path.relative(process.cwd(), inside);
+        expect(await staging.stage({ imagePaths: [relative] })).toEqual([await fs.promises.realpath(inside)]);
+    });
+    it('copies a file when uploadRoot is the file itself (the root-equals-candidate case)', async () => {
+        const externalFile = path.join(outside, 'exact.png');
+        await fs.promises.writeFile(externalFile, 'exact');
+        const staging = createFsAttachmentStaging({ cwd: cwd });
+        const [staged] = await staging.stage({ imagePaths: [externalFile] }, { uploadRoot: externalFile });
+        expect(await fs.promises.readFile(staged!, 'utf8')).toBe('exact');
+    });
+    it('names the copy <uuid>-<basename> inside the staging directory', async () => {
+        const externalFile = path.join(outside, 'named.png');
+        await fs.promises.writeFile(externalFile, 'x');
+        const staging = createFsAttachmentStaging({ cwd: cwd });
+        const [staged] = await staging.stage({ imagePaths: [externalFile] }, { uploadRoot: outside });
+        expect(path.dirname(staged!)).toBe(path.join(path.resolve(cwd), '.media-attachments'));
+        expect(path.basename(staged!)).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-named\.png$/);
+    });
+    it('keeps staging later paths after skipping an earlier missing one', async () => {
+        const externalFile = path.join(outside, 'ok.png');
+        await fs.promises.writeFile(externalFile, 'x');
+        const staging = createFsAttachmentStaging({ cwd: cwd });
+        const staged = await staging.stage({ imagePaths: [path.join(outside, 'missing.png'), externalFile] }, { uploadRoot: outside });
+        expect(staged).toHaveLength(1);
+    });
+    it('treats an in-cwd file whose name starts with ".." as outside cwd (reported, not fixed)', async () => {
+        // isWithinRoot tests relativePath.startsWith('..'), which also matches a
+        // child literally named "..foo". It fails closed (asks for uploadRoot), so
+        // it is a usability bug, not a containment bypass.
+        const oddName = path.join(cwd, '..foo.png');
+        await fs.promises.writeFile(oddName, 'x');
+        const staging = createFsAttachmentStaging({ cwd: cwd });
+        await expect(staging.stage({ imagePaths: [oddName] })).rejects.toThrow('attachment staging: files outside cwd require an uploadRoot');
+    });
+    it('skips a file copy that fails and keeps going (advisory input)', async () => {
+        const externalFile = path.join(outside, 'copyfail.png');
+        await fs.promises.writeFile(externalFile, 'x');
+        const staging = createFsAttachmentStaging({ cwd: cwd });
+        const copySpy = vi.spyOn(fs.promises, 'copyFile').mockRejectedValueOnce(new Error('disk full'));
+        try {
+            expect(await staging.stage({ imagePaths: [externalFile, externalFile] }, { uploadRoot: outside })).toHaveLength(1);
+        }
+        finally {
+            copySpy.mockRestore();
+        }
+    });
+    it('falls back to the raw cwd when the cwd realpath lookup fails', async () => {
+        const inside = path.join(cwd, 'a.png');
+        await fs.promises.writeFile(inside, 'x');
+        const realCwd = await fs.promises.realpath(cwd);
+        const staging = createFsAttachmentStaging({ cwd: realCwd });
+        const original = fs.promises.realpath;
+        const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (p, o) => {
+            if (p === realCwd) throw new Error('boom');
+            return original(p, o);
+        });
+        try {
+            expect(await staging.stage({ imagePaths: [inside] })).toEqual([path.join(realCwd, 'a.png')]);
+        }
+        finally {
+            realpathSpy.mockRestore();
+        }
+    });
+    it('prunes only files older than maxAgeMs and keeps fresh ones', async () => {
+        const staging = createFsAttachmentStaging({ cwd: cwd }, { maxAgeMs: 60000 });
+        const a = path.join(outside, 'a.png');
+        await fs.promises.writeFile(a, 'a');
+        const [first] = await staging.stage({ imagePaths: [a] }, { uploadRoot: outside });
+        await staging.stage({ imagePaths: [a] }, { uploadRoot: outside });
+        expect(fs.existsSync(first!)).toBe(true);
+    });
 });

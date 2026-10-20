@@ -53,6 +53,30 @@ export interface MediaPolicy {
   evaluate(required: RequiredArgs<MediaPolicyTarget>, optional?: OptionalArgs<MediaPolicyTarget>): MediaPolicyDenial | null;
 }
 
+/** A missing or empty allowlist means "no restriction on that dimension". */
+function isRestricted(allowlist: readonly string[] | undefined): allowlist is readonly string[] {
+  return allowlist !== undefined && allowlist.length > 0;
+}
+
+function surfaceDenial(policy: MediaExecutionPolicy, surface: MediaSurface): MediaPolicyDenial | null {
+  if (!isRestricted(policy.allowedSurfaces) || policy.allowedSurfaces.includes(surface)) return null;
+  return { code: 'MEDIA_SURFACE_DENIED', message: `media surface "${surface}" is not allowed for this run` };
+}
+
+function modelDenial(policy: MediaExecutionPolicy, model: string | undefined): MediaPolicyDenial | null {
+  // SEC-RB-010: a model allowlist must not be bypassable by omitting the
+  // model field. If the host restricted models at all, an unspecified
+  // (or blank-after-normalization) model can't be verified against that
+  // allowlist and must be denied, not silently waved through.
+  const normalizedModel = model?.trim();
+  if (!isRestricted(policy.allowedModels)) return null;
+  if (normalizedModel && policy.allowedModels.includes(normalizedModel)) return null;
+  return {
+    code: 'MEDIA_MODEL_DENIED',
+    message: `media model ${normalizedModel ? `"${normalizedModel}"` : '(none specified)'} is not allowed for this run`,
+  };
+}
+
 /**
  * Reference `MediaPolicy`: an enabled/disabled + surface/model allowlist
  * gate, ported verbatim from the origin's `mediaExecutionPolicyDenial`. A
@@ -67,23 +91,7 @@ export function createAllowlistMediaPolicy(_required: Record<string, never>, opt
       if (policy.mode === 'disabled') {
         return { code: 'MEDIA_EXECUTION_DISABLED', message: 'media generation is disabled for this run' };
       }
-      if (policy.allowedSurfaces && policy.allowedSurfaces.length > 0 && !policy.allowedSurfaces.includes(target.surface)) {
-        return { code: 'MEDIA_SURFACE_DENIED', message: `media surface "${target.surface}" is not allowed for this run` };
-      }
-      // SEC-RB-010: a model allowlist must not be bypassable by omitting the
-      // model field. If the host restricted models at all, an unspecified
-      // (or blank-after-normalization) model can't be verified against that
-      // allowlist and must be denied, not silently waved through.
-      const normalizedModel = target.model?.trim();
-      if (policy.allowedModels && policy.allowedModels.length > 0) {
-        if (!normalizedModel || !policy.allowedModels.includes(normalizedModel)) {
-          return {
-            code: 'MEDIA_MODEL_DENIED',
-            message: `media model ${normalizedModel ? `"${normalizedModel}"` : '(none specified)'} is not allowed for this run`,
-          };
-        }
-      }
-      return null;
+      return surfaceDenial(policy, target.surface) ?? modelDenial(policy, target.model);
     },
   };
 }

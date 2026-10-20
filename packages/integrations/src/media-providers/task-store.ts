@@ -15,32 +15,9 @@
  * `archived provenance ledger`.
  */
 
+import { applyTaskPatch, assertValidTerminalTtl, buildNewTask, reconcileAction, TERMINAL_STATUSES } from './task-lifecycle.js';
+
 export type MediaTaskStatus = 'queued' | 'running' | 'done' | 'failed' | 'interrupted';
-
-const VALID_STATUSES: ReadonlySet<MediaTaskStatus> = new Set([
-  'queued',
-  'running',
-  'done',
-  'failed',
-  'interrupted',
-]);
-const TERMINAL_STATUSES: ReadonlySet<MediaTaskStatus> = new Set(['done', 'failed', 'interrupted']);
-
-// CR-013: `assertValidStatus` alone only proves enum membership, not that a
-// transition is legal — it allowed e.g. `done` -> `running`. This is the
-// actual lifecycle graph the store's own docs claim
-// (queued -> running -> done|failed|interrupted); same-state is included so
-// a caller can `update()` progress/file without also having to re-derive the
-// current status, but nothing can leave a terminal state once reached.
-const ALLOWED_TRANSITIONS: Readonly<Record<MediaTaskStatus, ReadonlySet<MediaTaskStatus>>> = {
-  // `queued` may go straight to a terminal state too (a caller isn't
-  // required to make a separate "now running" update before finishing).
-  queued: new Set(['queued', 'running', 'done', 'failed', 'interrupted']),
-  running: new Set(['running', 'done', 'failed', 'interrupted']),
-  done: new Set(['done']),
-  failed: new Set(['failed']),
-  interrupted: new Set(['interrupted']),
-};
 
 function cloneTask(task: MediaTask): MediaTask {
   return {
@@ -133,11 +110,6 @@ export interface MediaTaskStore {
   reconcileOnBoot(options: MediaTaskReconcileOptions): Promise<MediaTaskReconcileResult>;
 }
 
-const INTERRUPTED_ERROR: MediaTaskError = {
-  message: 'media task interrupted by daemon restart',
-  code: 'DAEMON_RESTART',
-};
-
 /** Creates the in-memory reference `MediaTaskStore`. No persistence — state is lost on process exit. */
 export function createInMemoryMediaTaskStore(): MediaTaskStore {
   const tasks = new Map<string, MediaTask>();
@@ -147,24 +119,7 @@ export function createInMemoryMediaTaskStore(): MediaTaskStore {
       if (tasks.has(input.id)) {
         throw new Error(`media task "${input.id}" already exists`);
       }
-      const status = input.status ?? 'queued';
-      assertValidStatus(status);
-      const now = Date.now();
-      const startedAt = input.startedAt ?? now;
-      const task: MediaTask = {
-        id: input.id,
-        ownerRef: input.ownerRef,
-        status,
-        progress: input.progress ? [...input.progress] : [],
-        file: input.file == null ? null : structuredClone(input.file),
-        error: input.error == null ? null : { ...input.error },
-        startedAt,
-        endedAt: null,
-        createdAt: now,
-        updatedAt: now,
-        ...(input.surface !== undefined ? { surface: input.surface } : {}),
-        ...(input.model !== undefined ? { model: input.model } : {}),
-      };
+      const task = buildNewTask(input, Date.now());
       tasks.set(task.id, task);
       return cloneTask(task);
     },
@@ -177,29 +132,7 @@ export function createInMemoryMediaTaskStore(): MediaTaskStore {
     async update(id: string, patch: MediaTaskPatch): Promise<MediaTask | null> {
       const existing = tasks.get(id);
       if (!existing) return null;
-      const status = patch.status ?? existing.status;
-      assertValidStatus(status);
-      // CR-013: enum membership alone doesn't prove the transition is legal
-      // (e.g. `done` -> `running`) — check the actual lifecycle graph too.
-      if (!ALLOWED_TRANSITIONS[existing.status].has(status)) {
-        throw new RangeError(`Invalid media task transition: "${existing.status}" -> "${status}"`);
-      }
-      const surface = 'surface' in patch ? (patch.surface ?? undefined) : existing.surface;
-      const model = 'model' in patch ? (patch.model ?? undefined) : existing.model;
-      const next: MediaTask = {
-        id: existing.id,
-        ownerRef: existing.ownerRef,
-        status,
-        progress: patch.progress ? [...patch.progress] : existing.progress,
-        file: 'file' in patch ? (patch.file == null ? null : structuredClone(patch.file)) : existing.file,
-        error: 'error' in patch ? (patch.error == null ? null : { ...patch.error }) : existing.error,
-        startedAt: existing.startedAt,
-        endedAt: 'endedAt' in patch ? (patch.endedAt ?? null) : existing.endedAt,
-        createdAt: existing.createdAt,
-        updatedAt: Date.now(),
-        ...(surface !== undefined ? { surface } : {}),
-        ...(model !== undefined ? { model } : {}),
-      };
+      const next = applyTaskPatch(existing, patch, Date.now());
       tasks.set(id, next);
       return cloneTask(next);
     },
@@ -218,26 +151,17 @@ export function createInMemoryMediaTaskStore(): MediaTaskStore {
     },
 
     async reconcileOnBoot(options: MediaTaskReconcileOptions): Promise<MediaTaskReconcileResult> {
-      if (!Number.isFinite(options.terminalTtlMs) || options.terminalTtlMs < 0) {
-        throw new RangeError(`Invalid terminalTtlMs: ${options.terminalTtlMs} must be a non-negative finite number`);
-      }
+      assertValidTerminalTtl(options.terminalTtlMs);
       const now = options.now ?? Date.now();
       const cutoff = now - options.terminalTtlMs;
       let interrupted = 0;
       let deleted = 0;
       for (const task of [...tasks.values()]) {
-        if (task.status === 'queued' || task.status === 'running') {
-          tasks.set(task.id, {
-            ...task,
-            status: 'interrupted',
-            error: INTERRUPTED_ERROR,
-            endedAt: task.endedAt ?? now,
-            updatedAt: now,
-          });
+        const action = reconcileAction(task, now, cutoff);
+        if (action.kind === 'interrupt') {
+          tasks.set(task.id, action.next);
           interrupted += 1;
-          continue;
-        }
-        if (TERMINAL_STATUSES.has(task.status) && (task.endedAt ?? task.updatedAt) < cutoff) {
+        } else if (action.kind === 'delete') {
           tasks.delete(task.id);
           deleted += 1;
         }
@@ -245,10 +169,4 @@ export function createInMemoryMediaTaskStore(): MediaTaskStore {
       return { interrupted, deleted };
     },
   };
-}
-
-function assertValidStatus(status: MediaTaskStatus): void {
-  if (!VALID_STATUSES.has(status)) {
-    throw new RangeError(`Invalid media task status: "${status}"`);
-  }
 }

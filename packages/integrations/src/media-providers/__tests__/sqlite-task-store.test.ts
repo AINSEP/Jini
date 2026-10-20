@@ -13,6 +13,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createSqliteMediaTaskStore } from '../sqlite-task-store.js';
 import type { SqliteMediaTaskStore } from '../sqlite-task-store.js';
+import { loadMediaSqliteOpener } from '../sqlite-driver.adapter.js';
+import { describeMediaTaskStorePins } from './task-store-pins.js';
 
 let dir: string;
 let dbPath: string;
@@ -305,5 +307,38 @@ describe('createSqliteMediaTaskStore — durability across a simulated process r
     expect((await reopened.listByOwner('run-1')).map((t) => t.id)).toEqual(['a']);
     expect((await reopened.listByOwner('run-2', { includeTerminal: true })).map((t) => t.id)).toEqual(['b']);
     await reopened.close();
+  });
+});
+
+describeMediaTaskStorePins({ label: 'sqlite', getStore: () => store });
+
+describe('createSqliteMediaTaskStore — rows with an unknown stored status', () => {
+  async function corruptStatus(id: string, status: string): Promise<void> {
+    const open = await loadMediaSqliteOpener({});
+    const raw = open(dbPath, {});
+    try {
+      raw.prepare<[string, string]>('UPDATE jini_media_tasks SET status = ? WHERE id = ?').run(status, id);
+    } finally {
+      raw.close();
+    }
+  }
+
+  it('update() on a row with an unknown stored status throws a TypeError, not a transition RangeError (reported, not fixed)', async () => {
+    await store.create({ id: 'a', ownerRef: 'o' });
+    await corruptStatus('a', 'bogus');
+    await expect(store.update('a', { status: 'done' })).rejects.toThrow(TypeError);
+  });
+
+  it('reconcileOnBoot() neither interrupts nor deletes a row with an unknown stored status (reported, not fixed)', async () => {
+    await store.create({ id: 'a', ownerRef: 'o' });
+    await corruptStatus('a', 'bogus');
+    expect(await store.reconcileOnBoot({ terminalTtlMs: 0, now: Date.now() + 1000 })).toEqual({ interrupted: 0, deleted: 0 });
+    expect((await store.get('a'))?.status).toBe('bogus');
+  });
+
+  it('listByOwner() treats an unknown stored status as in-flight', async () => {
+    await store.create({ id: 'a', ownerRef: 'o' });
+    await corruptStatus('a', 'bogus');
+    expect((await store.listByOwner('o')).map((t) => t.id)).toEqual(['a']);
   });
 });
