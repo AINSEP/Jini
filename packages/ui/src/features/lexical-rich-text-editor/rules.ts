@@ -232,6 +232,11 @@ function toCaretRect(r: DOMRect): CaretRect {
   return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
 }
 
+/** A caret rect pinned to a box's left edge (zero width). */
+function leftEdgeRect(r: DOMRect): CaretRect {
+  return { top: r.top, bottom: r.bottom, left: r.left, right: r.left };
+}
+
 /** Reads the caret's viewport rect via the native selection, with ordered
  *  fallbacks for the collapsed-caret 0×0 case: (1) range bounding rect,
  *  (2) range client-rects list, (3) a zero-width probe range cloned at the
@@ -239,57 +244,61 @@ function toCaretRect(r: DOMRect): CaretRect {
 export function readCaretRect(rootEl: HTMLElement | null): CaretRect | null {
   if (typeof window === 'undefined') return null;
   const winSel = window.getSelection();
-  if (winSel && winSel.rangeCount > 0) {
-    const range = winSel.getRangeAt(0);
+  const fromSelection =
+    winSel && winSel.rangeCount > 0 ? caretRectFromRange(winSel.getRangeAt(0)) : null;
+  if (fromSelection) return fromSelection;
+  return rootEl ? leftEdgeRect(rootEl.getBoundingClientRect()) : null;
+}
 
-    // jsdom does not implement Range geometry — guard every native call so a
-    // missing method falls through to the element/root box instead of
-    // throwing.
-    if (typeof range.getBoundingClientRect === 'function') {
-      const r = range.getBoundingClientRect();
-      if (isUsableRect(r)) return toCaretRect(r);
-    }
-    if (typeof range.getClientRects === 'function') {
-      const rects = range.getClientRects();
-      if (rects.length > 0 && isUsableRect(rects[0]!)) return toCaretRect(rects[0]!);
-    }
-
-    const anchorNode = range.startContainer;
-    if (anchorNode.nodeType === Node.TEXT_NODE) {
-      try {
-        const probe = document.createRange();
-        const len = (anchorNode as Text).length;
-        const off = Math.min(range.startOffset, len);
-        probe.setStart(anchorNode, off);
-        probe.setEnd(anchorNode, off);
-        if (typeof probe.getBoundingClientRect === 'function') {
-          const pr = probe.getBoundingClientRect();
-          if (isUsableRect(pr)) return toCaretRect(pr);
-        }
-        if (typeof probe.getClientRects === 'function') {
-          const prList = probe.getClientRects();
-          if (prList.length > 0 && isUsableRect(prList[0]!)) return toCaretRect(prList[0]!);
-        }
-      } catch {
-        /* fall through */
-      }
-    }
-    const el =
-      anchorNode.nodeType === Node.ELEMENT_NODE
-        ? (anchorNode as HTMLElement)
-        : anchorNode.parentElement;
-    if (el) {
-      const er = el.getBoundingClientRect();
-      if (isUsableRect(er)) {
-        return { top: er.top, bottom: er.bottom, left: er.left, right: er.left };
-      }
-    }
+/** Fallbacks (1)–(4) of `readCaretRect` for one live selection range. */
+function caretRectFromRange(range: Range): CaretRect | null {
+  const fromRange = rangeGeometryRect(range);
+  if (fromRange) return fromRange;
+  const anchorNode = range.startContainer;
+  if (anchorNode.nodeType === Node.TEXT_NODE) {
+    const probed = probeTextCaretRect({ text: anchorNode as Text, offset: range.startOffset });
+    if (probed) return probed;
   }
-  if (rootEl) {
-    const rr = rootEl.getBoundingClientRect();
-    return { top: rr.top, bottom: rr.bottom, left: rr.left, right: rr.left };
+  return anchorElementRect(anchorNode);
+}
+
+/** Fallbacks (1) and (2): a range's bounding rect, then its first client rect. */
+function rangeGeometryRect(range: Range): CaretRect | null {
+  // jsdom does not implement Range geometry — guard every native call so a
+  // missing method falls through to the element/root box instead of
+  // throwing.
+  if (typeof range.getBoundingClientRect === 'function') {
+    const r = range.getBoundingClientRect();
+    if (isUsableRect(r)) return toCaretRect(r);
+  }
+  if (typeof range.getClientRects === 'function') {
+    const rects = range.getClientRects();
+    if (rects.length > 0 && isUsableRect(rects[0]!)) return toCaretRect(rects[0]!);
   }
   return null;
+}
+
+/** Fallback (3): geometry of a zero-width probe range at the anchor text offset. */
+function probeTextCaretRect(at: { text: Text; offset: number }): CaretRect | null {
+  try {
+    const probe = document.createRange();
+    const off = Math.min(at.offset, at.text.length);
+    probe.setStart(at.text, off);
+    probe.setEnd(at.text, off);
+    return rangeGeometryRect(probe);
+  } catch {
+    /* fall through */
+    return null;
+  }
+}
+
+/** Fallback (4): the anchor element's box (or the text anchor's parent's). */
+function anchorElementRect(anchorNode: Node): CaretRect | null {
+  const el =
+    anchorNode.nodeType === Node.ELEMENT_NODE ? (anchorNode as HTMLElement) : anchorNode.parentElement;
+  if (!el) return null;
+  const er = el.getBoundingClientRect();
+  return isUsableRect(er) ? leftEdgeRect(er) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -319,42 +328,69 @@ export function computeCaretFloatingLayerPosition(
     preferredWidth: number;
   },
 ): CaretFloatingLayerPosition {
-  const { gap, margin, hardMaxHeight, preferredWidth } = config;
+  const { margin } = config;
   const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const viewportAvailableWidth = vw - margin * 2;
-  const boundaryAvailableWidth = boundary ? boundary.width - margin * 2 : viewportAvailableWidth;
+  const width = layerWidth({ vw, boundary, margin, preferredWidth: config.preferredWidth });
+  const vertical = verticalPlacement({
+    caret,
+    vh: window.innerHeight,
+    wantedH: size?.height ?? config.hardMaxHeight,
+    ...config,
+  });
+  const left = clampLeft({ caretLeft: caret.left, vw, boundary, margin, width });
+  return { left, top: vertical.top, width, maxHeight: vertical.maxHeight, placement: vertical.placement };
+}
+
+function layerWidth(at: {
+  vw: number;
+  boundary: DOMRect | null;
+  margin: number;
+  preferredWidth: number;
+}): number {
+  const viewportAvailableWidth = at.vw - at.margin * 2;
+  const boundaryAvailableWidth = at.boundary
+    ? at.boundary.width - at.margin * 2
+    : viewportAvailableWidth;
   const availableWidth = Math.max(240, Math.min(viewportAvailableWidth, boundaryAvailableWidth));
-  const width = Math.min(preferredWidth, availableWidth);
+  return Math.min(at.preferredWidth, availableWidth);
+}
 
+function verticalPlacement(at: {
+  caret: CaretRect;
+  vh: number;
+  wantedH: number;
+  gap: number;
+  margin: number;
+  hardMaxHeight: number;
+}): Pick<CaretFloatingLayerPosition, 'top' | 'maxHeight' | 'placement'> {
+  const { caret, gap, margin, wantedH } = at;
   const spaceAbove = caret.top - gap - margin;
-  const spaceBelow = vh - caret.bottom - gap - margin;
+  const spaceBelow = at.vh - caret.bottom - gap - margin;
 
-  const wantedH = size?.height ?? hardMaxHeight;
   const aboveFits = spaceAbove >= Math.min(wantedH, 160);
   const placement: 'above' | 'below' = aboveFits || spaceAbove >= spaceBelow ? 'above' : 'below';
 
   const space = placement === 'above' ? spaceAbove : spaceBelow;
-  const maxHeight = Math.max(120, Math.min(hardMaxHeight, space));
+  const maxHeight = Math.max(120, Math.min(at.hardMaxHeight, space));
 
-  let top: number;
-  if (placement === 'above') {
-    const h = Math.min(wantedH, maxHeight);
-    top = caret.top - gap - h;
-    if (top < margin) top = margin;
-  } else {
-    top = caret.bottom + gap;
-  }
+  if (placement === 'below') return { top: caret.bottom + gap, maxHeight, placement };
+  const h = Math.min(wantedH, maxHeight);
+  return { top: Math.max(margin, caret.top - gap - h), maxHeight, placement };
+}
 
+function clampLeft(at: {
+  caretLeft: number;
+  vw: number;
+  boundary: DOMRect | null;
+  margin: number;
+  width: number;
+}): number {
+  const { vw, boundary, margin, width } = at;
   const minLeft = boundary ? Math.max(margin, boundary.left + margin) : margin;
   const maxLeft = boundary
     ? Math.max(minLeft, Math.min(vw - margin - width, boundary.right - margin - width))
     : vw - margin - width;
-  let left = caret.left;
-  if (left > maxLeft) left = maxLeft;
-  if (left < minLeft) left = minLeft;
-
-  return { left, top, width, maxHeight, placement };
+  return Math.max(minLeft, Math.min(at.caretLeft, maxLeft));
 }
 
 /** Combines detection + caret-rect reading into the shape `RichTextInput`
