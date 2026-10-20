@@ -603,3 +603,65 @@ describe('run()', () => {
     await expect(runPromise).resolves.toBeUndefined();
   });
 });
+
+describe('run() context and transport options (characterization)', () => {
+  /** Runs one server, calls the noop tool once (optionally with an SDK signal), then lets it go idle. */
+  async function runOnce(options: Partial<McpToolServerRequiredArgs & McpToolServerOptions>, extra?: { signal?: AbortSignal }, { omitStdin = false }: { omitStdin?: boolean } = {}) {
+    const server = makeFakeServer();
+    const transport = new FakeTransport();
+    let seenCtx: Parameters<McpToolDef['handler']>[0]['ctx'] | undefined;
+    const transportArgs: unknown[] = [];
+    const { stdin, ...withoutStdin } = baseOptions({
+      tools: [noopTool({ handler: ({ ctx }) => { seenCtx = ctx; return 'ok'; } })],
+      createServer: () => server,
+      createTransport: (...args) => { transportArgs.push(args); return transport; },
+      ...options,
+    });
+    const handle = createMcpToolServer(...splitServerFixture(omitStdin || stdin === undefined ? withoutStdin : { ...withoutStdin, stdin }));
+    const runPromise = handle.run({});
+    await flushAsync();
+    await server.handlers.get(CallToolRequestSchema)!({ request: { params: { name: 'noop', arguments: {} } } }, extra === undefined ? undefined : { extra });
+    hoisted.onIdleRef.current?.({});
+    await runPromise;
+    return { seenCtx, transportArgs };
+  }
+
+  it('builds a minimal tool context when no optional context fields are configured', async () => {
+    const { seenCtx } = await runOnce({});
+    expect(seenCtx).toEqual({ baseUrl: 'http://d.example', fetchImpl: fetch, diagnosticToolIds: ['noop'] });
+  });
+
+  it('carries host diagnostic IDs into the tool context after the registered tool names', async () => {
+    const { seenCtx } = await runOnce({ diagnosticToolIds: ['host_id'] });
+    expect(seenCtx?.diagnosticToolIds).toEqual(['noop', 'host_id']);
+  });
+
+  it('leaves the context signal unset when the SDK supplies extra without a signal', async () => {
+    const { seenCtx } = await runOnce({}, {});
+    expect(seenCtx !== undefined && 'signal' in seenCtx).toBe(false);
+  });
+
+  it('coerces a non-string resolved base URL to a string', async () => {
+    // Malformed-input fixture: a JS host returning a URL object despite the string contract.
+    const { seenCtx } = await runOnce({ resolveBaseUrl: () => new URL('http://d.example/') as unknown as string });
+    expect(seenCtx?.baseUrl).toBe('http://d.example');
+  });
+
+  it('passes the configured stdin and stdout to createTransport', async () => {
+    const stdin = new PassThrough();
+    const stdout = new PassThrough();
+    const { transportArgs } = await runOnce({ stdin, stdout });
+    expect(transportArgs).toEqual([[{}, { stdin, stdout }]]);
+  });
+
+  it('passes only stdout to createTransport when stdin is not configured', async () => {
+    const stdout: Writable = new PassThrough();
+    const getStdin = vi.spyOn(process, 'stdin', 'get').mockReturnValue(new EventEmitter() as unknown as NodeJS.ReadStream & { fd: 0 });
+    try {
+      const { transportArgs } = await runOnce({ stdout }, undefined, { omitStdin: true });
+      expect(transportArgs).toEqual([[{}, { stdout }]]);
+    } finally {
+      getStdin.mockRestore();
+    }
+  });
+});
