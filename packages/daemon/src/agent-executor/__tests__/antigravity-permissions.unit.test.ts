@@ -53,6 +53,14 @@ describe('ensureAntigravityMcpPermission settings reads', () => {
     await expect(grant(settingsPath)).rejects.toMatchObject({ code: 'EISDIR' });
   });
 
+  it('rethrows a permission-denied read without writing the settings', async () => {
+    const settingsPath = await settingsFile('{}');
+    const failure = Object.assign(new Error('read refused'), { code: 'EACCES' });
+    vi.spyOn(fs, 'readFile').mockRejectedValueOnce(failure);
+    await expect(grant(settingsPath)).rejects.toBe(failure);
+    expect(await read(settingsPath)).toBe('{}');
+  });
+
   it('rethrows invalid JSON without rewriting the file', async () => {
     const settingsPath = await settingsFile('{broken');
     await expect(grant(settingsPath)).rejects.toThrow(SyntaxError);
