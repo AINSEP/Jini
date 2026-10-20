@@ -29,5 +29,11 @@ Baseline (unmodified tree): `tsc --noEmit -p packages/chat` clean; temp eslint (
 - BUG pinned (L046): `transcript.ts` with `highInputTokenWarningThreshold: 0` warns about "0 input tokens" even when no run reported usage (test "... (reported, not fixed)").
 - L046 commit 4b45c6d0 message has estimated numbers (16→7/6→5); measured composer-history is 16→10 cyc, 9→6 cog. Not amended (no force-push).
 
+## Final verification (2026-10-20)
+- `pnpm --filter @jini-ai/chat build`: ok (21 s).
+- Whole chat suite on cloud/w1-chat: 193 files passed, 1 skipped (pre-existing bench) — 2819 tests passed, 1 skipped, 0 failures (344 s).
+- Baseline origin/general-work: 182 files / 2384 tests passed, 1 skipped — so +11 test files, +435 tests, no regressions.
+- `tsc --noEmit -p packages/chat`: clean. Cumulative temp eslint (cyc/cog ≤10) on all 34 lot files: 0 (was 92).
+
 ## Next
-All 10 lots merged. Remaining: `pnpm --filter @jini-ai/chat build`, whole chat suite + tsc, compare failures with origin/general-work (baseline run in /home/user/wt-base).
+Wave 1 `chat` complete. Owner: review/merge `cloud/w1-chat` into general-work; decide on the 3 pinned bugs and the flagged `findMidRunMessageRunId` unused param.
