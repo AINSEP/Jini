@@ -8,7 +8,7 @@ Started 2026-10-19 23:59 UTC. Setup 23:59:40→00:02:28 (2m48s); integrations bu
 | Lot | Scope | Baseline worst cyc/cog | Status | After | Coverage | Commits | Verify |
 |---|---|---|---|---|---|---|---|
 | L051 | media/react | 32/20 | running (wave A) | | | | |
-| L053 | forms (files) | 30/32 | running (wave A) | | | | |
+| L053 | forms (files) | 30/32 | merged | ≤10/≤10 (eslint 0) | 100/100/100 | 530f21a8, 1bb2d911 | eslint 0, tsc 0, 4 test files/117 tests green; why-comments moved; no weakened asserts; 9m/118k tok |
 | L054 | react | 24/19 | running (wave A) | | | | |
 | L069 | security (sensitive) | 32/14 | running (wave A) | | | | |
 | L087 | seo | 28/24 | running (wave A) | | | | |
