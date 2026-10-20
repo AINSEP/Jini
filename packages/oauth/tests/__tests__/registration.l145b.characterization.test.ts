@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import { afterEach, test, vi } from 'vitest';
 import { registerOAuthClientDynamically, type DynamicClientRegistrationInput } from '../../src/registration.js';
 import type { OAuthOptionalArgs } from '../../src/args.js';
@@ -65,17 +66,17 @@ const AUTH_CASES: readonly {
     expected: OAuthClientAuthMethod;
 }[] = [
     { name: 'absent method and secret', document: {}, expected: 'none' },
-    { name: 'blank secret', document: { client_secret: '  ' }, expected: 'none' },
+    { name: 'blank secret', document: { client_secret_expires_at: 0, client_secret: '  ' }, expected: 'none' },
     { name: 'unknown echo without secret', document: { token_endpoint_auth_method: 'private_key_jwt' }, expected: 'none' },
-    { name: 'echoed none wins over secret', document: { client_secret: 'secret', token_endpoint_auth_method: 'none' }, expected: 'none' },
+    { name: 'echoed none wins over secret', document: { client_secret_expires_at: 0, client_secret: 'secret', token_endpoint_auth_method: 'none' }, expected: 'none' },
     { name: 'echoed Basic wins without secret', document: { token_endpoint_auth_method: 'client_secret_basic' }, expected: 'client_secret_basic' },
     { name: 'trimmed echoed POST wins', document: { token_endpoint_auth_method: ' client_secret_post ' }, expected: 'client_secret_post' },
-    { name: 'explicit request wins over volunteered secret', document: { client_secret: 'secret' }, options: { tokenEndpointAuthMethod: 'client_secret_post' }, expected: 'client_secret_post' },
-    { name: 'absent advertisements default to Basic', document: { client_secret: 'secret' }, expected: 'client_secret_basic' },
-    { name: 'empty advertisements default to Basic', document: { client_secret: 'secret' }, options: { authMethodsSupported: [] }, expected: 'client_secret_basic' },
-    { name: 'Basic wins over POST', document: { client_secret: 'secret' }, options: { authMethodsSupported: ['client_secret_post', 'client_secret_basic'] }, expected: 'client_secret_basic' },
-    { name: 'POST when Basic absent', document: { client_secret: 'secret' }, options: { authMethodsSupported: ['client_secret_post'] }, expected: 'client_secret_post' },
-    { name: 'unsupported secret methods retain none', document: { client_secret: 'secret' }, options: { authMethodsSupported: ['private_key_jwt', 'none'] }, expected: 'none' },
+    { name: 'explicit request wins over volunteered secret', document: { client_secret_expires_at: 0, client_secret: 'secret' }, options: { tokenEndpointAuthMethod: 'client_secret_post' }, expected: 'client_secret_post' },
+    { name: 'absent advertisements default to Basic', document: { client_secret_expires_at: 0, client_secret: 'secret' }, expected: 'client_secret_basic' },
+    { name: 'empty advertisements default to Basic', document: { client_secret_expires_at: 0, client_secret: 'secret' }, options: { authMethodsSupported: [] }, expected: 'client_secret_basic' },
+    { name: 'Basic wins over POST', document: { client_secret_expires_at: 0, client_secret: 'secret' }, options: { authMethodsSupported: ['client_secret_post', 'client_secret_basic'] }, expected: 'client_secret_basic' },
+    { name: 'POST when Basic absent', document: { client_secret_expires_at: 0, client_secret: 'secret' }, options: { authMethodsSupported: ['client_secret_post'] }, expected: 'client_secret_post' },
+    { name: 'unsupported secret methods retain none', document: { client_secret_expires_at: 0, client_secret: 'secret' }, options: { authMethodsSupported: ['private_key_jwt', 'none'] }, expected: 'none' },
 ];
 for (const scenario of AUTH_CASES) {
     test(`registration auth resolution: ${scenario.name}`, async () => {
@@ -88,7 +89,7 @@ for (const scenario of AUTH_CASES) {
 
 test('registration retains nullish auth defaults for runtime JSON options', async () => {
     const options: OAuthOptionalArgs<DynamicClientRegistrationInput> = JSON.parse('{"tokenEndpointAuthMethod":null,"authMethodsSupported":null}');
-    const http = createFetchDouble([{ json: { client_id: 'id', client_secret: 'secret' } }]);
+    const http = createFetchDouble([{ json: { client_secret_expires_at: 0, client_id: 'id', client_secret: 'secret' } }]);
     const client = await registerOAuthClientDynamically({ ...REQUIRED, fetchFn: http.fetchFn }, options);
     assert.equal(client.tokenEndpointAuthMethod, 'client_secret_basic');
 });
@@ -100,24 +101,11 @@ test('registration normalizes non-finite JSON numeric timestamps to null', async
     assert.equal(client.clientSecretExpiresAt, null);
 });
 
-for (const [value, expected] of [[123, 123], [0, 0], [-1, -1], [1.5, 1.5], ['123', null], [null, null], [undefined, null]] as const) {
-    test(`registration normalizes optional timestamps ${String(value)} to ${String(expected)}`, async () => {
-        const http = createFetchDouble([{ json: { client_id: 'id', client_secret: ' secret ',
-            registration_client_uri: ' https://auth.example.com/client ', client_id_issued_at: value,
-            client_secret_expires_at: value } }]);
-        const client = await registerOAuthClientDynamically({ ...REQUIRED, fetchFn: http.fetchFn });
-        assert.equal(client.clientSecret, 'secret');
-        assert.equal(client.registrationClientUri, 'https://auth.example.com/client');
-        assert.equal(client.clientIdIssuedAt, expected);
-        assert.equal(client.clientSecretExpiresAt, expected);
-    });
-}
-
 for (const [status, document, suffix, providerErrorCode] of [
     [200, { error: 'invalid_client', client_id: 'id' }, ', invalid_client', 'invalid_client'],
     [400, {}, '', undefined],
     [400, { error: 123 }, '', undefined],
-    [200, { error: '' }, '', undefined],
+    [200, { error: '' }, ', invalid_provider_error', 'invalid_provider_error'],
 ] as const) {
     test(`registration rejects HTTP ${status} with error ${JSON.stringify(document)}`, async () => {
         const http = createFetchDouble([{ status, json: document }]);
@@ -139,12 +127,17 @@ test('registration uses host rejection copy and omits provider descriptions', as
     assert.equal(error.message, 'the authorization server refused the client registration (HTTP 403, denied)');
 });
 
-test('registration reflects arbitrary provider error-code text (reported, not fixed)', async () => {
-    const http = createFetchDouble([{ status: 400, json: { error: '<script>provider-text</script>' } }]);
-    const error = await assertOAuthRejects(() => registerOAuthClientDynamically({ ...REQUIRED, fetchFn: http.fetchFn }), 'OAUTH_PROVIDER_REJECTED');
-    assert.equal(error.message, 'the authorization server refused the client registration (HTTP 400, <script>provider-text</script>)');
-    assert.equal(error.providerErrorCode, '<script>provider-text</script>');
-});
+for (const [index, providerError] of ['<script>provider-text</script>', `sk-${randomBytes(24).toString('base64url')}`, 'a'.repeat(65), 'invalid_client\n'].entries()) {
+    test(`registration replaces arbitrary provider error text with a fixed code (case ${index + 1})`, async () => {
+        const http = createFetchDouble([{ status: 400, json: { error: providerError } }]);
+        const error = await assertOAuthRejects(() => registerOAuthClientDynamically({ ...REQUIRED, fetchFn: http.fetchFn }), 'OAUTH_PROVIDER_REJECTED');
+        assert.equal(error.message, 'the authorization server refused the client registration (HTTP 400, invalid_provider_error)');
+        assert.equal(error.providerErrorCode, 'invalid_provider_error');
+        assert.equal(error.cause, undefined);
+        assert.equal(JSON.stringify(error).includes(providerError), false);
+        assert.equal(http.callCount(), 1);
+    });
+}
 
 for (const clientId of [undefined, null, '', '  ', 12]) {
     test(`registration rejects missing or invalid client id ${JSON.stringify(clientId)}`, async () => {

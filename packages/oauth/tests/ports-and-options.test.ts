@@ -24,7 +24,7 @@ test('resource indicators are repeated on authorization and replayed from the pe
         resource
     });
     expect(new URL(started.authorizationUrl).searchParams.getAll('resource')).toEqual(resource);
-    const http = createFetchDouble([{ json: { access_token: 'issued' } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'issued' } }]);
     await completeAuthorizationCode({
         provider: TEST_PROVIDER, pending, clock, guard, fetchFn: http.fetchFn, ownerKey: 'tenant:connection', client: TEST_CLIENT, params: { state: started.state, code: 'code' }
     });
@@ -56,7 +56,7 @@ test('all application identity fields are required before authorization or regis
     const pending = createPendingAuthorizationStore({
         clock, randomBytesFn: fixtureEntropy
     });
-    const http = createFetchDouble([{ json: { client_id: 'id' } }]);
+    const http = createFetchDouble([{ status: 201, json: { client_id: 'id' } }]);
     for (const key of ['clientDisplayName', 'redirectUris', 'softwareId'] as const) {
         const invalid = { ...options, [key]: undefined } as unknown as typeof options;
         await expect(beginAuthorizationCode({
@@ -84,7 +84,7 @@ test('registration sends required identity and every redirect URI without substi
     });
 });
 test('the injected URL policy blocks token-bearing requests before fetch and maps its failure', async () => {
-    const http = createFetchDouble([{ json: { access_token: 'should-not-arrive' } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'should-not-arrive' } }]);
     const refusal = new Error('application denied outbound request');
     const guarded = createOAuthUrlGuard({
         assertAllowed({ url, label }) {
@@ -147,8 +147,8 @@ test('device authorization, one-shot polling and refresh all carry resource indi
     const clock = createTestClock();
     const http = createFetchDouble([
         { json: { device_code: 'private', user_code: 'PUBLIC', verification_uri: 'https://auth.example.com/activate', expires_in: 600 } },
-        { json: { access_token: 'device-at', refresh_token: 'rt' } },
-        { json: { access_token: 'refreshed-at' } },
+        { json: { token_type: 'Bearer', access_token: 'device-at', refresh_token: 'rt' } },
+        { json: { token_type: 'Bearer', access_token: 'refreshed-at' } },
     ]);
     const deps = { provider: TEST_PROVIDER, clock, guard, fetchFn: http.fetchFn };
     const device = await beginDeviceAuthorization({
@@ -172,7 +172,7 @@ test('device authorization, one-shot polling and refresh all carry resource indi
     expect(refreshed.refreshToken).toBe('rt');
 });
 test('malformed resource indicators keep their typed input error on device and refresh grants before HTTP', async () => {
-    const http = createFetchDouble([{ json: { access_token: 'unwanted' } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'unwanted' } }]);
     const deps = { provider: TEST_PROVIDER, clock: createTestClock(), guard, fetchFn: http.fetchFn };
     await expect(beginDeviceAuthorization({
         ...deps, client: TEST_CLIENT
@@ -189,7 +189,7 @@ test('malformed resource indicators keep their typed input error on device and r
 });
 test('a registrar reuses its injected cache, coalesces concurrent calls and separates redirect identities', async () => {
     const cache = createMemoryClientRegistrationCache({});
-    const http = createFetchDouble([{ json: { client_id: 'registered' } }]);
+    const http = createFetchDouble([{ status: 201, json: { client_id: 'registered' } }]);
     const deps = { cache, clock: createTestClock(), guard, fetchFn: http.fetchFn, options };
     const registrar = createOAuthClientRegistrar(deps);
     const input = { issuer: 'https://auth.example.com', registrationEndpoint: 'https://auth.example.com/register', scopes: ['read'] };
@@ -206,8 +206,8 @@ test('failed registration is never cached and an expired secret is registered ag
     const clock = createTestClock('2026-08-25T12:00:00.000Z');
     const http = createFetchDouble([
         { status: 400, json: { error: 'invalid_client_metadata' } },
-        { json: { client_id: 'first', client_secret: 'secret', client_secret_expires_at: clock.nowMs() / 1000 + 1 } },
-        { json: { client_id: 'second' } },
+        { status: 201, json: { client_id: 'first', client_secret: 'secret', client_secret_expires_at: clock.nowMs() / 1000 + 1 } },
+        { status: 201, json: { client_id: 'second' } },
     ]);
     const registrar = createOAuthClientRegistrar({ cache: createMemoryClientRegistrationCache({}), clock, guard, fetchFn: http.fetchFn, options });
     const input = { issuer: 'https://auth.example.com', registrationEndpoint: 'https://auth.example.com/register', scopes: [] };
@@ -218,7 +218,7 @@ test('failed registration is never cached and an expired secret is registered ag
     expect(http.requests).toHaveLength(3);
 });
 test('the app can invalidate a refused cached client without changing other registration identities', async () => {
-    const http = createFetchDouble([{ json: { client_id: 'initial' } }, { json: { client_id: 'other-scope' } }, { json: { client_id: 'replacement' } }]);
+    const http = createFetchDouble([{ status: 201, json: { client_id: 'initial' } }, { status: 201, json: { client_id: 'other-scope' } }, { status: 201, json: { client_id: 'replacement' } }]);
     const registrar = createOAuthClientRegistrar({
         cache: createMemoryClientRegistrationCache({}), clock: createTestClock(), guard, fetchFn: http.fetchFn, options,
     });

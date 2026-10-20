@@ -30,6 +30,9 @@ function assertMetadataEndpoint({ endpoint, key, origin }: {
 // origin. URL safety alone cannot establish issuer binding; hosts select this metadata policy
 // separately. Discovery enables this binding by default; a host opting out must explicitly
 // select metadataPolicy: "none".
+// openid-client's direct-document discovery does not compare issuers. Keep that comparison here
+// against the original document: URL canonicalization would weaken this policy's exact equality,
+// and a compatibility fallback for an omitted issuer must never hide a supplied hostile value.
 export function createIssuerBoundDiscoveryPolicy(_requiredArgs: OAuthEmptyArgs): OAuthDiscoveryPolicy {
   return {
     assertMetadata({ issuer, document }) {

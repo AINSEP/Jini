@@ -1,6 +1,31 @@
 # @jini-ai/oauth
 
-A standalone OAuth 2.x client for Node. It supports RFC 8414 authorization-server discovery (including OIDC fallback paths), RFC 9728 protected-resource metadata and challenges, RFC 7591 registration, authorization code with S256 PKCE, RFC 8628 device authorization, refresh, RFC 8707 resource indicators, and typed errors. It shares clocks and timestamp types with `@jini-ai/core`.
+A standalone OAuth 2.x client for Node 20 or later, backed by `openid-client` 6.8.8. It supports RFC 8414 authorization-server discovery (including OIDC fallback paths), RFC 9728 protected-resource metadata and challenges, RFC 7591 registration, authorization code with S256 PKCE, RFC 8628 device authorization, refresh, RFC 8707 resource indicators, RFC 7009 revocation, explicit OIDC ID-token validation, and typed errors. It shares clocks and timestamp types with `@jini-ai/core`.
+
+## Protocol implementation and compatibility
+
+The existing exports and `(requiredArgs, optionalArgs = {})` contracts remain source-compatible. Consumers continue to import Jini's facade; upstream configuration objects and error types are internal. PKCE, state generation, authorization-URL formatting and redaction stay synchronous. PKCE hashing uses Node's standard crypto implementation because upstream hashing is asynchronous; entropy remains an injected port.
+
+| Operation | Protocol implementation | Jini and host responsibilities |
+|---|---|---|
+| Authorization URL, token grants, refresh, device initiation, revocation | `openid-client` | State/PKCE/resource binding, normalization, errors, one-attempt grants and host-owned device polling |
+| Authorization-server discovery | `openid-client` direct-document discovery | Candidate order, explicit origin fallback, original-document issuer policy and endpoint safety |
+| Protected-resource discovery | `oauth4webapi` 3.8.8 request builder; no high-level equivalent in `openid-client` | Candidate selection, facade normalization and resource-scope policy |
+| Endpoint-only registration | `oauth4webapi` request/response operations; `openid-client` registration would add issuer discovery | Registration identity, auth-method selection and cache lifecycle |
+| Already received ID-token validation | `oauth4webapi` claim processing and mandatory application signature verification; no standalone high-level equivalent in `openid-client` | Explicit issuer/JWKS/client/nonce trust, guarded retrieval and safe errors |
+
+Every upstream HTTP operation uses a `customFetch` hook backed by the same guarded transport. It checks the actual request URL, serializes form bodies to strings for host adapters, refuses redirects, bounds response bytes (64 KiB, or 16 KiB for device initiation), and applies the operation deadline through body consumption. There is no library fallback to native fetch. The supplied host fetch port still owns connection-time DNS/address policy and must honor cancellation through the body read. Pending/sealed state, registration caching, refresh single-flight, leases, persist-before-return and redaction remain Jini/host responsibilities.
+
+The migration intentionally tightens these previously permissive cases:
+
+- Successful token responses require HTTP 200; another 2xx is `OAUTH_MALFORMED_RESPONSE`. Valid JSON objects with a non-JSON media type remain accepted. Device and registration compatibility still accepts successful 2xx JSON objects.
+- Unsupported token types, such as `mac`, are `OAUTH_MALFORMED_RESPONSE`. Bearer and DPoP spellings are validated case-insensitively while the facade preserves provider casing. The generic token-exchange grant also permits upstream's `n_a` type. This does not add DPoP proof management to the facade.
+- Empty client ids, absent/empty secrets for confidential-client methods, missing/empty grant types and empty refresh tokens are `OAUTH_INVALID_REQUEST` before HTTP. The synchronous authorization-URL builder also refuses empty client ids and non-HTTP(S) authorization endpoints.
+- HTTP Basic client credentials now use RFC 6749 form encoding before Base64, including `+` for spaces, instead of `encodeURIComponent`'s `%20`.
+- Returned redirects are refused even if an injected HTTP port ignores `redirect: 'error'`; this also makes such discovery failures terminal.
+- Invalid dynamic-registration initial-access-token headers are `OAUTH_INVALID_REQUEST` before dispatch; their values are never exposed in facade errors.
+
+Upstream validates required token types and optional token fields; missing/empty token types, empty refresh tokens and malformed lifetimes are no longer repaired locally. Provider errors, including device polling signals on HTTP 200, retain the facade error codes and recovery copy. ID-token retention does not enable identity validation implicitly. Device responses must use `verification_uri` and valid lifetimes/intervals; registration responses with secrets must declare a valid secret expiry. Discovery documents must identify their issuer, and protected-resource metadata must identify the requested resource.
 
 ## Composition
 
@@ -111,13 +136,43 @@ Refreshes are single-flight per refresher instance. A lease loser waits through 
 
 `beginDeviceAuthorization` returns the secret device code separately from its display code/link and clamps expiry/interval values. `pollDeviceAuthorizationOnce` checks local expiry and makes at most one request. The app owns polling cadence, increasing the interval for `slow_down`, cancellation and UI.
 
+## Revocation and OIDC validation
+
+These are root exports; no additional subpath or upstream import is needed:
+
+```ts
+import { revokeOAuthToken, validateOidcIdToken } from '@jini-ai/oauth';
+
+// Disable this connection locally before attempting remote revocation.
+await appConnectionStore.disable({ key: connectionKey });
+await revokeOAuthToken({
+  ...http, revocationEndpoint: trustedProvider.revocationEndpoint, client,
+  token: tokens.refreshToken ?? tokens.accessToken,
+}, { tokenTypeHint: tokens.refreshToken === null ? 'access_token' : 'refresh_token' });
+
+// Use the nonce recorded for this authorization attempt and trusted provider metadata.
+const claims = await validateOidcIdToken({
+  ...http, clock, tokens, issuer: trustedProvider.issuer,
+  jwksUri: trustedProvider.jwksUri, clientId: client.clientId,
+  expectedNonce: attempt.nonce,
+}, { signingAlgorithm: 'RS256' });
+```
+
+`revokeOAuthToken` returns `Promise<void>` and sends exactly one request using the existing client-authentication owner. `tokenTypeHint` and `timeoutMs` are optional. HTTP 200 confirms the RFC 7009 request even for an already invalid token; its body is ignored after transport bounds. Other statuses (including 204/205) are not confirmation. The host owns local disablement, secret deletion, pending/confirmed status and any explicit retry. Local disconnect alone does not invoke remote revocation.
+
+`OAuthTokenSet.idToken?: string` retains a nonempty `id_token` from token, refresh or device responses as sensitive, **unvalidated** data. OAuth-only exchange never fetches JWKS or trusts an issuer inferred from the token endpoint. Call `validateOidcIdToken` before using it for identity. Its required inputs are the HTTP ports, `clock`, `tokens`, trusted `issuer`, `jwksUri`, `clientId` and `expectedNonce`. Optional inputs are `signingAlgorithm`, `clockToleranceSeconds`, `maxAgeSeconds` and `timeoutMs`. It returns `Promise<OidcIdTokenClaims>` only after issuer, audience, time, nonce and signature checks succeed. Invalid tokens produce `OAUTH_MALFORMED_RESPONSE` without upstream causes containing tokens or claims; guarded endpoint/transport errors remain facade errors.
+
+RS256 is the configured default and clock tolerance defaults to zero; the algorithm is never chosen from the token header. Only the configured JWKS URI is fetched, never a token's `jku`/`x5u`. A nonce expectation is mandatory: send a freshly generated nonce as `extraAuthorizationParams.nonce` and bind it to the attempt in host storage, then supply it here. Jini's existing pending/sealed-state contract does not store a nonce automatically. Pass `expectedNonce: null` only when no nonce was sent; a token containing one then fails. Set `maxAgeSeconds` when the authorization request used `max_age`. Validation processes an already received token set and does not redeem a grant again or install an account.
+
+Supply trusted JWKS/revocation metadata separately: `DiscoveredAuthorizationServer` has no new endpoint fields. Existing discovery policies check their existing endpoint set; a custom host policy must explicitly validate any newly consumed metadata before adopting it. Token stores and provider-specific DTOs that select only existing fields remain compatible but omit `idToken`; preserving it across persistence requires an explicit host contract change. Treat retained ID tokens as credentials and exclude them from logs and UI. Additional root types are `RevokeOAuthTokenInput`, `OAuthTokenTypeHint`, `ValidateOidcIdTokenInput`, `OidcTrustConfiguration`, `OidcIdTokenClaims` and `OidcSigningAlgorithm`.
+
 ## Development and release
 
-Build/typecheck with `tsc -p tsconfig.json` / `tsc -p tsconfig.json --noEmit`. Run individual files with `vitest run tests/<file>.test.ts`. `discovery.port.test.ts` and `dynamic-registration.port.test.ts` require an environment permitted to bind loopback ports; all other suites use injected HTTP doubles. `npm pack --dry-run` should include each compiled public entry, README, API and CHANGELOG, without tests. Public operations take `(requiredArgs, optionalArgs)`: ports and required request fields belong in argument one; optional settings belong in argument two. Operations without inputs take `{}`. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/oauth/API.md) for every current signature, port method and subpath.
+Build/typecheck with `tsc -p tsconfig.json` / `tsc -p tsconfig.json --noEmit`. Run individual files with `vitest run tests/<file>.test.ts`. Suites using loopback fixtures, including `discovery.port.test.ts`, `dynamic-registration.test.ts`, `dynamic-registration.port.test.ts` and `oidc-and-revocation.test.ts`, require an environment permitted to bind loopback ports. Migration contract suites also cover string-only transport bodies, redirect/size/deadline enforcement, facade normalization, one-shot grants and refresh persistence. `npm pack --dry-run` should include each compiled public entry, README, API and CHANGELOG, without tests. Public operations take `(requiredArgs, optionalArgs)`: ports and required request fields belong in argument one; optional settings belong in argument two. Operations without inputs take `{}`. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/oauth/API.md) for the existing signature, port and subpath reference; the additive revocation/OIDC contracts are described above.
 
 ## Additional entries
 
-The root barrel retains all existing exports and also shares implementations with four direct Node entries:
+The root barrel retains all existing exports and shares implementations with these direct Node entries:
 
 The DNS-pinned transport requires `OAuthDispatcherPort.dispatcher` to match Node's non-null `RequestInit['dispatcher']` type. Hosts supply a native Undici dispatcher; the transport forwards it through the existing `RequestInit` contract.
 
@@ -125,7 +180,8 @@ The DNS-pinned transport requires `OAuthDispatcherPort.dispatcher` to match Node
 |---|---|
 | `./discovery-policy` | `createIssuerBoundDiscoveryPolicy` and its metadata-policy port |
 | `./dns-pinned-transport` | `createDnsPinnedOAuthTransport`, transport result and DNS/address/dispatcher ports |
-| `./loopback-receiver` | `startLoopbackAuthorizationReceiver`, its receiver/result/options/timer types and field limits |
+
+`startLoopbackAuthorizationReceiver`, its receiver/result/options/timer types and field limits are root exports.
 
 Discovery defaults to `createIssuerBoundDiscoveryPolicy({})`: advertised issuers must match exactly and supplied endpoints must use HTTPS on that origin. An explicit `metadataPolicy: "none"` in the second object disables binding for a host that needs compatibility. Policy failures terminate discovery. Supply DNS, address policy, dispatcher construction, HTTP and URL guard ports to `createDnsPinnedOAuthTransport`, and call `close({})` at shutdown. Request inputs retain method/body/headers/cancellation; the adapter checks IP literals before fetch (Node skips DNS lookup for them) and forces its dispatcher and redirect refusal. Hosts own their native DNS and Undici dependencies.
 
@@ -140,7 +196,7 @@ Path-scoped issuer discovery fails after its path candidates by default. Set `al
 Desktop hosts cannot register a fixed HTTPS callback, so the installed-app flow (RFC 8252 §7.3) sends the system browser back to `http://127.0.0.1:<port>/callback`. `startLoopbackAuthorizationReceiver` opens that listener on an ephemeral port and hands back its redirect URI. Starting and arming are separate because `beginAuthorizationCode` needs the redirect URI before it mints the state:
 
 ```ts
-import { startLoopbackAuthorizationReceiver } from '@jini-ai/oauth/loopback-receiver';
+import { startLoopbackAuthorizationReceiver } from '@jini-ai/oauth';
 
 const abort = new AbortController();
 const receiver = await startLoopbackAuthorizationReceiver({}, {

@@ -82,3 +82,16 @@ export function assertSafeUserFacingUrl({ raw, guard }: {
     }
     return parsed;
 }
+
+export async function assertOAuthResponseNotRedirect(
+  { response }: { readonly response: Response }, _optionalArgs: Readonly<Record<string, never>> = {},
+): Promise<void> {
+  // A redirect destination has not passed the address policy. The explicit response check also
+  // catches injected fetch implementations that do not enforce redirect: 'error' themselves.
+  if ((response.status >= 300 && response.status < 400) || response.type === 'opaqueredirect') {
+    await response.body?.cancel().catch(() => undefined);
+    throw new OAuthError({ code: 'OAUTH_UNSAFE_ENDPOINT', message: 'refusing to follow an OAuth endpoint redirect',
+      operatorAction: 'Configure the final HTTPS endpoint directly.',
+    });
+  }
+}

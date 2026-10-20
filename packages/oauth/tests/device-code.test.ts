@@ -1,6 +1,6 @@
 import { fixturePorts } from "./fixtures.js";
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { beginDeviceAuthorization, pollDeviceAuthorizationOnce } from "../src/index.js";
 import { assertOAuthRejects, createFetchDouble, createTestClock, TEST_CLIENT, TEST_PROVIDER } from "./helpers.js";
 /**
@@ -41,29 +41,39 @@ test("begin returns the user-facing code and URL plus the secret device code", a
     assert.equal(startedRequest.url, "https://auth.example.com/device");
     assert.equal(startedRequest.body.get("scope"), "images:generate");
 });
-test("Google's pre-RFC `verification_url` spelling is accepted rather than reported as missing", async () => {
-    const clock = createTestClock();
+test("Google's pre-RFC verification_url spelling is accepted", async () => {
     const { verification_uri: _dropped, ...withoutUri } = DEVICE_RESPONSE;
-    const http = createFetchDouble([{ json: { ...withoutUri, verification_url: "https://auth.example.com/activate" } }]);
+    const http = createFetchDouble([{ json: { ...withoutUri, verification_url: DEVICE_RESPONSE.verification_uri } }]);
     const started = await beginDeviceAuthorization({
-        ...fixturePorts,
-        provider: TEST_PROVIDER, clock, fetchFn: http.fetchFn,
-        client: TEST_CLIENT
+        ...fixturePorts, provider: TEST_PROVIDER, clock: createTestClock(), fetchFn: http.fetchFn, client: TEST_CLIENT,
     });
-    assert.equal(started.verificationUri, "https://auth.example.com/activate");
+    assert.equal(started.verificationUri, DEVICE_RESPONSE.verification_uri);
+    assert.equal(http.callCount(), 1);
 });
-for (const field of ["device_code", "user_code"] as const) {
-    for (const value of [undefined, "", null, 42]) {
-        test(`begin refuses ${field}=${String(value)} instead of returning an unusable authorization`, async () => {
-            const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE, [field]: value } }]);
-            const error = await assertOAuthRejects(() => beginDeviceAuthorization({
-                ...fixturePorts,
-                provider: TEST_PROVIDER, clock: createTestClock(), fetchFn: http.fetchFn,
-                client: TEST_CLIENT
-            }), "OAUTH_MALFORMED_RESPONSE");
-            assert.equal(error.message, `the device authorization response is missing '${field}'`);
-        });
-    }
+test('verification_uri takes precedence over the legacy spelling', async () => {
+    const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE, verification_url: 'javascript:alert(1)' } }]);
+    const started = await beginDeviceAuthorization({
+        ...fixturePorts, provider: TEST_PROVIDER, clock: createTestClock(), fetchFn: http.fetchFn, client: TEST_CLIENT,
+    });
+    assert.equal(started.verificationUri, DEVICE_RESPONSE.verification_uri);
+});
+for (const verificationUri of [null, '', 42]) {
+    test(`a present invalid verification_uri (${String(verificationUri)}) is not repaired from verification_url`, async () => {
+        const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE,
+            verification_uri: verificationUri, verification_url: DEVICE_RESPONSE.verification_uri } }]);
+        await assertOAuthRejects(() => beginDeviceAuthorization({
+            ...fixturePorts, provider: TEST_PROVIDER, clock: createTestClock(), fetchFn: http.fetchFn, client: TEST_CLIENT,
+        }), 'OAUTH_MALFORMED_RESPONSE');
+    });
+}
+for (const verificationUrl of [null, 42, 'javascript:alert(1)']) {
+    test(`a legacy verification_url (${String(verificationUrl)}) still requires a safe URL string`, async () => {
+        const { verification_uri: _dropped, ...withoutUri } = DEVICE_RESPONSE;
+        const http = createFetchDouble([{ json: { ...withoutUri, verification_url: verificationUrl } }]);
+        await assertOAuthRejects(() => beginDeviceAuthorization({
+            ...fixturePorts, provider: TEST_PROVIDER, clock: createTestClock(), fetchFn: http.fetchFn, client: TEST_CLIENT,
+        }), typeof verificationUrl === 'string' ? 'OAUTH_UNSAFE_ENDPOINT' : 'OAUTH_MALFORMED_RESPONSE');
+    });
 }
 for (const [expiresIn, expiresAt] of [
     [999999, "2026-08-25T12:30:00.000Z"],
@@ -95,7 +105,7 @@ for (const completeUri of [
 }
 test("a javascript: verification URI is refused — it would be rendered to an operator as a link", async () => {
     const clock = createTestClock();
-    const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE, verification_uri: "javascript:alert(1)", verification_uri_complete: null } }]);
+    const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE, verification_uri: "javascript:alert(1)", verification_uri_complete: undefined } }]);
     const error = await assertOAuthRejects(() => beginDeviceAuthorization({
         ...fixturePorts,
         provider: TEST_PROVIDER, clock, fetchFn: http.fetchFn,
@@ -106,7 +116,7 @@ test("a javascript: verification URI is refused — it would be rendered to an o
 test("a verification URI embedding credentials is refused", async () => {
     const clock = createTestClock();
     const http = createFetchDouble([
-        { json: { ...DEVICE_RESPONSE, verification_uri: "https://auth.example.com@evil.example.net/activate", verification_uri_complete: null } },
+        { json: { ...DEVICE_RESPONSE, verification_uri: "https://auth.example.com@evil.example.net/activate", verification_uri_complete: undefined } },
     ]);
     const error = await assertOAuthRejects(() => beginDeviceAuthorization({
         ...fixturePorts,
@@ -196,7 +206,7 @@ test("access_denied ends the flow — the operator said no, retrying would just 
 test("an expired device authorization is detected locally and costs no outbound request", async () => {
     const clock = createTestClock();
     clock.advance(16 * 60 * 1000);
-    const http = createFetchDouble([{ json: { access_token: "at" } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at" } }]);
     const error = await assertOAuthRejects(() => pollDeviceAuthorizationOnce({
         ...fixturePorts,
         provider: TEST_PROVIDER, clock, fetchFn: http.fetchFn,
@@ -208,7 +218,7 @@ test("an expired device authorization is detected locally and costs no outbound 
 });
 test("an approved poll returns the token set with the RFC 8628 grant type on the wire", async () => {
     const clock = createTestClock();
-    const http = createFetchDouble([{ json: { access_token: "at-1", refresh_token: "rt-1", expires_in: 3600 } }]);
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at-1", refresh_token: "rt-1", expires_in: 3600 } }]);
     const tokens = await pollDeviceAuthorizationOnce({
         ...fixturePorts,
         provider: TEST_PROVIDER, clock, fetchFn: http.fetchFn,
@@ -220,4 +230,137 @@ test("an approved poll returns the token set with the RFC 8628 grant type on the
     assert.ok(pollRequest);
     assert.equal(pollRequest.body.get("grant_type"), "urn:ietf:params:oauth:grant-type:device_code");
     assert.equal(pollRequest.body.get("device_code"), "dev-code-secret");
+});
+
+test('device initiation preserves resource repetition, redirect refusal and its host request port', async () => {
+    const http = createFetchDouble([{ status: 201, json: DEVICE_RESPONSE }]);
+    await beginDeviceAuthorization({ ...fixturePorts, provider: TEST_PROVIDER, clock: createTestClock(),
+        fetchFn: http.fetchFn, client: TEST_CLIENT }, { resource: ['https://api.example/a', 'https://api.example/b'] });
+    const request = http.requests[0];
+    assert.ok(request);
+    assert.equal(request.method, 'POST');
+    assert.equal(request.redirect, 'error');
+    // Upstream declares UTF-8 explicitly; body serialization still uses the host's string ABI.
+    assert.equal(request.headers['content-type'], 'application/x-www-form-urlencoded;charset=UTF-8');
+    assert.equal(request.body.get('client_id'), TEST_CLIENT.clientId);
+    assert.equal(request.body.has('client_secret'), false);
+    assert.deepEqual(request.body.getAll('resource'), ['https://api.example/a', 'https://api.example/b']);
+    assert.equal(http.callCount(), 1);
+});
+
+test('device compatibility still accepts a JSON object with a non-JSON media type', async () => {
+    const result = await beginDeviceAuthorization({ ...fixturePorts, provider: TEST_PROVIDER,
+        clock: createTestClock(), client: TEST_CLIENT,
+        fetchFn: async () => new Response(JSON.stringify(DEVICE_RESPONSE), { headers: { 'content-type': 'text/plain' } }),
+    });
+    assert.equal(result.deviceCode, DEVICE_RESPONSE.device_code);
+    assert.equal(result.verificationUri, DEVICE_RESPONSE.verification_uri);
+});
+
+for (const authMethod of ['none', 'client_secret_post', 'client_secret_basic'] as const) {
+    test(`upstream device initiation authenticates ${authMethod} through the supplied transport only`, async () => {
+        const http = createFetchDouble([{ json: DEVICE_RESPONSE }]);
+        const client = { clientId: 'fixture: /+', clientSecret: 'fixture credential: /+', authMethod };
+        const nativeFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected native fetch'));
+        try {
+            await beginDeviceAuthorization({ ...fixturePorts, provider: TEST_PROVIDER, clock: createTestClock(),
+                client, fetchFn: http.fetchFn });
+            const request = http.requests[0];
+            assert.ok(request);
+            assert.equal(request.body.get('client_id'), client.clientId);
+            assert.equal(request.body.get('client_secret'), authMethod === 'client_secret_post' ? client.clientSecret : null);
+            assert.equal(request.headers.authorization, authMethod === 'client_secret_basic'
+                ? `Basic ${Buffer.from('fixture%3A+%2F%2B:fixture+credential%3A+%2F%2B').toString('base64')}` : undefined);
+            assert.equal(nativeFetch.mock.calls.length, 0);
+            assert.equal(http.callCount(), 1);
+        } finally {
+            nativeFetch.mockRestore();
+        }
+    });
+}
+
+for (const client of [
+    { ...TEST_CLIENT, clientId: '' },
+    { clientId: 'fixture', authMethod: 'client_secret_basic' as const },
+    { clientId: 'fixture', clientSecret: '', authMethod: 'client_secret_post' as const },
+]) {
+    test(`device initiation refuses invalid ${client.authMethod} identity/credentials before HTTP`, async () => {
+        const http = createFetchDouble([{ json: DEVICE_RESPONSE }]);
+        const error = await assertOAuthRejects(() => beginDeviceAuthorization({ ...fixturePorts,
+            provider: TEST_PROVIDER, clock: createTestClock(), client, fetchFn: http.fetchFn }), 'OAUTH_INVALID_REQUEST');
+        assert.equal(error.message, 'the OAuth grant or client configuration is invalid');
+        assert.equal(error.cause, undefined);
+        assert.equal(http.callCount(), 0);
+    });
+}
+
+test('device initiation bounds the original response before projecting known protocol fields', async () => {
+    const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE, ignored: 'x'.repeat(16 * 1024) } }]);
+    const error = await assertOAuthRejects(() => beginDeviceAuthorization({ ...fixturePorts,
+        provider: TEST_PROVIDER, clock: createTestClock(), client: TEST_CLIENT, fetchFn: http.fetchFn }), 'OAUTH_MALFORMED_RESPONSE');
+    assert.equal(error.message, 'the device authorization response exceeded 16384 bytes');
+    assert.equal(http.callCount(), 1);
+});
+
+test('device initiation refuses redirects before returning or following a verification link', async () => {
+    let calls = 0;
+    const error = await assertOAuthRejects(() => beginDeviceAuthorization({ ...fixturePorts,
+        provider: TEST_PROVIDER, clock: createTestClock(), client: TEST_CLIENT,
+        fetchFn: async () => {
+            calls++;
+            return new Response(JSON.stringify(DEVICE_RESPONSE), { status: 302, headers: { location: 'https://other.example/device' } });
+        },
+    }), 'OAUTH_UNSAFE_ENDPOINT');
+    assert.equal(error.cause, undefined);
+    assert.equal(calls, 1);
+});
+
+test('device initiation keeps the original transport cause and error copy without retrying', async () => {
+    const cause = new Error('fixture network failure');
+    const http = createFetchDouble([{ throws: cause }]);
+    const error = await assertOAuthRejects(() => beginDeviceAuthorization({ ...fixturePorts,
+        provider: TEST_PROVIDER, clock: createTestClock(), client: TEST_CLIENT, fetchFn: http.fetchFn }), 'OAUTH_PROVIDER_UNREACHABLE');
+    assert.equal(error.message, 'could not reach the device authorization endpoint at auth.example.com');
+    assert.equal(error.operatorAction, 'Check network access to this provider, then start the connection again. Nothing was retried automatically.');
+    assert.equal(error.cause, cause);
+    assert.equal(http.callCount(), 1);
+});
+
+for (const status of [200, 400, 503]) {
+    test(`device initiation preserves provider errors on HTTP ${status} without exposing response data`, async () => {
+        const http = createFetchDouble([{ status, json: { ...DEVICE_RESPONSE,
+            error: 'invalid_client', error_description: 'fixture confidential description' } }]);
+        const error = await assertOAuthRejects(() => beginDeviceAuthorization({ ...fixturePorts,
+            provider: TEST_PROVIDER, clock: createTestClock(), client: TEST_CLIENT, fetchFn: http.fetchFn }), 'OAUTH_PROVIDER_REJECTED');
+        assert.equal(error.message, `the authorization server refused the device authorization request (HTTP ${status})`);
+        assert.equal(error.providerErrorCode, 'invalid_client');
+        assert.equal(error.cause, undefined);
+        assert.equal(http.callCount(), 1);
+    });
+}
+
+test('device initiation keeps its deadline active until the response body has finished', async () => {
+    let signal: AbortSignal | undefined;
+    let calls = 0;
+    const keepAlive = setTimeout(() => {}, 2000);
+    try {
+        await assert.rejects(() => beginDeviceAuthorization({ ...fixturePorts,
+            provider: TEST_PROVIDER, clock: createTestClock(), client: TEST_CLIENT,
+            fetchFn: async (_args, options) => {
+                calls++;
+                const requestSignal = options?.signal;
+                assert.ok(requestSignal instanceof AbortSignal);
+                signal = requestSignal;
+                return new Response(new ReadableStream<Uint8Array>({
+                    start(controller) {
+                        requestSignal.addEventListener('abort', () => controller.error(requestSignal.reason), { once: true });
+                    },
+                }), { headers: { 'content-type': 'application/json' } });
+            },
+        }, { timeoutMs: 20 }), { name: 'TimeoutError' });
+        assert.equal(signal?.aborted, true);
+        assert.equal(calls, 1);
+    } finally {
+        clearTimeout(keepAlive);
+    }
 });

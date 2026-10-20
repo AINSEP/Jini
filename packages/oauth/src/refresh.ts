@@ -1,12 +1,10 @@
-import { nowIso as readNowIso } from '@jini-ai/core/primitives';
-import type { Clock } from '@jini-ai/core/primitives';
+import { nowIso as readNowIso, type Clock } from '@jini-ai/core/primitives';
 import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './args.js';
 /** Refresh grant and token coordinator. Coalesce in-process calls, honor optional storage leases, and persist rotation before returning access tokens. */
 import { requestOAuthToken } from "./token-endpoint.js";
 import type { TokenRequestDeps } from "./token-endpoint.js";
-import type { OAuthClient, OAuthResource } from "./ports.js";
 import { OAuthError } from "./errors.js";
-import type { OAuthTokenSet, TokenRefreshPort, OAuthSleep } from "./ports.js";
+import type { OAuthClient, OAuthResource, OAuthTokenSet, TokenRefreshPort, OAuthSleep } from "./ports.js";
 const DEFAULT_REFRESH_SKEW_MS = 120000;
 const DEFAULT_LEASE_WAIT_MS = 5000;
 const DEFAULT_LEASE_POLL_MS = 250;
@@ -170,7 +168,9 @@ export function createTokenRefresher(deps: OAuthRequiredArgs<TokenRefresherDeps>
     };
 }
 /** RFC 6749 refresh grant, preserving a refresh token when the server does not rotate it.
- * Carry forward scope and resource binding so refresh cannot silently broaden authority or audience. */
+ * Carry forward scope and resource binding so refresh cannot silently broaden authority or audience.
+ * The shared token endpoint dispatches refresh_token through openid-client's refreshTokenGrant;
+ * single-flight, leases and persist-before-return remain exclusively in createTokenRefresher. */
 export interface RefreshAccessTokenInput {
     readonly tokenEndpoint: string;
     readonly client: OAuthClient;

@@ -57,7 +57,7 @@ describe('issuer and endpoint policy retained from retired discovery', () => {
     const { discoverAuthorizationServer } = await import('../src/index.js');
     const fetchFn = vi.fn(async ({ url }: { url: string | URL | Request }) =>
       String(url).includes('oauth-protected-resource')
-        ? Response.json({ authorization_servers: [issuer, 'https://fallback.example.com'] })
+        ? Response.json({ resource: 'https://resource.example.com/api', authorization_servers: [issuer, 'https://fallback.example.com'] })
         : Response.json({ ...metadata, issuer: 'https://other.example.com' }));
     const result = discoverAuthorizationServer({ resourceUrl: 'https://resource.example.com/api', fetchFn, guard },
       metadataPolicy === undefined ? {} : { metadataPolicy });
@@ -69,7 +69,7 @@ describe('issuer and endpoint policy retained from retired discovery', () => {
     const { discoverAuthorizationServer } = await import('../src/index.js');
     const fetchFn = vi.fn(async ({ url }: { url: string | URL | Request }) =>
       String(url).includes('oauth-protected-resource')
-        ? Response.json({ authorization_servers: [issuer] })
+        ? Response.json({ resource: 'https://resource.example.com/api', authorization_servers: [issuer] })
         : Response.json({ ...metadata, registration_endpoint: 'https://other.example.com/register' }));
     await expect(discoverAuthorizationServer({ resourceUrl: 'https://resource.example.com/api', fetchFn, guard }, { metadataPolicy: policy }))
       .rejects.toMatchObject({ code: 'OAUTH_UNSAFE_ENDPOINT' });

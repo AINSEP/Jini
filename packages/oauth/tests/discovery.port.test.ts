@@ -147,7 +147,7 @@ test("the bare protected-resource path is a FALLBACK, tried only after the path-
         const path = (req.url ?? "/").split("?")[0] ?? "/";
         seen.push(path);
         if (path === "/.well-known/oauth-protected-resource") {
-            sendJson(res, 200, { authorization_servers: [], scopes_supported: ["email"] });
+            sendJson(res, 200, { resource: `http://${req.headers.host}/resource`, authorization_servers: [], scopes_supported: ["email"] });
             return;
         }
         if (path === "/.well-known/oauth-authorization-server") {
@@ -262,7 +262,7 @@ test("when EVERY advertised authorization server fails, the error names the reso
     const fixture = await startDiscoveryFixture({
         deadAuthorizationServers: [dead.origin],
         // The fixture's own well-known AS path is removed, so both candidates fail.
-        metadata: { issuer: null, token_endpoint: null, authorization_endpoint: null, registration_endpoint: null },
+        metadata: { token_endpoint: null, authorization_endpoint: null, registration_endpoint: null },
     });
     try {
         const error = await assertOAuthRejects(() => discoverAuthorizationServer({

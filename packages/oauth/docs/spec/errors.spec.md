@@ -28,7 +28,7 @@ spec_mode: reverse_spec
 
 `mapProviderErrorCode({providerErrorCode})` recognizes `authorization_pending`, `slow_down`, `access_denied`, `expired_token`, `invalid_grant`, `unsupported_grant_type`; everything else maps to `OAUTH_PROVIDER_REJECTED`. Dynamic registration always uses rejected rather than this granular map for provider rejection.
 
-High-level flows omit remote `error_description` from messages. Raw provider `error` strings are retained in `providerErrorCode` and can appear in token/registration messages; callback codes are retained only when matching lowercase letters/underscores, length 1–64. Treat provider metadata and `cause` as untrusted/private diagnostic data. `retryAfterSeconds` is a finite numeric token-response `interval`, without positivity validation.
+High-level flows omit remote `error_description` from messages. Provider response `error` strings are retained in `providerErrorCode` and token/registration messages only when they contain 1–64 ASCII letters, digits or underscores; other strings become `invalid_provider_error` before upstream processing. Callback codes are retained only when matching lowercase letters/underscores, length 1–64. Treat provider metadata and `cause` as untrusted/private diagnostic data. `retryAfterSeconds` is a finite numeric token-response `interval`, without positivity validation.
 
 ## Failures outside the typed vocabulary
 

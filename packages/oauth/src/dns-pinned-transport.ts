@@ -1,7 +1,7 @@
 import { isIP, type LookupFunction } from 'node:net';
 import type { OAuthEmptyArgs } from './args.js';
-import { OAuthError } from './errors.js';
 import type { OAuthFetch, OAuthHttpPorts } from './ports.js';
+import { assertOAuthResponseNotRedirect } from './endpoint-safety.js';
 
 export interface OAuthDnsAddress { readonly address: string; readonly family: number }
 // OAuth destinations are supplied by callers or remote metadata. A URL-only precheck can pass a
@@ -66,15 +66,7 @@ export function createDnsPinnedOAuthTransport(requiredArgs: DnsPinnedOAuthTransp
     const requestInit: RequestInit = { ...init, redirect: 'error', dispatcher: port.dispatcher };
     const requestUrl = url instanceof Request ? new Request(endpoint.href, url) : endpoint.href;
     const response = await requiredArgs.fetchFn({ url: requestUrl }, requestInit);
-    // A redirect destination has not passed the address policy. The explicit response check also
-    // catches injected fetch implementations that do not enforce redirect: 'error' themselves.
-    if ((response.status >= 300 && response.status < 400) || response.type === 'opaqueredirect') {
-      await response.body?.cancel().catch(() => undefined);
-      throw new OAuthError({
-        code: 'OAUTH_UNSAFE_ENDPOINT', message: 'refusing to follow an OAuth endpoint redirect',
-        operatorAction: 'Configure the final HTTPS endpoint directly.',
-      });
-    }
+    await assertOAuthResponseNotRedirect({ response });
     return response;
   };
   return { guard, fetchFn, close: args => port.close(args) };

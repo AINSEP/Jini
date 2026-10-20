@@ -4,8 +4,6 @@ export const MAX_OAUTH_RESPONSE_BYTES = 64 * 1024;
 export interface BoundedJsonMessages {
     readonly overflowMessage: string;
     readonly overflowOperatorAction: string;
-    readonly notJsonMessage: string;
-    readonly notJsonOperatorAction: string;
 }
 export async function readBoundedOAuthText(response: Response, messages: Pick<BoundedJsonMessages, "overflowMessage" | "overflowOperatorAction">, maxBytes: number = MAX_OAUTH_RESPONSE_BYTES): Promise<string> {
     const body = response.body;
@@ -35,25 +33,6 @@ export async function readBoundedOAuthText(response: Response, messages: Pick<Bo
         await reader.cancel().catch(() => undefined);
     }
     return Buffer.concat(chunks).toString("utf8");
-}
-export function parseOAuthJsonObject(text: string, messages: Pick<BoundedJsonMessages, "notJsonMessage" | "notJsonOperatorAction">): Record<string, unknown> {
-    try {
-        const parsed: unknown = JSON.parse(text);
-        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
-            throw new Error("not an object");
-        return parsed as Record<string, unknown>;
-    }
-    catch (cause) {
-        throw new OAuthError({
-            code: "OAUTH_MALFORMED_RESPONSE", message: messages.notJsonMessage,
-            operatorAction: messages.notJsonOperatorAction
-        }, {
-            cause
-        });
-    }
-}
-export async function readBoundedOAuthJson(response: Response, messages: BoundedJsonMessages, maxBytes: number = MAX_OAUTH_RESPONSE_BYTES): Promise<Record<string, unknown>> {
-    return parseOAuthJsonObject(await readBoundedOAuthText(response, messages, maxBytes), messages);
 }
 export function readStringArray(value: unknown): readonly string[] {
     return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item !== "") : [];

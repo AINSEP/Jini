@@ -132,7 +132,7 @@ test('stateless replay reaches the provider which refuses an already-used code w
         const code = new URLSearchParams(String(init?.body)).get('code')!;
         const replay = usedCodes.has(code);
         usedCodes.add(code);
-        return new Response(JSON.stringify(replay ? { error: 'invalid_grant' } : { access_token: 'at' }), { status: replay ? 400 : 200 });
+        return new Response(JSON.stringify(replay ? { error: 'invalid_grant' } : { token_type: 'Bearer', access_token: 'at' }), { status: replay ? 400 : 200 });
     } };
     assert.equal((await complete(h, started.state)).accessToken, 'at');
     await assertOAuthRejects(() => complete(h, started.state), 'OAUTH_INVALID_GRANT');

@@ -4,6 +4,7 @@ import { generateOAuthState } from '../src/index.js';
 import { fixtureEntropy } from "./fixtures.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { calculatePKCECodeChallenge } from 'openid-client';
 import { test } from "vitest";
 import { createPendingAuthorizationStore } from "../src/testing/index.js";
 import { assertValidCodeVerifier, createPkcePair, deriveCodeChallenge } from "../src/index.js";
@@ -174,6 +175,24 @@ describe('createPkcePair / deriveCodeChallenge / generateOAuthState', () => {
 test('PKCE retains the main default and supports the provider 64-byte choice', () => {
     assert.equal(createPkcePair({ randomBytesFn: fixtureEntropy }).codeVerifier.length, 43);
     assert.equal(createPkcePair({ randomBytesFn: fixtureEntropy }, { verifierBytes: 64 }).codeVerifier.length, 86);
+});
+
+test('synchronous PKCE agrees with upstream S256 at both verifier boundaries and keeps injected entropy', async () => {
+    const requested: number[] = [];
+    const randomBytesFn = ({ byteLength }: { byteLength: number }) => {
+        requested.push(byteLength);
+        return new Uint8Array(byteLength).fill(17);
+    };
+    const pair = createPkcePair({ randomBytesFn });
+    assert.equal(typeof pair.codeChallenge, 'string');
+    assert.equal(pair.codeVerifier, Buffer.from(new Uint8Array(32).fill(17)).toString('base64url'));
+    assert.equal(typeof generateOAuthState({ randomBytesFn }), 'string');
+    assert.deepEqual(requested, [32, 32]);
+    for (const codeVerifier of [pair.codeVerifier, 'x'.repeat(43), 'x'.repeat(128), 'a-._~'.repeat(9)]) {
+        const challenge = deriveCodeChallenge({ codeVerifier });
+        assert.equal(typeof challenge, 'string');
+        assert.equal(challenge, await calculatePKCECodeChallenge(codeVerifier));
+    }
 });
 
 

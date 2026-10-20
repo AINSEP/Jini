@@ -56,3 +56,21 @@ export function mapProviderErrorCode({ providerErrorCode }: {
             return "OAUTH_PROVIDER_REJECTED";
     }
 }
+
+/** Facade compatibility only: error fields win even on HTTP 200/5xx. Upstream still owns
+ * OAuth error decoding and validation. Projection keeps opaque identity data out of OAuth-only
+ * processing; it never establishes identity trust. Provider codes are bounded protocol identifiers
+ * before upstream decoding so facade messages and metadata cannot echo arbitrary provider text.
+ * Native Response owns JSON parsing.
+ */
+export async function adaptOAuthResponse({ response }: { readonly response: Response }, {
+    successStatus, project,
+}: { readonly successStatus?: number; readonly project?: (body: Record<string, unknown>) => void } = {}): Promise<Response> {
+    const body = await response.json() as Record<string, unknown> | null;
+    if (body !== null && typeof body === 'object') project?.(body);
+    if (typeof body?.error === 'string'
+        && (body.error.length === 0 || body.error.length > 64 || /[^a-z0-9_]/i.test(body.error)))
+        body.error = 'invalid_provider_error';
+    return Response.json(body, { status: typeof body?.error === 'string' ? 400
+        : response.ok ? successStatus ?? response.status : response.status });
+}
