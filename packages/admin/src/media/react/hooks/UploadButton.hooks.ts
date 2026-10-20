@@ -42,11 +42,30 @@ export function readMediaFile(
     reader.readAsDataURL(file);
   });
 }
+type ReadFile = (required: { file: File }, optional?: { signal?: AbortSignal }) => Promise<UploadInput>;
+/** Uploads files in order, recording each landed name in `uploaded` so a mid-batch failure
+ * still reports what succeeded. Resolves false when the toolbar unmounted mid-batch. */
+async function sendFiles(
+  { files, signal, uploaded, alt, upload, readFile }: {
+    files: readonly File[]; signal: AbortSignal; uploaded: string[]; alt: string;
+    upload: UploadButtonProps['upload']; readFile: ReadFile;
+  },
+  _optional: Record<string, never> = {},
+): Promise<boolean> {
+  const trimmed = alt.trim();
+  for (const file of files) {
+    const input = await readFile({ file }, { signal });
+    if (signal.aborted) return false;
+    if (!await upload({ input, ...(trimmed ? { alt: trimmed } : {}) }))
+      throw new Error(`Upload failed for ${file.name}`);
+    if (signal.aborted) return false;
+    uploaded.push(file.name);
+  }
+  return true;
+}
 export function useUploadButton(
   props: UploadButtonProps,
-  { readFile = readMediaFile }: {
-    readFile?: (required: { file: File }, optional?: { signal?: AbortSignal }) => Promise<UploadInput>;
-  } = {},
+  { readFile = readMediaFile }: { readFile?: ReadFile } = {},
 ) {
   // Advisory picker formats mirror the host's standard ceiling, including video. The
   // injected server still validates/sniffs bytes; a file picker is never a security boundary.
@@ -61,37 +80,34 @@ export function useUploadButton(
     const abort = new AbortController(); lifetime.current = abort;
     return () => abort.abort();
   }, []);
+  // Multi-select hosts take the whole pick; single-file toolbars keep only the first.
+  const limit = (files: readonly File[]) => files.slice(0, props.multiple === false ? 1 : undefined);
   function onFile(event: ChangeEvent<HTMLInputElement>) {
     if (!inFlight.current && !props.disabled) {
-      setSelectedFiles(Array.from(event.currentTarget.files ?? []).slice(0, props.multiple === false ? 1 : undefined)); setError(null); setSuccess(null);
+      setSelectedFiles(limit(Array.from(event.currentTarget.files ?? []))); setError(null); setSuccess(null);
     }
+  }
+  function settle({ files, uploaded }: { files: readonly File[]; uploaded: readonly string[] }, _optional: Record<string, never> = {}) {
+    // Keep only failed/unattempted files: retry must not duplicate successes in a batch.
+    setSelectedFiles(files.slice(uploaded.length)); setBusy(false);
+    if (uploaded.length) setSuccess(`Uploaded ${uploaded.join(', ')}`);
+  }
+  function clearForm() {
+    setAlt('');
+    if (inputRef.current) inputRef.current.value = '';
   }
   async function uploadFiles(files: readonly File[]) {
     if (!files.length || inFlight.current || props.disabled) return;
     const signal = lifetime.current.signal;
     inFlight.current = true; setBusy(true); setError(null); setSuccess(null);
     const uploaded: string[] = [];
-    let remaining = [...files];
     try {
-      for (const file of files) {
-        const input = await readFile({ file }, { signal });
-        if (signal.aborted) return;
-        if (!await props.upload({ input, ...(alt.trim() ? { alt: alt.trim() } : {}) }))
-          throw new Error(`Upload failed for ${file.name}`);
-        if (signal.aborted) return;
-        uploaded.push(file.name); remaining = remaining.slice(1);
-      }
-      setAlt('');
-      if (inputRef.current) inputRef.current.value = '';
+      if (await sendFiles({ files, signal, uploaded, alt, upload: props.upload, readFile })) clearForm();
     } catch (error) {
       if (!signal.aborted) setError(error instanceof Error ? error.message : 'Upload failed');
     } finally {
       inFlight.current = false;
-      if (!signal.aborted) {
-        // Keep only failed/unattempted files: retry must not duplicate successes in a batch.
-        setSelectedFiles(remaining); setBusy(false);
-        if (uploaded.length) setSuccess(`Uploaded ${uploaded.join(', ')}`);
-      }
+      if (!signal.aborted) settle({ files, uploaded });
     }
   }
   return {
@@ -109,7 +125,7 @@ export function useUploadButton(
     onDrop: (event: DragEvent) => {
       event.preventDefault();
       if (inFlight.current || props.disabled) return;
-      const files = Array.from(event.dataTransfer.files).slice(0, props.multiple === false ? 1 : undefined); setSelectedFiles(files); void uploadFiles(files);
+      const files = limit(Array.from(event.dataTransfer.files)); setSelectedFiles(files); void uploadFiles(files);
     },
     // An empty selection is a no-op, as on the original toolbar; Upload stays enabled.
     uploadDisabled: busy || props.disabled === true,

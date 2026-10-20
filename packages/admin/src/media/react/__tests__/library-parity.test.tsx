@@ -82,6 +82,12 @@ describe('legacy library presentation guards', () => {
     expect(selected).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tablist', { name: 'Media' })).toContainElement(selected);
   });
+  it('falls back to the first visible tab when the deep-linked tab is hidden by permissions', async () => {
+    const { api } = await fixture(); mountPage({ api, requestedTab: 'external-providers' });
+    await screen.findByRole('heading', { name: 'Unreadable' });
+    expect(screen.getAllByRole('tab').map(tab => tab.getAttribute('data-agent-element'))).toEqual(['media-tab-all', 'media-tab-images', 'media-tab-videos']);
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
+  });
   it('rejects an invalid tab and publishes unchanged literal tab handles through a host callback', async () => {
     const { api } = await fixture(); const page = mountPage({ api, requestedTab: 'typo' });
     await screen.findByRole('heading', { name: 'Unreadable' });

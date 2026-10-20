@@ -101,6 +101,17 @@ describe('useLibraryTab', () => {
     expect(document.activeElement).toBe(f.card('b'));
   });
 
+  it('follows the edited card by id when the reread moves it to a new position', async () => {
+    const f = mount();
+    await f.ready();
+    act(() => f.vm().actions[0]!.onEdit!());
+    // A newer upload lands first in newest-first order, pushing the edited Alpha to index 1.
+    await act(async () => { await f.api.upload({ filename: 'newer.png', contentType: 'image/png', dataBase64: 'aGVsbG8=' }); });
+    await act(async () => f.vm().saved());
+    expect(f.vm().items.map(item => item.title)).toEqual(['newer.png', 'Alpha', 'Bravo', 'Charlie']);
+    expect(document.activeElement).toBe(f.card('a'));
+  });
+
   it('rereads quietly when a save carries no message and nothing was being edited', async () => {
     const f = mount();
     await f.ready();
