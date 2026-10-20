@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { agentCapabilities } from '../../capabilities.js';
 import { cursorAgentDef, parseCursorAgentModels } from '../cursor-agent.js';
+import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 afterEach(() => {
   agentCapabilities.delete('cursor-agent');
@@ -173,7 +174,41 @@ describe('cursorAgentDef.buildArgs', () => {
     expect(args).not.toContain('--model');
   });
 
+  it('builds the base argv when the second argument is omitted entirely', () => {
+    expect(cursorAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] })).toEqual(['--print', '--output-format', 'stream-json', '--stream-partial-output', '--force']);
+  });
+
+  it('adds --trust from host-scoped options.capabilities without a cached probe', () => {
+    const args = cursorAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { capabilities: { trust: true } } });
+    expect(args).toEqual(['--print', '--output-format', 'stream-json', '--stream-partial-output', '--force', '--trust']);
+  });
+
+  it('lets host-scoped options.capabilities withhold --trust the cached probe recorded', () => {
+    agentCapabilities.set('cursor-agent', { trust: true });
+    const args = cursorAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { capabilities: {} } });
+    expect(args).not.toContain('--trust');
+  });
+
   it('defaults options and runtimeContext when omitted entirely', () => {
     expect(() => cursorAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).not.toThrow();
+  });
+});
+describe('cursorAgentDef.discoverModels', () => {
+  it('falls back to the def\'s fallbackModels (minus the synthetic default) when the CLI is offline', async () => {
+    const catalog = await cursorAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toEqual(['auto', 'sonnet-4', 'sonnet-4-thinking', 'gpt-5']);
+  });
+
+  it('parses `cursor-agent models` output through the def\'s listing parser', async () => {
+    const catalog = await cursorAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps('Available models\ngpt-5 - GPT 5\n') });
+    expect(catalog.freshness).toBe('fresh');
+    expect(catalog.models).toEqual([expect.objectContaining({ id: 'gpt-5', label: 'GPT 5' })]);
+  });
+
+  it('treats the unauthenticated "No models available" message as no listing and falls back', async () => {
+    const catalog = await cursorAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps('No models available for this account.\n') });
+    expect(catalog.freshness).not.toBe('fresh');
+    expect(catalog.models.map((model) => model.id)).toEqual(['auto', 'sonnet-4', 'sonnet-4-thinking', 'gpt-5']);
   });
 });
