@@ -1,8 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
-import { useDebouncedValue } from '../../../../react/hooks/useDebouncedValue.js';
-import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../constants.js';
-import { buildFacetLabelMap, dayKeyFromTimestamp, resolveFacetLabel } from '../../rules.js';
+import { dayKeyFromTimestamp, resolveFacetLabel } from '../../rules.js';
 import type { AssetGridDependencies } from '../../ports.js';
 import type { AssetGridFacetOption, AssetGridItem, AssetGridSelectors, AssetGridViewMode } from '../../types.js';
 import { useWiredAssetGridData } from '../hooks/useAssetGridData.js';
@@ -10,6 +8,7 @@ import { useWiredAssetGridLiveUpdates } from '../hooks/useAssetGridLiveUpdates.j
 import { useAssetGridSelection } from '../hooks/useAssetGridSelection.js';
 import { useRubberBandDrag } from '../hooks/useRubberBandDrag.js';
 import { useAssetGridKeyboardShortcuts } from '../hooks/useAssetGridKeyboardShortcuts.js';
+import { useAssetGridFilters } from './useAssetGridFilters.js';
 import { AssetCard } from './AssetCard.js';
 import { AssetGridBody, type AssetGridBodyProps } from './AssetGridBody.js';
 import { AssetGridToolbar } from './AssetGridToolbar.js';
@@ -73,8 +72,8 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   active = true,
   selectors,
   dependencies,
-  kindFacets = [],
-  sourceFacets = [],
+  kindFacets: configuredKindFacets,
+  sourceFacets: configuredSourceFacets,
   renderThumbnail,
   renderThumbnailPlaceholder,
   renderCardExtra,
@@ -86,7 +85,7 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   toolbarActions,
   emptyState,
   searchPlaceholder,
-  searchDebounceMs = DEFAULT_SEARCH_DEBOUNCE_MS,
+  searchDebounceMs,
   liveUpdateCoalesceMs,
   initialViewMode = 'grid',
   useWiredAssetGridData: useWiredAssetGridDataHook = useWiredAssetGridData,
@@ -94,14 +93,15 @@ export function AssetGrid<TAsset extends AssetGridItem>({
 }: AssetGridProps<TAsset>) {
   const t = useT();
 
-  const [kind, setKind] = useState('');
-  const [source, setSource] = useState('');
-  const [search, setSearch] = useState('');
+  const {
+    kind, setKind, source, setSource, search, setSearch,
+    debouncedSearch, filtersActive, kindFacets, sourceFacets, kindFacetLabels, sourceFacetLabels,
+  } = useAssetGridFilters({
+    kindFacets: configuredKindFacets,
+    sourceFacets: configuredSourceFacets,
+    searchDebounceMs,
+  });
   const [viewMode, setViewMode] = useState<AssetGridViewMode>(initialViewMode);
-  const debouncedSearch = useDebouncedValue({ value: search, delayMs: searchDebounceMs });
-  const filtersActive = !!(kind || source || debouncedSearch.trim());
-  const kindFacetLabels = useMemo(() => buildFacetLabelMap(kindFacets), [kindFacets]);
-  const sourceFacetLabels = useMemo(() => buildFacetLabelMap(sourceFacets), [sourceFacets]);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   /** Message from a delete the host rejected. Rendered inline — see `runDelete`. */
   const [deleteError, setDeleteError] = useState<string | null>(null);
