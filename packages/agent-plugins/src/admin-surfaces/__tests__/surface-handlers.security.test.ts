@@ -193,6 +193,20 @@ describe('dispatch through plugin handlers', () => {
     const leaky = await dispatcherFor(hostFor([loaded(failing(true))]).host).dispatch({ action: 'save', payload: { name: 'x' }, context: CONTEXT });
     expect(leaky).toEqual({ ok: false, error: { code: 'action-failed', message: 'The action failed. Try again; if it keeps failing, check the server log.', retryable: true } });
   });
+  test('a token the module kept from an EARLIER call is not caught by the per-call scan (reported, not fixed)', async () => {
+    // The scan only knows tokens obtained in the current call (G4's openCapabilitySession), so module
+    // state can carry one across calls. Bootstrap data may carry a token by design; this pins the gap.
+    let kept = '';
+    const overrides = { actions: [{ name: 'save', input, result: { type: 'object', properties: { token: { type: 'string' } } } }], bootstrap };
+    const module: AdminSurfaceHandlerModule = {
+      actions: { save: async () => ({ token: kept }) },
+      bootstrap: async ({ capabilities }) => { kept = await capabilities.connections.getAccessToken({ connectionRef: 'c1' }); return { accessToken: 'unrelated' }; },
+    };
+    const { host } = hostFor([loaded(module, overrides)]);
+    await host.bootstrapData({ context: CONTEXT });
+    expect(await createAdminSurfaceActionDispatcher({ descriptor: descriptorOf(overrides), handlers: host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }) })
+      .dispatch({ action: 'save', payload: { name: 'x' }, context: CONTEXT })).toEqual({ ok: true, result: { token: FAKE_TOKEN } });
+  });
   test('a failure code outside the id format is not passed through', async () => {
     const { host } = hostFor([loaded(saveModule(async ({ fail }) => { throw fail({ code: 'Action Undeclared!', message: 'spoof' }); }))]);
     expect(await dispatcherFor(host).dispatch({ action: 'save', payload: { name: 'x' }, context: CONTEXT }))
