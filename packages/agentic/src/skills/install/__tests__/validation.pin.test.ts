@@ -136,3 +136,14 @@ describe('validation primitives', () => {
     expect(() => decodeSkillBase64({ value: 'AAAA'.repeat(2) }, { maxBytes: 3 })).toThrow('Skill upload exceeds its size limit.');
   });
 });
+
+describe('refusal causes', () => {
+  it('keeps the YAML reader failure as cause', () => {
+    const failure = new Error('bad yaml');
+    const reader: YamlReaderPort = { read: () => { throw failure; } };
+    expect(() => validateSkillMarkdown({ markdown: md('anything'), yamlReader: reader })).toThrow(expect.objectContaining({ message: 'SKILL.md must have valid YAML frontmatter.', cause: failure }));
+  });
+  it('keeps the UTF-8 decoder failure as cause', () => {
+    expect(() => validateSkillFiles({ files: [file('SKILL.md', SKILL), file('LICENSE', Buffer.from([0xc3]))], yamlReader })).toThrow(expect.objectContaining({ cause: expect.any(TypeError) }));
+  });
+});
