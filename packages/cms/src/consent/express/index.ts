@@ -3,8 +3,10 @@ import express, { type Express, type Request, type Response } from 'express';
 import { createConsentRecord, googleConsentSignals, readConsentRecord, resolveConsentRegion } from '../policy.js';
 import { CONSENT_MAX_AGE_MS, type ConsentConfig, type ConsentRecord, type ConsentRecordPort } from '../types.js';
 import { gateConsentHtml } from '../html/index.js';
-import { blockConsentResponse, captureConsentHtml, CONSENT_MAX_HTML_BYTES } from './response.js';
+import { inertConsentBody, captureConsentHtml, CONSENT_MAX_HTML_BYTES } from './response.js';
 import type { ConsentGateOptions } from '../html/gate.js';
+
+export type ConsentReceiptProof = { id: string | null; present: boolean };
 
 /** All host effects are explicit. Region defaults to unknown; no geo service is required. */
 export interface ConsentHttpPorts {
@@ -12,7 +14,8 @@ export interface ConsentHttpPorts {
   records: ConsentRecordPort;
   clock: { nowMs(): number; nowIso(): string };
   ids: { newId(): string };
-  readReceiptId(required: { cookieHeader: string }, optional?: Record<string, never>): string | null;
+  /** Prefer { id, present }; legacy null readers use the configured cookie name to retain invalid presence. */
+  readReceiptId(required: { cookieHeader: string }, optional?: Record<string, never>): string | null | ConsentReceiptProof;
   origin(required: { request: Request }, optional?: Record<string, never>): string;
   region(required: { request: Request }, optional?: Record<string, never>): string | null;
   allowWrite(required: { request: Request }, optional?: Record<string, never>): Promise<boolean>;
@@ -23,18 +26,29 @@ function isPublicPage(request: Request): boolean {
   return ['GET', 'HEAD'].includes(request.method) && !/^\/(?:admin|api|theme-assets|assets|\.well-known)(?:\/|$)/.test(request.path);
 }
 
+/** Structured readers retain malformed-cookie presence. Legacy readers returning null are
+ * checked against the configured cookie name, so they cannot mistake invalid proof for absence.
+ * @complexity O(cookie header length), bounded by the HTTP server. */
+function receiptProof({ cookieHeader, cookieName, ports }: { cookieHeader: string; cookieName: string; ports: ConsentHttpPorts }): ConsentReceiptProof {
+  const value = ports.readReceiptId({ cookieHeader });
+  if (value !== null && typeof value === 'object') return value;
+  const present = value !== null || cookieHeader.split(';').some(part => part.split('=', 1)[0]?.trim() === cookieName);
+  return { id: value, present };
+}
+
 /** Missing/malformed IDs never reach storage. Changed policy versions require another choice.
  * Only a visitor without a receipt cookie is new: a cookie whose receipt is missing (evicted,
  * deleted, another store) is failed proof, so opt-out regions cannot turn a lost rejection into a grant.
  * @complexity O(1) and at most one bounded record read. */
-async function currentRecord({ request, ports, config }: { request: Request; ports: ConsentHttpPorts; config: ConsentConfig }): Promise<{ record: ConsentRecord | null; failed: boolean }> {
+async function currentRecord({ request, ports, config }: { request: Request; ports: ConsentHttpPorts; config: ConsentConfig }, { cookieName }: { cookieName: string }): Promise<{ record: ConsentRecord | null; failed: boolean }> {
   try {
-    const id = ports.readReceiptId({ cookieHeader: request.get('cookie') ?? '' });
-    if (!id || !/^[a-zA-Z0-9_-]{16,128}$/.test(id)) return { record: null, failed: false };
+    const { id, present } = receiptProof({ cookieHeader: request.get('cookie') ?? '', cookieName, ports });
+    if (!present) return { record: null, failed: false };
+    if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]{16,128}$/.test(id)) throw new Error('The consent receipt cookie is invalid. Optional content stays denied; choose cookie preferences again.');
     const value = await ports.records.read({ id });
     const record = readConsentRecord({ value, policyVersion: config.policyVersion, nowMs: ports.clock.nowMs() });
     if (record === null) {
-      ports.reportError({ operation: 'read', error: new Error(value === null || value === undefined ? 'The consent receipt named by the visitor cookie is unavailable; optional content stays denied until the visitor chooses again.' : 'Invalid consent receipt.') });
+      ports.reportError({ operation: 'read', error: new Error(value === null || value === undefined ? 'The consent receipt named by the visitor cookie is unavailable; optional content stays denied until the visitor chooses again.' : 'The stored consent receipt is invalid or expired. Optional content stays denied; choose cookie preferences again.') });
       return { record: null, failed: true };
     }
     return { record, failed: false };
@@ -117,21 +131,38 @@ function gateOptions({ request, response }: { request: Request; response: Respon
   return { runtimeToken: randomUUID(), ...(requestNonce === undefined ? {} : { nonce: requestNonce }), ...(necessaryScripts === undefined ? {} : { necessaryScripts }), ...(resourceOrigins === undefined ? {} : { resourceOrigins }), ...(categoryOrigins === undefined ? {} : { categoryOrigins }) };
 }
 
-/** Gate one enabled HTML body; any failure keeps the original page under the blocking policy.
+/** Gate one enabled HTML body; any failure returns inert text under the blocking policy.
  * @complexity O(HTML bytes), at most one receipt read. */
 async function gatedBody({ body, request, response, ports, config, failed }: { body: Buffer; request: Request; response: Response; ports: ConsentHttpPorts; config: ConsentConfig; failed: boolean }, options: ConsentHttpOptions & { endpoint: string }): Promise<Buffer> {
   try {
     const encoding = response.getHeader('Content-Encoding');
-    if (encoding && encoding !== 'identity') throw new Error('Consent requires uncompressed HTML.');
-    const receipt = failed ? { record: null, failed: false } : await currentRecord({ request, ports, config });
+    if (encoding && encoding !== 'identity') throw new Error('Consent requires uncompressed HTML. Mount consent before compression and retry this page.');
+    const receipt = failed ? { record: null, failed: false } : await currentRecord({ request, ports, config }, { cookieName: options.cookieName ?? 'jini_consent' });
     const regionMode = failed || receipt.failed ? 'opt-in' : resolveConsentRegion({ configuredMode: config.regionMode, region: ports.region({ request }) });
     return Buffer.from(gateConsentHtml({ html: body.toString('utf8'), config, record: receipt.record, regionMode, gpc: request.get('sec-gpc') === '1', endpoint: options.endpoint }, gateOptions({ request, response }, options)));
   } catch (error) {
     ports.reportError({ operation: 'read', error });
-    // Last-resort browser enforcement keeps the original page available when HTML processing fails.
-    blockConsentResponse({ response });
-    return body;
+    // Fetch CSP cannot block meta refresh or first-party pixels, so never return failed HTML.
+    return inertConsentBody({ response });
   }
+}
+
+type DeliveryPolicy = { config: ConsentConfig; failed: boolean } | { body: Buffer } | null;
+
+/** Shared preflight for ordinary and oversized HTML. Disabled sites remain byte-identical;
+ * static export is refused before any size fallback can publish optional content.
+ * @complexity O(1), one config read and no receipt access. */
+async function prepareDelivery({ request, response, ports, state }: { request: Request; response: Response; ports: ConsentHttpPorts; state: { lastGood?: ConsentConfig } }, { delivery }: ConsentHttpOptions): Promise<DeliveryPolicy> {
+  const policy = await deliveryConfig({ ports, state });
+  if (!policy.config.enabled) return null;
+  response.set('Cache-Control', 'private, no-store');
+  response.vary('Cookie'); response.vary('Sec-GPC');
+  response.removeHeader('Content-Length'); response.removeHeader('ETag');
+  if (delivery !== 'static') return policy;
+  // Exported pages cannot POST a receipt. Refuse the export instead of publishing a broken theme.
+  response.removeHeader('Content-Encoding');
+  response.status(409).type('text/plain');
+  return { body: Buffer.from('Static export requires cookie consent to be disabled. Review optional scripts before exporting.') };
 }
 
 /** Mount before public renderers, outside admin/API HTML. Durable proof precedes cookie issuance.
@@ -157,21 +188,20 @@ export function registerConsentHttp({ app, ports }: { app: Express; ports: Conse
   });
   app.use((request, response, next) => {
     if (!isPublicPage(request)) { next(); return; }
-    captureConsentHtml({ response, transform: ({ body }) => deliver({ body }) }, { reportError: ({ error }) => ports.reportError({ operation: 'read', error }), maxBytes: maxHtmlBytes });
-    async function deliver({ body }: { body: Buffer }, _options = {}): Promise<Buffer> {
-      const { config, failed } = await deliveryConfig({ ports, state });
-      if (!config.enabled) return body;
-      response.set('Cache-Control', 'private, no-store');
-      response.vary('Cookie'); response.vary('Sec-GPC');
-      response.removeHeader('Content-Length'); response.removeHeader('ETag');
-      if (delivery === 'static') {
-        // Exported pages cannot POST a receipt. Refuse the export instead of publishing a broken theme.
-        response.removeHeader('Content-Encoding');
-        response.status(409).type('text/plain');
-        return Buffer.from('Static export requires cookie consent to be disabled. Review optional scripts before exporting.');
-      }
-      return gatedBody({ body, request, response, ports, config, failed }, { ...options, endpoint });
-    }
+    const prepare = () => prepareDelivery({ request, response, ports, state }, { delivery });
+    captureConsentHtml({ response, transform: async ({ body }) => {
+      const policy = await prepare();
+      if (policy === null) return body;
+      if ('body' in policy) return policy.body;
+      return gatedBody({ body, request, response, ports, ...policy }, { ...options, endpoint, cookieName });
+    } }, {
+      reportError: ({ error }) => ports.reportError({ operation: 'read', error }), maxBytes: maxHtmlBytes,
+      overflow: async () => {
+        const policy = await prepare();
+        if (policy === null) return null;
+        return 'body' in policy ? policy.body : inertConsentBody({ response });
+      },
+    });
     next();
   });
 }

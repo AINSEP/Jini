@@ -6,7 +6,7 @@ function fakeResponse(type?: string) {
   const headers = new Map<string, unknown>();
   const calls: unknown[][] = [];
   const response = {
-    statusCode: 200, statusMessage: '', destroyed: false,
+    statusCode: 200, statusMessage: '', destroyed: false, emit: vi.fn(() => true),
     getHeader: (name: string) => headers.get(name.toLowerCase()),
     setHeader: (name: string, value: unknown) => { headers.set(name.toLowerCase(), value); return response; },
     removeHeader: (name: string) => { headers.delete(name.toLowerCase()); },
@@ -18,6 +18,7 @@ function fakeResponse(type?: string) {
   if (type) headers.set('content-type', type);
   return { response: response as unknown as Response & { destroyed: boolean }, headers, calls };
 }
+const inertText = 'This page could not be delivered with cookie preferences enforced. Please try again or contact the site owner.';
 const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 const upper = async ({ body }: { body: Buffer }) => Buffer.from(body.toString('utf8').toUpperCase());
 
@@ -110,7 +111,7 @@ describe('captureConsentHtml', () => {
       expect(calls).toEqual([['end', Buffer.from(expected), undefined]]);
     }
   });
-  it('a destroyed response is neither blocked nor completed; a failed transform reports and serves the original', async () => {
+  it('a destroyed response is neither blocked nor completed; a failed transform reports and serves inert text', async () => {
     const destroyed = fakeResponse('text/html');
     const reported: unknown[] = [];
     captureConsentHtml({ response: destroyed.response, transform: async () => { throw new Error('boom'); } }, { reportError: ({ error }) => reported.push(error) });
@@ -123,14 +124,14 @@ describe('captureConsentHtml', () => {
     captureConsentHtml({ response: live.response, transform: async () => { throw new Error('boom'); } });
     live.response.end('<p>');
     await settle();
-    expect(live.calls).toEqual([['end', Buffer.from('<p>'), undefined]]); expect(live.headers.get('content-security-policy')).toContain("script-src 'none'");
+    expect(live.calls).toEqual([['end', Buffer.from(inertText), undefined]]); expect(live.headers.get('content-security-policy')).toContain("script-src 'none'");
     expect(error).toHaveBeenCalledWith('Consent HTML transform failed; optional content is blocked.');
   });
 });
 
 describe('captureConsentHtml buffer bound', () => {
-  const limitMessage = 'Consent HTML exceeded 10 bytes, so it was served unmodified under the restrictive consent policy. Raise maxHtmlBytes if pages are legitimately larger.';
-  it('streams the original bytes under the restrictive policy once writes pass the limit', async () => {
+  const limitMessage = 'Consent HTML exceeded 10 bytes, so delivery was refused or replaced with inert text. Raise maxHtmlBytes if pages are legitimately larger.';
+  it('discards all original bytes under the restrictive policy once writes pass the limit', async () => {
     const { response, headers, calls } = fakeResponse('text/html');
     headers.set('content-length', '14');
     const errors: unknown[] = [];
@@ -142,18 +143,19 @@ describe('captureConsentHtml buffer bound', () => {
     response.write('ghijkl', done);
     response.end('mn');
     await settle();
-    expect(calls).toEqual([['write', Buffer.from('abcdefghijkl'), done], ['end', 'mn']]);
+    expect(calls).toEqual([['end', Buffer.from(inertText), undefined]]);
+    expect(done).toHaveBeenCalledTimes(1);
     expect(transform).not.toHaveBeenCalled(); expect(errors).toEqual([limitMessage]);
     expect(headers.get('content-security-policy')).toContain("script-src 'none'"); expect(headers.has('content-length')).toBe(false);
   });
-  it('a final chunk past the limit ends with the original body; a throwing reporter cannot hold it', async () => {
+  it('a final chunk past the limit ends with inert text; a throwing reporter cannot hold it', async () => {
     const { response, headers, calls } = fakeResponse('text/html');
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     captureConsentHtml({ response, transform: upper }, { maxBytes: 10, reportError: () => { throw new Error('reporter down'); } });
     const done = vi.fn();
     response.end('abcdefghijkl', done);
     await settle();
-    expect(calls).toEqual([['end', Buffer.from('abcdefghijkl'), done]]);
+    expect(calls).toEqual([['end', Buffer.from(inertText), done]]);
     expect(headers.get('content-security-policy')).toContain("script-src 'none'");
   });
   it('a body at the limit is still transformed', async () => {
@@ -163,4 +165,33 @@ describe('captureConsentHtml buffer bound', () => {
     await settle();
     expect(calls).toEqual([['end', Buffer.from('ABCDEFGHIJ'), undefined]]);
   });
+});
+
+
+it('waits for the disabled overflow decision before flushing the exact prefix and suffix', async () => {
+  const { response, headers, calls } = fakeResponse('text/html');
+  let decide!: (body: Buffer | null) => void;
+  const policy = new Promise<Buffer | null>(resolve => { decide = resolve; });
+  const transform = vi.fn(upper);
+  captureConsentHtml({ response, transform }, { maxBytes: 10, overflow: async () => policy });
+  const written = vi.fn(), ended = vi.fn();
+  expect(response.write('<p>prefix</p>', written)).toBe(false);
+  response.end('<p>suffix</p>', ended);
+  expect(calls).toEqual([]); expect(headers.has('content-security-policy')).toBe(false);
+  decide(null); await settle();
+  expect(calls).toEqual([['write', Buffer.from('<p>prefix</p>'), written], ['end', Buffer.from('<p>suffix</p>'), ended]]);
+  expect(headers.has('content-security-policy')).toBe(false); expect(transform).not.toHaveBeenCalled();
+});
+
+it('discards optional pixels and refresh in both overflow prefixes and later chunks', async () => {
+  const { response, headers, calls } = fakeResponse('text/html');
+  const transform = vi.fn(upper);
+  captureConsentHtml({ response, transform }, { maxBytes: 10, reportError: () => undefined });
+  response.write('<img width=1 src=/collect>');
+  response.write('<meta http-equiv=refresh content="0;url=https://tracker.example/">');
+  response.end('<script>track()</script>');
+  await settle();
+  expect(calls).toEqual([['end', Buffer.from(inertText), undefined]]);
+  expect(headers.get('content-type')).toBe('text/plain; charset=utf-8');
+  expect(headers.get('content-security-policy')).toContain("img-src 'none'"); expect(transform).not.toHaveBeenCalled();
 });

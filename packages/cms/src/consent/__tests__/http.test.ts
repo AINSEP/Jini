@@ -11,10 +11,13 @@ import type { ConsentRecord } from '../types.js';
 import { accepted, config, now } from './fixtures.js';
 import { googleConsentSignals } from '../policy.js';
 
+const inertText = 'This page could not be delivered with cookie preferences enforced. Please try again or contact the site owner.';
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const close of closers.splice(0)) await close(); });
 
-async function site({ saveFails = false, readFails = false, enabled = true, allowed = true, delivery = 'live', register = {}, bodyless = false }: { delivery?: 'live' | 'static'; saveFails?: boolean; readFails?: boolean; enabled?: boolean; allowed?: boolean; register?: Parameters<typeof registerConsentHttp>[1]; bodyless?: boolean } = {}) {
+type SiteOptions = { pageHtml?: string; delivery?: 'live' | 'static'; saveFails?: boolean; readFails?: boolean; enabled?: boolean; allowed?: boolean; register?: Parameters<typeof registerConsentHttp>[1]; bodyless?: boolean };
+async function site(options: SiteOptions = {}) {
+  const { saveFails, readFails, enabled, allowed, delivery, register, bodyless, pageHtml } = { saveFails: false, readFails: false, enabled: true, allowed: true, delivery: 'live' as const, register: {}, bodyless: false, ...options };
   const records = new Map<string, ConsentRecord>();
   const failures: Array<{ operation: string; error: unknown }> = [];
   const ports: ConsentHttpPorts = {
@@ -31,7 +34,7 @@ async function site({ saveFails = false, readFails = false, enabled = true, allo
   // Express 5 leaves an unparsed body undefined; Express 4 always assigns {}, so pin that shape explicitly.
   if (bodyless) app.use((request, _response, next) => { Object.defineProperty(request, 'body', { get: () => undefined, set: () => undefined }); next(); });
   registerConsentHttp({ app, ports }, { delivery, ...register });
-  const html = '<html><head></head><body><script data-consent-category="analytics" src="https://tags.example/a.js"></script></body></html>';
+  const html = pageHtml ?? '<html><head></head><body><script data-consent-category="analytics" src="https://tags.example/a.js"></script></body></html>';
   app.get('/', (_req, res) => res.type('html').send(html));
   app.get('/buffer', (_req, res) => res.type('html').send(Buffer.from(html)));
   app.get('/end', (_req, res) => res.type('html').end(Buffer.from(html)));
@@ -180,22 +183,24 @@ describe('availability and delivery regressions', () => {
     const response = await fetch(base + '/late-json');
     expect(response.status).toBe(200); expect(await response.text()).toBe('{"ok":true}'); expect(failures).toEqual([]);
   });
-  it('a rejected transform caused by a throwing reporter completes with original HTML and restrictive CSP', async () => {
-    const { base, ports, html } = await site();
+  it('a rejected transform caused by a throwing reporter completes with inert text and restrictive CSP', async () => {
+    const { base, ports } = await site();
     ports.config.get = async () => { throw new Error('Policy unavailable'); };
     ports.reportError = () => { throw new Error('Reporter unavailable'); };
     const response = await fetch(base, { signal: AbortSignal.timeout(2000) });
-    expect(response.status).toBe(200); expect(await response.text()).toBe(html);
+    expect(response.status).toBe(200); expect(await response.text()).toBe(inertText);
+    expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8');
     expect(response.headers.get('content-security-policy')).toContain("script-src 'none'");
     expect(response.headers.get('content-security-policy')).toContain("connect-src 'none'");
     expect(response.headers.get('content-length')).toBeNull(); expect(response.headers.get('etag')).toBeNull();
   });
-  it('an HTML page larger than maxHtmlBytes is served unmodified under the restrictive policy', async () => {
-    const { base, html, failures } = await site({ register: { maxHtmlBytes: 64 } });
+  it('an HTML page larger than maxHtmlBytes is replaced with inert text under the restrictive policy', async () => {
+    const { base, failures } = await site({ register: { maxHtmlBytes: 64 } });
     const response = await fetch(base);
-    expect(await response.text()).toBe(html);
+    expect(await response.text()).toBe(inertText);
+    expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8');
     expect(response.headers.get('content-security-policy')).toContain("script-src 'none'");
-    expect(failures.map(entry => (entry.error as Error).message)).toEqual(['Consent HTML exceeded 64 bytes, so it was served unmodified under the restrictive consent policy. Raise maxHtmlBytes if pages are legitimately larger.']);
+    expect(failures.map(entry => (entry.error as Error).message)).toEqual(['Consent HTML exceeded 64 bytes, so delivery was refused or replaced with inert text. Raise maxHtmlBytes if pages are legitimately larger.']);
     expect(() => registerConsentHttp({ app: express(), ports: {} as ConsentHttpPorts }, { maxHtmlBytes: 0 })).toThrow('Consent maxHtmlBytes must be a positive whole number of bytes; got 0.');
   });
   it('write throttling never prevents public page delivery or receipt status', async () => {
@@ -237,12 +242,14 @@ describe('choice and delivery boundaries', () => {
     const response = await choose(base, 'accept');
     expect(response.status).toBe(400); expect(records.size).toBe(0);
   });
-  it('compressed HTML is delivered unchanged under the blocking policy; identity encoding is gated', async () => {
-    const { base, html, failures } = await site();
+  it('compressed HTML is replaced with inert text under the blocking policy; identity encoding is gated', async () => {
+    const { base, failures } = await site();
     const gzip = await fetch(`${base}/gzip`);
     expect(gzip.headers.get('content-security-policy')).toContain("script-src 'none'");
-    expect(Buffer.from(await gzip.arrayBuffer()).toString('utf8')).toBe(html);
-    expect(failures.map(entry => (entry.error as Error).message)).toEqual(['Consent requires uncompressed HTML.']);
+    expect(Buffer.from(await gzip.arrayBuffer()).toString('utf8')).toBe(inertText);
+    expect(gzip.headers.get('content-encoding')).toBeNull();
+    expect(gzip.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+    expect(failures.map(entry => (entry.error as Error).message)).toEqual(['Consent requires uncompressed HTML. Mount consent before compression and retry this page.']);
     expect(await (await fetch(`${base}/identity`)).text()).toContain('<template data-jini-consent-script');
   });
   it('passes request nonces, manifest scripts and theme origins to the gate', async () => {
@@ -254,4 +261,75 @@ describe('choice and delivery boundaries', () => {
     const fixed = await site({ register: { nonce: 'n-2' } });
     expect(await (await fetch(fixed.base)).text()).toContain('nonce="n-2"');
   });
+});
+
+
+describe('review regressions: delivery policy and malformed proof', () => {
+  it.each(['/', '/stream', '/file', '/headerless'])('refuses oversized static HTML before selecting overflow fallback: %s', async route => {
+    const { base, ports } = await site({ delivery: 'static', register: { maxHtmlBytes: 64 } });
+    let reads = 0;
+    ports.config.get = async () => { reads++; return config; };
+    const response = await fetch(base + route, { signal: AbortSignal.timeout(2000) });
+    expect(response.status).toBe(409);
+    expect(await response.text()).toBe('Static export requires cookie consent to be disabled. Review optional scripts before exporting.');
+    expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8'); expect(reads).toBe(1);
+  });
+  it.each(['live', 'static'] as const)('preserves oversized consent-disabled pages byte-for-byte in %s delivery', async delivery => {
+    const { base, html, ports, failures } = await site({ enabled: false, delivery, register: { maxHtmlBytes: 16 } });
+    let reads = 0;
+    ports.config.get = async () => { reads++; return { ...config, enabled: false }; };
+    ports.records.read = async () => { throw new Error('Disabled delivery must not read receipts.'); };
+    for (const route of ['/', '/stream', '/file', '/headerless']) {
+      const response = await fetch(base + route, { signal: AbortSignal.timeout(2000) });
+      expect(response.status).toBe(200); expect(await response.text()).toBe(html);
+      expect(response.headers.get('content-security-policy')).toBeNull(); expect(response.headers.get('vary')).toBeNull();
+    }
+    expect(reads).toBe(4); expect(failures).toEqual([]);
+  });
+  it.each(['overflow', 'transform failure'])('returns inert text instead of optional same-origin pixels or meta refresh after %s', async kind => {
+    const pageHtml = '<html><head><meta http-equiv="refresh" content="0;url=https://tracker.example/landing"></head><body><img width="1" data-consent-category="marketing" src="/collect?event=view"></body></html>';
+    const { base } = await site({ pageHtml, register: kind === 'overflow' ? { maxHtmlBytes: 16 } : { nonce: () => { throw new Error('The consent nonce is unavailable. Retry page delivery.'); } } });
+    const response = await fetch(base);
+    expect(await response.text()).toBe(inertText);
+    expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+    expect(response.headers.get('content-security-policy')).toContain("img-src 'none'");
+    expect(response.headers.get('content-security-policy')).toContain("script-src 'none'");
+    expect(response.headers.get('content-length')).toBeNull();
+  });
+  it.each(['short', '', '%broken', 'a'.repeat(129)])('denies malformed present receipt cookies in opt-out regions without reading storage: %s', async id => {
+    const { base, ports, failures } = await site();
+    ports.config.get = async () => ({ ...config, regionMode: 'opt-out' });
+    ports.records.read = async () => { throw new Error('Malformed receipt IDs must not reach storage.'); };
+    const html = await (await fetch(base, { headers: { cookie: `jini_consent=${id}` } })).text();
+    expect(html).toContain('"hasRecord":false'); expect(html).toContain('"optOut":false'); expect(html).toContain('"marketing":false');
+    expect(failures.map(entry => (entry.error as Error).message)).toEqual(['The consent receipt cookie is invalid. Optional content stays denied; choose cookie preferences again.']);
+  });
+  it('retains invalid presence when a legacy host parser returns null, including custom cookie names', async () => {
+    const { base, ports, failures } = await site({ register: { cookieName: 'privacy_proof' } });
+    ports.config.get = async () => ({ ...config, regionMode: 'opt-out' });
+    ports.readReceiptId = () => null;
+    const absent = await (await fetch(base, { headers: { cookie: 'other=value' } })).text();
+    expect(absent).toContain('"optOut":true'); expect(absent).toContain('"marketing":true');
+    const invalid = await (await fetch(base, { headers: { cookie: 'other=value; privacy_proof=%broken' } })).text();
+    expect(invalid).toContain('"optOut":false'); expect(invalid).toContain('"marketing":false'); expect(failures).toHaveLength(1);
+  });
+  it('accepts explicit absent-versus-invalid proof from a structured host reader', async () => {
+    const { base, ports, failures } = await site();
+    ports.config.get = async () => ({ ...config, regionMode: 'opt-out' });
+    ports.readReceiptId = () => ({ id: null, present: true });
+    const invalid = await (await fetch(base)).text();
+    expect(invalid).toContain('"optOut":false'); expect(invalid).toContain('"marketing":false'); expect(failures).toHaveLength(1);
+    ports.readReceiptId = () => ({ id: null, present: false });
+    const absent = await (await fetch(base)).text();
+    expect(absent).toContain('"optOut":true'); expect(absent).toContain('"marketing":true'); expect(failures).toHaveLength(1);
+  });
+});
+
+
+it('does not consult consent for an oversized response whose content type becomes JSON before end', async () => {
+  const { base, ports, failures } = await site({ register: { maxHtmlBytes: 1 } });
+  ports.config.get = async () => { throw new Error('JSON must not read consent policy.'); };
+  const response = await fetch(base + '/late-json');
+  expect(await response.json()).toEqual({ ok: true });
+  expect(response.headers.get('content-security-policy')).toBeNull(); expect(failures).toEqual([]);
 });
