@@ -424,4 +424,53 @@ describe('DelegatedToolBridge', () => {
     expect(unsubscribes).toHaveLength(2);
     expect(unsubscribes.map((unsubscribe) => unsubscribe.mock.calls.length)).toEqual([1, 1]);
   });
+
+  it('reports an emit failure on the result path as an error tool_result carrying that emit error, then rethrows it', async () => {
+    const registry = createToolRegistry({});
+    registry.register({ descriptor: { id: 'ok-tool' }, handler: async () => 'done', policy: { authorize: () => 'allow' } });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    const originalEmit = lifecycle.emit.bind(lifecycle);
+    const emitted: RunAgentPayload[] = [];
+    vi.spyOn(lifecycle, 'emit').mockImplementation(async (args) => {
+      const data = (args.input as { data: RunAgentPayload }).data;
+      emitted.push(data);
+      if (data.type === 'tool_result' && !('isError' in data)) throw new Error('event log unavailable');
+      return originalEmit(args);
+    });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+
+    await expect(bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'ok-tool', principal: { id: 'user-1' }, input: {} }))
+      .rejects.toThrow('event log unavailable');
+    expect(emitted.slice(1)).toEqual([
+      { type: 'tool_result', toolUseId: 'call-1', content: 'done' },
+      { type: 'tool_result', toolUseId: 'call-1', content: 'event log unavailable', isError: true },
+    ]);
+  });
+
+  it('re-arms the slow-run notice only after the tool_result is emitted, when a mid-call surface suspended it', async () => {
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    const registry = createToolRegistry({});
+    registry.register({
+      descriptor: { id: 'form' },
+      handler: async (_ctx, options) => { await options?.emitSurface?.({ channel: 'a2ui', payload: { message: {} } }); return 'answered'; },
+      policy: { authorize: () => 'allow' },
+    });
+    const order: string[] = [];
+    const originalEmit = lifecycle.emit.bind(lifecycle);
+    vi.spyOn(lifecycle, 'emit').mockImplementation(async (args) => {
+      order.push(`emit:${(args.input as { data: RunAgentPayload }).data.type}`);
+      return originalEmit(args);
+    });
+    const originalSuspend = lifecycle.suspendSlowRunNotice.bind(lifecycle);
+    vi.spyOn(lifecycle, 'suspendSlowRunNotice').mockImplementation((args) => { order.push('suspend'); originalSuspend(args); });
+    const originalResume = lifecycle.resumeSlowRunNotice.bind(lifecycle);
+    vi.spyOn(lifecycle, 'resumeSlowRunNotice').mockImplementation((args) => { order.push('resume'); originalResume(args); });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+
+    await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'form', principal: { id: 'user-1' }, input: {} });
+
+    expect(order).toEqual(['emit:tool_use', 'suspend', 'emit:a2ui', 'emit:tool_result', 'resume']);
+  });
 });
