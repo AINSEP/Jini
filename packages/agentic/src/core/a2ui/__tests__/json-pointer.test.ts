@@ -272,6 +272,9 @@ describe('setAtPointer — escapes, array-index edge cases and malformed pointer
     const result = setAtPointer({ doc: { list: [] }, pointer: '/list/1000000', value: 1 }) as { list: unknown[] };
     expect(result.list.length).toBe(1_000_001);
   });
+  it('writes through an existing array element, keeping its other keys', () => {
+    expect(setAtPointer({ doc: { list: [{ name: 'b', keep: 1 }] }, pointer: '/list/0/name', value: 'c' })).toEqual({ list: [{ name: 'c', keep: 1 }] });
+  });
   it('writes through an array-hole intermediate by creating an object', () => {
     // eslint-disable-next-line no-sparse-arrays
     expect(setAtPointer({ doc: { list: [, 1] }, pointer: '/list/0/a', value: 2 })).toEqual({ list: [{ a: 2 }, 1] });
