@@ -23,14 +23,9 @@ export function createDirectoryRunningLock(
   }, { bootIdentity }: { bootIdentity?: () => BootIdentity | undefined } = {},
 ): DirectoryRunningLock {
   function readLive(cleanup = true): DirectoryRunningRecord | null {
-    const result = file.read({});
-    if (result.state === "missing") return null;
-    if (result.state !== "ok") throw new Error("The running lock is unreadable; refusing to open this directory's database.");
-    const record = result.value as DirectoryRunningRecord | null;
-    if (!validRunningRecord(record)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
-    const boot = bootIdentity?.();
-    const sameBoot = !boot || (record.bootId !== undefined ? record.bootId === boot.id : Date.parse(record.started) >= boot.startedAtMs);
-    if (sameBoot && isAlive({ pid: record.pid })) return record;
+    const record = readStoredRecord({ file });
+    if (!record) return null;
+    if (fromCurrentBoot({ record }, { boot: bootIdentity?.() }) && isAlive({ pid: record.pid })) return record;
     if (cleanup) remove(); return null;
   }
   return {
@@ -47,7 +42,7 @@ export function createDirectoryRunningLock(
       } });
     },
     update({ token, port }, _optional = {}) {
-      if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Running port must be between 1 and 65535.");
+      if (!isPortInRange(port, { min: 1 })) throw new Error("Running port must be between 1 and 65535.");
       file.withLock({ critical: () => {
         const record = readLive();
         if (!record || record.token !== token) throw new Error("Running lock ownership was lost.");
@@ -61,10 +56,32 @@ export function createDirectoryRunningLock(
   };
 }
 
+/** Missing is no lease; unreadable or invalid bytes refuse admission rather than being overwritten. */
+function readStoredRecord({ file }: { file: DurableJsonFile }): DirectoryRunningRecord | null {
+  const result = file.read({});
+  if (result.state === "missing") return null;
+  if (result.state !== "ok") throw new Error("The running lock is unreadable; refusing to open this directory's database.");
+  if (!validRunningRecord(result.value)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
+  return result.value;
+}
+/** Unknown boot identity fails safe to the liveness probe. Legacy leases without a boot id
+ * are from this boot only if they started at or after it. */
+function fromCurrentBoot({ record }: { record: DirectoryRunningRecord }, { boot }: { boot: BootIdentity | undefined }): boolean {
+  if (!boot) return true;
+  return record.bootId !== undefined ? record.bootId === boot.id : Date.parse(record.started) >= boot.startedAtMs;
+}
+function isPortInRange(port: number, { min }: { min: number }): boolean {
+  return Number.isInteger(port) && port >= min && port <= 65535;
+}
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
 function validRunningRecord(value: unknown): value is DirectoryRunningRecord {
   if (!value || typeof value !== "object") return false;
   const record = value as DirectoryRunningRecord;
-  return Number.isSafeInteger(record.pid) && record.pid > 0 && Number.isInteger(record.port) && record.port >= 0 && record.port <= 65535 &&
-    typeof record.app === "string" && record.app.length > 0 && typeof record.token === "string" && record.token.length > 0 &&
-    (record.bootId === undefined || typeof record.bootId === "string") && typeof record.started === "string" && Number.isFinite(Date.parse(record.started)) && ["http", "https"].includes(record.scheme);
+  return Number.isSafeInteger(record.pid) && record.pid > 0 && isPortInRange(record.port, { min: 0 }) &&
+    isNonEmptyString(record.app) && isNonEmptyString(record.token) && validStartedAndBoot(record) && ["http", "https"].includes(record.scheme);
+}
+function validStartedAndBoot(record: DirectoryRunningRecord): boolean {
+  return (record.bootId === undefined || typeof record.bootId === "string") && typeof record.started === "string" && Number.isFinite(Date.parse(record.started));
 }
