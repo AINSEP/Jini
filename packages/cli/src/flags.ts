@@ -44,38 +44,40 @@ export function parseFlags({ argv }: { argv: readonly string[] }, opts: ParseFla
     const a = argv[i]!;
     if (!a.startsWith('--')) continue;
 
-    const eq = a.indexOf('=');
-    const key = eq >= 0 ? a.slice(2, eq) : a.slice(2);
+    const { key, inlineValue } = splitFlagToken({ token: a });
     if (knownFlags.size > 0 && !knownFlags.has(key)) {
       throw new Error(`unknown flag: --${key}. Run with --help for the list of accepted flags.`);
     }
-
-    if (eq >= 0) {
-      out[key] = a.slice(eq + 1);
-      continue;
-    }
-    if (booleanFlags.has(key)) {
-      out[key] = true;
-      continue;
-    }
-    if (stringFlags.has(key)) {
-      const next = argv[i + 1];
-      if (next === undefined) {
-        throw new Error(`flag --${key} requires a value`);
-      }
-      out[key] = next;
-      i++;
-      continue;
-    }
-    const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith('--')) {
-      out[key] = next;
-      i++;
-    } else {
-      out[key] = true;
-    }
+    const { value, consumesNext } = resolveFlagValue({ key, inlineValue, next: argv[i + 1] }, { stringFlags, booleanFlags });
+    out[key] = value;
+    if (consumesNext) i++;
   }
   return out;
+}
+
+/** Split a `--key` / `--key=value` token; `inlineValue` is everything after the first `=`, if any. */
+function splitFlagToken({ token }: { token: string }): { key: string; inlineValue: string | undefined } {
+  const eq = token.indexOf('=');
+  return eq >= 0 ? { key: token.slice(2, eq), inlineValue: token.slice(eq + 1) } : { key: token.slice(2), inlineValue: undefined };
+}
+
+/**
+ * Decide one flag's value, in precedence order: an inline `=value`, then a declared boolean
+ * (`true`), then a declared string flag (always takes `next`, which must exist), then the
+ * undeclared heuristic (`next` when it does not itself start with `--`, else `true`).
+ */
+function resolveFlagValue(
+  { key, inlineValue, next }: { key: string; inlineValue: string | undefined; next: string | undefined },
+  { stringFlags, booleanFlags }: { stringFlags: ReadonlySet<string>; booleanFlags: ReadonlySet<string> },
+): { value: FlagValue; consumesNext: boolean } {
+  if (inlineValue !== undefined) return { value: inlineValue, consumesNext: false };
+  if (booleanFlags.has(key)) return { value: true, consumesNext: false };
+  if (stringFlags.has(key)) {
+    if (next === undefined) throw new Error(`flag --${key} requires a value`);
+    return { value: next, consumesNext: true };
+  }
+  if (next !== undefined && !next.startsWith('--')) return { value: next, consumesNext: true };
+  return { value: true, consumesNext: false };
 }
 
 export interface PositionalArgsOptions {
@@ -97,13 +99,14 @@ export interface PositionalArgsOptions {
  */
 export function positionalArgs({ argv }: { argv: readonly string[] }, opts: PositionalArgsOptions = {}): string[] {
   const stringFlags = opts.string ?? new Set<string>();
+  const stopAtDoubleDash = opts.stopAtDoubleDash === true;
   const out: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
     // Loop is bounded by argv.length, so this index is always in range —
     // noUncheckedIndexedAccess types it as possibly-undefined regardless.
     const a = argv[i]!;
-    if (opts.stopAtDoubleDash === true && a === '--') {
+    if (stopAtDoubleDash && a === '--') {
       out.push(...argv.slice(i + 1));
       break;
     }
@@ -111,9 +114,8 @@ export function positionalArgs({ argv }: { argv: readonly string[] }, opts: Posi
       out.push(a);
       continue;
     }
-    const eq = a.indexOf('=');
-    const key = eq >= 0 ? a.slice(2, eq) : a.slice(2);
-    if (eq < 0 && stringFlags.has(key)) i++;
+    const { key, inlineValue } = splitFlagToken({ token: a });
+    if (inlineValue === undefined && stringFlags.has(key)) i++;
   }
   return out;
 }
