@@ -50,20 +50,7 @@ function escapeTranscriptRoleDelimiters(content: string): string {
  * @complexity O(n) across all messages' events.
  */
 function buildPriorRunContextWarning(history: ChatMessage[], largeToolResultChars: number, highInputTokenWarningThreshold: number): string | null {
-  let highestInputTokens = 0;
-  let largeToolResults = 0;
-
-  for (const message of history) {
-    for (const event of message.events ?? []) {
-      if (event.kind === 'usage' && typeof event.inputTokens === 'number') {
-        highestInputTokens = Math.max(highestInputTokens, event.inputTokens);
-      }
-      if (event.kind === 'tool_result' && event.content.length > largeToolResultChars) {
-        largeToolResults += 1;
-      }
-    }
-  }
-
+  const { highestInputTokens, largeToolResults } = scanPriorRunTelemetry({ history, largeToolResultChars });
   const notes: string[] = [];
   if (highestInputTokens >= highInputTokenWarningThreshold) {
     notes.push(`a previous run reported ${highestInputTokens} input tokens`);
@@ -74,6 +61,24 @@ function buildPriorRunContextWarning(history: ChatMessage[], largeToolResultChar
   if (notes.length === 0) return null;
 
   return ['## context warning', `Detected ${notes.join(', ')}.`, 'Keep this turn compact: summarize prior tool output, read large references from temp files, and quote only task-relevant lines.'].join('\n');
+}
+
+/** The highest reported input-token count and the number of oversized tool results across all events. */
+function scanPriorRunTelemetry(
+  { history, largeToolResultChars }: { history: ChatMessage[]; largeToolResultChars: number },
+  _optional: {} = {},
+): { highestInputTokens: number; largeToolResults: number } {
+  let highestInputTokens = 0;
+  let largeToolResults = 0;
+  for (const event of history.flatMap((message) => message.events ?? [])) {
+    if (event.kind === 'usage' && typeof event.inputTokens === 'number') {
+      highestInputTokens = Math.max(highestInputTokens, event.inputTokens);
+    }
+    if (event.kind === 'tool_result' && event.content.length > largeToolResultChars) {
+      largeToolResults += 1;
+    }
+  }
+  return { highestInputTokens, largeToolResults };
 }
 
 function scopeHistoryToAgent(history: ChatMessage[], targetAgentId: string | undefined, isSameAgentFamily: (agentId: string, targetAgentId: string) => boolean): ChatMessage[] {

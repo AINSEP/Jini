@@ -25,70 +25,91 @@
  *   the (already shrinking) tail.
  */
 export function repairJsonPrefix({ buf }: { buf: string }): string {
-  const stack: string[] = []; // closers owed, e.g. ['}', ']']
-  let inStr = false;
-  let esc = false;
-  for (let i = 0; i < buf.length; i++) {
-    const c = buf[i];
-    if (inStr) {
-      if (esc) esc = false;
-      else if (c === '\\') esc = true;
-      else if (c === '"') inStr = false;
-      continue;
-    }
-    if (c === '"') inStr = true;
-    else if (c === '{') stack.push('}');
-    else if (c === '[') stack.push(']');
-    else if (c === '}' || c === ']') stack.pop();
-  }
-
-  let out = buf;
-  // 1. Close a string cut off mid-value (or mid-key). First neutralize a
-  //    dangling escape at the cut point, otherwise the closing quote would be
-  //    swallowed (`...x\` + `"` → escaped quote) or a partial `\uXXXX` would
-  //    be an invalid escape — either makes JSON.parse fail and collapses the
-  //    live preview. Common in prompts that mention Windows paths, regexes,
-  //    or escaped quotes.
-  if (inStr) {
-    out = out.replace(/\\u[0-9a-fA-F]{0,3}$/, ''); // incomplete \uXXXX
-    if (/(?:^|[^\\])(?:\\\\)*\\$/.test(out)) out = out.slice(0, -1); // lone trailing backslash
-    out += '"';
-  }
-  // 2. Trim trailing structural noise that can't be completed into a value:
-  //    a dangling comma, a `"key":` with no value yet, and an unfinished
-  //    *scalar* value cut mid-token (a partial `true`/`false`/`null`, or a
-  //    number ending on `.`/`e`/sign). Leaving those makes `{… :f}` etc.
-  //    unparseable, collapsing the live preview whenever a literal splits
-  //    across deltas. Each trim leaves a `"key":` / `,` / `[` boundary that
-  //    the next loop iteration cleans up. Complete literals (`true`, `12`,
-  //    `1.5`, `1e3`) are not prefixes of these patterns, so they survive.
-  const valueStart = '([:[,]\\s*)';
-  let prev: string;
-  do {
-    prev = out;
-    out = out.replace(/[,\s]+$/, '');
-    out = out.replace(/"(?:[^"\\]|\\.)*"\s*:\s*$/, ''); // key + colon, no value
-    out = out.replace(new RegExp(`${valueStart}(?:tru|tr|t|fals|fal|fa|f|nul|nu|n)$`), '$1'); // partial bool/null
-    out = out.replace(new RegExp(`${valueStart}-?(?:\\d+\\.?\\d*|\\d*\\.\\d+)?[eE][+-]?$`), '$1'); // dangling exponent
-    out = out.replace(new RegExp(`${valueStart}-?\\d*\\.$`), '$1'); // number ending in '.'
-    out = out.replace(new RegExp(`${valueStart}-$`), '$1'); // lone minus
-    out = out.replace(/"(?:[^"\\]|\\.)*"\s*:\s*$/, ''); // key + colon exposed by the trims above
-    out = out.replace(/[,\s]+$/, '');
-  } while (out !== prev);
-  // A bare trailing key (string with no following colon) only happens when
-  // the *innermost* open container is an object. Drop it so we don't emit
-  // `{"hea"}` which is invalid (key without value).
-  if (stack[stack.length - 1] === '}' && /"(?:[^"\\]|\\.)*"\s*$/.test(out)) {
-    const trimmed = out.replace(/"(?:[^"\\]|\\.)*"\s*$/, '');
-    // Only drop it if what precedes is a container/comma boundary (i.e. the
-    // string really is a pending key, not a completed value like `:"x"`).
-    if (/[{,]\s*$/.test(trimmed)) {
-      out = trimmed.replace(/[,\s]+$/, '');
-    }
-  }
+  const { stack, inStr } = scanOpenState({ buf });
+  let out = inStr ? closeOpenString({ out: buf }) : buf;
+  out = trimIncompleteTail({ out });
+  out = dropPendingKey({ out, stack });
   // 3. Close every still-open container, innermost first.
   for (let i = stack.length - 1; i >= 0; i--) out += stack[i];
   return out;
+}
+
+const CLOSER_FOR: Readonly<Record<string, string>> = { '{': '}', '[': ']' };
+
+/** Push the closer an opener owes, or pay one off for a closer. */
+function trackContainer({ stack, c }: { stack: string[]; c: string }, _optional: {} = {}): void {
+  const closer = CLOSER_FOR[c];
+  if (closer) stack.push(closer);
+  else if (c === '}' || c === ']') stack.pop();
+}
+
+/** Walk the buffer once, tracking string/escape state and the closers still owed. */
+function scanOpenState({ buf }: { buf: string }, _optional: {} = {}): { stack: string[]; inStr: boolean } {
+  const stack: string[] = []; // closers owed, e.g. ['}', ']']
+  let inStr = false;
+  let esc = false;
+  for (const c of buf) {
+    if (!inStr) {
+      inStr = c === '"';
+      trackContainer({ stack, c });
+    } else if (esc) esc = false;
+    else if (c === '\\') esc = true;
+    else if (c === '"') inStr = false;
+  }
+  return { stack, inStr };
+}
+
+// 1. Close a string cut off mid-value (or mid-key). First neutralize a
+//    dangling escape at the cut point, otherwise the closing quote would be
+//    swallowed (`...x\` + `"` → escaped quote) or a partial `\uXXXX` would
+//    be an invalid escape — either makes JSON.parse fail and collapses the
+//    live preview. Common in prompts that mention Windows paths, regexes,
+//    or escaped quotes.
+function closeOpenString({ out }: { out: string }, _optional: {} = {}): string {
+  let closed = out.replace(/\\u[0-9a-fA-F]{0,3}$/, ''); // incomplete \uXXXX
+  if (/(?:^|[^\\])(?:\\\\)*\\$/.test(closed)) closed = closed.slice(0, -1); // lone trailing backslash
+  return `${closed}"`;
+}
+
+// 2. Trim trailing structural noise that can't be completed into a value:
+//    a dangling comma, a `"key":` with no value yet, and an unfinished
+//    *scalar* value cut mid-token (a partial `true`/`false`/`null`, or a
+//    number ending on `.`/`e`/sign). Leaving those makes `{… :f}` etc.
+//    unparseable, collapsing the live preview whenever a literal splits
+//    across deltas. Each trim leaves a `"key":` / `,` / `[` boundary that
+//    the next loop iteration cleans up. Complete literals (`true`, `12`,
+//    `1.5`, `1e3`) are not prefixes of these patterns, so they survive.
+//    A `"key":` (or `,`) exposed by a later trim is removed on the next
+//    fixed-point iteration, so each pattern needs to appear only once.
+const valueStart = '([:[,]\\s*)';
+const TAIL_TRIMS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/[,\s]+$/, ''],
+  [/"(?:[^"\\]|\\.)*"\s*:\s*$/, ''], // key + colon, no value
+  [new RegExp(`${valueStart}(?:tru|tr|t|fals|fal|fa|f|nul|nu|n)$`), '$1'], // partial bool/null
+  [new RegExp(`${valueStart}-?(?:\\d+\\.?\\d*|\\d*\\.\\d+)?[eE][+-]?$`), '$1'], // dangling exponent
+  [new RegExp(`${valueStart}-?\\d*\\.$`), '$1'], // number ending in '.'
+  [new RegExp(`${valueStart}-$`), '$1'], // lone minus
+];
+
+function trimIncompleteTail({ out }: { out: string }, _optional: {} = {}): string {
+  let current = out;
+  let prev: string;
+  do {
+    prev = current;
+    for (const [pattern, replacement] of TAIL_TRIMS) current = current.replace(pattern, replacement);
+  } while (current !== prev);
+  return current;
+}
+
+// A bare trailing key (string with no following colon) only happens when
+// the *innermost* open container is an object. Drop it so we don't emit
+// `{"hea"}` which is invalid (key without value).
+function dropPendingKey({ out, stack }: { out: string; stack: readonly string[] }, _optional: {} = {}): string {
+  if (stack[stack.length - 1] !== '}') return out;
+  const trimmed = out.replace(/"(?:[^"\\]|\\.)*"\s*$/, '');
+  // Only drop it if what precedes is a container/comma boundary (i.e. the
+  // string really is a pending key, not a completed value like `:"x"`).
+  return trimmed !== out && /[{,]\s*$/.test(trimmed) ? trimmed.replace(/[,\s]+$/, '') : out;
 }
 
 /**

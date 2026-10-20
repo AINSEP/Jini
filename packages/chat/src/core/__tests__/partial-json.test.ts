@@ -12,6 +12,18 @@ describe('partial-json: repairJsonPrefix', () => {
     expect(JSON.parse(repairJsonPrefix({ buf: '{"a":"emoji\\u00' }))).toEqual({ a: 'emoji' });
   });
 
+  it('drops a lone trailing backslash cut mid-escape so the closing quote is not swallowed', () => {
+    expect(repairJsonPrefix({ buf: '{"a":"x\\' })).toBe('{"a":"x"}');
+  });
+
+  it('ends an escape after one character so a later quote still closes the string', () => {
+    expect(JSON.parse(repairJsonPrefix({ buf: '{"a":"x\\n","b":[1' }))).toEqual({ a: 'x\n', b: [1] });
+  });
+
+  it('keeps a stack-unbalanced closer instead of throwing and leaves the remaining opener closed', () => {
+    expect(repairJsonPrefix({ buf: '{"a":[1]}]' })).toBe('{"a":[1]}]');
+  });
+
   it('tracks escaped characters inside a string so an escaped quote does not prematurely close it', () => {
     // The `\"` here is an escaped quote *inside* the string value, not its terminator — if the
     // escape tracking were wrong, the string would appear closed and "more text" would be parsed
