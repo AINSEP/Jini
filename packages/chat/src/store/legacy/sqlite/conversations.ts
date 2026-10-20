@@ -9,19 +9,16 @@ import type { ChatSessionMode } from '../index.js';
 import { rows } from '@jini-ai/db/core';
 
 /**
- * Returns all conversations for a project, newest first, each enriched with message count,
- * the latest assistant run summary, and total accumulated run duration across all terminal runs.
- * @param db Open SQLite database handle.
- * @param projectId The project whose conversations to list.
+ * @internal Builds the summary query shared by `listConversations` and `getConversation`: every
+ * conversation matching `filterColumn = ?`, each enriched with message count, the latest assistant
+ * run summary, and total accumulated run duration across all terminal runs.
  */
-export function listConversations({ db, projectId }: { db: SqliteDb; projectId: string }) {
-  return rows(db
-    .prepare(
-      `WITH project_conversations AS (
+function conversationSummarySql(filterColumn: 'project_id' | 'id') {
+  return `WITH selected_conversations AS (
           SELECT id, project_id AS projectId, title, session_mode AS sessionMode,
                  created_at AS createdAt, updated_at AS updatedAt
             FROM conversations
-           WHERE project_id = ?
+           WHERE ${filterColumn} = ?
         ),
         latest_runs AS (
           SELECT conversation_id AS conversationId,
@@ -40,7 +37,7 @@ export function listConversations({ db, projectId }: { db: SqliteDb; projectId: 
                        ORDER BY m.position DESC
                      ) AS rn
                 FROM messages m
-                JOIN project_conversations c ON c.id = m.conversation_id
+                JOIN selected_conversations c ON c.id = m.conversation_id
                WHERE m.role = 'assistant'
                  AND m.run_status IS NOT NULL
             )
@@ -50,14 +47,14 @@ export function listConversations({ db, projectId }: { db: SqliteDb; projectId: 
           SELECT m.conversation_id AS conversationId,
                  COUNT(*) AS messageCount
             FROM messages m
-            JOIN project_conversations c ON c.id = m.conversation_id
+            JOIN selected_conversations c ON c.id = m.conversation_id
            GROUP BY m.conversation_id
         ),
         total_run_durations AS (
           SELECT m.conversation_id AS conversationId,
-                 SUM(${terminalRunDurationSql('m')}) AS totalDurationMs
+                 SUM(${TERMINAL_RUN_DURATION_SQL}) AS totalDurationMs
             FROM messages m
-            JOIN project_conversations c ON c.id = m.conversation_id
+            JOIN selected_conversations c ON c.id = m.conversation_id
            WHERE m.role = 'assistant'
              AND m.run_status IN ('succeeded', 'failed', 'canceled')
            GROUP BY m.conversation_id
@@ -67,12 +64,21 @@ export function listConversations({ db, projectId }: { db: SqliteDb; projectId: 
                lr.latestRunStatus, lr.latestRunStartedAt,
                lr.latestRunEndedAt, lr.latestRunEventsJson,
                trd.totalDurationMs
-          FROM project_conversations c
+          FROM selected_conversations c
           LEFT JOIN latest_runs lr ON lr.conversationId = c.id
           LEFT JOIN message_counts mc ON mc.conversationId = c.id
-          LEFT JOIN total_run_durations trd ON trd.conversationId = c.id
-         ORDER BY c.updatedAt DESC`,
-    )
+          LEFT JOIN total_run_durations trd ON trd.conversationId = c.id`;
+}
+
+/**
+ * Returns all conversations for a project, newest first, each enriched with message count,
+ * the latest assistant run summary, and total accumulated run duration across all terminal runs.
+ * @param db Open SQLite database handle.
+ * @param projectId The project whose conversations to list.
+ */
+export function listConversations({ db, projectId }: { db: SqliteDb; projectId: string }) {
+  return rows(db
+    .prepare(`${conversationSummarySql('project_id')}\n         ORDER BY c.updatedAt DESC`)
     .all(projectId)).map(normalizeConversation);
 }
 
@@ -83,20 +89,8 @@ export function listConversations({ db, projectId }: { db: SqliteDb; projectId: 
  * @param id Conversation id.
  */
 export function getConversation({ db, id }: { db: SqliteDb; id: string }) {
-  const r = db
-    .prepare(
-      `SELECT id, project_id AS projectId, title, session_mode AS sessionMode,
-              created_at AS createdAt, updated_at AS updatedAt,
-              (SELECT COUNT(*) FROM messages WHERE conversation_id = conversations.id) AS messageCount
-         FROM conversations WHERE id = ?`,
-    )
-    .get(id) as DbRow | undefined;
-  if (!r) return null;
-  return {
-    ...normalizeConversation(r),
-    latestRun: latestConversationRunSummary(db, r.id) ?? undefined,
-    ...numberProperty('totalDurationMs', totalConversationRunDurationMs(db, r.id)),
-  };
+  const r = db.prepare(conversationSummarySql('id')).get(id) as DbRow | undefined;
+  return r ? normalizeConversation(r) : null;
 }
 
 /** @internal Shapes a raw SQLite row into the canonical conversation object, including run summary. */
@@ -130,6 +124,12 @@ export function normalizeConversationSessionMode({ value }: { value: unknown }):
   return value === 'chat' || value === 'plan' ? value : 'design';
 }
 
+/** @internal Converts a nullable SQLite value to a finite number, or undefined when absent or non-finite. */
+function finiteNumber(value: unknown): number | undefined {
+  const n = value == null ? undefined : Number(value);
+  return n !== undefined && Number.isFinite(n) ? n : undefined;
+}
+
 /**
  * @internal Produces a single-key object `{ [key]: number }` only when value is a finite number,
  * omitting the key entirely otherwise. Generic over `key` (rather than plain `string`) so the
@@ -138,53 +138,16 @@ export function normalizeConversationSessionMode({ value }: { value: unknown }):
  * through at the call site.
  */
 function numberProperty<K extends string>(key: K, value: unknown): Partial<Record<K, number>> {
-  const n = value == null ? undefined : Number(value);
-  return typeof n === 'number' && Number.isFinite(n)
-    ? ({ [key]: n } as Record<K, number>)
-    : {};
+  const n = finiteNumber(value);
+  return n === undefined ? {} : ({ [key]: n } as Record<K, number>);
 }
 
-/** @internal Queries the most recent assistant run summary for a conversation (used by getConversation's per-row fetch path). */
-function latestConversationRunSummary(db: SqliteDb, conversationId: string) {
-  const row = db
-    .prepare(
-      `SELECT run_status AS runStatus,
-              started_at AS startedAt,
-              ended_at AS endedAt,
-              events_json AS eventsJson
-         FROM messages
-        WHERE conversation_id = ?
-          AND role = 'assistant'
-          AND run_status IS NOT NULL
-        ORDER BY position DESC
-        LIMIT 1`,
-    )
-    .get(conversationId) as DbRow | undefined;
-  return conversationRunSummaryFromRow(row);
-}
-
-/** @internal Sums terminal-run duration across all succeeded/failed/canceled assistant messages in a conversation. */
-function totalConversationRunDurationMs(db: SqliteDb, conversationId: string): number | undefined {
-  const row = db
-    .prepare(
-      `SELECT SUM(${terminalRunDurationSql()}) AS totalDurationMs
-         FROM messages
-        WHERE conversation_id = ?
-          AND role = 'assistant'
-          AND run_status IN ('succeeded', 'failed', 'canceled')`,
-    )
-    .get(conversationId) as DbRow | undefined;
-  return row?.totalDurationMs == null ? undefined : Number(row.totalDurationMs);
-}
-
-/** @internal Emits the SQL CASE expression that resolves a terminal run's duration: wall-clock diff when both timestamps exist, otherwise the latest usage event's durationMs. */
-function terminalRunDurationSql(alias?: string) {
-  const p = alias ? `${alias}.` : '';
-  return `CASE
-            WHEN ${p}started_at IS NOT NULL AND ${p}ended_at IS NOT NULL THEN
+/** @internal The SQL CASE expression that resolves a terminal run's duration (over messages alias `m`): wall-clock diff when both timestamps exist, otherwise the latest usage event's durationMs. */
+const TERMINAL_RUN_DURATION_SQL = `CASE
+            WHEN m.started_at IS NOT NULL AND m.ended_at IS NOT NULL THEN
               CASE
-                WHEN CAST(${p}ended_at AS INTEGER) >= CAST(${p}started_at AS INTEGER)
-                  THEN CAST(${p}ended_at AS INTEGER) - CAST(${p}started_at AS INTEGER)
+                WHEN CAST(m.ended_at AS INTEGER) >= CAST(m.started_at AS INTEGER)
+                  THEN CAST(m.ended_at AS INTEGER) - CAST(m.started_at AS INTEGER)
                 ELSE 0
               END
             ELSE (
@@ -195,8 +158,8 @@ function terminalRunDurationSql(alias?: string) {
                      END
                 FROM json_each(
                   CASE
-                    WHEN json_valid(${p}events_json) AND json_type(${p}events_json) = 'array'
-                      THEN ${p}events_json
+                    WHEN json_valid(m.events_json) AND json_type(m.events_json) = 'array'
+                      THEN m.events_json
                     ELSE '[]'
                   END
                 ) AS usage_event
@@ -207,50 +170,49 @@ function terminalRunDurationSql(alias?: string) {
                LIMIT 1
             )
           END`;
-}
 
 /** @internal Converts a raw message row (runStatus/startedAt/endedAt/eventsJson) into a run summary object, or null when no run status is present. */
-function conversationRunSummaryFromRow(row: DbRow | undefined) {
-  if (!row || typeof row.runStatus !== 'string') return null;
-  const startedAt = row.startedAt == null ? undefined : Number(row.startedAt);
-  const endedAt = row.endedAt == null ? undefined : Number(row.endedAt);
-  const usageDurationMs = latestUsageDurationMs(row.eventsJson);
-  const durationMs =
-    Number.isFinite(startedAt) && Number.isFinite(endedAt)
-      ? Math.max(0, (endedAt as number) - (startedAt as number))
-      : usageDurationMs;
+function conversationRunSummaryFromRow(row: DbRow) {
+  if (typeof row.runStatus !== 'string') return null;
+  const startedAt = finiteNumber(row.startedAt);
+  const endedAt = finiteNumber(row.endedAt);
+  const durationMs = startedAt !== undefined && endedAt !== undefined
+    ? Math.max(0, endedAt - startedAt)
+    : latestUsageDurationMs(row.eventsJson);
   return {
     status: row.runStatus,
-    ...(Number.isFinite(startedAt) ? { startedAt } : {}),
-    ...(Number.isFinite(endedAt) ? { endedAt } : {}),
-    ...(typeof durationMs === 'number' && Number.isFinite(durationMs)
-      ? { durationMs }
-      : {}),
+    ...numberProperty('startedAt', startedAt),
+    ...numberProperty('endedAt', endedAt),
+    ...numberProperty('durationMs', durationMs),
   };
 }
 
 /** @internal Parses events_json to find the most recent usage event's durationMs; returns undefined when events_json is absent or malformed. */
 function latestUsageDurationMs(eventsJson: unknown): number | undefined {
-  if (typeof eventsJson !== 'string' || eventsJson.length === 0) return undefined;
-  try {
-    const events = JSON.parse(eventsJson);
-    if (!Array.isArray(events)) return undefined;
-    for (let i = events.length - 1; i >= 0; i -= 1) {
-      const event = events[i];
-      if (
-        event &&
-        typeof event === 'object' &&
-        event.kind === 'usage' &&
-        typeof event.durationMs === 'number' &&
-        Number.isFinite(event.durationMs)
-      ) {
-        return Math.max(0, event.durationMs);
-      }
-    }
-  } catch {
-    return undefined;
+  const events = parseEventsArray(eventsJson);
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const durationMs = usageEventDurationMs(events[i]);
+    if (durationMs !== undefined) return Math.max(0, durationMs);
   }
   return undefined;
+}
+
+/** @internal Parses events_json as an array; absent, malformed, or non-array JSON yields an empty list. */
+function parseEventsArray(eventsJson: unknown): unknown[] {
+  if (typeof eventsJson !== 'string' || eventsJson.length === 0) return [];
+  try {
+    const events: unknown = JSON.parse(eventsJson);
+    return Array.isArray(events) ? events : [];
+  } catch {
+    return [];
+  }
+}
+
+/** @internal Returns a usage event's finite durationMs, or undefined for any other event shape. */
+function usageEventDurationMs(event: unknown): number | undefined {
+  if (!event || typeof event !== 'object') return undefined;
+  const { kind, durationMs } = event as { kind?: unknown; durationMs?: unknown };
+  return kind === 'usage' && typeof durationMs === 'number' && Number.isFinite(durationMs) ? durationMs : undefined;
 }
 
 /**
@@ -272,7 +234,7 @@ export function insertConversation({ db, c }: { db: SqliteDb; c: DbRow }) {
     c.createdAt,
     c.updatedAt,
   );
-  return getConversation({ db: db, id: c.id });
+  return getConversation({ db, id: c.id });
 }
 
 /**
@@ -283,7 +245,7 @@ export function insertConversation({ db, c }: { db: SqliteDb; c: DbRow }) {
  * @param patch Fields to overwrite; sessionMode and updatedAt are normalized before persisting.
  */
 export function updateConversation({ db, id, patch }: { db: SqliteDb; id: string; patch: DbRow }) {
-  const existing = getConversation({ db: db, id: id });
+  const existing = getConversation({ db, id });
   if (!existing) return null;
   const merged = {
     ...existing,
@@ -297,7 +259,7 @@ export function updateConversation({ db, id, patch }: { db: SqliteDb; id: string
     `UPDATE conversations
         SET title = ?, session_mode = ?, updated_at = ? WHERE id = ?`,
   ).run(merged.title ?? null, merged.sessionMode, merged.updatedAt, id);
-  return getConversation({ db: db, id: id });
+  return getConversation({ db, id });
 }
 
 /**
