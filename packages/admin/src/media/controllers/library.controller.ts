@@ -39,6 +39,39 @@ export function createLibraryController(
   }
   let readAbort: AbortController | null = null,
     generation = 0;
+  /** Store patch for an accepted full library: filtered rows plus whole-library tab counts.
+   * @complexity O(n) in the library size. */
+  function libraryView({ media }: { media: readonly MediaAsset[] }, _optional: Record<string, never> = {}) {
+    return { items: queryMedia({ media, query: store.getSnapshot().query }), counts: countMediaTabs({ media }) };
+  }
+  /** Commits a read that is still the latest one; items are frozen so consumers cannot mutate rows. */
+  function acceptRead({ all }: { all: readonly MediaAsset[] }, _optional: Record<string, never> = {}) {
+    readFailed = false;
+    retryAttempt = 0;
+    library = all;
+    const { items, counts } = libraryView({ media: all });
+    store.set({
+      patch: {
+        items: Object.freeze(items.map((item) => Object.freeze({ ...item }))),
+        counts,
+        hasUntyped: all.some((item) => item.contentType === null),
+        error: null,
+      },
+    });
+  }
+  /** Publishes the latest read's failure and, when the failure is transient, schedules a retry. */
+  function failRead({ error }: { error: unknown }, _optional: Record<string, never> = {}) {
+    readFailed = true;
+    store.set({
+      patch: { loading: false, error: error instanceof Error ? error.message : 'Failed to load media' },
+    });
+    // Retry reads only, never destructive writes. Keep trying at a capped delay so
+    // recovery needs no manual repair, while an offline service isn't hammered.
+    if (isRetryableMediaError({ error })) {
+      const delay = Math.min(1000 * 2 ** Math.min(retryAttempt++, 5), 30000);
+      retryTimer = setTimeout(() => { retryTimer = null; void load(); }, delay);
+    }
+  }
   async function load(
     _required: Record<string, never> = {},
     _optional: Record<string, never> = {},
@@ -52,34 +85,10 @@ export function createLibraryController(
     store.set({ patch: { loading: true, error: null } });
     try {
       const all = await api.list({}, { signal: abort.signal });
-      const items = queryMedia({ media: all, query: store.getSnapshot().query });
-      if (ticket === generation) {
-        readFailed = false;
-        retryAttempt = 0;
-        library = all;
-        store.set({
-          patch: {
-            items: Object.freeze(items.map((item) => Object.freeze({ ...item }))),
-            counts: countMediaTabs({ media: all }),
-            hasUntyped: all.some((item) => item.contentType === null),
-            error: null,
-          },
-        });
-      }
+      if (ticket === generation) acceptRead({ all });
     } catch (error) {
       // A later background failure must not blank an already-rendered screen.
-      if (!abort.signal.aborted && ticket === generation) {
-        readFailed = true;
-        store.set({
-          patch: { loading: false, error: error instanceof Error ? error.message : 'Failed to load media' },
-        });
-        // Retry reads only, never destructive writes. Keep trying at a capped delay so
-        // recovery needs no manual repair, while an offline service isn't hammered.
-        if (isRetryableMediaError({ error })) {
-          const delay = Math.min(1000 * 2 ** Math.min(retryAttempt++, 5), 30000);
-          retryTimer = setTimeout(() => { retryTimer = null; void load(); }, delay);
-        }
-      }
+      if (!abort.signal.aborted && ticket === generation) failRead({ error });
     } finally {
       if (ticket === generation) store.set({ patch: { loading: false } });
     }
@@ -90,7 +99,7 @@ export function createLibraryController(
     if (store.signal.aborted) return;
     if (all) {
       library = all;
-      store.set({ patch: { items: queryMedia({ media: all, query: store.getSnapshot().query }), counts: countMediaTabs({ media: all }), hasUntyped: all.some(item => item.contentType === null), error: null } });
+      store.set({ patch: { ...libraryView({ media: all }), hasUntyped: all.some(item => item.contentType === null), error: null } });
     }
     if (error) store.set({ patch: { error: error.message } });
   }
@@ -108,19 +117,23 @@ export function createLibraryController(
       // not survive past the start of an unrelated one.
       generation++; readAbort?.abort(); cancelRetry();
       store.set({ patch: { loading: false, error: null } });
+      // A single exit: a write disposed mid-flight or a failed write reports false.
+      let saved = false;
       try {
         await run();
-        if (store.signal.aborted) return false;
-        await load();
-        return true;
+        if (!store.signal.aborted) {
+          await load();
+          saved = true;
+        }
       } catch (error) {
-        if (!store.signal.aborted) store.set({ patch: { loading: false, error: error instanceof Error ? error.message : 'Media write failed' } });
-        return false;
+        // The store ignores patches once disposed, so a write failing after dispose publishes nothing.
+        store.set({ patch: { loading: false, error: error instanceof Error ? error.message : 'Media write failed' } });
       } finally {
         if (id === undefined) exclusiveWrite = false;
         const pendingIds = store.getSnapshot().pendingIds.filter(value => value !== id);
         store.set({ patch: { busy: pendingIds.length > 0, pendingIds } });
       }
+      return saved;
     });
     writes = operation.catch(() => undefined);
     return operation;
@@ -173,7 +186,7 @@ export function createLibraryController(
         // A failed follow-up read must not leave a permanently deleted card focusable.
         if (library) {
           library = library.filter(row => row.id !== item.id);
-          store.set({ patch: { items: queryMedia({ media: library, query: store.getSnapshot().query }), counts: countMediaTabs({ media: library }) } });
+          store.set({ patch: libraryView({ media: library }) });
         }
       });
       if (saved) store.set({ patch: { pendingPurge: null } });

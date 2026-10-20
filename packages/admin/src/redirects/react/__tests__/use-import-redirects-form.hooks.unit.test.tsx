@@ -5,6 +5,12 @@ import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 import type { RedirectImportRule } from "./legacy-harness.js";
 import { createFakeRedirectsPort } from "./legacy-harness.js";
 import { useImportRedirectsForm, useWiredImportRedirectsForm } from "./legacy-harness.js";
+import type { AdminRedirectsPort } from "../../../core/ports/redirects.js";
+import { AdminApiError } from "../../../core/transport/errors.js";
+import { createMemoryRedirectsApi } from "../../adapters/memory.js";
+import { translateRedirectsEn } from "../../messages.en.js";
+import { useImportRedirectsForm as useCoreImportRedirectsForm } from "../hooks/use-import-redirects-form.hooks.js";
+import type { ImportRedirectsFormController } from "../hooks/use-import-redirects-form.hooks.js";
 
 /**
  * @file `useImportRedirectsForm` (SPEC-037 REQ-04) — the bulk-import textarea's lifecycle.
@@ -220,5 +226,53 @@ describe("useImportRedirectsForm — injected t/locale are genuinely returned, n
     expect(result.current.t("Bulk import")).toBe("TRANSLATED[Bulk import]");
     expect(result.current.t).toBe(distinctiveT);
     expect(result.current.locale).toBe("fr");
+  });
+});
+
+describe("useImportRedirectsForm — core hook boundaries", () => {
+  const VALID_RAW = JSON.stringify([{ matchType: "exact", fromPattern: "/a", toTarget: "/b", statusCode: 301 }]);
+
+  it("defaults to the English translator and locale when no options are passed", () => {
+    const { result } = renderHook(() => useCoreImportRedirectsForm({ api: createMemoryRedirectsApi({}, {}) }), { wrapper });
+    expect(result.current.t).toBe(translateRedirectsEn);
+    expect(result.current.locale).toBe("en");
+  });
+
+  it("starts empty: no raw text, no error, no result, not importing", () => {
+    const { result } = renderHook(() => useCoreImportRedirectsForm({ api: createMemoryRedirectsApi({}, {}) }, { t: fakeT }), { wrapper });
+    expect(result.current).toMatchObject({ raw: "", error: null, result: null, importing: false });
+  });
+
+  it("first-render handlers are inert before the controller exists, but still prevent the native submit", async () => {
+    const onImport = vi.fn(() => ({ created: [], failed: [] }));
+    const renders: ImportRedirectsFormController[] = [];
+    renderHook(() => {
+      const form = useCoreImportRedirectsForm({ api: createMemoryRedirectsApi({}, { onImport }) }, { t: fakeT });
+      renders.push(form);
+      return form;
+    }, { wrapper });
+    const first = renders[0];
+    assert.isDefined(first);
+    expect(first).toMatchObject({ raw: "", error: null, result: null });
+    expect(first.setRaw(VALID_RAW)).toBeUndefined();
+    const event = fakeSubmitEvent();
+    await expect(first.submit(event)).resolves.toBeUndefined();
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
+    expect(onImport).not.toHaveBeenCalled();
+  });
+
+  it("falls back to 'Import failed' when the port rejects with a message-less API error", async () => {
+    const api: AdminRedirectsPort = { ...createMemoryRedirectsApi({}, {}),
+      importRedirects: () => Promise.reject(new AdminApiError({ message: "", status: 500 })) };
+    const { result } = renderHook(() => useCoreImportRedirectsForm({ api }, { t: fakeT }), { wrapper });
+    act(() => result.current.setRaw(VALID_RAW));
+    await act(async () => result.current.submit(fakeSubmitEvent()));
+    expect(result.current.error).toBe("Import failed");
+  });
+
+  it("keeps the edited raw text in state", () => {
+    const { result } = renderHook(() => useCoreImportRedirectsForm({ api: createMemoryRedirectsApi({}, {}) }, { t: fakeT }), { wrapper });
+    act(() => result.current.setRaw(VALID_RAW));
+    expect(result.current.raw).toBe(VALID_RAW);
   });
 });

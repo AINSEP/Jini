@@ -100,10 +100,20 @@ export function canRestoreMedia({ api }: { api: import('./ports.js').MediaApiPor
  * Authorization/validation failures must never produce an automatic request loop. */
 export function isRetryableMediaError({ error }: { error: unknown }, _optional: Record<string, never> = {}) {
   if (!error || typeof error !== 'object') return false;
-  const failure = error as { retryable?: boolean; status?: number; statusCode?: number; message?: string };
+  const failure = error as MediaErrorShape;
   if (typeof failure.retryable === 'boolean') return failure.retryable;
-  const status = failure.status ?? failure.statusCode ?? Number(failure.message?.match(/HTTP\s+(\d{3})/i)?.[1]);
-  return status === 408 || status === 429 || (status >= 500 && status <= 599) || error instanceof TypeError;
+  return isRetryableHttpStatus({ status: mediaErrorHttpStatus({ failure }) }) || error instanceof TypeError;
+}
+/** The fields a media transport error may carry; every one is optional and unverified. */
+interface MediaErrorShape { retryable?: boolean; status?: number; statusCode?: number; message?: string }
+/** `status`, else `statusCode`, else the `HTTP nnn` an older transport put in its message —
+ * `NaN` when none is present. */
+function mediaErrorHttpStatus({ failure }: { failure: MediaErrorShape }, _optional: Record<string, never> = {}): number {
+  return failure.status ?? failure.statusCode ?? Number(failure.message?.match(/HTTP\s+(\d{3})/i)?.[1]);
+}
+/** Request timeout, rate limiting and any 5xx are temporary; `NaN` and every other status are not. */
+function isRetryableHttpStatus({ status }: { status: number }, _optional: Record<string, never> = {}): boolean {
+  return status === 408 || status === 429 || (status >= 500 && status <= 599);
 }
 /** Blank means native size; invalid values reach the server's positive-integer validator. */
 export function parseOptionalPixelSize({ value }: { value: string }, _optional: Record<string, never> = {}): number | null {

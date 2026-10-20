@@ -1,6 +1,22 @@
 import type { MediaApiPort, MediaProvidersPort } from '../ports.js';
-import type { MediaAsset, UploadInput, MediaRequestOptions, MediaProvider } from '../models.js';
+import type {
+  MediaAsset,
+  UploadInput,
+  MediaRequestOptions,
+  MediaProvider,
+  MediaMetadataPatch,
+} from '../models.js';
 import { queryMedia } from '../rules.js';
+const METADATA_KEYS: readonly string[] = ['title', 'slug', 'alt', 'caption', 'credit', 'width', 'height', 'cssClass', 'htmlAttributes'];
+/** Only metadata keys with a defined value; null stays, so a patch can clear a nullable field. */
+function pickMetadata({ patch }: { patch: MediaMetadataPatch }): MediaMetadataPatch {
+  return Object.fromEntries(Object.entries(patch).filter(([key, value]) => METADATA_KEYS.includes(key) && value !== undefined));
+}
+/** Decoded length of a base64 string: 3 bytes per 4 chars, minus trailing padding. */
+function base64ByteSize({ dataBase64 }: { dataBase64: string }) {
+  const padding = dataBase64.match(/=+$/)?.[0].length ?? 0;
+  return Math.max(0, Math.floor(dataBase64.length * 3 / 4) - padding);
+}
 export function createMemoryMediaApi(
   { assets = [] }: { assets?: readonly MediaAsset[] },
   { now = () => new Date().toISOString() }: { now?: () => string } = {},
@@ -24,7 +40,7 @@ export function createMemoryMediaApi(
     // The REAL server ignores the declared string and stores sniffContentType(bytes) instead.
     // This fake has no bytes to sniff — its input is an opaque base64 string a test made up —
     // so it echoes what the caller declared. Tests needing disagreement must seed assets directly.
-    return { byteSize: Math.max(0, Math.floor(input.dataBase64.length * 3 / 4) - (input.dataBase64.match(/=+$/)?.[0].length ?? 0)), contentType: input.contentType, sha256: `memory-content-${++sequence}` };
+    return { byteSize: base64ByteSize(input), contentType: input.contentType, sha256: `memory-content-${++sequence}` };
   }
   return {
     replaceSupported: true,
@@ -42,15 +58,16 @@ export function createMemoryMediaApi(
       const timestamp = now();
       return put({
         id,
-        title: options.title ?? input.filename,
-        alt: options.alt ?? '',
-        caption: options.caption ?? '',
-        credit: options.credit ?? '',
-        slug: options.slug ?? id,
-        width: options.width ?? null,
-        height: options.height ?? null,
-        cssClass: options.cssClass ?? null,
-        htmlAttributes: options.htmlAttributes ?? null,
+        title: input.filename,
+        alt: '',
+        caption: '',
+        credit: '',
+        slug: id,
+        width: null,
+        height: null,
+        cssClass: null,
+        htmlAttributes: null,
+        ...pickMetadata({ patch: options }),
         status: 'active',
         publicUrl: null,
         createdAt: timestamp,
@@ -62,18 +79,12 @@ export function createMemoryMediaApi(
     async update({ id, patch }, options = {}) {
       check(options);
       const previous = get(id);
-      const metadata = Object.fromEntries(
-        Object.entries(patch).filter(
-          ([key, value]) =>
-            ['title', 'slug', 'alt', 'caption', 'credit', 'width', 'height', 'cssClass', 'htmlAttributes'].includes(key) && value !== undefined,
-        ),
-      );
-      return put({ ...previous, ...metadata, version: previous.version + 1, updatedAt: now() });
+      return put({ ...previous, ...pickMetadata({ patch }), version: previous.version + 1, updatedAt: now() });
     },
     async replace({ id, upload }, options = {}) {
       check(options);
       const previous = get(id);
-      if (previous.status !== 'active') throw new Error('Cannot replace trashed media');
+      if (previous.status !== 'active') throw new Error(`Cannot replace trashed media: ${id} (restore it first)`);
       return put({
         ...previous,
         ...content(upload),
@@ -99,7 +110,7 @@ export function createMemoryMediaApi(
     },
     async delete({ id }, options = {}) {
       check(options);
-      if (get(id).status !== 'trashed') throw new Error('Trash media before permanent deletion');
+      if (get(id).status !== 'trashed') throw new Error(`Trash media before permanent deletion: ${id}`);
       items.delete(id);
       return { purged: true };
     },
@@ -112,10 +123,10 @@ export function createMemoryMediaProviders(
   _optional: Record<string, never> = {},
 ): MediaProvidersPort {
   const items = new Map(providers.map((item) => [item.id, Object.freeze({ ...item })]));
-  function write(id: string, configured: boolean) {
+  function write(id: string, patch: Partial<MediaProvider>) {
     const previous = items.get(id);
-    if (!previous) throw new Error('Unknown provider');
-    const next = Object.freeze({ ...previous, configured });
+    if (!previous) throw new Error(`Unknown media provider: ${id}`);
+    const next = Object.freeze({ ...previous, ...patch });
     items.set(id, next);
     return next;
   }
@@ -126,20 +137,16 @@ export function createMemoryMediaProviders(
     },
     async saveSettings({ id, baseUrl, model }, options = {}) {
       options.signal?.throwIfAborted();
-      const previous = items.get(id);
-      if (!previous) throw new Error('Unknown provider');
-      const next = Object.freeze({ ...previous, baseUrl, model });
-      items.set(id, next);
-      return next;
+      return write(id, { baseUrl, model });
     },
     async saveCredential({ id, credential }, options = {}) {
       options.signal?.throwIfAborted();
-      if (!credential.trim()) throw new Error('Credential is required');
-      return write(id, true);
+      if (!credential.trim()) throw new Error(`Credential is required for media provider: ${id}`);
+      return write(id, { configured: true });
     },
     async removeCredential({ id }, options = {}) {
       options.signal?.throwIfAborted();
-      return write(id, false);
+      return write(id, { configured: false });
     },
   };
 }

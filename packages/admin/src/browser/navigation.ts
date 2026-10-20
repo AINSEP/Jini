@@ -64,6 +64,44 @@ export function navigate(
 }
 
 /**
+ * Whether the browser should leave this click to us.
+ *
+ * Anything but an unmodified primary click is the browser's to handle: cmd/ctrl-click opens a
+ * tab, shift-click a window, alt-click downloads.
+ */
+function isPlainPrimaryClick({ event }: { readonly event: MouseEvent }): boolean {
+  if (event.defaultPrevented || event.button !== 0) return false;
+  return !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey);
+}
+
+/** The clicked `<a>` when it asks for an ordinary in-place navigation to a non-fragment href, else `null`. */
+function findInPlaceAnchor({ event }: { readonly event: MouseEvent }): HTMLAnchorElement | null {
+  const anchor = (event.target as Element | null)?.closest?.('a');
+  if (!anchor || anchor.hasAttribute('download')) return null;
+  // An explicit target (`_blank`, a frame name) is an explicit request not to navigate in place.
+  const target = anchor.getAttribute('target');
+  if (target && target !== '_self') return null;
+
+  const href = anchor.getAttribute('href');
+  if (!href || href.startsWith('#')) return null;
+  return anchor;
+}
+
+/** The route path (with query and hash) `anchor` points at, or `null` when it leaves the same-origin `base`. */
+function internalRoutePath({ anchor, window, base }: { readonly anchor: HTMLAnchorElement; readonly window: Pick<Window, 'location'>; readonly base: string }): string | null {
+  // `anchor.href` is the resolved absolute form, which is what makes relative hrefs and
+  // cross-origin links both fall out correctly.
+  const url = new URL(anchor.href, window.location.href);
+  if (url.origin !== window.location.origin) return null;
+  if (url.pathname !== base && !url.pathname.startsWith(`${base}/`)) return null;
+
+  // `url.hash` is carried through: an in-page fragment (`/admin/settings#seo-defaults`) is not a
+  // routing concern, but dropping it silently loses the anchor. It never reaches the matcher —
+  // the route snapshot is path + query only — so preserving it cannot affect routing.
+  return `${currentRoutePath({ pathname: url.pathname }, { base })}${url.search}${url.hash}`;
+}
+
+/**
  * Turns clicks on internal `<a href="/admin/...">` links into SPA navigations.
  *
  * A document-level listener rather than a `<Link>` component, and deliberately so: panel markup
@@ -79,33 +117,14 @@ export function installInternalLinkInterceptor(
   { base = DEFAULT_ADMIN_BASE }: { readonly base?: string } = {},
 ): () => void {
   const onClick = (event: MouseEvent) => {
-    // Anything but an unmodified primary click is the browser's to handle: cmd/ctrl-click opens a
-    // tab, shift-click a window, alt-click downloads.
-    if (event.defaultPrevented) return;
-    if (event.button !== 0) return;
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-
-    const anchor = (event.target as Element | null)?.closest?.('a');
+    if (!isPlainPrimaryClick({ event })) return;
+    const anchor = findInPlaceAnchor({ event });
     if (!anchor) return;
-    if (anchor.hasAttribute('download')) return;
-    // An explicit target (`_blank`, a frame name) is an explicit request not to navigate in place.
-    const target = anchor.getAttribute('target');
-    if (target && target !== '_self') return;
-
-    const href = anchor.getAttribute('href');
-    if (!href || href.startsWith('#')) return;
-
-    // `anchor.href` is the resolved absolute form, which is what makes relative hrefs and
-    // cross-origin links both fall out correctly.
-    const url = new URL(anchor.href, window.location.href);
-    if (url.origin !== window.location.origin) return;
-    if (url.pathname !== base && !url.pathname.startsWith(`${base}/`)) return;
+    const routePath = internalRoutePath({ anchor, window, base });
+    if (routePath === null) return;
 
     event.preventDefault();
-    // `url.hash` is carried through: an in-page fragment (`/admin/settings#seo-defaults`) is not a
-    // routing concern, but dropping it silently loses the anchor. It never reaches the matcher —
-    // the route snapshot is path + query only — so preserving it cannot affect routing.
-    navigate({ window, routePath: `${currentRoutePath({ pathname: url.pathname }, { base })}${url.search}${url.hash}` }, { base });
+    navigate({ window, routePath }, { base });
   };
 
   document.addEventListener('click', onClick);

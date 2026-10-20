@@ -8,6 +8,16 @@ import type { RedirectsTranslate } from '../../models.js';
 import { createImportRedirectsController } from '../../controllers/import-redirects.controller.js';
 import { KEYS } from '../../rules.js';
 import { translateRedirectsEn } from '../../messages.en.js';
+type ImportRedirectsSnapshot = ReturnType<ReturnType<typeof createImportRedirectsController>['getSnapshot']>;
+/** Before the controller mounts there is no snapshot: an empty form. A parse error wins over a
+ * request error, so a later parse failure replaces an earlier request failure instead of stacking. */
+function deriveFormState(
+  { snapshot, requestError }: { snapshot: ImportRedirectsSnapshot | null; requestError: unknown }, _optional = {},
+) {
+  return { raw: snapshot?.raw ?? '',
+    error: snapshot?.parseError ?? (requestError ? describeApiError({ e: requestError, fallback: 'Import failed' }) : null),
+    result: snapshot?.result ?? null };
+}
 /** A resolved 207 is a result, including failed items; only transport failures enter error state. */
 export function useImportRedirectsForm(
   { api }: { api: AdminRedirectsPort },
@@ -24,8 +34,8 @@ export function useImportRedirectsForm(
     e.preventDefault();
     return controller?.submit() ?? Promise.resolve();
   }
-  return { raw: snapshot?.raw ?? '', setRaw: (raw: string) => controller?.setRaw({ raw }),
-    error: snapshot?.parseError ?? (mutation.error ? describeApiError({ e: mutation.error, fallback: 'Import failed' }) : null),
-    result: snapshot?.result ?? null, importing: mutation.status === 'pending', submit, t, locale };
+  const { raw, error, result } = deriveFormState({ snapshot, requestError: mutation.error });
+  return { raw, setRaw: (next: string) => controller?.setRaw({ raw: next }),
+    error, result, importing: mutation.status === 'pending', submit, t, locale };
 }
 export type ImportRedirectsFormController = ReturnType<typeof useImportRedirectsForm>;

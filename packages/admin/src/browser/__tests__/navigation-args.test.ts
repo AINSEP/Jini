@@ -35,6 +35,14 @@ describe("navigate does not stack duplicate history entries", () => {
     expect(window.history.length).toBe(before);
   });
 
+  it("replaces the current entry instead of pushing when replace is set", () => {
+    at("/admin/start");
+    const before = window.history.length;
+    navigate({ window, routePath: "/settings" }, { replace: true });
+    expect(window.history.length).toBe(before);
+    expect(window.location.pathname).toBe("/admin/settings");
+  });
+
   it("still navigates when only the query differs", () => {
     at("/admin/widgets/new?type=text");
     navigate({ window, routePath: "/widgets/new?type=image" });
