@@ -62,6 +62,7 @@ import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
 import type { VendorAdapterRegistry } from '../vendor-registry.js';
 import { aihubmixAppCodeHeader, aihubmixGeminiImageUrl, aihubmixHeaders, AIHUBMIX_DEFAULT_BASE_URL, aihubmixWireModel, classifyAIHubMixModel } from './aihubmix-shared.js';
 
+const DEFAULT_IMAGE_PROMPT = 'A high-quality reference image.';
 const NO_CREDENTIAL_MESSAGE = 'no AIHubMix credential — configure an API key or set AIHUBMIX_API_KEY.';
 
 type AIHubMixImageMeta = { readonly kind: 'gemini'; readonly wireModel: string; readonly aspect: string } | { readonly kind: 'openai'; readonly wireModel: string };
@@ -87,7 +88,7 @@ const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
             ...aihubmixAppCodeHeader(),
           },
           body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: ctx.prompt || 'A high-quality reference image.' }] }],
+            contents: [{ role: 'user', parts: [{ text: ctx.prompt || DEFAULT_IMAGE_PROMPT }] }],
             generationConfig: {
               responseModalities: ['TEXT', 'IMAGE'],
               imageConfig: { aspectRatio: aspect },
@@ -100,7 +101,7 @@ const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
 
     const body: Record<string, unknown> = {
       model: wireModel,
-      prompt: ctx.prompt || 'A high-quality reference image.',
+      prompt: ctx.prompt || DEFAULT_IMAGE_PROMPT,
       n: 1,
       size: openaiSizeFor(wireModel, ctx.aspect),
     };
@@ -123,61 +124,68 @@ const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
   },
 
   async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<AIHubMixImageMeta> }): Promise<RenderResult> {
-    if (request.meta.kind === 'gemini') {
-      const { wireModel, aspect } = request.meta;
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        throw new Error(`aihubmix image (gemini) ${resp.status}: ${text.slice(0, 240)}`);
-      }
-      const data = (await resp.json()) as {
-        candidates?: ReadonlyArray<{ content?: { parts?: ReadonlyArray<{ inlineData?: { data?: unknown }; inline_data?: { data?: unknown } }> } }>;
-      };
-      const parts = data.candidates?.[0]?.content?.parts ?? [];
-      const b64 = parts.map((p) => p.inlineData?.data ?? p.inline_data?.data).find((d): d is string => typeof d === 'string' && d.length > 0);
-      if (!b64) {
-        throw new Error(`aihubmix gemini image response had no inline image data: ${JSON.stringify(data).slice(0, 200)}`);
-      }
-      const bytes = Buffer.from(b64, 'base64');
-      return {
-        bytes,
-        providerNote: `aihubmix/${wireModel} · ${aspect} · ${bytes.length} bytes (gemini-native)`,
-        suggestedExt: '.png',
-      };
-    }
-
-    const { wireModel } = request.meta;
-    const text = await resp.text();
-    if (!resp.ok) {
-      throw new Error(`aihubmix ${resp.status}: ${truncate(text, 240)}`);
-    }
-    let data: { data?: unknown };
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error(`aihubmix non-JSON response: ${truncate(text, 200)}`);
-    }
-    const entry = Array.isArray(data.data) ? (data.data[0] as { b64_json?: string; url?: string } | undefined) : undefined;
-    if (!entry) throw new Error('aihubmix response had no data[0]');
-    let bytes: Buffer;
-    if (entry.b64_json) {
-      bytes = Buffer.from(entry.b64_json, 'base64');
-    } else if (entry.url) {
-      const imgResp = await assertAndFetchExternalAsset({ url: entry.url }, { ...ctx, init: withRequestInit(ctx) });
-      if (!imgResp.ok) throw new Error(`aihubmix image fetch ${imgResp.status}`);
-      bytes = Buffer.from(await imgResp.arrayBuffer());
-    } else {
-      throw new Error('aihubmix response had neither b64_json nor url');
-    }
-    return {
-      bytes,
-      providerNote: `aihubmix/${wireModel} · ${ctx.aspect} · ${bytes.length} bytes`,
-      suggestedExt: '.png',
-    };
+    const { meta } = request;
+    return meta.kind === 'gemini' ? parseGeminiImageResponse({ resp, meta }) : parseOpenAIImageResponse({ resp, ctx, meta });
   },
 };
 
+type GeminiPart = { inlineData?: { data?: unknown }; inline_data?: { data?: unknown } };
+
+/** First non-empty base64 string across the parts; camelCase `inlineData` wins over `inline_data` within one part. */
+function firstInlineImageData(parts: ReadonlyArray<GeminiPart>): string | undefined {
+  return parts.map((p) => p.inlineData?.data ?? p.inline_data?.data).find((d): d is string => typeof d === 'string' && d.length > 0);
+}
+
+async function parseGeminiImageResponse({ resp, meta }: { resp: Response; meta: Extract<AIHubMixImageMeta, { kind: 'gemini' }> }): Promise<RenderResult> {
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`aihubmix image (gemini) ${resp.status}: ${text.slice(0, 240)}`);
+  }
+  const data = (await resp.json()) as { candidates?: ReadonlyArray<{ content?: { parts?: ReadonlyArray<GeminiPart> } }> };
+  const b64 = firstInlineImageData(data.candidates?.[0]?.content?.parts ?? []);
+  if (!b64) {
+    throw new Error(`aihubmix gemini image response had no inline image data: ${JSON.stringify(data).slice(0, 200)}`);
+  }
+  const bytes = Buffer.from(b64, 'base64');
+  return {
+    bytes,
+    providerNote: `aihubmix/${meta.wireModel} · ${meta.aspect} · ${bytes.length} bytes (gemini-native)`,
+    suggestedExt: '.png',
+  };
+}
+
+async function parseOpenAIImageResponse({ resp, ctx, meta }: { resp: Response; ctx: RenderContext; meta: AIHubMixImageMeta }): Promise<RenderResult> {
+  const text = await resp.text();
+  if (!resp.ok) {
+    throw new Error(`aihubmix ${resp.status}: ${truncate(text, 240)}`);
+  }
+  let data: { data?: unknown };
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`aihubmix non-JSON response: ${truncate(text, 200)}`);
+  }
+  const entry = Array.isArray(data.data) ? (data.data[0] as { b64_json?: string; url?: string } | undefined) : undefined;
+  if (!entry) throw new Error('aihubmix response had no data[0]');
+  const bytes = await openAIEntryBytes({ entry, ctx });
+  return {
+    bytes,
+    providerNote: `aihubmix/${meta.wireModel} · ${ctx.aspect} · ${bytes.length} bytes`,
+    suggestedExt: '.png',
+  };
+}
+
+/** Inline `b64_json` first; otherwise the `url`, downloaded through the SSRF guard (it is attacker-controllable). */
+async function openAIEntryBytes({ entry, ctx }: { entry: { b64_json?: string; url?: string }; ctx: RenderContext }): Promise<Buffer> {
+  if (entry.b64_json) return Buffer.from(entry.b64_json, 'base64');
+  if (!entry.url) throw new Error('aihubmix response had neither b64_json nor url');
+  const imgResp = await assertAndFetchExternalAsset({ url: entry.url }, { ...ctx, init: withRequestInit(ctx) });
+  if (!imgResp.ok) throw new Error(`aihubmix image fetch ${imgResp.status}`);
+  return Buffer.from(await imgResp.arrayBuffer());
+}
+
 export async function renderAIHubMixImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
-  return dispatchVendorRequest({ adapter: aihubmixImageAdapter, ctx: ctx, credentials: credentials });
+  return dispatchVendorRequest({ adapter: aihubmixImageAdapter, ctx, credentials });
 }
 
 interface AIHubMixTTSMeta {
@@ -218,7 +226,7 @@ const aihubmixTTSAdapter: VendorAdapter<AIHubMixTTSMeta> = {
 };
 
 export async function renderAIHubMixTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
-  return dispatchVendorRequest({ adapter: aihubmixTTSAdapter, ctx: ctx, credentials: credentials });
+  return dispatchVendorRequest({ adapter: aihubmixTTSAdapter, ctx, credentials });
 }
 
 /** Explicit composition: importing a renderer never changes another module's registry. */

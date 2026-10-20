@@ -57,36 +57,35 @@ function nanoBananaHeaders(baseUrl: string, apiKey: string): Record<string, stri
 /**
  * `providers.ts`'s `MEDIA_ASPECTS` are all natively supported by Nano
  * Banana's `imageConfig.aspectRatio`; anything else defaults to `'1:1'`.
- * Written as independent `if` returns (rather than the origin's one
- * `||`-chained condition) to match this package's established
+ * Written as a `Set` membership test (rather than the origin's one
+ * `||`-chained condition) to match this package's table-driven
  * aspect-mapping style (see `imagerouter.ts`'s `imageRouterSizeFor`) — same
- * input -> output mapping for every case, not a behavior change.
+ * input -> output mapping for every case, not a behavior change. A `Set`,
+ * not an object literal, so an inherited key like `constructor` can never match.
  */
+const NANOBANANA_ASPECTS: ReadonlySet<string> = new Set(['1:1', '16:9', '9:16', '4:3', '3:4']);
+
 function nanoBananaAspectFor(aspect: string | undefined): string {
-  if (aspect === '1:1') return '1:1';
-  if (aspect === '16:9') return '16:9';
-  if (aspect === '9:16') return '9:16';
-  if (aspect === '4:3') return '4:3';
-  if (aspect === '3:4') return '3:4';
-  return '1:1';
+  return aspect !== undefined && NANOBANANA_ASPECTS.has(aspect) ? aspect : '1:1';
 }
 
+function asArray(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+/** A part's non-empty `inlineData.data` string, else `undefined` (camelCase only — Gemini's documented field). */
+function inlineDataOf(part: unknown): string | undefined {
+  const data = (part as { inlineData?: { data?: unknown } } | null)?.inlineData?.data;
+  return typeof data === 'string' && data ? data : undefined;
+}
+
+/** The first inline image across every candidate's parts, in order. */
 function inlineImageBytesFromGenerateContent(data: unknown): Buffer {
-  const candidates = (data as { candidates?: unknown } | null)?.candidates;
-  if (Array.isArray(candidates)) {
-    for (const candidate of candidates) {
-      const parts = (candidate as { content?: { parts?: unknown } } | null)?.content?.parts;
-      if (Array.isArray(parts)) {
-        for (const part of parts) {
-          const inline = (part as { inlineData?: { data?: unknown } } | null)?.inlineData;
-          if (typeof inline?.data === 'string' && inline.data) {
-            return Buffer.from(inline.data, 'base64');
-          }
-        }
-      }
-    }
-  }
-  throw new Error('nano-banana image response missing candidates[].content.parts[].inlineData.data');
+  const candidates = asArray((data as { candidates?: unknown } | null)?.candidates);
+  const parts = candidates.flatMap((candidate) => asArray((candidate as { content?: { parts?: unknown } } | null)?.content?.parts));
+  const b64 = parts.map(inlineDataOf).find((d): d is string => d !== undefined);
+  if (!b64) throw new Error('nano-banana image response missing candidates[].content.parts[].inlineData.data');
+  return Buffer.from(b64, 'base64');
 }
 
 const NO_CREDENTIAL_MESSAGE = 'no Nano Banana credential — configure an API key or set GOOGLE_API_KEY / GEMINI_API_KEY.';
@@ -147,7 +146,7 @@ const nanoBananaImageAdapter: VendorAdapter<NanoBananaImageMeta> = {
 };
 
 export async function renderNanoBananaImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
-  return dispatchVendorRequest({ adapter: nanoBananaImageAdapter, ctx: ctx, credentials: credentials });
+  return dispatchVendorRequest({ adapter: nanoBananaImageAdapter, ctx, credentials });
 }
 
 /** Explicit composition: importing a renderer never changes another module's registry. */

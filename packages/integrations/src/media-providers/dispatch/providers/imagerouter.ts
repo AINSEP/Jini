@@ -29,22 +29,18 @@ import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
 import type { VendorAdapterRegistry } from '../vendor-registry.js';
 
+// Maps (not object literals) so an inherited key such as `constructor` can never resolve as an aspect.
+const PORTRAIT_AND_4_3_SIZES: ReadonlyArray<readonly [string, string]> = [['9:16', '576x1024'], ['4:3', '1024x768'], ['3:4', '768x1024']];
+const IMAGE_SIZES: ReadonlyMap<string, string> = new Map([['16:9', '1024x576'], ...PORTRAIT_AND_4_3_SIZES]);
+const VIDEO_SIZES: ReadonlyMap<string, string> = new Map([['1:1', '1024x1024'], ...PORTRAIT_AND_4_3_SIZES]);
+
 /** ImageRouter's image/video generation `size` string for a given aspect ratio. */
 export function imageRouterSizeFor({ aspect, surface }: { aspect: string | undefined; surface: 'image' | 'video' }): string {
-  if (surface === 'video') {
-    if (aspect === '1:1') return '1024x1024';
-    if (aspect === '9:16') return '576x1024';
-    if (aspect === '4:3') return '1024x768';
-    if (aspect === '3:4') return '768x1024';
-    return '1024x576';
-  }
-  if (aspect === '16:9') return '1024x576';
-  if (aspect === '9:16') return '576x1024';
-  if (aspect === '4:3') return '1024x768';
-  if (aspect === '3:4') return '768x1024';
-  return '1024x1024';
+  const [sizes, fallback] = surface === 'video' ? [VIDEO_SIZES, '1024x576'] : [IMAGE_SIZES, '1024x1024'];
+  return sizes.get(aspect ?? '') ?? fallback;
 }
 
+const DEFAULT_BASE_URL = 'https://api.imagerouter.io/v1/openai';
 const NO_CREDENTIAL_MESSAGE = 'no ImageRouter API key — configure it or set IMAGEROUTER_API_KEY';
 
 interface ImageRouterMeta {
@@ -57,7 +53,7 @@ const imageRouterImageAdapter: VendorAdapter<ImageRouterMeta> = {
 
   buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<ImageRouterMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
-    const baseUrl = (credentials.baseUrl || 'https://api.imagerouter.io/v1/openai').trim();
+    const baseUrl = (credentials.baseUrl || DEFAULT_BASE_URL).trim();
     const wireModel = (credentials.model || ctx.wireModel).trim();
     const size = imageRouterSizeFor({ aspect: ctx.aspect, surface: 'image' });
     const body: Record<string, unknown> = {
@@ -95,7 +91,7 @@ const imageRouterImageAdapter: VendorAdapter<ImageRouterMeta> = {
 };
 
 export async function renderImageRouterImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
-  return dispatchVendorRequest({ adapter: imageRouterImageAdapter, ctx: ctx, credentials: credentials });
+  return dispatchVendorRequest({ adapter: imageRouterImageAdapter, ctx, credentials });
 }
 
 interface ImageRouterVideoMeta {
@@ -109,7 +105,7 @@ const imageRouterVideoAdapter: VendorAdapter<ImageRouterVideoMeta> = {
 
   buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<ImageRouterVideoMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
-    const baseUrl = (credentials.baseUrl || 'https://api.imagerouter.io/v1/openai').trim();
+    const baseUrl = (credentials.baseUrl || DEFAULT_BASE_URL).trim();
     const wireModel = (credentials.model || ctx.wireModel).trim();
     const seconds = typeof ctx.length === 'number' ? ctx.length : 'auto';
     const size = imageRouterSizeFor({ aspect: ctx.aspect, surface: 'video' });
@@ -148,7 +144,7 @@ const imageRouterVideoAdapter: VendorAdapter<ImageRouterVideoMeta> = {
 };
 
 export async function renderImageRouterVideo({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
-  return dispatchVendorRequest({ adapter: imageRouterVideoAdapter, ctx: ctx, credentials: credentials });
+  return dispatchVendorRequest({ adapter: imageRouterVideoAdapter, ctx, credentials });
 }
 
 /** Explicit composition: importing a renderer never changes another module's registry. */

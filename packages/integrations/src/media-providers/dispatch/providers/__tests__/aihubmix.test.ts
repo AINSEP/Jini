@@ -194,6 +194,54 @@ describe('renderAIHubMixImage', () => {
     });
 });
 
+describe('renderAIHubMixImage response decoding (pinned before refactor)', () => {
+    const GEMINI = { apiKey: 'ahm-test', model: 'aihubmix-gemini-3-pro-image-preview' };
+    function geminiParts(parts: ReadonlyArray<Record<string, unknown>>): Response {
+        return new Response(JSON.stringify({ candidates: [{ content: { parts } }] }), { status: 200 });
+    }
+    it('prefers the camelCase inlineData over snake_case inline_data within the same part', async () => {
+        const b64 = (s: string) => Buffer.from(s).toString('base64');
+        vi.stubGlobal('fetch', vi.fn(async () => geminiParts([{ inlineData: { data: b64('camel') }, inline_data: { data: b64('snake') } }])));
+        const result = await renderAIHubMixImage({ ctx: baseCtx(), credentials: GEMINI });
+        expect(result.bytes.toString('utf8')).toBe('camel');
+    });
+    it('lets an empty-string inlineData shadow the same part\'s inline_data, so the part yields nothing (reported, not fixed)', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => geminiParts([{ inlineData: { data: '' }, inline_data: { data: Buffer.from('snake').toString('base64') } }])));
+        await expect(renderAIHubMixImage({ ctx: baseCtx(), credentials: GEMINI })).rejects.toThrow(/^aihubmix gemini image response had no inline image data: /);
+    });
+    it('rejects a non-string inline data value and reports the response body in the error', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => geminiParts([{ inlineData: { data: 42 } }])));
+        await expect(renderAIHubMixImage({ ctx: baseCtx(), credentials: GEMINI })).rejects.toThrow(
+            'aihubmix gemini image response had no inline image data: {"candidates":[{"content":{"parts":[{"inlineData":{"data":42}}]}}]}',
+        );
+    });
+    it('surfaces the raw JSON SyntaxError, untagged, for a non-JSON 200 Gemini body (reported, not fixed)', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>oops</html>', { status: 200 })));
+        await expect(renderAIHubMixImage({ ctx: baseCtx(), credentials: GEMINI })).rejects.toThrow(SyntaxError);
+    });
+    it('falls through an empty b64_json to the url download', async () => {
+        vi.stubGlobal('fetch', vi.fn(async (url: string) => (url === 'http://203.0.113.7/y.png'
+            ? new Response(Buffer.from('via-url'), { status: 200 })
+            : new Response(JSON.stringify({ data: [{ b64_json: '', url: 'http://203.0.113.7/y.png' }] }), { status: 200 }))));
+        const result = await renderAIHubMixImage({ ctx: baseCtx(), credentials: { apiKey: 'ahm-test' } });
+        expect(result.bytes.toString('utf8')).toBe('via-url');
+        expect(result.providerNote).toBe('aihubmix/gpt-image-1 · 1:1 · 7 bytes');
+    });
+    it('throws the exact no-data[0] message when data[0] is null', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: [null] }), { status: 200 })));
+        await expect(renderAIHubMixImage({ ctx: baseCtx(), credentials: { apiKey: 'ahm-test' } })).rejects.toThrow(/^aihubmix response had no data\[0\]$/);
+    });
+    it('prints "undefined" for a missing aspect in the OpenAI-path providerNote (reported, not fixed)', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('ab').toString('base64') }] }), { status: 200 })));
+        const result = await renderAIHubMixImage({ ctx: baseCtx({ aspect: undefined }), credentials: { apiKey: 'ahm-test' } });
+        expect(result.providerNote).toBe('aihubmix/gpt-image-1 · undefined · 2 bytes');
+    });
+    it('reports the non-JSON body, truncated, in the OpenAI-path error', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('not json', { status: 200 })));
+        await expect(renderAIHubMixImage({ ctx: baseCtx(), credentials: { apiKey: 'ahm-test' } })).rejects.toThrow(/^aihubmix non-JSON response: not json$/);
+    });
+});
+
 describe('renderAIHubMixTTS', () => {
     function ttsCtx(overrides: Partial<RenderContext> = {}): RenderContext {
         return baseCtx({ surface: 'audio', audioKind: 'speech', model: 'aihubmix-tts-1', wireModel: 'aihubmix-tts-1', prompt: 'hello there', ...overrides });
