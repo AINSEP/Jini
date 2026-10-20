@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { prepareMessageAttachments, type MessageAttachmentReader, type MessageAttachmentSource } from '../attachment-content.js';
+import { messageContentWithImages, prepareMessageAttachments, type MessageAttachmentReader, type MessageAttachmentSource } from '../attachment-content.js';
 
 describe('message attachment content', () => {
   it('reads every ref in message order and preserves exact PNG bytes for native image inputs', async () => {
@@ -98,5 +98,15 @@ describe('message attachment content — pinned branches', () => {
     const read = vi.fn<MessageAttachmentReader>();
     expect(await prepareMessageAttachments({ refs: [], read })).toEqual({ images: [], imagePaths: [], notice: '' });
     expect(read).not.toHaveBeenCalled();
+  });
+});
+
+describe('messageContentWithImages', () => {
+  it('puts the prompt text first, then each image as a base64 source block in order', () => {
+    expect(messageContentWithImages({ prompt: 'look', images: [{ mimeType: 'image/png', data: 'AQ==' }, { mimeType: 'image/gif', data: 'Ag==' }] })).toEqual([
+      { type: 'text', text: 'look' },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AQ==' } },
+      { type: 'image', source: { type: 'base64', media_type: 'image/gif', data: 'Ag==' } },
+    ]);
   });
 });
