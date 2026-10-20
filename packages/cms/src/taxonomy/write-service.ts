@@ -256,6 +256,28 @@ export async function createTaxonomy(
   return taxonomy;
 }
 
+/** The owning-taxonomy lookup `createTerm`/`importTerm` both run before touching any term. */
+async function requireTaxonomy(required: { taxonomies: TaxonomyRepoPort; taxonomyId: string }): Promise<{ id: string; hierarchical: boolean }> {
+  const { taxonomies, taxonomyId } = required;
+  const taxonomy = await taxonomies.findById({ id: taxonomyId });
+  if (!taxonomy) {
+    throw new TaxonomyRecordNotFoundError({ message: `taxonomy '${taxonomyId}' was not found` });
+  }
+  return taxonomy;
+}
+
+/** `validateHierarchyAssignment`'s `resolvedParent` input: `"not-applicable"` when no parent was
+ * requested, `null` when the requested parent does not exist, else its id + taxonomy. */
+async function resolveCandidateParent(required: {
+  terms: TermRepoPort;
+  candidateParentId: string | null;
+}): Promise<{ id: string; taxonomyId: string } | null | "not-applicable"> {
+  const { terms, candidateParentId } = required;
+  if (candidateParentId === null) return "not-applicable";
+  const parentTerm = await terms.findById({ id: candidateParentId });
+  return parentTerm ? { id: parentTerm.id, taxonomyId: parentTerm.taxonomyId } : null;
+}
+
 export interface CreateTermRequired {
   deps: WriteServiceDeps;
   principalId: string;
@@ -281,17 +303,10 @@ export async function createTerm(
   const { parentId } = optional;
   await authorizeTaxonomyManage(deps, principalId);
 
-  const taxonomy = await deps.taxonomies.findById({ id: taxonomyId });
-  if (!taxonomy) {
-    throw new TaxonomyRecordNotFoundError({ message: `taxonomy '${taxonomyId}' was not found` });
-  }
+  const taxonomy = await requireTaxonomy({ taxonomies: deps.taxonomies, taxonomyId });
 
   const candidateParentId = parentId ?? null;
-  let resolvedParent: { id: string; taxonomyId: string } | null | "not-applicable" = "not-applicable";
-  if (candidateParentId !== null) {
-    const parentTerm = await deps.terms.findById({ id: candidateParentId });
-    resolvedParent = parentTerm ? { id: parentTerm.id, taxonomyId: parentTerm.taxonomyId } : null;
-  }
+  const resolvedParent = await resolveCandidateParent({ terms: deps.terms, candidateParentId });
 
   validateHierarchyAssignment({
     childTaxonomyId: taxonomyId,
@@ -349,6 +364,32 @@ export interface ImportTaxonomyRequired {
 }
 
 /**
+ * `importTaxonomy`/`importTerm`'s shared three-way CAS check (see
+ * `ImportTaxonomyRequired.expectedVersion`): `undefined` requires that no row exists yet; a number
+ * requires a row at exactly that version. Either mismatch is a `TaxonomyVersionConflictError`.
+ */
+function assertImportVersion(required: {
+  entity: "taxonomy" | "term";
+  id: string;
+  expectedVersion: number | undefined;
+  existing: { version: number } | null;
+}): void {
+  const { entity, id, expectedVersion, existing } = required;
+  if (expectedVersion === undefined) {
+    if (existing) {
+      throw new TaxonomyVersionConflictError({ message: `${entity} '${id}' already exists, but no expectedVersion was supplied for import` });
+    }
+    return;
+  }
+  if (!existing) {
+    throw new TaxonomyVersionConflictError({ message: `expected version ${expectedVersion} for ${entity} '${id}', but no such ${entity} exists` });
+  }
+  if (existing.version !== expectedVersion) {
+    throw new TaxonomyVersionConflictError({ message: `expected version ${expectedVersion} for ${entity} '${id}', found ${existing.version}` });
+  }
+}
+
+/**
  * Slice J1 — the publish-content import chokepoint for `taxonomies`. Address (name) uniqueness is
  * deliberately not checked here: the publish factory's own `address` precheck (F1's
  * `config.address`) owns that refusal before this is ever called, mirroring `importEntry`'s
@@ -366,18 +407,7 @@ export async function importTaxonomy(
   await authorizeTaxonomyManage(deps, principalId);
 
   const existing = await deps.taxonomies.findByIdFull({ id: id });
-  if (expectedVersion === undefined) {
-    if (existing) {
-      throw new TaxonomyVersionConflictError({ message: `taxonomy '${id}' already exists, but no expectedVersion was supplied for import` });
-    }
-  } else {
-    if (!existing) {
-      throw new TaxonomyVersionConflictError({ message: `expected version ${expectedVersion} for taxonomy '${id}', but no such taxonomy exists` });
-    }
-    if (existing.version !== expectedVersion) {
-      throw new TaxonomyVersionConflictError({ message: `expected version ${expectedVersion} for taxonomy '${id}', found ${existing.version}` });
-    }
-  }
+  assertImportVersion({ entity: "taxonomy", id, expectedVersion, existing });
 
   const now = kernelNowIso({ clock: deps.clock });
   const taxonomy: Taxonomy = {
@@ -471,51 +501,65 @@ export async function importTerm(
   const { parentId } = optional;
   await authorizeTaxonomyManage(deps, principalId);
 
-  const taxonomy = await deps.taxonomies.findById({ id: taxonomyId });
-  if (!taxonomy) {
-    throw new TaxonomyRecordNotFoundError({ message: `taxonomy '${taxonomyId}' was not found` });
-  }
+  const taxonomy = await requireTaxonomy({ taxonomies: deps.taxonomies, taxonomyId });
 
   const existing = await deps.terms.findByIdFull({ id: id });
-  if (expectedVersion === undefined) {
-    if (existing) {
-      throw new TaxonomyVersionConflictError({ message: `term '${id}' already exists, but no expectedVersion was supplied for import` });
-    }
-  } else {
-    if (!existing) {
-      throw new TaxonomyVersionConflictError({ message: `expected version ${expectedVersion} for term '${id}', but no such term exists` });
-    }
-    if (existing.version !== expectedVersion) {
-      throw new TaxonomyVersionConflictError({ message: `expected version ${expectedVersion} for term '${id}', found ${existing.version}` });
-    }
-    // A cross-taxonomy move would leave the term's children parented across taxonomies.
-    if (existing.taxonomyId !== taxonomyId) {
-      throw new TaxonomyVersionConflictError({ message: `term '${id}' belongs to taxonomy '${existing.taxonomyId}', not '${taxonomyId}'; an import cannot move a term between taxonomies` });
-    }
+  assertImportVersion({ entity: "term", id, expectedVersion, existing });
+  // A cross-taxonomy move would leave the term's children parented across taxonomies.
+  // (Only reachable with a matched `expectedVersion`: an `undefined` one over an existing row has
+  // already been refused above.)
+  if (existing && existing.taxonomyId !== taxonomyId) {
+    throw new TaxonomyVersionConflictError({ message: `term '${id}' belongs to taxonomy '${existing.taxonomyId}', not '${taxonomyId}'; an import cannot move a term between taxonomies` });
   }
 
   const candidateParentId = parentId ?? null;
-  let resolvedParent: { id: string; taxonomyId: string } | null | "not-applicable" = "not-applicable";
-  if (candidateParentId !== null) {
-    const parentTerm = await deps.terms.findById({ id: candidateParentId });
-    resolvedParent = parentTerm ? { id: parentTerm.id, taxonomyId: parentTerm.taxonomyId } : null;
-  }
-  const ancestors = candidateParentId === null ? new Map<string, string | null>() : await loadAncestorChain(deps.terms, candidateParentId);
+  await validateImportedTermParent({ terms: deps.terms, taxonomyId, taxonomyIsHierarchical: taxonomy.hierarchical, termId: id, candidateParentId, isExistingTerm: existing !== null });
+
+  return writeImportedTerm({ deps, principalId, existing, term: { id, taxonomyId, parentId: candidateParentId, name } });
+}
+
+/**
+ * `importTerm`'s hierarchy check: resolves the candidate parent and loads its REAL ancestor chain
+ * (`loadAncestorChain`) so the certified `wouldCreateCycle` walk sees the destination's actual
+ * tree — an import-as-update can move an existing term, unlike `createTerm`.
+ */
+async function validateImportedTermParent(required: {
+  terms: TermRepoPort & ImportableTermRepoPort;
+  taxonomyId: string;
+  taxonomyIsHierarchical: boolean;
+  termId: string;
+  candidateParentId: string | null;
+  isExistingTerm: boolean;
+}): Promise<void> {
+  const { terms, taxonomyId, taxonomyIsHierarchical, termId, candidateParentId, isExistingTerm } = required;
+  const resolvedParent = await resolveCandidateParent({ terms, candidateParentId });
+  const ancestors = candidateParentId === null ? new Map<string, string | null>() : await loadAncestorChain(terms, candidateParentId);
 
   validateHierarchyAssignment({
     childTaxonomyId: taxonomyId,
-    taxonomyIsHierarchical: taxonomy.hierarchical,
+    taxonomyIsHierarchical,
     candidateParentId,
     resolvedParent,
-    wouldCreateCycle: ({ candidateParentId }) => wouldCreateCycle({ termId: id, candidateParentId, tree: { getParentId: ({ termId }) => ancestors.get(termId) ?? null } }),
-    termId: existing ? id : "__new__",
+    wouldCreateCycle: ({ candidateParentId }) => wouldCreateCycle({ termId, candidateParentId, tree: { getParentId: ({ termId }) => ancestors.get(termId) ?? null } }),
+    termId: isExistingTerm ? termId : "__new__",
   });
+}
 
+/** `importTerm`'s write half: insert-or-update at the next version, one `"import"` revision
+ * carrying the pre-import name/parentId (or `null` on a create), watermark, outbox. */
+async function writeImportedTerm(required: {
+  deps: ImportTermRequired["deps"];
+  principalId: string;
+  existing: Term | null;
+  term: { id: string; taxonomyId: string; parentId: string | null; name: string };
+}): Promise<Term> {
+  const { deps, principalId, existing } = required;
+  const { id, taxonomyId, parentId, name } = required.term;
   const now = kernelNowIso({ clock: deps.clock });
   const term: Term = {
     id,
     taxonomyId,
-    parentId: candidateParentId,
+    parentId,
     name,
     status: "active",
     updatedAt: now,
@@ -607,20 +651,6 @@ export interface AssignTermsRequired {
   termIds: string[];
 }
 
-/** — upserts every `entry_terms` row (idempotent on-conflict per
- * `entry_terms_unique`), then stamps the watermark and enqueues the outbox event exactly
- * ONCE per call regardless of `termIds.length` — never once per term. Never produces a
- * `taxonomy_revisions` row (see this file's header for the disclosed narrowing this implements).
- *
- * Finding 1 fix (TM-adr041-043-044-045-audit-001): every `termId` is validated via
- * `validateContentJoin` (allow-list -> workspace -> lens, `validation-chain.ts`'s fixed order)
- * BEFORE any `entry_terms` row is written — every termId must resolve to a real term, and the
- * target content must resolve to a real row whose kind matches the caller-supplied `contentType`.
- * Validation runs for ALL termIds before ANY write, so a failure partway through never leaves a
- * partial assignment. Content is resolved once per call (not once per term) since every term in
- * one call shares the same `(contentType, contentId)` target.
- * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
- */
 /**
  * A1 (taxonomy plan) — shared by `assignTerms` and `unassignTerms`: resolves whether
  * `(contentType, contentId)` is a real, eligible target and validates every `termId` against it,
@@ -636,34 +666,24 @@ export interface AssignTermsRequired {
  * `ContentRecordNotFoundError` — this is what keeps `"product"` a 400, not a 404.
  * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
-async function validateAssignmentTarget(
-  deps: WriteServiceDeps,
-  contentType: string,
-  contentId: string,
-  termIds: string[]
-): Promise<void> {
-  const isPostOrPage = isContentTypeOnAllowList({ contentType: contentType });
-  const policy = isPostOrPage
-    ? null
-    : deps.contentTypeTaxonomyPolicy
-      ? await deps.contentTypeTaxonomyPolicy.taxonomiesFor({ contentType })
-      : null;
-  const isResolvable = isPostOrPage || policy !== null;
-
-  const content = isResolvable ? await deps.contentLookup.resolve({ contentType, contentId }) : null;
-  if (isResolvable && !content) {
-    throw new ContentRecordNotFoundError({ message: `content '${contentType}:${contentId}' was not found` });
-  }
+async function validateAssignmentTarget(required: {
+  deps: WriteServiceDeps;
+  contentType: string;
+  contentId: string;
+  termIds: string[];
+}): Promise<void> {
+  const { deps, contentType, contentId, termIds } = required;
+  const { isPostOrPage, policy } = await resolveTaxonomyPolicy({ deps, contentType });
+  const content = await resolveAssignmentContent({ deps, contentType, contentId, isResolvable: isPostOrPage || policy !== null });
 
   for (const termId of termIds) {
     const term = await deps.terms.findById({ id: termId });
     if (!term) {
       throw new TermRecordNotFoundError({ message: `term '${termId}' was not found` });
     }
-    const isOnAllowList = isPostOrPage || policy === "all" || (policy instanceof Set && policy.has(term.taxonomyId));
     validateContentJoin({
       taxonomyId: term.taxonomyId,
-      isOnAllowList,
+      isOnAllowList: isTaxonomyAllowedForTarget({ isPostOrPage, policy, taxonomyId: term.taxonomyId }),
       callerWorkspaceId: deps.workspaceId,
       // `SqliteTermRepo`/`SqliteEntryTermRepo` are workspace-BOUND at construction (single
       // workspace per content.db) — a term/content row that resolves via those adapters at all
@@ -676,6 +696,60 @@ async function validateAssignmentTarget(
   }
 }
 
+/** `post`/`page` short-circuit before `contentTypeTaxonomyPolicy` is ever consulted; any other
+ * `contentType` gets the wired policy's answer, or `null` (not applicable) when none is wired. */
+async function resolveTaxonomyPolicy(required: {
+  deps: WriteServiceDeps;
+  contentType: string;
+}): Promise<{ isPostOrPage: boolean; policy: "all" | ReadonlySet<string> | null }> {
+  const { deps, contentType } = required;
+  const isPostOrPage = isContentTypeOnAllowList({ contentType: contentType });
+  if (isPostOrPage || !deps.contentTypeTaxonomyPolicy) return { isPostOrPage, policy: null };
+  return { isPostOrPage, policy: await deps.contentTypeTaxonomyPolicy.taxonomiesFor({ contentType }) };
+}
+
+/** Resolves the assignment target once per call. An unresolvable `contentType` is never looked up
+ * (`null`) so it fails later at the allow-list check, not here; a resolvable one must exist. */
+async function resolveAssignmentContent(required: {
+  deps: WriteServiceDeps;
+  contentType: string;
+  contentId: string;
+  isResolvable: boolean;
+}): Promise<{ workspaceId: string; kind: string } | null> {
+  const { deps, contentType, contentId, isResolvable } = required;
+  if (!isResolvable) return null;
+  const content = await deps.contentLookup.resolve({ contentType, contentId });
+  if (!content) {
+    throw new ContentRecordNotFoundError({ message: `content '${contentType}:${contentId}' was not found` });
+  }
+  return content;
+}
+
+/** Whether a term's taxonomy is applicable to the target: always for `post`/`page`, else per the
+ * policy (`"all"`, or membership in its Set). */
+function isTaxonomyAllowedForTarget(required: {
+  isPostOrPage: boolean;
+  policy: "all" | ReadonlySet<string> | null;
+  taxonomyId: string;
+}): boolean {
+  const { isPostOrPage, policy, taxonomyId } = required;
+  return isPostOrPage || policy === "all" || (policy instanceof Set && policy.has(taxonomyId));
+}
+
+/** — upserts every `entry_terms` row (idempotent on-conflict per
+ * `entry_terms_unique`), then stamps the watermark and enqueues the outbox event exactly
+ * ONCE per call regardless of `termIds.length` — never once per term. Never produces a
+ * `taxonomy_revisions` row (see this file's header for the disclosed narrowing this implements).
+ *
+ * Finding 1 fix (TM-adr041-043-044-045-audit-001): every `termId` is validated via
+ * `validateContentJoin` (allow-list -> workspace -> lens, `validation-chain.ts`'s fixed order)
+ * BEFORE any `entry_terms` row is written — every termId must resolve to a real term, and the
+ * target content must resolve to a real row whose kind matches the caller-supplied `contentType`.
+ * Validation runs for ALL termIds before ANY write, so a failure partway through never leaves a
+ * partial assignment. Content is resolved once per call (not once per term) since every term in
+ * one call shares the same `(contentType, contentId)` target.
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
+ */
 export async function assignTerms(
   required: AssignTermsRequired,
   _optional: Record<string, never> = {}
@@ -683,7 +757,7 @@ export async function assignTerms(
   const { deps, principalId, contentType, contentId, termIds } = required;
   await authorizeTaxonomyManage(deps, principalId);
 
-  await validateAssignmentTarget(deps, contentType, contentId, termIds);
+  await validateAssignmentTarget({ deps, contentType, contentId, termIds });
 
   const now = kernelNowIso({ clock: deps.clock });
   for (const termId of termIds) {
@@ -733,7 +807,7 @@ export async function unassignTerms(
   const { deps, principalId, contentType, contentId, termIds } = required;
   await authorizeTaxonomyManage(deps, principalId);
 
-  await validateAssignmentTarget(deps, contentType, contentId, termIds);
+  await validateAssignmentTarget({ deps, contentType, contentId, termIds });
 
   const removedTermIds: string[] = [];
   for (const termId of termIds) {
