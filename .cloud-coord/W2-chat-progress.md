@@ -21,12 +21,13 @@
 |---|---|---|---|---|---|---|
 | L187 | running (dispatched 01:33Z) | | | | | |
 | L208 | running | | | | | |
-| L222 | running | | | | | |
+| L222 | MERGED | 1 | 0ba4ede2 dbd21a0c e4830aa0 899b9854 | readAgentPluginChatState cyc 13→7 (commit msg says 13→3, wrong; file worst captureAgentPluginUsage 8/2); dedupeToolUsesById cog 13→6 (cyc 10, at limit); assistantContentFromEvents cog 11→9; mergeRunEvents cog 11→8 | 100/100/100 ×4 | eslint 0, tsc 0, 107 tests green; diff read branch-by-branch: equivalent. Tests 20→86 |
 | L226 | MERGED | 1 | 52cd96d6 | listener cyc 17→8 (worst now serveLocally 8/6) | 100/100/100 (branch 97.14→100) | eslint 0, tsc 0, 51 tests green; removed unreachable caller-signal merge in internal default send (verified only caller passes no signal) |
 | L250 | MERGED | 1 | 0f11b6d2 | continuationRequest cyc 15→8 (worst helper 8/6) | 100/100/100 | eslint 0, tsc 0, 18 tests green, diff read: behaviour-equivalent, why-comments moved |
 | L257 | running (dispatched 01:36Z) | | | | | |
 
 ## Problems / notes
+- BUG (L222, pinned not fixed): captureAgentPluginUsage stores a state lacking `decision`; next read rejects it and resets, losing exclusions. Test "...(reported, not fixed)" in agent-plugin-chat-state.test.ts.
 
 ## Next
 - 01:33Z: 5 subagents dispatched (L187,L208,L222,L226,L250); L257 worktree prepped, queued. Briefs at /tmp/claude-0/brief-<LOT>.md (not tracked).
