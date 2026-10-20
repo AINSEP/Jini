@@ -135,6 +135,10 @@ function cloneVoiceOptions(voices: ElevenLabsVoiceOption[]): ElevenLabsVoiceOpti
   }));
 }
 
+function readVoiceCatalog({ payload }: { payload: unknown }, _options = {}): unknown[] {
+  return isRecord(payload) && Array.isArray(payload.voices) ? payload.voices : [];
+}
+
 /** Owns transport, time and a bounded voice cache for one host lifecycle.
  * Supply the existing policy-enforcing HTTP client; this factory never constructs a raw transport.
  * @throws RangeError for an invalid cache bound; credential/transport/JSON errors propagate from listing.
@@ -183,7 +187,7 @@ export function createElevenLabsVoiceClient(
     }
     if (resp.bodyTruncated) throw new Error('elevenlabs voices response was truncated');
     const payload: unknown = JSON.parse(resp.bodyText);
-    const rawVoices = isRecord(payload) && Array.isArray(payload.voices) ? payload.voices : [];
+    const rawVoices = readVoiceCatalog({ payload });
     const voices = rawVoices.map((voice) => normalizeVoice(voice))
       .filter((voice): voice is ElevenLabsVoiceOption => voice !== null);
     const now = clock.nowMs();

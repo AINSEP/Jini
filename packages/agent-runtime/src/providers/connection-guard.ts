@@ -328,7 +328,7 @@ export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; i
         // `fetch` itself treats as redirects (a `Location` header is what actually enables the
         // rebinding hop) — NOT every 3xx: `304 Not Modified` carries no `Location` and no provider
         // in this package sends conditional-request headers that could ever produce one.
-        if (status === 301 || status === 302 || status === 303 || status === 307 || status === 308) {
+        if ([301, 302, 303, 307, 308].includes(status)) {
           res.resume();
           reject(
             new Error(

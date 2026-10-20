@@ -674,6 +674,13 @@ export async function executeGoogleToolCalls({ executeTool, calls, onEvent }: { 
   return { functionResponseParts, followUpParts };
 }
 
+function isEmptyInitialGoogleTurn(
+  { toolTurns, outcome }: { toolTurns: number; outcome: SingleRequestOutcome },
+  _options = {},
+): boolean {
+  return toolTurns === 0 && outcome.toolCalls.length === 0 && !outcome.text.trim();
+}
+
 /**
  * Runs a full Gemini `streamGenerateContent` turn, including the
  * tool-execution loop when `options.executeTool` is supplied and the model
@@ -700,7 +707,7 @@ export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "a
 
     if (endGuard.hasEnded()) break;
 
-    if (toolTurns === 0 && outcome.toolCalls.length === 0 && !outcome.text.trim()) {
+    if (isEmptyInitialGoogleTurn({ toolTurns, outcome })) {
       // Thinking can consume the entire output budget without producing any answer. Preserve
       // the reason for operator diagnostics rather than turning a content-free response into stop.
       options.onEvent({ type: 'error', message: redactSecrets({

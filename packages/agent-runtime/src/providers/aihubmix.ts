@@ -221,12 +221,7 @@ export function aihubmixVideoSeconds({ wireModel, requested }: { wireModel: stri
 export type AIHubMixCatalogType = 'llm' | 'image_generation' | 'tts' | 'video';
 
 export function aihubmixCatalogUrl({ baseUrl, type }: { baseUrl: string; type: AIHubMixCatalogType }): string {
-  let origin: string;
-  try {
-    origin = new URL(baseUrl || AIHUBMIX_DEFAULT_BASE_URL).origin;
-  } catch {
-    origin = 'https://aihubmix.com';
-  }
+  const origin = aihubmixOriginFromBase({ baseUrl });
   return `${origin}/api/v1/models?type=${type}`;
 }
 
@@ -261,6 +256,21 @@ export interface ParseAIHubMixCatalogOptions {
   chatOnly?: boolean;
 }
 
+function aihubmixRowString(
+  { row, key }: { row: unknown; key: 'model_id' | 'model_name' }, _options = {},
+): string {
+  const value = (row as Record<string, unknown>)?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function shouldSkipAIHubMixRow(
+  { id, seen, row }: { id: string; seen: Set<string>; row: unknown },
+  options: ParseAIHubMixCatalogOptions = {},
+): boolean {
+  if (!id || seen.has(id)) return true;
+  return Boolean(options?.chatOnly && aihubmixRowTypes(row).some((type) => AIHUBMIX_MEDIA_GENERATION_TYPES.has(type)));
+}
+
 /** Parses the AIHubMix catalogue envelope into { id, label } options. Reads
  *  `model_id` (the wire name sent as `model`) and `model_name` (display). */
 export function parseAIHubMixCatalog({ data }: { data: unknown }, options: ParseAIHubMixCatalogOptions = {}
@@ -270,20 +280,10 @@ export function parseAIHubMixCatalog({ data }: { data: unknown }, options: Parse
   const seen = new Set<string>();
   const out: AIHubMixCatalogModel[] = [];
   for (const row of rows) {
-    const id = typeof (row as { model_id?: unknown })?.model_id === 'string'
-      ? (row as { model_id: string }).model_id
-      : '';
-    if (!id || seen.has(id)) continue;
-    if (
-      options?.chatOnly &&
-      aihubmixRowTypes(row).some((t) => AIHUBMIX_MEDIA_GENERATION_TYPES.has(t))
-    ) {
-      continue;
-    }
+    const id = aihubmixRowString({ row, key: 'model_id' });
+    if (shouldSkipAIHubMixRow({ id, seen, row }, options)) continue;
     seen.add(id);
-    const name = typeof (row as { model_name?: unknown })?.model_name === 'string'
-      ? (row as { model_name: string }).model_name
-      : '';
+    const name = aihubmixRowString({ row, key: 'model_name' });
     out.push({ id, label: name || id });
   }
   return out;
