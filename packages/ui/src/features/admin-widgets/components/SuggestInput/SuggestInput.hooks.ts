@@ -38,6 +38,13 @@ export function useSuggestInput({ value, suggestions }: { value: string; suggest
   const matches = matchSuggestions({ typed: value, suggestions }, { limit });
   const visible = open && matches.length > 0;
   const current = highlighted < matches.length ? highlighted : -1;
+  const close = () => { setOpen(false); setHighlighted(-1); };
+  const move = (step: 1 | -1) => {
+    setOpen(true);
+    const next = nextHighlight({ current, step, count: matches.length });
+    setHighlighted(next);
+    setScrollTarget({ index: next });
+  };
   return {
     open: visible,
     matches,
@@ -45,26 +52,34 @@ export function useSuggestInput({ value, suggestions }: { value: string; suggest
     setHighlighted,
     scrollTarget,
     openList: () => setOpen(true),
-    closeList: () => { setOpen(false); setHighlighted(-1); },
+    closeList: close,
     handleKey: (key) => {
-      if (key === 'ArrowDown' || key === 'ArrowUp') {
+      const step = arrowStep(key);
+      if (step !== undefined) {
         if (matches.length === 0) return { consumed: false };
-        setOpen(true);
-        const step = key === 'ArrowDown' ? 1 : -1;
-        const next = (current + step + matches.length + (current === -1 && step === -1 ? 1 : 0)) % matches.length;
-        setHighlighted(next);
-        setScrollTarget({ index: next });
+        move(step);
         return { consumed: true };
       }
-      if (key === 'Escape' && visible) { setOpen(false); setHighlighted(-1); return { consumed: true }; }
-      const picked = current >= 0 ? matches[current] : undefined;
-      if (key === 'Enter' && visible && picked !== undefined) {
-        setOpen(false); setHighlighted(-1);
-        return { consumed: true, picked };
+      if (key === 'Escape' && visible) { close(); return { consumed: true }; }
+      if (key === 'Enter' && visible && current >= 0) {
+        close();
+        return { consumed: true, picked: matches[current] };
       }
       return { consumed: false };
     },
   };
+}
+
+/** +1 for ArrowDown, -1 for ArrowUp, undefined for every other key. */
+function arrowStep(key: string): 1 | -1 | undefined {
+  if (key === 'ArrowDown') return 1;
+  if (key === 'ArrowUp') return -1;
+  return undefined;
+}
+/** The row an arrow key moves to, wrapping at either end; from no highlight, ArrowUp lands on the last row. */
+function nextHighlight({ current, step, count }: { current: number; step: 1 | -1; count: number }): number {
+  if (current === -1) return step === 1 ? 0 : count - 1;
+  return (current + step + count) % count;
 }
 
 /** Default scroller: `block: 'nearest'` moves the list only as far as needed. Optional call because
