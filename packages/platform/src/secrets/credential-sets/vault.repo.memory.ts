@@ -15,15 +15,19 @@ export class InMemoryVaultRepo implements VaultRepoPort {
       input.principalId !== undefined, input.principalId ?? null]);
   }
   /** Index all four optional scope combinations; copy sets so batch staging never mutates live indexes. */
-  private indexSingleton({ record, remove }: { record: VaultRecord; remove: boolean }, _options: VaultOptions = {}): void {
-    for (const ownerKey of [undefined, record.ownerKey]) for (const principalId of [undefined, record.principalId]) {
-      const scope = this.singletonKey({ workspaceId: record.workspaceId, kind: record.kind, ownerKey, principalId });
+  private indexSingleton({ record, remove }: { record: VaultRecord; remove: boolean }): void {
+    const rowKey = this.key(record);
+    for (const scope of this.singletonScopes({ record })) {
       const ids = new Set(this.singletons.get(scope));
-      if (remove) ids.delete(this.key(record));
-      else ids.add(this.key(record));
+      if (remove) ids.delete(rowKey);
+      else ids.add(rowKey);
       if (ids.size) this.singletons.set(scope, ids);
       else this.singletons.delete(scope);
     }
+  }
+  private singletonScopes({ record }: { record: VaultRecord }): string[] {
+    return [undefined, record.ownerKey].flatMap(ownerKey => [undefined, record.principalId].map(principalId =>
+      this.singletonKey({ workspaceId: record.workspaceId, kind: record.kind, ownerKey, principalId })));
   }
   /** Indexed singleton selection; clone only the selected row, ignoring provider/default. */
   async findOne(input: VaultSingletonQuery, _options: VaultOptions = {}): Promise<VaultRecord | null> {
@@ -57,30 +61,24 @@ export class InMemoryVaultRepo implements VaultRepoPort {
   async list(input: VaultQuery, _options: VaultOptions = {}): Promise<VaultRecord[]> {
     return structuredClone([...this.rows.values()].filter(row => row.workspaceId === input.workspaceId && row.kind === input.kind &&
       row.ownerKey === input.ownerKey && row.principalId === input.principalId && (input.provider === undefined || row.provider === input.provider))
-      .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      // Rows are keyed by (workspaceId, id), so one workspace never lists two equal IDs.
+      .sort((a, b) => a.id < b.id ? -1 : 1));
   }
   async put(input: { record: VaultRecord; expectedRevision: number | null }, _options: VaultOptions = {}): Promise<VaultRecord> {
     return this.putRecord(input);
   }
   /** Synchronous mutation owner shared with batch staging; default moves never re-seal. */
-  private putRecord(input: { record: VaultRecord; expectedRevision: number | null }, _options: VaultOptions = {}): VaultRecord {
+  private putRecord(input: { record: VaultRecord; expectedRevision: number | null }): VaultRecord {
     const { record } = input;
     const key = this.key(record);
     const existing = this.rows.get(key) ?? null;
     assertVaultReplacement({ ...input, existing });
     const groupKey = vaultGroupKey({ record });
-    let hasGroup = false;
-    for (const row of this.rows.values()) if (vaultGroupKey({ record: row }) === groupKey) {
-      hasGroup = true;
-      if (row.id !== record.id && row.label === record.label) throw new VaultError({ code: "conflict" });
-    }
-    const saved = structuredClone({ ...record, isDefault: record.isDefault || !hasGroup });
+    const group = this.groupRows({ groupKey });
+    if (group.some(row => row.id !== record.id && row.label === record.label)) throw new VaultError({ code: "conflict" });
+    const saved = structuredClone({ ...record, isDefault: record.isDefault || group.length === 0 });
     // Clear first, matching a SQL partial UNIQUE index; no transient duplicate default is required.
-    if (saved.isDefault) for (const row of this.rows.values()) {
-      if (row.id !== saved.id && row.isDefault && vaultGroupKey({ record: row }) === groupKey) {
-        this.rows.set(this.key(row), { ...row, isDefault: false, revision: row.revision + 1 });
-      }
-    }
+    if (saved.isDefault) this.clearDefaults({ group });
     this.rows.set(key, saved);
     if (!existing) this.indexSingleton({ record: saved, remove: false });
     if (existing?.isDefault && vaultGroupKey({ record: existing }) !== groupKey) this.promote({ record: existing });
@@ -90,7 +88,7 @@ export class InMemoryVaultRepo implements VaultRepoPort {
     return this.patchRecord(input);
   }
   /** Clone merged metadata before mutating the staged/live map so failures leave it intact. */
-  private patchRecord(input: { workspaceId: string; id: string; expectedRevision: number; patch: VaultMeta; updatedAt: string }, _options: VaultOptions = {}): VaultRecord {
+  private patchRecord(input: { workspaceId: string; id: string; expectedRevision: number; patch: VaultMeta; updatedAt: string }): VaultRecord {
     const key = this.key(input);
     const existing = this.rows.get(key);
     if (existing?.revision !== input.expectedRevision) throw new VaultError({ code: "conflict" });
@@ -102,7 +100,7 @@ export class InMemoryVaultRepo implements VaultRepoPort {
     return this.deleteRecord(input);
   }
   /** Synchronous CAS delete shares promotion with provider moves and batch staging. */
-  private deleteRecord(input: { workspaceId: string; id: string; expectedRevision: number }, _options: VaultOptions = {}): boolean {
+  private deleteRecord(input: { workspaceId: string; id: string; expectedRevision: number }): boolean {
     const key = this.key(input);
     const existing = this.rows.get(key);
     if (!existing) return false;
@@ -113,13 +111,12 @@ export class InMemoryVaultRepo implements VaultRepoPort {
     return true;
   }
   /** O(n) winner scan; promotion changes only default/revision, matching SQL. */
-  private promote({ record }: { record: VaultRecord }, _options: VaultOptions = {}): void {
-    const groupKey = vaultGroupKey({ record });
+  private promote({ record }: { record: VaultRecord }): void {
     let promoted: Pick<VaultRecord, "id" | "updatedAt"> | undefined;
     // SQL BINARY/C compares UTF-8 bytes; JS's UTF-16 order differs for supplementary IDs.
-    for (const row of this.rows.values()) {
-      if (vaultGroupKey({ record: row }) === groupKey && (!promoted || row.updatedAt > promoted.updatedAt ||
-        (row.updatedAt === promoted.updatedAt && Buffer.compare(Buffer.from(row.id), Buffer.from(promoted.id)) > 0))) {
+    for (const row of this.groupRows({ groupKey: vaultGroupKey({ record }) })) {
+      if (!promoted || row.updatedAt > promoted.updatedAt ||
+        (row.updatedAt === promoted.updatedAt && Buffer.compare(Buffer.from(row.id), Buffer.from(promoted.id)) > 0)) {
         promoted = { id: row.id, updatedAt: row.updatedAt };
       }
     }
@@ -128,5 +125,17 @@ export class InMemoryVaultRepo implements VaultRepoPort {
       const row = this.rows.get(promotedKey)!;
       this.rows.set(promotedKey, { ...row, isDefault: true, revision: row.revision + 1 });
     }
+  }
+  /** Every default change increments revision. A replaced row may be cleared here too: the caller
+   * writes its saved version over that entry immediately afterwards.
+   */
+  private clearDefaults({ group }: { group: readonly VaultRecord[] }): void {
+    for (const row of group) {
+      if (row.isDefault) this.rows.set(this.key(row), { ...row, isDefault: false, revision: row.revision + 1 });
+    }
+  }
+  /** O(n) scan of live rows sharing one default group. */
+  private groupRows({ groupKey }: { groupKey: string }): VaultRecord[] {
+    return [...this.rows.values()].filter(row => vaultGroupKey({ record: row }) === groupKey);
   }
 }
