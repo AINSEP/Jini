@@ -66,6 +66,7 @@ Rules (any violation refuses the whole file, reported in the loader's `refusals`
 | `bootstrap` | optional schema (same subset) the handler module's bootstrap data must match; only with `handlerModule` |
 | `connections` | optional, only with `handlerModule`; at most 4 `{ id, startParams?, callbackFields? }`: the plugin's own connection ids (`[A-Za-z0-9][A-Za-z0-9._-]{0,63}`, unique) its handlers administer, the per-sign-in parameters they may set and the callback fields they may take (names `[A-Za-z0-9_.-]{1,64}`, at most 8 each) |
 | `publicConfig` | optional, only with `handlerModule`; at most 16 environment-style names (`[A-Z][A-Z0-9_]{0,63}`) the host may hand the handlers; a name containing `SECRET`, `TOKEN`, `PASSWORD`, `PASSWD`, `PRIVATE`, `CREDENTIAL`, `COOKIE`, `SESSION` or `SIGNING` is refused |
+| `linkOrigins` | optional, any surface; at most 8 unique bare `https://host[:port]` origins (the `csp` source rule) the host may open links to for this surface |
 | `csp` | keys only `script-src`, `style-src`, `img-src`, `font-src`, `connect-src`, `frame-src`; values only bare `https://host[:port]` origins with a DNS name (no wildcard, path, IP, keyword, `data:`/`blob:`) |
 
 Action schemas are a small closed subset of JSON Schema: every node declares `type` (`object`,
@@ -98,6 +99,7 @@ Every message carries `protocol: 'jini.admin-surface'` and `version: 1`.
 |---|---|---|
 | `init` | host page → frame, once per mount after the frame loads | `mountId`, optional `bootstrap` |
 | `action-request` | frame → host page | `mountId`, `requestId` (`[A-Za-z0-9_-]{1,64}`), `action`, `payload` |
+| `open-link` | frame → host page | `mountId`, `requestId`, `url`; answered with an `action-response` (`result: null`) |
 | `action-response` | host page → frame | `mountId`, `requestId`, then `ok: true, result` or `ok: false, error: { code, message, retryable }` |
 
 1. `createAdminSurfaceMount({ surfaceId })` → `{ surfaceId, mountId }` (128-bit random nonce); its messages must come from origin `'null'`.
@@ -122,6 +124,20 @@ Every message carries `protocol: 'jini.admin-surface'` and `version: 1`.
    (`AdminSurfaceActionError` keeps its code and message; anything else becomes `action-failed`
    with a generic message, and the raw error goes to `onHandlerError` for the server log).
 6. The host page posts `adminSurfaceActionResponse({ request, outcome })` back to the frame.
+
+### External links
+
+A sandboxed frame cannot open anything (no `allow-popups`, no top navigation), so a surface asks the
+host page: `client.openLink({ url })`. The host page passes every `message` event to
+`openAdminSurfaceLink({ event, mount, openLink })` as well as to `validateAdminSurfaceMessage` (each
+ignores the other's messages) and posts the verdict's `response` back when it has one. The gate
+applies the same origin, window and nonce checks as actions (`ignored` otherwise), then refuses
+(code, no URL echoed): `link-too-long` (over 2048 characters), `link-invalid` (unparseable or carrying
+credentials), `link-not-https` (`http:`, `javascript:`, `data:` …) and `link-undeclared` (origin not
+in the surface's `linkOrigins`; a mount record without `linkOrigins` opens nothing). Only then is the
+host's `openLink` port called, once, with the URL parser's normalized `href`; the host decides how to
+open it (a new tab with `noopener,noreferrer` on the web, the system browser on desktop). A throwing
+port answers `link-failed` (retryable), never its raw error.
 
 Dispatcher error codes: `action-undeclared`, `action-unavailable` (no host handler),
 `invalid-payload`, `invalid-result`, `action-failed`, or a handler's own `AdminSurfaceActionError` code.

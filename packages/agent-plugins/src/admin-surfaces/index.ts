@@ -8,7 +8,7 @@
 export {
   adminSurfaceInitMessage, adminSurfaceActionResponse,
   type AdminSurfaceBootstrap, type AdminSurfaceInitMessage, type AdminSurfaceActionRequest, type AdminSurfaceActionFailure,
-  type AdminSurfaceActionOutcome, type AdminSurfaceActionResponse,
+  type AdminSurfaceActionOutcome, type AdminSurfaceActionResponse, type AdminSurfaceOpenLinkRequest,
 } from './protocol.js';
 export type { AdminSurfaceActionSchema } from './action-schema.js';
 export { parseAdminSurfacesFile, type AdminSurfaceCspDirective, type AdminSurfaceAction, type AdminSurfaceDescriptor } from './descriptor.js';
@@ -29,4 +29,5 @@ export {
   type AdminSurfaceAuthorizationStart, type AdminSurfaceConnections, type AdminSurfaceStateValue, type AdminSurfaceState,
   type AdminSurfacePublicConfig, type AdminSurfaceCapabilities, type AdminSurfaceCapabilitiesPort,
 } from './surface-capabilities.js';
+export { openAdminSurfaceLink, type AdminSurfaceOpenLinkPort, type AdminSurfaceLinkVerdict } from './external-links.js';
 export { createAdminSurfaceCallbackInbox, type AdminSurfaceCallbackFieldKey } from './callback-field-inbox.js';

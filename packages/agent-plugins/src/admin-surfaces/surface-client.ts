@@ -103,8 +103,8 @@ export function createAdminSurfaceClient(
     else if (isMessage(event.data, 'action-response')) onResponse(event, event.data);
   });
 
-  /** Asks the host to run one declared action; resolves with its result. */
-  async function call(input: { readonly action: string; readonly payload: unknown }): Promise<unknown> {
+  /** Posts one request of `kind` to the host origin and waits for its `action-response`. */
+  async function send(kind: string, fields: Readonly<Record<string, unknown>>): Promise<unknown> {
     if (init === undefined) await ready;
     const { mountId, origin } = init!;
     nextRequest += 1;
@@ -115,8 +115,19 @@ export function createAdminSurfaceClient(
         reject(new AdminSurfaceCallError({ code: 'timeout', message: 'The host did not answer in time. Try again.', retryable: true }));
       }, timeoutMs);
       pending.set(requestId, { resolve, reject, timer });
-      required.parent.postMessage({ protocol: PROTOCOL, version: VERSION, kind: 'action-request', mountId, requestId, action: input.action, payload: input.payload }, origin);
+      required.parent.postMessage({ protocol: PROTOCOL, version: VERSION, kind, mountId, requestId, ...fields }, origin);
     });
+  }
+
+  /** Asks the host to run one declared action; resolves with its result. */
+  function call(input: { readonly action: string; readonly payload: unknown }): Promise<unknown> {
+    return send('action-request', { action: input.action, payload: input.payload });
+  }
+
+  /** Asks the host to open `url` outside the sandbox; only https links on the surface's declared
+   * `linkOrigins` open, and the host decides how (new tab, system browser). Rejects with the host's refusal. */
+  async function openLink(input: { readonly url: string }): Promise<void> {
+    await send('open-link', { url: input.url });
   }
 
   /** The bootstrap `data` the host sent with init, or `undefined` once it has expired (or none was sent). */
@@ -137,5 +148,5 @@ export function createAdminSurfaceClient(
     }
   }
 
-  return { ready, call, bootstrap, close };
+  return { ready, call, openLink, bootstrap, close };
 }

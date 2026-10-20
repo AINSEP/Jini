@@ -1,6 +1,6 @@
 /**
  * @file The wire vocabulary shared by the host page, the host server and a plugin's admin surface:
- * protocol constants and the three message envelopes (init, action request, action response).
+ * protocol constants and the message envelopes (init, action request, open-link request, response).
  *
  * Why a separate file: the host-side validator, the server-side dispatcher and the docs all name the
  * same envelope, and it must stay one definition. The surface-side client (`./surface-client.ts`)
@@ -48,6 +48,17 @@ export interface AdminSurfaceActionRequest {
   readonly requestId: string;
   readonly action: string;
   readonly payload: unknown;
+}
+
+/** Surface -> host page: asks the host to open `url` outside the sandbox (`./external-links.ts`).
+ * Answered with an `action-response` for `requestId`, like an action. */
+export interface AdminSurfaceOpenLinkRequest {
+  readonly protocol: typeof ADMIN_SURFACE_PROTOCOL;
+  readonly version: typeof ADMIN_SURFACE_PROTOCOL_VERSION;
+  readonly kind: 'open-link';
+  readonly mountId: string;
+  readonly requestId: string;
+  readonly url: string;
 }
 
 /** Surface-safe failure: `message` is written for the person using the surface and never carries a
