@@ -32,3 +32,10 @@
 
 ## Next
 - 01:33Z: 5 subagents dispatched (L187,L208,L222,L226,L250); L257 worktree prepped, queued. Briefs at /tmp/claude-0/brief-<LOT>.md (not tracked).
+
+## Final (01:53Z)
+- All 6 lots merged into cloud/w2-chat; parallelism 5 (L257 started when L250 finished).
+- `pnpm --filter @jini-ai/chat build` green; whole package suite (`--maxWorkers=4`): 184 files passed, 1 skipped (pre-existing `ChatPane.long-transcript.bench.test.tsx` bench, untouched) — 2580 passed / 1 skipped, 264 s. tsc green.
+- Diff vs origin/general-work touches only lot files, their tests and this progress file (28 files, +2233/-320).
+- Not fixed, for the owner: the 2 pinned bugs above; L187's dropped `??` defaults on NOT NULL columns; L187's create-path comment says "Unreachable" but a concurrent delete reaches it (comment kept, inaccurate); L257's stale "re-exported here" comment kept.
+- Next: nothing pending for wave 2 chat. Lot branches cloud/w2-chat-L* can be deleted after review.
