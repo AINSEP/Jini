@@ -5,7 +5,7 @@ import type { ChatMessage } from "../messages.js";
 import type { ChatTransport, ReattachRunOptions, RunHandlers, StartRunInput } from "../transport.js";
 import * as runEvents from "../run-events/entry.js";
 import type { RunAgentPayload, RunNotices } from "../run-events/entry.js";
-import type { createAgUiRunClient } from "./ag-ui-transport.js";
+import type { AgUiRunClient } from "./ag-ui-transport.js";
 import type { DurableRunBinding } from "./durable-run-subscription.js";
 
 /** Per-turn dispatch input; hosts may return their fuller saved settings without UI dependencies. */
@@ -107,7 +107,7 @@ export interface AssistantTransportPorts {
  readonly runBinding: (required: { runId: string }, optional: Record<string, never>) => DurableRunBinding | undefined;
  readonly followRun: (required: { runId: string; handlers: RunHandlers; signal?: AbortSignal }, optional: Record<string, never>) => void;
  readonly acceptRun: (required: { body: unknown; signal?: AbortSignal; requestSignal?: AbortSignal; messageId: unknown; conversationId?: string }, optional: Record<string, never>) => Promise<Response>;
- readonly agUi: ReturnType<typeof createAgUiRunClient>;
+ readonly agUi: AgUiRunClient;
 }
 
 export interface ByokFrameContext { collected: AgentEvent[]; handlers: RunHandlers; finish: () => void }
@@ -156,18 +156,6 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    * growing message, so accumulating twice would double the text.
    */
 
-
-
-
-
-
-
-
-
-
-
-  const RUNS_URL = ports.runsUrl;
-  const BYOK_TURN_URL = ports.byokTurnUrl;
   /** Distinguishes a BYOK-run id (client-minted, no server-side run record) from a daemon-run id
    *  (server-minted, reattachable) wherever a bare `runId` string is all a `ChatTransport` method
    *  receives — see `stopRun`/`fetchRunStatus`/`reattachRun` below for why the distinction matters. */
@@ -188,7 +176,6 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
   // lives in `@jini-ai/chat/core/run-events`, extracted from the host's 2026-09-27 contract, so the API's
   // run finalizer saves exactly what this transport would have. Re-exported here so existing importers
   // and tests keep their paths.
-
 
   /**
    * The prompt for one run: the whole conversation so far, not just the newest message.
@@ -356,6 +343,14 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     ports.followRun({ runId, handlers: capturePluginUsage(handlers), ...(signal === undefined ? {} : { signal }) }, {});
   }
 
+  /** The well-formed plugin usage an `agent_plugins` extension event carries, or `undefined` for any
+   * other event — the one validity rule both live events and checkpoint replays are captured by. */
+  function pluginUsageOf({ event }: { event: AgentEvent }, _optional: Record<string, never>): AgentPluginUsage | undefined {
+    if (event.kind !== 'ext' || event.name !== 'agent_plugins') return undefined;
+    const usage = event.data as AgentPluginUsage | undefined;
+    return typeof usage?.conversationId === 'string' && usage.state && Array.isArray(usage.state.excluded) ? usage : undefined;
+  }
+
   /** Capture before notifying the UI so answers received after reload persist for the next turn.
    * Checkpoint panes skip live deltas to avoid duplicate text, so capture their saved events here
    * too. Keep this wrapper as the single capture owner for both delivery contracts.
@@ -364,9 +359,8 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
   function capturePluginUsage(handlers: RunHandlers): RunHandlers {
     const captured = new Map<string, string>();
     const capture = (event: AgentEvent) => {
-      if (event.kind !== 'ext' || event.name !== 'agent_plugins') return;
-      const usage = event.data as AgentPluginUsage | undefined;
-      if (typeof usage?.conversationId !== 'string' || !usage.state || !Array.isArray(usage.state.excluded)) return;
+      const usage = pluginUsageOf({ event }, {});
+      if (!usage) return;
       const state = JSON.stringify(usage.state);
       if (captured.get(usage.conversationId) === state) return;
       captured.set(usage.conversationId, state);
@@ -379,9 +373,8 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         // Historical answers must not roll the current state backwards on every poll.
         const latest = new Map<string, AgentEvent>();
         for (const event of message.events ?? []) {
-          if (event.kind !== 'ext' || event.name !== 'agent_plugins') continue;
-          const usage = event.data as AgentPluginUsage | undefined;
-          if (typeof usage?.conversationId === 'string' && usage.state && Array.isArray(usage.state.excluded)) latest.set(usage.conversationId, event);
+          const usage = pluginUsageOf({ event }, {});
+          if (usage) latest.set(usage.conversationId, event);
         }
         for (const event of latest.values()) capture(event);
         handlers.onCheckpoint!(message);
@@ -401,8 +394,6 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    *  stale id can never resurrect a finished controller. */
   const byokAbortControllers = new Map<string, AbortController>();
 
-
-
   /**
    * Dispatches one parsed BYOK SSE frame to the right `RunHandlers` call — the `"agent"`/`"error"`/
    * `"end"` handling pulled out of `startByokRun`'s stream-consumer IIFE (2026-08-06, complexity
@@ -418,7 +409,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    */
   function handleByokFrame(
     frame: { event: string; data: string },
-    ctx: { collected: AgentEvent[]; handlers: RunHandlers; finish: () => void },
+    ctx: ByokFrameContext,
   ): void {
     if (frame.event === "agent") {
       const payload = JSON.parse(frame.data) as RunAgentPayload;
@@ -459,7 +450,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    */
   async function consumeByokStream(
     body: ReadableStream<Uint8Array>,
-    ctx: { runId: string; collected: AgentEvent[]; handlers: RunHandlers; finish: () => void; controller: AbortController },
+    ctx: ByokStreamContext,
   ): Promise<void> {
     try {
       for await (const frame of readSseFrames(body)) {
@@ -485,6 +476,63 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
   }
 
   /**
+   * The provider-bound history of one BYOK turn: only turns the agent actually answered, never an
+   * empty one, each carrying its redaction signal.
+   */
+  function byokMessages({ history }: { history: readonly ChatMessage[] }, _optional: Record<string, never>): Array<Record<string, unknown>> {
+    // `historyForTranscript` first (Defect 3, 2026-09-11): the empty-content filter below already
+    // hides a failed run that produced nothing, but NOT one that emitted a few tokens before dying —
+    // that partial output would be sent to the provider as if it were the assistant's answer. This is
+    // the same defect as on the Local CLI path, reachable by a second route.
+    return historyForTranscript(history)
+      .filter((message) => message.content.trim().length > 0)
+      .map((message) => ({ role: message.role, content: message.content,
+        ...(message.secretRedaction?.secretRedacted ? { secretRedacted: true } : {}),
+      }));
+  }
+
+  /** The credential block of a BYOK turn; an empty base URL and an unset token cap are omitted. */
+  function byokCredentials({ byok }: { byok: AssistantExecutionConfig["byok"] }, _optional: Record<string, never>): Record<string, unknown> {
+    return {
+      protocol: byok.protocol,
+      apiKey: byok.apiKey,
+      ...(byok.baseUrl ? { baseUrl: byok.baseUrl } : {}),
+      model: byok.model,
+      ...(byok.maxTokens !== undefined ? { maxTokens: byok.maxTokens } : {}),
+    };
+  }
+
+  /** The JSON body `POST byokTurnUrl` carries for one turn. */
+  function byokTurnBody(
+    { input, byok }: { input: StartRunInput; byok: AssistantExecutionConfig["byok"] },
+    _optional: Record<string, never>,
+  ): Record<string, unknown> {
+    return {
+      messages: byokMessages({ history: input.history }, {}),
+      ...attachmentIdsField(input),
+      ...conversationIdField(input),
+      agentPluginState: input.context?.["agentPluginState"],
+      userPrompt: input.context?.["userPrompt"],
+      ...pluginRefIdsField(input),
+      // The admin screen, as on the Local CLI path (`buildLocalCliContextRef`): the server puts it
+      // in front of the newest message so a BYOK turn knows the open page and where drawings go.
+      ...pageContextField(input),
+      byok: byokCredentials({ byok }, {}),
+    };
+  }
+
+  /**
+   * The error for a refused request: `<action> (<status>)`, plus up to 300 characters of the
+   * response body when it has one — shared by the BYOK start, Local CLI start and cancel refusals.
+   */
+  async function refusalError({ action, response }: { action: string; response: Response }, _optional: Record<string, never>): Promise<Error> {
+    // A response whose body stream errors out (e.g. a dropped connection) must not turn "the server
+    // rejected the request" into "the client crashed reading the rejection".
+    const detail = await response.text().catch(() => "");
+    return new Error(`${action} (${response.status})${detail ? `: ${detail.slice(0, 300)}` : ""}`);
+  }
+
+  /**
    * The BYOK run path (2026-08-04) — one held-open `POST` to `assistant-byok.ts`, no separate
    * `EventSource`/reattach. See module doc's path-2 section for why this shape differs from
    * `subscribeToRun`'s daemon-path pattern, and what it costs (no reattach after a reload; `stopRun`
@@ -503,40 +551,13 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     byokAbortControllers.set(runId, controller);
     input.signal?.addEventListener("abort", () => controller.abort());
 
-    // `historyForTranscript` first (Defect 3, 2026-09-11): the empty-content filter below already
-    // hides a failed run that produced nothing, but NOT one that emitted a few tokens before dying —
-    // that partial output would be sent to the provider as if it were the assistant's answer. This is
-    // the same defect as on the Local CLI path, reachable by a second route.
-    const messages = historyForTranscript(input.history as ChatMessage[])
-      .filter((message) => message.content.trim().length > 0)
-      .map((message) => ({ role: message.role, content: message.content,
-        ...(message.secretRedaction?.secretRedacted ? { secretRedacted: true } : {}),
-      }));
-
     let response: Response;
     try {
-      response = await ports.fetch(BYOK_TURN_URL, {
+      response = await ports.fetch(ports.byokTurnUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({
-          messages,
-          ...attachmentIdsField(input),
-          ...conversationIdField(input),
-          agentPluginState: input.context?.["agentPluginState"],
-          userPrompt: input.context?.["userPrompt"],
-          ...pluginRefIdsField(input),
-          // The admin screen, as on the Local CLI path (`buildLocalCliContextRef`): the server puts it
-          // in front of the newest message so a BYOK turn knows the open page and where drawings go.
-          ...pageContextField(input),
-          byok: {
-            protocol: byok.protocol,
-            apiKey: byok.apiKey,
-            ...(byok.baseUrl ? { baseUrl: byok.baseUrl } : {}),
-            model: byok.model,
-            ...(byok.maxTokens !== undefined ? { maxTokens: byok.maxTokens } : {}),
-          },
-        }),
+        body: JSON.stringify(byokTurnBody({ input, byok }, {})),
         signal: controller.signal,
       });
     } catch (error) {
@@ -546,8 +567,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
 
     if (!response.ok || !response.body) {
       byokAbortControllers.delete(runId);
-      const detail = await response.text().catch(() => "");
-      throw new Error(`BYOK turn failed to start (${response.status})${detail ? `: ${detail.slice(0, 300)}` : ""}`);
+      throw await refusalError({ action: "BYOK turn failed to start", response }, {});
     }
 
     const collected: AgentEvent[] = [];
@@ -721,7 +741,6 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     };
   }
 
-
   /**
    * The conversation id this run must carry, adopting one if the caller had none.
    *
@@ -789,50 +808,83 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    * two, and a retry of the same content is free. `useAssistantChats`'s own `persistUserTurn` also
    * marks the id written, so in practice `flush` skips it entirely.
    *
-   * @param input - `startRun`'s own input; the newest `role: "user"` message in its history is what
-   *   gets written.
+   * @param message - The newest `role: "user"` message in `startRun`'s history — what gets written.
+   *   `startRun` has already refused a history without one, so it is always present here.
    * @param conversationId - The already-resolved conversation (see `resolveRunConversationId`), or
    *   `undefined` when adoption failed — there is no row to write into in that case.
    * @param persistUserTurn - `AssistantTransportOptions.persistUserTurn`, or `undefined`
    *   for a transport built without it (every test and any non-dock consumer).
    * @returns Nothing, always. The `.catch` keeps a failed browser PUT from refusing the user's turn;
    *   durable acceptance is now responsible for committing its copy before dispatch.
-   * @complexity O(n) in history length for the newest-user-turn scan, plus one PUT.
+   * @complexity O(1) plus one PUT.
    */
   async function persistUserTurnBeforeDispatch(
-    input: StartRunInput,
-    conversationId: string | undefined,
-    persistUserTurn: ((required: { conversationId: string; message: ChatMessage }, optional: Record<string, never>) => Promise<void>) | undefined,
+    { message, conversationId }: { message: ChatMessage; conversationId: string | undefined },
+    { persistUserTurn }: { persistUserTurn?: AssistantTransportOptions["persistUserTurn"] },
   ): Promise<void> {
     if (conversationId === undefined || persistUserTurn === undefined) return;
-    const history = input.history as ChatMessage[];
-    const message = [...history].reverse().find((candidate) => candidate.role === "user");
-    if (message === undefined) return;
     await persistUserTurn({ conversationId, message }, {}).catch(() => undefined);
+  }
+
+  /** The newest `role: "user"` message in a history, or `undefined` when it has none.
+   * @complexity O(n) in history length. */
+  function newestUserMessage({ history }: { history: readonly ChatMessage[] }, _optional: Record<string, never>): ChatMessage | undefined {
+    return [...history].reverse().find((message) => message.role === "user");
   }
 
   /**
    * Turns `startRun`'s Local CLI `POST /api/runs` response into either a thrown, detailed error or a
    * subscribed run — the two outcomes once the request lands. Pulled out of `startRun` (2026-09-04,
    * complexity pass) as its own step: `response.ok` in, `{runId}` or a thrown `Error` out. The
-   * `.text().catch(() => "")` is load-bearing, not decorative — see the inline comment below.
+   * `.text().catch(() => "")` is load-bearing, not decorative — see {@link refusalError}'s inline comment.
    */
   async function finishLocalCliRun(
     response: Response,
     handlers: RunHandlers,
     signal: AbortSignal | undefined,
   ): Promise<{ runId: string }> {
-    if (!response.ok) {
-      // A response whose body stream errors out (e.g. a dropped connection) must not turn "the server
-      // rejected the request" into "the client crashed reading the rejection".
-      const detail = await response.text().catch(() => "");
-      throw new Error(`agent run failed to start (${response.status})${detail ? `: ${detail.slice(0, 300)}` : ""}`);
-    }
+    if (!response.ok) throw await refusalError({ action: "agent run failed to start", response }, {});
 
     const { run, messageId, conversationId } = (await response.json()) as { run: { id: string }; messageId?: string; conversationId?: string };
     if (messageId && conversationId) ports.bindRun({ runId: run.id, binding: { messageId, conversationId } }, {});
     subscribeToRun(run.id, handlers, signal);
     return { runId: run.id };
+  }
+
+  /**
+   * The Local CLI path of `startRun`: durable user turn, then acceptance, then the followed run.
+   *
+   * @param input - `startRun`'s input with its conversation identity already merged into `context`.
+   * @param userMessage - The newest user message; acceptance carries it verbatim.
+   * @param conversationId - The resolved conversation, or `undefined` when adoption failed.
+   */
+  async function startLocalCliRun(
+    { input, handlers, userMessage, conversationId }: { input: StartRunInput; handlers: RunHandlers; userMessage: ChatMessage; conversationId: string | undefined },
+    { options }: { options: AssistantTransportOptions },
+  ): Promise<{ runId: string }> {
+    // Local CLI path below. `resolveLocalCliPrompt`'s own doc has the full contract for why an
+    // unresolved/absent agentId fails open to the full transcript rather than the bare message.
+    const prompt = resolveLocalCliPrompt(input, options.getResumeCapableAgentIds?.({}, {}));
+    // Also before the POST, and for the same reason it is awaited rather than fired off: the
+    // user's turn must be durable before a run that can fail to deliver it exists at all
+    // (Defect 2, 2026-09-11). Ordered after conversation adoption because it needs the id that
+    // adoption produces. BYOK and AG-UI share the identity above; neither writes a durable
+    // user turn ahead of dispatch; those transports retain their own persistence behavior.
+    await persistUserTurnBeforeDispatch({ message: userMessage, conversationId }, { persistUserTurn: options.persistUserTurn });
+    // Acceptance commits the question and stub together even if the separate browser PUT fails
+    // or the tab disappears. Carry the exact message ID/payload, never the rendered prompt.
+    const base = buildLocalCliContextRef(input, prompt, conversationId);
+    const contextRef = { ...base, userMessage };
+
+    const response = await ports.acceptRun({
+      ...(input.cancelSignal === undefined ? {} : { signal: input.cancelSignal }),
+      requestSignal: input.cancelSignal ?? input.signal,
+      body: { contextRef: JSON.stringify(contextRef), agentId: input.agentId, idempotencyKey: base.assistantMessageId },
+      messageId: base.assistantMessageId,
+      ...(conversationId === undefined ? {} : { conversationId }),
+    }, {});
+
+    return finishLocalCliRun(response, handlers, input.signal);
   }
 
   function createAssistantTransport(options: AssistantTransportOptions = {}): ChatTransport {
@@ -843,7 +895,8 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         // prompt asks the agent to reply to itself. Shared by both paths below, and reused (rather than
         // recomputed) by the Local CLI branch's own resume-capable check further down.
         const latestUserPrompt = latestUserPromptFromHistory({ history: input.history as ChatMessage[] });
-        if (!latestUserPrompt) {
+        const userMessage = newestUserMessage({ history: input.history }, {});
+        if (!latestUserPrompt || userMessage === undefined) {
           throw new Error("no user message to send");
         }
 
@@ -876,30 +929,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
           return ports.agUi.startAgUiRun({ input: ports.projectInput({ input: { ...input, history: historyForTranscript(input.history as ChatMessage[]) } }, {}), handlers: capturePluginUsage(handlers) }, {});
         }
 
-        // Local CLI path below. `resolveLocalCliPrompt`'s own doc has the full contract for why an
-        // unresolved/absent agentId fails open to the full transcript rather than the bare message.
-        const prompt = resolveLocalCliPrompt(input, options.getResumeCapableAgentIds?.({}, {}));
-        // Also before the POST, and for the same reason it is awaited rather than fired off: the
-        // user's turn must be durable before a run that can fail to deliver it exists at all
-        // (Defect 2, 2026-09-11). Ordered after conversation adoption because it needs the id that
-        // adoption produces. BYOK and AG-UI share the identity above; neither writes a durable
-        // user turn ahead of dispatch; those transports retain their own persistence behavior.
-        await persistUserTurnBeforeDispatch(input, conversationId, options.persistUserTurn);
-        const userMessage = [...(input.history as ChatMessage[])].reverse().find((message) => message.role === "user");
-        // Acceptance commits the question and stub together even if the separate browser PUT fails
-        // or the tab disappears. Carry the exact message ID/payload, never the rendered prompt.
-        const base = buildLocalCliContextRef(input, prompt, conversationId);
-        const contextRef = userMessage ? { ...base, userMessage } : base;
-
-        const response = await ports.acceptRun({
-          ...(input.cancelSignal === undefined ? {} : { signal: input.cancelSignal }),
-          requestSignal: input.cancelSignal ?? input.signal,
-          body: { contextRef: JSON.stringify(contextRef), agentId: input.agentId, idempotencyKey: base.assistantMessageId },
-          messageId: base.assistantMessageId,
-          ...(conversationId === undefined ? {} : { conversationId }),
-        }, {});
-
-        return finishLocalCliRun(response, handlers, input.signal);
+        return startLocalCliRun({ input, handlers, userMessage, conversationId }, { options });
       },
 
       async reattachRun(runId: string, handlers: RunHandlers, options?: ReattachRunOptions): Promise<void> {
@@ -926,7 +956,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         // value (see the daemon branch below's own `!response.ok` case), not a new state.
         if (runId.startsWith(BYOK_RUN_ID_PREFIX)) return null;
         if (ports.agUi.isAgUiRunId({ runId }, {})) return ports.agUi.fetchAgUiRunStatus({}, {});
-        const response = await ports.fetch(`${RUNS_URL}/${encodeURIComponent(runId)}`, { credentials: "same-origin" });
+        const response = await ports.fetch(`${ports.runsUrl}/${encodeURIComponent(runId)}`, { credentials: "same-origin" });
         if (!response.ok) return null;
         const { run } = (await response.json()) as { run: { state: string } };
         return toChatCoreRunStatus(run.state) ?? null;
@@ -942,7 +972,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         if (ports.agUi.isAgUiRunId({ runId }, {})) {
           return ports.agUi.stopAgUiRun({ runId }, {});
         }
-        const response = await ports.fetch(`${RUNS_URL}/${encodeURIComponent(runId)}/cancel`, {
+        const response = await ports.fetch(`${ports.runsUrl}/${encodeURIComponent(runId)}/cancel`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
@@ -952,16 +982,10 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         if (response.status === 404) return;
         // `fetch` resolves on any status: without this a refused cancel (401/403/500) resolved exactly
         // like a successful one while the run kept executing. `useRunStream` logs a rejection here.
-        if (!response.ok) {
-          const detail = await response.text().catch(() => "");
-          throw new Error(`cancelling agent run failed (${response.status})${detail ? `: ${detail.slice(0, 300)}` : ""}`);
-        }
+        if (!response.ok) throw await refusalError({ action: "cancelling agent run failed", response }, {});
       },
     };
   }
-
-
-
 
   return {
    createAssistantTransport: ({ options = {} }: { options?: AssistantTransportOptions }, _optional: Record<string, never> = {}) => createAssistantTransport(options),
