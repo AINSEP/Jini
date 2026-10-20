@@ -66,6 +66,49 @@ describe('useChatPane — a message sent mid-run goes to the running agent', () 
     }
   });
 
+  it('queues the text as the next turn, without stopping the run, when the host delivery throws', async () => {
+    const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => { throw new Error('POST /runs/run-1/messages offline'); });
+    const { result, transport } = await startStreamingRun(deliver);
+
+    await act(() => result.current.send());
+
+    expect(result.current.queuedPrompt).toBe('also fix the footer');
+    expect(transport.stoppedRunIds).toEqual([]);
+  });
+
+  it('ignores a mid-run delivery that settles after reset: nothing is queued for the fresh pane', async () => {
+    let release!: (outcome: MidRunMessageDelivery) => void;
+    const deliver = vi.fn(() => new Promise<MidRunMessageDelivery>((resolve) => { release = resolve; }));
+    const { result, transport } = await startStreamingRun(deliver);
+    let sending!: Promise<void>;
+    act(() => { sending = result.current.send(); });
+    act(() => result.current.reset());
+    await act(async () => { release('not-running'); await sending; });
+
+    expect(result.current.queuedPrompt).toBeNull();
+    expect(transport.calls).toHaveLength(1);
+  });
+
+  it('steers both messages sent while a screenshot uploads into the run once the upload lands', async () => {
+    const image = { path: 'attachment:uploaded', name: 'paste.png', kind: 'image' as const };
+    let complete!: (attachments: typeof image[]) => void;
+    const uploadAttachments = vi.fn(() => new Promise<typeof image[]>(resolve => { complete = resolve; }));
+    const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'delivered');
+    const { result } = await startStreamingRun(deliver, { uploadAttachments });
+    let upload!: Promise<void>;
+    act(() => { upload = result.current.addAttachments([new File(['pixels'], 'paste.png', { type: 'image/png' })]); });
+    await act(() => result.current.send());
+    act(() => result.current.composer.setDraft('and the header'));
+    await act(() => result.current.send());
+    expect(result.current.queuedPrompt).toBe('also fix the footer\n\nand the header');
+    await act(async () => { complete([image]); await upload; });
+
+    await waitFor(() => expect(deliver).toHaveBeenCalledWith({
+      runId: 'run-1', text: 'also fix the footer\n\nand the header', attachments: [image],
+    }));
+    expect(deliver).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the old queue-behind-the-run behavior when the host gives no delivery', async () => {
     const { result, transport } = await startStreamingRun(undefined);
 
@@ -134,6 +177,49 @@ describe('useChatPane — a message sent mid-run goes to the running agent', () 
     expect(transport.calls).toHaveLength(1);
     expect(result.current.composer.attachments).toEqual([]);
     expect(result.current.composer.draft).toBe('a later, unsent draft');
+  });
+
+  it('keeps the upload batch when a file starts uploading while a screenshot turn is being delivered', async () => {
+    const image = { path: 'attachment:1', name: 'a.png', kind: 'image' as const };
+    const batchIds: (string | undefined)[] = [];
+    const uploads: (() => void)[] = [];
+    const uploadAttachments = vi.fn((files: File[], options?: { batchId?: string }) => {
+      batchIds.push(options?.batchId);
+      const uploaded = files.map(file => ({ path: `attachment:${file.name}`, name: file.name, kind: 'file' as const }));
+      return new Promise<typeof uploaded>(resolve => { uploads.push(() => resolve(uploaded)); });
+    });
+    let release!: (outcome: MidRunMessageDelivery) => void;
+    const deliver = vi.fn(() => new Promise<MidRunMessageDelivery>((resolve) => { release = resolve; }));
+    const { result } = await startStreamingRun(deliver, { uploadAttachments });
+    act(() => result.current.composer.addAttachment(image));
+    let sending!: Promise<void>;
+    act(() => { sending = result.current.send(); });
+    let upload!: Promise<void>;
+    act(() => { upload = result.current.addAttachments([new File(['b'], 'b.txt')]); });
+    await act(async () => { release('delivered'); await sending; });
+    await act(async () => { uploads[0]?.(); await upload; });
+    act(() => { void result.current.addAttachments([new File(['c'], 'c.txt')]); });
+
+    expect(batchIds).toHaveLength(2);
+    expect(batchIds[1]).toBe(batchIds[0]);
+  });
+
+  it('sends an upload-waiting turn as the next turn when the run ends before the upload lands', async () => {
+    const image = { path: 'attachment:uploaded', name: 'paste.png', kind: 'image' as const };
+    let complete!: (attachments: typeof image[]) => void;
+    const uploadAttachments = vi.fn(() => new Promise<typeof image[]>(resolve => { complete = resolve; }));
+    const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'delivered');
+    const { result, transport } = await startStreamingRun(deliver, { uploadAttachments });
+    let upload!: Promise<void>;
+    act(() => { upload = result.current.addAttachments([new File(['pixels'], 'paste.png', { type: 'image/png' })]); });
+    await act(() => result.current.send());
+    await act(async () => { transport.finish(); });
+    await act(async () => { complete([image]); await upload; });
+
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(deliver).not.toHaveBeenCalled();
+    expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('also fix the footer');
+    expect(transport.calls[1]?.input.attachments).toEqual([image]);
   });
 
   it('queues the whole attachment turn until the reply ends when live images are unsupported', async () => {
