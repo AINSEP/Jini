@@ -87,6 +87,44 @@ function scopeHistoryToAgent(history: ChatMessage[], targetAgentId: string | und
   return history;
 }
 
+type QuestionFormTag = { name: string; start: number; end: number; closing: boolean };
+
+/** Scan tag boundaries once, including malformed openers, without retrying an unterminated tag. */
+function questionFormTags({ content }: { content: string }): QuestionFormTag[] {
+  const matcher = /<(question-form|ask-question)\b|<\/(question-form|ask-question)>/g;
+  const tags: QuestionFormTag[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = matcher.exec(content))) {
+    const closing = match[2] !== undefined;
+    const end = closing ? matcher.lastIndex : content.indexOf('>', matcher.lastIndex) + 1;
+    if (!end) break;
+    tags.push({ name: (match[1] ?? match[2])!, start: match.index, end, closing });
+    matcher.lastIndex = end;
+  }
+  return tags;
+}
+
+/** Find matched form ranges in reverse source order without retrying unmatched openers.
+ * Keep the first following close of the same name, matching the former non-greedy replacement.
+ * Matching by name (formerly a `\1` backreference) means a `<question-form>…</ask-question>`
+ * mismatch is never spliced.
+ * @complexity O(n) time and space in content length; each tag and source character is scanned once.
+ */
+function questionFormRanges({ content }: { content: string }): Array<{ start: number; end: number }> {
+  const tags = questionFormTags({ content });
+  const nextClose = new Map<string, number>();
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (let i = tags.length - 1; i >= 0; i--) {
+    const tag = tags[i]!;
+    if (tag.closing) nextClose.set(tag.name, tag.end);
+    else {
+      const end = nextClose.get(tag.name);
+      if (end !== undefined) ranges.push({ start: tag.start, end });
+    }
+  }
+  return ranges;
+}
+
 /**
  * Strip transcript-echo hazards from a prior assistant turn before it goes
  * back to the agent as history: an already-answered `<question-form>` /
@@ -107,12 +145,15 @@ function scopeHistoryToAgent(history: ChatMessage[], targetAgentId: string | und
  *   passes) plus {@link summarizeArtifactsForTranscript}'s cost.
  */
 export function sanitizePriorAssistantTurn({ content }: { content: string }, { persistedArtifactFiles = [] }: { persistedArtifactFiles?: (ReadonlyArray<PersistedArtifactFileRef>) | undefined } = {}): string {
-  let sanitized = content.replace(
-    // `\1` backreference keeps the open/close tag names matched so this never
-    // splices across a `<question-form>…</ask-question>` mismatch.
-    /<(question-form|ask-question)\b[^>]*>[\s\S]*?<\/\1>/g,
-    '[question-form was emitted here on a prior turn; the user already answered, see their reply below.]',
-  );
+  const chunks: string[] = [];
+  let copiedTo = 0;
+  for (const range of questionFormRanges({ content }).reverse()) {
+    if (range.start < copiedTo) continue;
+    chunks.push(content.slice(copiedTo, range.start), '[question-form was emitted here on a prior turn; the user already answered, see their reply below.]');
+    copiedTo = range.end;
+  }
+  chunks.push(content.slice(copiedTo));
+  let sanitized = chunks.join('');
   // Strip ```json (or plain ```) fenced blocks whose body matches the form
   // schema shape — `"questions": [` is the strongest tell. A generic JSON
   // snippet without that key is left intact.

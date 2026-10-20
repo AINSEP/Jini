@@ -55,6 +55,37 @@ describe('partial-json: repairJsonPrefix', () => {
 });
 
 describe('partial-json: parsePartialJson', () => {
+  it('repairs a 60k-digit prefix within the time budget', () => {
+    const buf = '{"n":' + '1'.repeat(60_000);
+    const start = performance.now();
+    const result = parsePartialJson({ buf });
+    const elapsed = performance.now() - start;
+    expect(result).toEqual({ n: Infinity });
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  // Each of these took 9-60s before linear separator trimming and the pass bound.
+  it.each([
+    ['a whitespace run', '[' + ' '.repeat(60_000) + 'x', null],
+    ['a non-JSON value chain', '[' + 't,'.repeat(30_000), null],
+  ])('settles %s within the time budget', (_name, buf, expected) => {
+    const start = performance.now();
+    expect(parsePartialJson({ buf })).toEqual(expected);
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it('accepts the structured-input limit and rejects larger buffers before repair', () => {
+    const atLimit = JSON.stringify('x'.repeat(64 * 1024 - 2));
+    expect(parsePartialJson({ buf: atLimit })).toBe('x'.repeat(64 * 1024 - 2));
+    const oversized = atLimit + ' ';
+    expect(parsePartialJson({ buf: oversized })).toBeNull();
+    expect(repairJsonPrefix({ buf: oversized })).toBe('');
+  });
+
+  it.each(['12e', '12.5e+', '.5e-', '-12.e'])('still removes an incomplete exponent %s', number => {
+    expect(parsePartialJson({ buf: `{"n":${number}` })).toEqual({});
+  });
+
   it('parses a repaired truncated object', () => {
     expect(parsePartialJson({ buf: '{"a":1,"b":"hel' })).toEqual({ a: 1, b: 'hel' });
   });

@@ -18,6 +18,30 @@ describe('latestUserPromptFromHistory', () => {
 });
 
 describe('sanitizePriorAssistantTurn', () => {
+  it('leaves 16,000 unmatched form openers unchanged within the time budget', () => {
+    const content = '<question-form>'.repeat(16_000);
+    const start = performance.now();
+    const result = sanitizePriorAssistantTurn({ content });
+    const elapsed = performance.now() - start;
+    expect(result).toBe(content);
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it.each([
+    '<question-form><ask-question>nested</ask-question></question-form>',
+    '<ask-question><question-form>nested</question-form></ask-question>',
+    '<question-form><question-form>nested</question-form>',
+  ])('strips the earliest matched outer form without exposing nested contents: %s', content => {
+    expect(sanitizePriorAssistantTurn({ content })).toBe('[question-form was emitted here on a prior turn; the user already answered, see their reply below.]');
+  });
+
+  it('preserves unmatched openers and mismatched closing tags while stripping independent matched forms', () => {
+    const content = '<question-form>unmatched<ask-question>answered</ask-question>tail';
+    expect(sanitizePriorAssistantTurn({ content })).toBe('<question-form>unmatched[question-form was emitted here on a prior turn; the user already answered, see their reply below.]tail');
+    const mismatched = '<question-form>keep</ask-question>';
+    expect(sanitizePriorAssistantTurn({ content: mismatched })).toBe(mismatched);
+  });
+
   it('replaces an already-answered question-form block with a pointer note', () => {
     const content = 'Sure, one sec.\n<question-form>{"questions":[]}</question-form>\nDone.';
     const result = sanitizePriorAssistantTurn({ content: content });
@@ -52,6 +76,16 @@ describe('sanitizePriorAssistantTurn', () => {
 });
 
 describe('buildTranscript', () => {
+  it('bounds output after processing repeated unmatched form tags without stalling', () => {
+    const content = '<question-form>'.repeat(16_000);
+    const start = performance.now();
+    const result = buildTranscript({ history: [{ id: 'large', role: 'assistant', content }] });
+    const elapsed = performance.now() - start;
+    expect(result).toContain('truncated 228000 chars');
+    expect(result.startsWith('## assistant\n' + content.slice(0, 12_000))).toBe(true);
+    expect(elapsed).toBeLessThan(1000);
+  });
+
   const baseHistory: ChatMessage[] = [
     { id: '1', role: 'user', content: 'build me a page' },
     { id: '2', role: 'assistant', content: 'working on it', agentId: 'claude-code' },
