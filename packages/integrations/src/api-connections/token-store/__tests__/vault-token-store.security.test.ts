@@ -2,6 +2,7 @@
  * durable lease + CAS, generation and holder fencing, reconnect-required, delete, and
  * secret-free errors/status. */
 import { describe, expect, it } from "vitest";
+import { VaultError } from "@jini-ai/platform/secrets/credential-sets";
 import { OAuthTokenStoreError, parseOAuthTokenVaultMeta, type OAuthTokenStoreErrorCode } from "../index.js";
 import { buildRecordMeta, buildTokenPayload } from "../record.js";
 import { createVaultOAuthTokenStore, type OAuthTokenVaultPort } from "../vault-token-store.js";
@@ -190,6 +191,19 @@ describe("credential install (sign-in write, no refresh lease)", () => {
 });
 
 describe("credential install under sustained contention", () => {
+  it("surfaces a vault refusal other than a conflict instead of retrying or reporting success", async () => {
+    const f = createFixture();
+    const refused = new VaultError({ code: "context" });
+    const refusing: OAuthTokenVaultPort = {
+      get: input => f.vault.get(input), patchMeta: input => f.vault.patchMeta(input), delete: input => f.vault.delete(input),
+      put: async () => { throw refused; },
+    };
+    const store = createVaultOAuthTokenStore({ vault: refusing, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
+      readGeneration: async () => f.state.generation });
+    const error = await store.install({ key: KEY, tokens: tokenSet({ label: "refused" }), generation: 1 }).then(() => null, (caught: unknown) => caught);
+    expect([error, await f.repo.find({ workspaceId: SCOPE.workspaceId, id: KEY })]).toEqual([refused, null]);
+  });
+
   it("gives up with write-conflict instead of writing over a row that keeps changing", async () => {
     const f = createFixture();
     await f.store().install({ key: KEY, tokens: tokenSet({ label: "first" }), generation: 1 });
