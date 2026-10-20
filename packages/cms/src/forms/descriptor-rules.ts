@@ -4,83 +4,127 @@ import { FIELD_TYPE_REGISTRY, isBrowserSafeFieldPattern, isSafeFieldPattern, MAX
 import type { FieldError } from "./forms.js";
 const KEYS: ReadonlySet<string> = new Set(["id", "name", "label", "type", "required", "placeholder", "helpText", "default", "options", "minLength", "maxLength", "pattern", "min", "max", "step", "accept", "maxFileSize", "checkboxValue", "className", "attributes"]);
 const TEMPORAL: ReadonlySet<string> = new Set(["date", "time", "datetime"]);
-const fail = (field: string, reason: string): FieldError => ({ field, reason });
+const WILDCARD_ACCEPTS: readonly string[] = ["image/*", "video/*", "*/*"];
+type BoundAxis = "numeric" | "temporal" | "none";
+type Option = NonNullable<FieldDescriptor["options"]>[number];
 
+/** Explicit numeric properties win; legacy string attributes are read as numbers. */
+const numberOrAttribute = (explicit: number | undefined, attribute: string | undefined): number | undefined =>
+  explicit ?? (attribute === undefined ? undefined : Number(attribute));
+const kindFlags = (field: FieldDescriptor): { textual?: boolean; choices?: boolean } => FIELD_TYPE_REGISTRY[field.type] as { textual?: boolean; choices?: boolean };
+
+function minLengthErrors(field: FieldDescriptor, textual: boolean): string[] {
+  const minLength = numberOrAttribute(field.minLength, field.attributes?.minlength);
+  if (minLength === undefined) return [];
+  const inBounds = Number.isInteger(minLength) && minLength >= 0 && minLength <= (field.maxLength ?? 5000);
+  return textual && inBounds ? [] : ["minLength must be an integer within the text length bounds"];
+}
+function maxLengthErrors(field: FieldDescriptor, textual: boolean): string[] {
+  if (field.type === "checkbox" || field.maxLength == null) return [];
+  return textual && Number.isInteger(field.maxLength) ? [] : ["maxLength is only supported on text fields and must be an integer"];
+}
+function patternErrors(field: FieldDescriptor, textual: boolean): string[] {
+  const pattern = field.pattern ?? field.attributes?.pattern;
+  if (pattern === undefined) return [];
+  if (!textual || typeof pattern !== "string" || !isSafeFieldPattern({ pattern })) return ["pattern must be a safe text pattern (no groups, alternation, backreferences or multiple repetitions)"];
+  return isBrowserSafeFieldPattern({ pattern }) ? [] : ["pattern is ignored by browsers: escape '-' and other symbols inside [...] with a backslash, e.g. [0-9 +.\\-]"];
+}
 /** Text rules apply to explicit descriptor properties and their legacy attributes alike. */
 function textConstraints(field: FieldDescriptor): string[] {
-  const errors: string[] = [];
-  const kind = FIELD_TYPE_REGISTRY[field.type] as { textual?: boolean } | undefined;
-  const minLength = field.minLength ?? (field.attributes?.minlength !== undefined ? Number(field.attributes.minlength) : undefined);
-  const pattern = field.pattern ?? field.attributes?.pattern;
-  if (minLength !== undefined && (!kind?.textual || !Number.isInteger(minLength) || minLength < 0 || minLength > (field.maxLength ?? 5000))) errors.push("minLength must be an integer within the text length bounds");
-  if (field.type !== "checkbox" && field.maxLength != null && (!kind?.textual || !Number.isInteger(field.maxLength))) errors.push("maxLength is only supported on text fields and must be an integer");
-  if (pattern !== undefined && (!kind?.textual || typeof pattern !== "string" || !isSafeFieldPattern({ pattern }))) errors.push("pattern must be a safe text pattern (no groups, alternation, backreferences or multiple repetitions)");
-  else if (typeof pattern === "string" && !isBrowserSafeFieldPattern({ pattern })) errors.push("pattern is ignored by browsers: escape '-' and other symbols inside [...] with a backslash, e.g. [0-9 +.\\-]");
-  return errors;
+  const textual = kindFlags(field).textual === true;
+  return [...minLengthErrors(field, textual), ...maxLengthErrors(field, textual), ...patternErrors(field, textual)];
+}
+const boundedLabel = (value: unknown): boolean => typeof value === "string" && value.length > 0 && value.length <= 200;
+function isWellFormedOption(option: Option): boolean {
+  return Boolean(option) && boundedLabel(option.value) && boundedLabel(option.label) && Object.keys(option).every((key) => key === "value" || key === "label");
 }
 /** Choice options are bounded, unique and non-empty; scalar/array defaults use the same validator. */
 function choiceConstraints(field: FieldDescriptor): string[] {
-  const kind = FIELD_TYPE_REGISTRY[field.type] as { choices?: boolean } | undefined;
-  if (!kind?.choices) return field.options === undefined ? [] : ["options are only supported on choice fields"];
+  if (!kindFlags(field).choices) return field.options === undefined ? [] : ["options are only supported on choice fields"];
   if (!Array.isArray(field.options) || field.options.length === 0 || field.options.length > 100) return ["choice fields require 1-100 options"];
   const values = new Set<string>();
   const errors: string[] = [];
   for (const option of field.options) {
-    if (!option || typeof option.value !== "string" || option.value.length === 0 || option.value.length > 200 || typeof option.label !== "string" || option.label.length === 0 || option.label.length > 200 || Object.keys(option).some((key) => key !== "value" && key !== "label")) {
-      errors.push("options must contain only a non-empty value and label (up to 200 characters)"); continue;
-    }
+    if (!isWellFormedOption(option)) { errors.push("options must contain only a non-empty value and label (up to 200 characters)"); continue; }
     if (values.has(option.value)) errors.push("option values must be unique");
     values.add(option.value);
   }
   return errors;
 }
+function boundAxis(field: FieldDescriptor): BoundAxis {
+  if (field.type === "number" || field.type === "range") return "numeric";
+  return TEMPORAL.has(field.type) ? "temporal" : "none";
+}
+const boundValue = (field: FieldDescriptor, key: "min" | "max"): number | string | undefined => field[key] ?? field.attributes?.[key];
+const isFiniteNumber = (value: unknown): boolean =>
+  (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) && Number.isFinite(Number(value));
+const isNativeTemporal = (field: FieldDescriptor, value: unknown): boolean =>
+  typeof value === "string" && resolveFormField({ field: { id: "bound", label: "Bound", type: field.type, required: true }, value }).kind === "accepted";
+function boundValueError(key: "min" | "max", { field, axis }: { field: FieldDescriptor; axis: BoundAxis }): string | undefined {
+  const value = boundValue(field, key);
+  if (value === undefined) return undefined;
+  if (axis === "numeric") return isFiniteNumber(value) ? undefined : `${key} must be a finite number`;
+  if (axis === "temporal") return isNativeTemporal(field, value) ? undefined : `${key} must match the field's native date/time format`;
+  return `${key} is only supported on numeric and date/time fields`;
+}
+function isReversedInterval(field: FieldDescriptor, axis: BoundAxis): boolean {
+  const min = boundValue(field, "min");
+  const max = boundValue(field, "max");
+  if (min === undefined || max === undefined) return false;
+  if (axis === "numeric") return Number(min) > Number(max);
+  if (axis !== "temporal") return false;
+  // Reuse the submission bound validator so equivalent local-time spellings stay equivalent.
+  const comparison = resolveFormField({ field: { id: "bound", label: "Bound", type: field.type, required: true, min }, value: max });
+  return comparison.kind === "rejected" && comparison.reason === "below_min";
+}
+function isInvalidStep(field: FieldDescriptor, axis: BoundAxis): boolean {
+  const step = numberOrAttribute(field.step, field.attributes?.step);
+  return step !== undefined && (axis !== "numeric" || !Number.isFinite(step) || step <= 0);
+}
 /** Numeric/date bounds must use native formats; reversed intervals and non-positive steps fail. */
 function boundConstraints(field: FieldDescriptor): string[] {
-  const errors: string[] = [];
-  const numeric = field.type === "number" || field.type === "range";
-  const temporal = TEMPORAL.has(field.type);
-  for (const key of ["min", "max"] as const) {
-    const value = field[key] ?? field.attributes?.[key];
-    if (value === undefined) continue;
-    if (numeric) {
-      if (typeof value !== "number" && (typeof value !== "string" || value.trim() === "")) errors.push(`${key} must be a finite number`);
-      else if (!Number.isFinite(Number(value))) errors.push(`${key} must be a finite number`);
-    } else if (temporal) {
-      if (typeof value !== "string" || resolveFormField({ field: { id: "bound", label: "Bound", type: field.type, required: true }, value }).kind !== "accepted") errors.push(`${key} must match the field's native date/time format`);
-    } else errors.push(`${key} is only supported on numeric and date/time fields`);
-  }
-  const min = field.min ?? field.attributes?.min;
-  const max = field.max ?? field.attributes?.max;
-  if (min !== undefined && max !== undefined) {
-    // Reuse the submission bound validator so equivalent local-time spellings stay equivalent.
-    const comparison = temporal ? resolveFormField({ field: { id: "bound", label: "Bound", type: field.type, required: true, min }, value: max }) : undefined;
-    if (numeric ? Number(min) > Number(max) : comparison?.kind === "rejected" && comparison.reason === "below_min") errors.push("min must not exceed max");
-  }
-  const step = field.step ?? (field.attributes?.step !== undefined ? Number(field.attributes.step) : undefined);
-  if (step !== undefined && (!numeric || !Number.isFinite(step) || step <= 0)) errors.push("step must be a positive finite number on a numeric field");
+  const axis = boundAxis(field);
+  const errors = (["min", "max"] as const).map((key) => boundValueError(key, { field, axis })).filter((error) => error !== undefined);
+  if (isReversedInterval(field, axis)) errors.push("min must not exceed max");
+  if (isInvalidStep(field, axis)) errors.push("step must be a positive finite number on a numeric field");
   return errors;
 }
+const isInvalidFileSize = (size: number | undefined): boolean =>
+  size !== undefined && (!Number.isInteger(size) || size < 1 || size > MAX_FORM_FILE_BYTES);
+const isSafeAccept = (mime: string): boolean => Object.hasOwn(SAFE_FORM_FILE_TYPES, mime) || WILDCARD_ACCEPTS.includes(mime);
+const isInvalidAccept = (accept: string[] | undefined): boolean =>
+  accept !== undefined && (!Array.isArray(accept) || accept.length === 0 || accept.length > 20 || !accept.every(isSafeAccept));
 /** File fields may narrow the safe list/size, and cannot synthesize a default upload. */
 function fileConstraints(field: FieldDescriptor): string[] {
   if (field.type !== "file") return field.accept !== undefined || field.maxFileSize !== undefined ? ["accept/maxFileSize are only supported on file fields"] : [];
   const errors: string[] = [];
-  if (field.maxFileSize !== undefined && (!Number.isInteger(field.maxFileSize) || field.maxFileSize < 1 || field.maxFileSize > MAX_FORM_FILE_BYTES)) errors.push(`maxFileSize must be 1-${MAX_FORM_FILE_BYTES} bytes`);
-  if (field.accept !== undefined && (!Array.isArray(field.accept) || field.accept.length === 0 || field.accept.length > 20 || field.accept.some((mime) => !Object.hasOwn(SAFE_FORM_FILE_TYPES, mime) && !["image/*", "video/*", "*/*"].includes(mime)))) errors.push("accept must contain recognized safe MIME types or image/*, video/*, */*");
+  if (isInvalidFileSize(field.maxFileSize)) errors.push(`maxFileSize must be 1-${MAX_FORM_FILE_BYTES} bytes`);
+  if (isInvalidAccept(field.accept)) errors.push("accept must contain recognized safe MIME types or image/*, video/*, */*");
   if (field.default !== undefined) errors.push("file fields cannot have defaults");
   return errors;
+}
+const isShortTextOrAbsent = (value: unknown): boolean => value === undefined || (typeof value === "string" && value.length <= 500);
+/** Properties, the required flag, the stable name and the free-text hints, whatever the type. */
+function shapeErrors(field: FieldDescriptor): string[] {
+  const errors = Object.keys(field).filter((key) => !KEYS.has(key)).map((key) => `property '${key}' is not allowed`);
+  if (typeof field.required !== "boolean") errors.push("required must be a boolean");
+  if (field.name !== undefined && field.name !== field.id) errors.push("name must equal the stable field id");
+  for (const key of ["placeholder", "helpText"] as const) if (!isShortTextOrAbsent(field[key])) errors.push(`${key} must be a string of at most 500 characters`);
+  return errors;
+}
+/** Never reached for a file field with a default: fileConstraints already refused it, and defaults
+ * resolve only for otherwise-valid descriptors. */
+function defaultErrors(field: FieldDescriptor): string[] {
+  if (field.default === undefined) return [];
+  const result = resolveFormField({ field: { ...field, required: false }, value: field.default });
+  return result.kind === "rejected" ? [`default: ${result.reason}`] : [];
 }
 /** Collect definition errors without coercing an untrusted descriptor into a valid one.
  * @complexity O(k + o) for descriptor keys and at most 100 options. */
 export function commonDescriptorErrors({ field }: { field: FieldDescriptor }, _optional = {}): FieldError[] {
-  const errors: string[] = [];
-  for (const key of Object.keys(field)) if (!KEYS.has(key)) errors.push(`property '${key}' is not allowed`);
-  if (typeof field.required !== "boolean") errors.push("required must be a boolean");
-  if (field.name !== undefined && field.name !== field.id) errors.push("name must equal the stable field id");
-  for (const key of ["placeholder", "helpText"] as const) if (field[key] !== undefined && (typeof field[key] !== "string" || field[key]!.length > 500)) errors.push(`${key} must be a string of at most 500 characters`);
+  const errors = shapeErrors(field);
   if (Object.hasOwn(FIELD_TYPE_REGISTRY, field.type)) errors.push(...textConstraints(field), ...choiceConstraints(field), ...boundConstraints(field), ...fileConstraints(field));
-  if (field.default !== undefined && field.type !== "file" && errors.length === 0) {
-    const result = resolveFormField({ field: { ...field, required: false }, value: field.default });
-    if (result.kind === "rejected") errors.push(`default: ${result.reason}`);
-  }
-  return errors.map((reason) => fail(field.id || "(unknown)", reason));
+  // A default is only meaningful once the rest of the descriptor is valid.
+  if (errors.length === 0) errors.push(...defaultErrors(field));
+  return errors.map((reason) => ({ field: field.id || "(unknown)", reason }));
 }
