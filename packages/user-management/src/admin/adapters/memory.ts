@@ -1,8 +1,18 @@
-import { RolesApiError } from '../ports.js';
-import type { RolesApiPort, RolesCallOptions } from '../ports.js';
-import type { RoleRecord, PolicyRecord, PolicyPermissionRecord } from '../models.js';
+import { PeopleApiError, RolesApiError } from '../ports.js';
+import type { RolesApiPort, RolesCallOptions, UsersApiPort, UsersSafetyPort, MembersApiPort, AuthApiPort } from '../ports.js';
+import type { RoleRecord, PolicyRecord, PolicyPermissionRecord, AdminOperator, AdminMember, AdminAccount, CallerInfo, UserAction } from '../models.js';
 import { BUILTIN_PERMISSIONS } from '../../core/builtin-permissions.js';
 import { canManageRoles } from '../rules.js';
+import { hasAdminGrant, userActionAllowed } from '../people.rules.js';
+/** Seed records that belong to this fake's workspace; every other workspace is invisible. */
+function inWorkspace<T extends { workspaceId: string }>(records: readonly T[] | undefined, workspaceId: string): T[] {
+    return (records ?? []).filter(r => r.workspaceId === workspaceId);
+}
+function check(o: RolesCallOptions) { o.signal?.throwIfAborted(); }
+/** Unknown ids deliberately fail closed: they are neither owner nor operator. */
+function ownership({ known, owners, principalId }: { known: { has(id: string): boolean }; owners: ReadonlySet<string>; principalId: string }) {
+    return known.has(principalId) ? owners.has(principalId) ? 'owner' as const : 'operator' as const : 'unknown' as const;
+}
 export interface MemoryRolesOptions {
     readonly permissions?: readonly string[];
     readonly catalog?: readonly string[];
@@ -19,22 +29,14 @@ export function createMemoryRolesApi({ workspaceId }: {
     workspaceId: string;
 }, options: MemoryRolesOptions = {}): RolesApiPort {
     const grants = Object.freeze([...(options.permissions ?? [])]), catalog = new Set(options.catalog ?? BUILTIN_PERMISSIONS.map(p => p.id));
-    const roles = new Map<string, RoleRecord>(), policies = new Map<string, PolicyRecord>(), permissions = new Map<string, PolicyPermissionRecord>();
-    for (const r of options.roles ?? [])
-        if (r.workspaceId === workspaceId)
-            roles.set(r.id, { ...r });
-    for (const p of options.policies ?? [])
-        if (p.workspaceId === workspaceId)
-            policies.set(p.id, { ...p });
-    for (const p of options.policyPermissions ?? [])
-        if (p.workspaceId === workspaceId)
-            permissions.set(p.id, { ...p });
+    const roles = new Map(inWorkspace(options.roles, workspaceId).map(r => [r.id, { ...r }]));
+    const policies = new Map(inWorkspace(options.policies, workspaceId).map(p => [p.id, { ...p }]));
+    const permissions = new Map(inWorkspace(options.policyPermissions, workspaceId).map(p => [p.id, { ...p }]));
     let sequence = 0;
     const id = () => { let next: string; do {
         next = `memory-${++sequence}`;
     } while (roles.has(next) || policies.has(next) || permissions.has(next)); return next; };
     const fail = (code: string, message: string): never => { throw new RolesApiError({ code, message }); };
-    const check = (o: RolesCallOptions) => { o.signal?.throwIfAborted(); };
     const write = (o: RolesCallOptions) => { check(o); if (!canManageRoles({ permissions: grants }))
         fail('FORBIDDEN', 'Missing role.manage.'); };
     const name = (v: string) => { const n = v.trim().normalize('NFC'); if (!n)
@@ -70,7 +72,7 @@ export function createMemoryRolesApi({ workspaceId }: {
             editablePolicy(r.policyId);
             if (!catalog.has(r.permission))
                 fail('PERMISSION_UNKNOWN', 'Unrecognized permission.');
-            if (!grants.includes('*') && !grants.includes(r.permission))
+            if (!hasAdminGrant({ permissions: grants, permission: r.permission }))
                 fail('GRANT_EXCEEDS_ISSUER', 'Grant exceeds issuer.');
             const resourceType = o.resourceType || null;
             const policyPermission: PolicyPermissionRecord = { id: id(), workspaceId, policyId: r.policyId, permission: r.permission, resourceType, constraintJson: null };
@@ -81,18 +83,13 @@ export function createMemoryRolesApi({ workspaceId }: {
             fail('RESOURCE_NOT_FOUND', 'Permission not found on this policy.'); permissions.delete(r.policyPermissionId); },
     };
 }
-
-import type { UsersApiPort, UsersSafetyPort, MembersApiPort, AuthApiPort } from '../ports.js';
-import { PeopleApiError } from '../ports.js';
-import type { AdminOperator, AdminMember, CallerInfo } from '../models.js';
-import { hasAdminGrant, userActionAllowed } from '../people.rules.js';
 /** Complete fake ownership data. Production hosts must resolve effective unconstrained wildcard
  * grants, never role display names. Unknown ids deliberately fail closed. */
 export function createMemoryUsersSafety({ principalIds, ownerPrincipalIds, seededOwnerPrincipalId }: {
   principalIds: readonly string[]; ownerPrincipalIds: readonly string[]; seededOwnerPrincipalId: string | null;
 }, _optional: Record<string, never> = {}): UsersSafetyPort {
   const known = new Set(principalIds), owners = new Set(ownerPrincipalIds);
-  return { seededOwnerPrincipalId, ownerStatus: r => known.has(r.principalId) ? owners.has(r.principalId) ? 'owner' : 'operator' : 'unknown' };
+  return { seededOwnerPrincipalId, ownerStatus: r => ownership({ known, owners, principalId: r.principalId }) };
 }
 export interface MemoryUsersOptions {
   readonly permissions?: readonly string[]; readonly users?: readonly AdminOperator[];
@@ -107,18 +104,17 @@ export interface MemoryUsersOptions {
 /** Fake wire backend only: no persistent password storage, real sessions, audit or Trash service. */
 export function createMemoryUsersApi({ workspaceId }: { workspaceId: string }, options: MemoryUsersOptions = {}): UsersApiPort {
   const grants = Object.freeze([...(options.permissions ?? [])]);
-  const users = new Map((options.users ?? []).filter(u => u.workspaceId === workspaceId).map(u => [u.principalId, clone(u)]));
-  const roles = (options.roles ?? []).filter(r => r.workspaceId === workspaceId).map(r => ({ ...r }));
-  const policies = (options.policies ?? []).filter(p => p.workspaceId === workspaceId).map(p => ({ ...p }));
+  const users = new Map(inWorkspace(options.users, workspaceId).map(u => [u.principalId, clone(u)]));
+  const roles = inWorkspace(options.roles, workspaceId).map(r => ({ ...r }));
+  const policies = inWorkspace(options.policies, workspaceId).map(p => ({ ...p }));
   const owners = new Set(options.ownerPrincipalIds ?? []), trash = new Set<string>();
   const caller: CallerInfo = options.caller ? structuredClone(options.caller) : { user: { id: 'memory-caller', username: 'caller' }, canManageUserTrash: false };
-  const safety: UsersSafetyPort = { seededOwnerPrincipalId: options.seededOwnerPrincipalId ?? null, ownerStatus: r => users.has(r.principalId) ? owners.has(r.principalId) ? 'owner' : 'operator' : 'unknown' };
+  const safety: UsersSafetyPort = { seededOwnerPrincipalId: options.seededOwnerPrincipalId ?? null, ownerStatus: r => ownership({ known: users, owners, principalId: r.principalId }) };
   let sequence = 0;
   function clone(u: AdminOperator): AdminOperator { return { ...u, roleIds: [...u.roleIds], policyIds: [...u.policyIds] }; }
   const fail = (code: string, message: string): never => { throw new PeopleApiError({ code, message }); };
-  const check = (o: RolesCallOptions) => o.signal?.throwIfAborted();
   const get = (id: string) => users.get(id) ?? fail('RESOURCE_NOT_FOUND', 'User not found.');
-  function write(id: string, action: import('../models.js').UserAction, o: RolesCallOptions) {
+  function write(id: string, action: UserAction, o: RolesCallOptions) {
     check(o); const user = get(id);
     if (trash.has(id)) fail('USER_IN_TRASH', 'This user is in the Trash; restore them first.');
     if (action === 'delete' && id === caller.user.id) fail('SELF_DELETE', 'You cannot delete your own account.');
@@ -126,6 +122,8 @@ export function createMemoryUsersApi({ workspaceId }: { workspaceId: string }, o
     return user;
   }
   const password = (value: string) => { if (!value || [...value].length > 512) fail('VALIDATION_ERROR', 'Password must be present and no more than 512 characters.'); };
+  /** Disabling or deleting an owner must leave another active owner behind. */
+  function keepAnotherActiveOwner(u: AdminOperator) { if (owners.has(u.principalId) && [...users.values()].filter(v => v.status === 'active' && owners.has(v.principalId)).length <= 1) fail('OWNER_REQUIRED', 'The workspace must keep at least one active owner.'); }
   function clamp(contents: readonly string[] | undefined) { if (grants.includes('*')) return; if (!contents || contents.some(p => !grants.includes(p))) fail('GRANT_EXCEEDS_ISSUER', 'Grant exceeds issuer.'); }
   return {
     async listUsers(_r, o = {}) { check(o); return { users: [...users.values()].filter(u => !trash.has(u.principalId)).map(clone) }; },
@@ -144,20 +142,19 @@ export function createMemoryUsersApi({ workspaceId }: { workspaceId: string }, o
     async updateUser(r, o = {}) { const u = write(r.principalId, 'email', o); const user = { ...u, ...(o.email !== undefined ? { email: o.email } : {}) }; users.set(u.principalId, user); return { user: clone(user) }; },
     async disableUser(r, o = {}) {
       const u = write(r.principalId, 'disable', o);
-      if (owners.has(u.principalId) && [...users.values()].filter(v => v.status === 'active' && owners.has(v.principalId)).length <= 1) fail('OWNER_REQUIRED', 'The workspace must keep at least one active owner.');
+      keepAnotherActiveOwner(u);
       const user = { ...u, status: 'disabled' as const }; users.set(u.principalId, user); return { user: clone(user) };
     },
     async enableUser(r, o = {}) { const u = write(r.principalId, 'enable', o); const user = { ...u, status: 'active' as const }; users.set(u.principalId, user); return { user: clone(user) }; },
     async resetUserPassword(r, o = {}) { write(r.principalId, 'reset', o); password(r.password); options.onPasswordReset?.(r); },
     async assignRole(r, o = {}) { const u = write(r.principalId, 'grants', o); if (!roles.some(v => v.id === r.roleId)) fail('RESOURCE_NOT_FOUND', 'Role not found.'); clamp(options.rolePermissions?.[r.roleId]); users.set(u.principalId, { ...u, roleIds: [...new Set([...u.roleIds, r.roleId])] }); return { assignment: { principalId: u.principalId, roleId: r.roleId } }; },
     async attachPolicy(r, o = {}) { const u = write(r.principalId, 'grants', o); if (!policies.some(v => v.id === r.policyId)) fail('RESOURCE_NOT_FOUND', 'Policy not found.'); clamp(options.policyPermissions?.[r.policyId]); users.set(u.principalId, { ...u, policyIds: [...new Set([...u.policyIds, r.policyId])] }); return { attachment: { principalId: u.principalId, policyId: r.policyId } }; },
-    async deleteUser(r, o = {}) { const u = write(r.principalId, 'delete', o); if (owners.has(u.principalId) && [...users.values()].filter(v => v.status === 'active' && owners.has(v.principalId)).length <= 1) fail('OWNER_REQUIRED', 'The workspace must keep at least one active owner.'); users.set(u.principalId, { ...u, status: 'disabled' }); trash.add(u.principalId); },
+    async deleteUser(r, o = {}) { const u = write(r.principalId, 'delete', o); keepAnotherActiveOwner(u); users.set(u.principalId, { ...u, status: 'disabled' }); trash.add(u.principalId); },
   };
 }
 export function createMemoryMembersApi({ workspaceId }: { workspaceId: string }, { members = [], permissions = [] }: { members?: readonly AdminMember[]; permissions?: readonly string[] } = {}): MembersApiPort {
   const grants = Object.freeze([...permissions]);
-  const rows = new Map(members.filter(m => m.workspaceId === workspaceId).map(m => [m.id, { ...m }]));
-  const check = (o: RolesCallOptions) => o.signal?.throwIfAborted();
+  const rows = new Map(inWorkspace(members, workspaceId).map(m => [m.id, { ...m }]));
   const fail = (code: string, message: string): never => { throw new PeopleApiError({ code, message }); };
   const gate = (o: RolesCallOptions) => { check(o); if (!hasAdminGrant({ permissions: grants, permission: 'member.manage' })) fail('FORBIDDEN', 'Missing member.manage.'); };
   const get = (id: string) => rows.get(id) ?? fail('RESOURCE_NOT_FOUND', 'Member not found.');
@@ -169,7 +166,7 @@ export function createMemoryMembersApi({ workspaceId }: { workspaceId: string },
   };
 }
 /** Deterministic credential fake; production hashing/session policy stays in the server entry. */
-export function createMemoryAuthApi({ accounts }: { accounts: readonly { user: import('../models.js').AdminAccount; password: string; disabled?: boolean }[] }, _optional: Record<string, never> = {}): AuthApiPort {
+export function createMemoryAuthApi({ accounts }: { accounts: readonly { user: AdminAccount; password: string; disabled?: boolean }[] }, _optional: Record<string, never> = {}): AuthApiPort {
   const rows = accounts.map(a => ({ ...a, user: { ...a.user } }));
-  return { async login(r, o = {}) { o.signal?.throwIfAborted(); const found = rows.find(a => a.user.username.normalize('NFC').toLowerCase() === r.username.trim().normalize('NFC').toLowerCase()); if (!r.password || !found || found.disabled || found.password !== r.password) throw new PeopleApiError({ code: 'UNAUTHENTICATED', message: 'invalid username or password' }); return { user: { ...found.user } }; } };
+  return { async login(r, o = {}) { check(o); const found = rows.find(a => a.user.username.normalize('NFC').toLowerCase() === r.username.trim().normalize('NFC').toLowerCase()); if (!r.password || !found || found.disabled || found.password !== r.password) throw new PeopleApiError({ code: 'UNAUTHENTICATED', message: 'invalid username or password' }); return { user: { ...found.user } }; } };
 }
