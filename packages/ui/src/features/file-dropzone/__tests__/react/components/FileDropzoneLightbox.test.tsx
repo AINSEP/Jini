@@ -2,9 +2,9 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { FileDropzoneLightbox } from './FileDropzoneLightbox.js';
-import { I18nProvider } from '../../../i18n/index.js';
-import type { FileDropzonePreviewState } from '../../types.js';
+import { FileDropzoneLightbox } from '../../../react/components/FileDropzoneLightbox.js';
+import { I18nProvider } from '../../../../i18n/index.js';
+import type { FileDropzonePreviewState } from '../../../types.js';
 
 function file(name: string, type = '', size = 0): File {
   return new File([new Uint8Array(size)], name, { type });

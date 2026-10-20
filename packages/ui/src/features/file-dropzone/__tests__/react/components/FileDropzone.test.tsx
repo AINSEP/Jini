@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { FileDropzone } from './FileDropzone.js';
-import { I18nProvider } from '../../../i18n/index.js';
+import { FileDropzone } from '../../../react/components/FileDropzone.js';
+import { I18nProvider } from '../../../../i18n/index.js';
 
 function file(name: string, type = '', size = 10): File {
   return new File([new Uint8Array(size)], name, { type });
