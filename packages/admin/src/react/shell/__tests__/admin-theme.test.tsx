@@ -87,3 +87,22 @@ it('applies theme props on AdminShell and passes appearance controls into authen
   unmount();
   expect(f.target.hasAttribute('data-admin-theme')).toBe(false);
 });
+
+it('forwards a controlled color scheme and its change callback from AdminShell props', async () => {
+  const f = fixture();
+  const onColorSchemeChange = vi.fn();
+  const props: AdminShellProps = {
+    apiBase: '/api', workspace: { project: 'fixture' }, adminBase: '/console', defaultPanelId: 'home',
+    railStorageKey: 'fixture-controlled-rail', title: 'Console',
+    session: { read: async () => ({ user: { id: 'one', username: 'operator' } }), logout: async () => {}, onUnauthenticated: () => () => {} },
+    navigation: { readRoute: () => '/', subscribe: () => () => {}, navigate: () => {}, installLinkInterceptor: () => () => {} },
+    panels: [{ id: 'home', render: () => <p>Home</p> }],
+    slots: { login: () => <p>Login</p>, sidebarFooter: ({ appearance }) => <button onClick={() => appearance?.setPreference({ preference: 'system' })}>{appearance?.preference}</button> },
+    labels: { navigation: 'Navigation', openNavigation: 'Open', closeNavigation: 'Close', skipToContent: 'Skip', loading: 'Loading', sessionError: 'Error', retry: 'Retry', expandSidebar: 'Expand', collapseSidebar: 'Collapse', soon: 'Soon' },
+    colorScheme: 'light', themeEnvironment: f.environment, onColorSchemeChange,
+  };
+  render(<AdminShell {...props} />);
+  const control = await screen.findByRole('button', { name: 'light' });
+  act(() => control.click());
+  expect(onColorSchemeChange).toHaveBeenCalledWith({ preference: 'system' });
+});

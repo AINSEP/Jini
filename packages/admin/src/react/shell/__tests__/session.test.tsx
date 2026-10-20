@@ -160,3 +160,19 @@ it('unmount unsubscribes and retires unresolved reads', async () => {
   expect(f.unsubscribe).toHaveBeenCalledTimes(1);
   expect(f.port.read).toHaveBeenCalledTimes(1);
 });
+
+it('an expiry signal from a retired workspace subscription leaves the new session alone', async () => {
+  const f = fixture();
+  let expireOld: () => void = () => {};
+  f.port.onUnauthenticated = vi.fn().mockImplementationOnce(({ onUnauthenticated }: { readonly onUnauthenticated: () => void }) => {
+    expireOld = onUnauthenticated;
+    return f.unsubscribe;
+  }).mockImplementation(() => f.unsubscribe);
+  const { result, rerender } = renderHook(({ owner }) => useAdminShellSession({ port: f.port, context: owner }), {
+    initialProps: { owner: context },
+  });
+  rerender({ owner: { apiBase: '/next', workspace: { projectId: 'p2' } } });
+  await waitFor(() => expect(result.current.state.status).toBe('authenticated'));
+  act(() => expireOld());
+  expect(result.current.state.status).toBe('authenticated');
+});
