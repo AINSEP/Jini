@@ -15,6 +15,8 @@ test('runtime metadata and export targets agree for every code entry', async () 
     ['./lifecycle', 'lifecycle/index', 'node'],
     ['./lifecycle/node', 'lifecycle/node', 'node'],
     ['./lifecycle/yauzl', 'lifecycle/yauzl-archive-reader', 'node'],
+    ['./admin-surfaces', 'admin-surfaces/index', 'universal'],
+    ['./admin-surfaces/client', 'admin-surfaces/surface-client', 'universal'],
   ] as const) {
     expect(pkg.exports[subpath]).toEqual({ types: `./dist/${entry}.d.ts`, import: `./dist/${entry}.js`, default: `./dist/${entry}.js` });
     expect(pkg.jini.entries[subpath]).toBe(runtime);
