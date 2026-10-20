@@ -21,7 +21,7 @@ Branch: cloud/w3-integrations (base origin/general-work 6bdca722). Brief: origin
 ## Lot status
 | lot | status | subagent | commits | before→after worst cyc/cog | coverage | verify |
 |---|---|---|---|---|---|---|
-| L052a | dispatched (run 3) | | | | | |
+| L052a | MERGED b2e9e3c5 | run3 agent (~163k tok, 57 calls) | d92710f5 206c3a0f b0a0e2f0 fae19968 b00bf49a 0daa64e7 fddf6067 | context buildRenderContext 12/0→8/0; outbound fetchMediaOutbound 14/0→7/3 (34,560-input old-vs-new differential, deleted); async-operation-store update 20/11→4/1, hydrate 13/0→8/0 (file worst now claimDue 9/10); sqlite updateTxn 21/11→3/2 | coord re-run: all 4 files 100/100/100/100, 10 files 268 tests, no Errors line | eslint 0, tsc = base 8, guard 26 = base; diff review OK (one `as unknown as` = commented malformed-input fixture; new helpers exported at module level only, dispatch/index.ts uses named re-exports so public surface unchanged) |
 | L052b | dispatched (run 3) | | | | | |
 | L048 | dispatched (run 3) | | | | | |
 | L129a | MERGED 959bdb48 | run3 agent (~136k tok, 41 calls) | c221d962 ea3b7421 41eda400 446a8626 5c00e6dd b3a3f431 87da92e5 4ca5dd77 | aihubmix 15/14→≤10, imagerouter-video-async 11/11→≤10, imagerouter 10/13→≤10, nanobanana 12/16→≤10 | coord re-run: all 4 files 100/100/100/100, 11 files 196 tests, no Errors line | eslint 0, tsc = base 8, guard 26 = base, diff review OK (moved test dispatch/__tests__/imagerouter-video-async → providers/__tests__) |
@@ -29,6 +29,7 @@ Branch: cloud/w3-integrations (base origin/general-work 6bdca722). Brief: origin
 | L235 | queued (starts when a slot frees) | | | | | |
 
 ## Findings (bugs / security) pinned
+- L052a (reported, not fixed): hydrate passes unknown status string through (in-memory claimDue treats it live); assertTransition throws TypeError not RangeError for Object.prototype keys ("toString"); SECURITY fail-open: a Map stored under allowed key `jobId` bypasses the credential allowlist (Object.entries(Map) empty; structuredClone keeps Map); maxAttempts accepts fractions (pinned). Not pinned: sqlite claimDue order = insertion not nextPollAt; fetchMediaOutbound sets no Content-Type for URLSearchParams body.
 - L129a (reported, not fixed): aihubmix gemini non-JSON 200 → raw SyntaxError; empty `inlineData` masks same part's `inline_data`; aihubmix openai providerNote prints "undefined" with no aspect; imagerouter video poll `completed` with no data stays pending forever. Security: none seen.
 - L129b (reported, not fixed): openai.ts + senseaudio.ts throw raw TypeError on JSON `null` body; openai speech drops instructions for non-gpt-4o-mini-tts but still notes "styled"; senseaudio `base_resp: {}` → "api error undefined: unknown". Security note (outside scope): adapters do not SSRF-check caller-set `credentials.baseUrl` (main request) — unverified whether engine/guarded client does.
 
