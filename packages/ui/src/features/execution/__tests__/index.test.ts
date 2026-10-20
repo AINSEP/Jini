@@ -1,3 +1,4 @@
+import { DEFAULT_PROVIDER_PRESETS } from '@jini-ai/integrations/media-providers/catalog';
 import { describe, expect, it } from 'vitest';
 import * as ExecutionBarrel from '../index.js';
 
@@ -43,7 +44,8 @@ describe('execution tab barrel', () => {
     expect(Array.isArray(ExecutionBarrel.DEFAULT_AGENT_CLI_ENV_FIELDS)).toBe(true);
     expect(typeof ExecutionBarrel.DEFAULT_AGENT_DESCRIPTIONS).toBe('object');
     expect(typeof ExecutionBarrel.DEFAULT_BASE_URL_BY_PROTOCOL).toBe('object');
-    expect(Array.isArray(ExecutionBarrel.DEFAULT_PROVIDER_PRESETS)).toBe(true);
+    expect(ExecutionBarrel.DEFAULT_PROVIDER_PRESETS).toEqual([]);
+    expect(ExecutionBarrel.DEFAULT_BASE_URL_BY_PROTOCOL).toEqual({ anthropic: '', openai: '', azure: '', google: '' });
     expect(Array.isArray(ExecutionBarrel.PROTOCOL_OPTIONS)).toBe(true);
   });
 
@@ -53,10 +55,10 @@ describe('execution tab barrel', () => {
     // (`claude-sonnet-4-5`/`claude-opus-4-5`, `claude-3.7-sonnet`), so this
     // pin exists to make the next staleness a failing test instead of a
     // silent drift.
-    const anthropic = ExecutionBarrel.DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'anthropic');
+    const anthropic = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'anthropic');
     expect(anthropic?.preferredModels).toEqual(['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5']);
 
-    const openrouter = ExecutionBarrel.DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'openrouter');
+    const openrouter = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'openrouter');
     expect(openrouter?.preferredModels[0]).toBe('anthropic/claude-sonnet-5');
   });
 
@@ -68,10 +70,10 @@ describe('execution tab barrel', () => {
     // as the production-recommended default, not the newer/pricier
     // `gpt-6-astra` flagship — this pin exists so the next staleness fails a
     // test instead of drifting silently.
-    const openai = ExecutionBarrel.DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'openai');
+    const openai = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'openai');
     expect(openai?.preferredModels).toEqual(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']);
 
-    const openrouter = ExecutionBarrel.DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'openrouter');
+    const openrouter = DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'openrouter');
     expect(openrouter?.preferredModels[2]).toBe('openai/gpt-5.6-sol');
   });
 

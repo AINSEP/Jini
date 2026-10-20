@@ -1,3 +1,4 @@
+import { createNodeMediaHttpClient } from '../../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderNanoBananaImage } from '../nanobanana.js';
 import type { RenderContext } from '../../types.js';
@@ -9,6 +10,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
+    httpClient: createNodeMediaHttpClient({}),
     surface: 'image',
     model: 'gemini-3.1-flash-image-preview',
     wireModel: 'gemini-3.1-flash-image-preview',

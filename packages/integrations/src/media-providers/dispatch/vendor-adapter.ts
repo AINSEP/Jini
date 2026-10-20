@@ -27,7 +27,7 @@
  * reusable piece.
  */
 import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
-import { fetchMediaOutbound } from './outbound.js';
+import { fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from './types.js';
 
 /**
@@ -93,7 +93,7 @@ export async function dispatchVendorRequest<Meta = undefined>({ adapter, ctx, cr
   // still applies unchanged; `GENERATE` (10min) matches what those two vendors already picked
   // deliberately for the same reason — media generation genuinely finishes on that order, not in
   // seconds, so anything shorter would abort a legitimately still-generating request.
-  const resp = await fetchMediaOutbound({ url: request.url, timeoutMs: FETCH_TIMEOUT_MS.GENERATE }, { ...ctx, init: request.init });
+  const resp = await fetchMediaOutbound({ url: request.url, timeoutMs: FETCH_TIMEOUT_MS.GENERATE }, { ...ctx, httpClient: requireMediaHttpClient(ctx), init: request.init });
   return adapter.parseResponse({ resp: resp, ctx: ctx, request: request });
 }
 

@@ -16,7 +16,8 @@ import { createAgentExecutor } from '@jini-ai/daemon';
 import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
 import { createDiskAttachmentStore, registerAttachmentRoutes, registerMediaRoutes, registerMemoryRoutes } from '@jini-ai/daemon/http';
-import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
+import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
+import { createNodeMediaHttpClient } from '@jini-ai/integrations/media-providers/node';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
 import { createFrontendControl, createLocalNodeDaemon, installGracefulShutdown } from '@jini-ai/server';
 import { CHAT_CAPABILITIES } from '@jini-ai/chat/core';
@@ -552,7 +553,10 @@ async function main(): Promise<void> {
         (app, { adapter }) => registerMemoryRoutes({ app, deps: memoryRoutesDeps, adapter }),
         (app, { adapter }) =>
           registerMediaRoutes({ app, deps: {
-              engine: createMediaDispatchEngine({}, { credentials: {} }),
+              engine: createMediaDispatchEngine({
+                registry: createBuiltinVendorAdapterRegistry(),
+                httpClient: createNodeMediaHttpClient({}),
+              }, { credentials: {} }),
               // The daemon's route port takes object args; the integrations store is positional.
               taskStore: {
                 create: ({ input }) => mediaTaskStore.create(input),

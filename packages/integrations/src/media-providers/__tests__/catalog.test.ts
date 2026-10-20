@@ -78,16 +78,18 @@ describe('@jini-ai/integrations/media-providers/catalog', () => {
     }
   });
 
-  it('has a transitive import graph with no bare specifiers at all', () => {
-    // No bare specifier means no `node:*`, no `undici`, no `better-sqlite3`, and no `@jini-ai/core`
-    // — a browser bundler needs nothing resolved or polyfilled to consume this entry.
+  it('has no runtime dependencies and only the shared core type dependency', () => {
+    // UI option contracts live once in core. Its import is erased; the browser catalog
+    // still cannot reach Node, dispatch, network or database implementations.
     const { bareSpecifiers } = walkGraph(CATALOG_ENTRY);
-    expect(bareSpecifiers).toEqual([]);
+    expect(bareSpecifiers).toEqual(['@jini-ai/core']);
+    const defaults = readFileSync(resolve(MEDIA_ROOT, 'ui-defaults.ts'), 'utf8');
+    expect(defaults).toMatch(/import type \{[^}]+\} from '@jini-ai\/core'/);
   });
 
   it('never reaches the dispatch, staging, or sqlite modules', () => {
     const { files } = walkGraph(CATALOG_ENTRY);
     const reachable = files.map((f) => relative(MEDIA_ROOT, f)).sort();
-    expect(reachable).toEqual(['catalog.ts', 'providers.ts', 'types.ts']);
+    expect(reachable).toEqual(['catalog.ts', 'providers.ts', 'types.ts', 'ui-defaults.ts']);
   });
 });

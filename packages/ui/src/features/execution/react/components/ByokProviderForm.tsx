@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
-import { CUSTOM_MODEL_SENTINEL, DEFAULT_PROVIDER_PRESETS } from '../../constants.js';
+import { CUSTOM_MODEL_SENTINEL } from '../../constants.js';
 import {
   apiKeyFormatWarning,
   parseMaxTokens,
@@ -28,10 +28,8 @@ export interface ByokProviderFormProps {
    * as ANOTHER row's, so `apiKeyFormatWarning` can say whose it looks like. Never used to validate
    * the selected preset's own key — see that function for why that direction is forbidden.
    *
-   * Defaults to `DEFAULT_PROVIDER_PRESETS`, matching `ExecutionTab`'s own default for the same
-   * prop, so a host rendering this card standalone still gets the shipped vendor prefixes rather
-   * than losing the check silently. A host with its own catalog should pass it, exactly as
-   * `ExecutionTab` does.
+   * Defaults to no presets. Hosts rendering this card standalone must pass their catalog
+   * to enable cross-provider prefix hints, exactly as `ExecutionTab` does.
    */
   presets?: readonly ProviderPreset[];
   /** Live model-discovery result. `'ok'` suggestions win over the preset's
@@ -153,7 +151,7 @@ export function ByokProviderForm({
   config,
   onConfigChange,
   preset,
-  presets = DEFAULT_PROVIDER_PRESETS,
+  presets = [],
   modelDiscovery,
   connectionTest,
   onTestConnection,

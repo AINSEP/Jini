@@ -1,3 +1,4 @@
+import { createNodeMediaHttpClient } from '../../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { grokAspectFor, renderGrokImage, renderXAITTS } from '../grok.js';
 import type { RenderContext } from '../../types.js';
@@ -8,6 +9,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
+    httpClient: createNodeMediaHttpClient({}),
     surface: 'image',
     model: 'grok-imagine-image',
     wireModel: 'grok-imagine-image',

@@ -9,14 +9,9 @@
  * None of that is product-bound — it is the same problem any host has once
  * credentials can live in two places at once.
  *
- * What is NOT ported verbatim: the origin's full `MEDIA_PROVIDERS` catalog
- * (`media/models.ts`, 761 lines of concrete image/video vendors with their
- * endpoints and model lists). Instead this feature ships a small, curated
- * `DEFAULT_MEDIA_PROVIDER_CATALOG` (see `constants.ts`) as a starting point,
- * not a fixed list — same convention as `execution/constants.ts`'s
- * `DEFAULT_PROVIDER_PRESETS`. A host with its own provider roster (or a
- * larger/different one) passes its own `catalog` to `MediaProvidersTab` to
- * replace this wholesale.
+ * The host supplies the provider catalog and its identity policy. Vendor identities,
+ * endpoint defaults and alias rules belong to the integrations catalog, so importing
+ * generic UI never selects or initializes a vendor roster.
  *
  * Also not ported: the origin's functions take and return its whole
  * `AppConfig`. Here they take and return the providers RECORD alone. Threading
@@ -54,20 +49,7 @@ export interface MediaProviderCredentials {
 /** Credentials keyed by provider id. */
 export type MediaProviderMap = Record<string, MediaProviderCredentials>;
 
-/**
- * One selectable provider in the catalog. A host supplies its own catalog —
- * this package ships `DEFAULT_MEDIA_PROVIDER_CATALOG` as a starting point,
- * not as a fixed list (same convention as `ProviderPreset`).
- */
-export interface MediaProviderOption {
-  id: string;
-  label: string;
-  /** Prefilled when the operator picks this provider and typed nothing. */
-  defaultBaseUrl?: string;
-  /** Model ids this provider advertises. A host that discovers models at
-   *  runtime can leave this empty. */
-  models?: readonly string[];
-}
+export type { MediaProviderOption } from '@jini-ai/core';
 
 /**
  * Result of the tab's daemon read, surfaced while the initial fetch or a

@@ -1,7 +1,7 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
-import { DEFAULT_AGENT_CLI_ENV_FIELDS, DEFAULT_PROVIDER_PRESETS } from '../../constants.js';
+import { DEFAULT_AGENT_CLI_ENV_FIELDS } from '../../constants.js';
 import type { ExecutionPort } from '../../ports.js';
 import {
   groupPresets,
@@ -31,8 +31,7 @@ export interface ExecutionTabProps {
   config: ExecutionConfig;
   onConfigChange: (config: ExecutionConfig) => void;
   port: ExecutionPort;
-  /** Endpoint catalog. Defaults to this package's small starter set — a host
-   *  with its own provider list passes it here rather than editing ours. */
+  /** Host-owned endpoint catalog. Omitted means manual endpoint entry. */
   presets?: readonly ProviderPreset[];
   /** Per-agent CLI env-var catalog (proxy URLs, custom config dirs, a
    *  binary-path override). Defaults to this package's starter set for the
@@ -113,7 +112,7 @@ export function ExecutionTab({
   config,
   onConfigChange,
   port,
-  presets = DEFAULT_PROVIDER_PRESETS,
+  presets = [],
   cliEnvFields = DEFAULT_AGENT_CLI_ENV_FIELDS,
   localCliUnavailableReason,
   renderAgentIcon,

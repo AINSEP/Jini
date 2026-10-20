@@ -243,10 +243,10 @@ describe('nextConfigForPresetSelect', () => {
     expect(next.apiKey).toBe('');
   });
 
-  it("falls back to the protocol's default endpoint and a blank model for a bare, never-configured preset", () => {
+  it("requires an explicit endpoint and model for a bare, never-configured preset", () => {
     const next = nextConfigForPresetSelect(byok(), preset({ id: 'b', baseUrl: '', preferredModels: [] }));
     expect(next.baseUrl).toBe(nextConfigForPresetSelect(byok(), preset({ id: 'c', baseUrl: '' })).baseUrl);
-    expect(next.baseUrl).not.toBe('');
+    expect(next.baseUrl).toBe('');
     expect(next.model).toBe('');
     expect(next.maxTokens).toBeUndefined();
   });
@@ -315,9 +315,9 @@ describe('nextConfigForProtocolSelect', () => {
     expect(next.baseUrl).toBe('https://mine.example.com');
   });
 
-  it('adopts the protocol default when no base URL was typed', () => {
+  it('leaves endpoint selection to the operator when no base URL was typed', () => {
     const next = nextConfigForProtocolSelect(byok({ baseUrl: '' }), 'openai');
-    expect(next.baseUrl).toBe('https://api.openai.com/v1');
+    expect(next.baseUrl).toBe('');
   });
 });
 

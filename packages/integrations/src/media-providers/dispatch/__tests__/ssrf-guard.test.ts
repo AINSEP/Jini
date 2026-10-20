@@ -1,3 +1,4 @@
+import { createNodeMediaHttpClient } from '../node.js';
 import { promises as dnsPromises } from 'node:dns';
 import type { LookupAddress } from 'node:dns';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -205,7 +206,7 @@ describe('assertAndFetchExternalAsset', () => {
         });
         vi.stubGlobal('fetch', fetchMock);
         const lookup = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
-        const resp = await assertAndFetchExternalAsset({ url: 'https://cdn.example.com/x.png' }, { init: { headers: { 'x-test': '1' }, redirect: 'follow' }, lookup: lookup });
+        const resp = await assertAndFetchExternalAsset({ url: 'https://cdn.example.com/x.png' }, { httpClient: createNodeMediaHttpClient({}), init: { headers: { 'x-test': '1' }, redirect: 'follow' }, lookup: lookup });
         expect(resp.status).toBe(200);
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });

@@ -1,23 +1,11 @@
-/**
- * `VendorAdapterRegistry` — the registration surface a vendor module calls
- * at import time instead of `engine.ts`'s `ROUTES` table pointing directly
- * at a hand-written render function. A migrated vendor registers its
- * `VendorAdapter` here, keyed by `(providerId, routeKey)` — the same
- * `routeKey` shape `engine.ts`'s internal `routeKeyFor` already produces
- * (`'image'`, `'video'`, `'audio:speech'`, ...). `engine.ts` consults this
- * registry first when resolving a renderer, falling back to the static
- * `ROUTES` table for vendors not yet migrated onto the generic engine — see
- * `archived provenance ledger`'s 2026-07-21 dispatch-engine-generalization section for
- * exactly which vendors are registered here today, and why the rest
- * legitimately aren't (yet).
- */
+/** Host-owned (provider, route) registration. Builtin registration stays in builtin-vendors. */
 import type { VendorAdapter } from './vendor-adapter.js';
 import { registerBuiltinVendorAdapters } from './builtin-vendors.js';
 
 export class VendorAdapterRegistry {
   private readonly table = new Map<string, Map<string, VendorAdapter<never>>>();
 
-  /** Registers `adapter` for `(providerId, routeKey)`. Throws if that pair is already registered — a vendor module should register each of its (provider, surface) pairs exactly once, at module load. */
+  /** Registers `adapter` for `(providerId, routeKey)`. Throws if that pair is already registered — populate each host registry exactly once. */
   register<Meta>({ providerId, routeKey, adapter }: { providerId: string; routeKey: string; adapter: VendorAdapter<Meta> }): void {
     let bySurface = this.table.get(providerId);
     if (!bySurface) {
@@ -52,20 +40,24 @@ export class VendorAdapterRegistry {
   }
 }
 
-/** Creates a fresh, empty registry — mainly useful for tests that want isolation from the shared `mediaVendorRegistry` singleton. */
+/** Creates a fresh, empty registry for host-owned registrations. */
 export function createVendorAdapterRegistry(): VendorAdapterRegistry {
   return new VendorAdapterRegistry();
 }
 
-/**
- * The shared registry every migrated vendor module registers into at import
- * time, and `engine.ts` consults for dispatch. A host embedding
- * `@jini-ai/integrations/media-providers` that wants a clean, isolated registry (e.g. to register its
- * own vendor adapters without touching this module's set) can still call
- * `createVendorAdapterRegistry()` directly instead of using this singleton.
+/** Creates a fresh registry populated by the existing builtin-registration owner.
+ * @returns An independent registry; duplicate route registration still throws.
  */
-// Import-time registration used to mutate this shared instance from vendor modules. Lazy
-// composition keeps the published singleton's built-in contents while eliminating that effect.
+export function createBuiltinVendorAdapterRegistry(
+  _required: Record<string, never> = {},
+  _options: Record<string, never> = {},
+): VendorAdapterRegistry {
+  const registry = createVendorAdapterRegistry();
+  registerBuiltinVendorAdapters({ registry });
+  return registry;
+}
+
+// Preserve lazy singleton contents for existing callers; engines never consult it.
 class BuiltinVendorAdapterRegistry extends VendorAdapterRegistry {
   private initialized = false;
 
@@ -97,4 +89,5 @@ class BuiltinVendorAdapterRegistry extends VendorAdapterRegistry {
   }
 }
 
+/** @deprecated Construct and inject createBuiltinVendorAdapterRegistry() per host instead. */
 export const mediaVendorRegistry: VendorAdapterRegistry = new BuiltinVendorAdapterRegistry();

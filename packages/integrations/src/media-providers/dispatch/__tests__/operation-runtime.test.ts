@@ -13,8 +13,7 @@ import {
 } from '../operation-runtime.js';
 import type { RenderContext } from '../types.js';
 
-// Routes the default guarded client (used when no `httpClient` is injected) through the
-// deterministic fixture transport, so a test can exercise the httpClient-absent path offline.
+// Existing wire tests inject clients; native ports remain deterministic for adapter tests.
 vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
   const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
   const { testNodeGuardedHttpPorts } = await import('./outbound-fixtures.js');
@@ -623,7 +622,7 @@ describe('operation runtime — defaults and outbound threading', () => {
         expect(seen[0]?.httpClient).toBeDefined();
     });
 
-    it('omits httpClient / allowPrivateNetwork / outboundMessages from the parser context when none are given', async () => {
+    it('refuses network I/O and records the failure without invoking the parser when no client is given', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => json({ status: 'pending' })));
         const store = createInMemoryAsyncOperationStore();
         await seedOne(store);
@@ -631,10 +630,9 @@ describe('operation runtime — defaults and outbound threading', () => {
         await pollDueOperations(...partitionArgs({
             store, signer, adapters: () => capturingAdapter(seen), resolveContext: () => CTX, leaseOwner: 'w1', leaseMs: 1000, clock: () => T0,
         }, ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"]));
-        expect(seen).toHaveLength(1);
-        expect(Object.keys(seen[0]!)).not.toContain('httpClient');
-        expect(Object.keys(seen[0]!)).not.toContain('allowPrivateNetwork');
-        expect(Object.keys(seen[0]!)).not.toContain('outboundMessages');
+        expect(seen).toHaveLength(0);
+        expect((await store.get({ id: 'op-1' }))?.error?.message).toBe('Media outbound requires an injected guarded HttpClientPort');
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
     it('waits on a fast vendor with the default grace window when graceMs is omitted', async () => {

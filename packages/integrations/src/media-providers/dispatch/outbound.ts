@@ -1,14 +1,13 @@
 import type { HttpClientPort, HttpRequest } from '@jini-ai/core/primitives';
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
-import { createHttpClient, createNodeGuardedHttpPorts, guardedFetch } from '@jini-ai/platform/http/guarded';
-import type { DnsResolver } from '@jini-ai/platform/http/guarded';
+import { guardedFetch } from '@jini-ai/platform/http/guarded';
 
 /** The host supplies a policy-enforcing client, never a raw fetch implementation. */
 export interface MediaOutboundOptions {
   /** Override caller-facing transport diagnostics without changing policy. */
   readonly outboundMessages?: Partial<typeof defaultMediaOutboundMessages>;
+  /** Required for network I/O. Pure context/request builders may omit it. */
   readonly httpClient?: HttpClientPort;
-  /** Explicit local-development capability. Applies only to the default client. */
+  /** @deprecated Configure allowPrivateNetwork on the explicit Node client adapter instead. */
   readonly allowPrivateNetwork?: boolean;
 }
 
@@ -28,12 +27,12 @@ export const defaultMediaOutboundMessages = {
  */
 export async function fetchMediaOutbound(
   { url, timeoutMs }: { url: string; timeoutMs: number },
-  { init = {}, httpClient, allowPrivateNetwork, dns, outboundMessages }: MediaOutboundOptions & { init?: RequestInit; dns?: DnsResolver } = {},
+  { init = {}, httpClient, outboundMessages }: MediaOutboundOptions & { httpClient: HttpClientPort; init?: RequestInit },
 ): Promise<Response> {
   const messages = { ...defaultMediaOutboundMessages, ...outboundMessages };
-  // Every refusal happens before a client is built or any I/O starts.
+  // Every wire refusal happens before any I/O starts.
   const { method, body } = validateMediaWireRequest({ init, messages });
-  const client = httpClient ?? createDefaultMediaClient({ allowPrivateNetwork, dns });
+  const client = requireMediaHttpClient({ httpClient });
   return guardedFetch({ client, url, timeoutMs }, {
     method,
     ...(init.headers === undefined ? {} : { headers: init.headers }),
@@ -60,26 +59,12 @@ function validateMediaWireRequest(
   return { method, body };
 }
 
-/** The default policy client: public http(s) peers only unless the caller explicitly opts into
- * private-network development, never following redirects. */
-function createDefaultMediaClient(
-  { allowPrivateNetwork, dns }: { allowPrivateNetwork: boolean | undefined; dns: DnsResolver | undefined },
-): HttpClientPort {
-  return createHttpClient({
-    ...createNodeGuardedHttpPorts({}),
-    ...(dns === undefined ? {} : { dns }),
-    userAgent: 'media-provider',
-    policy: {
-      allowedSchemes: ['http', 'https'],
-      denyPrivateAddresses: allowPrivateNetwork !== true,
-      devHostAllowlist: [],
-      maxRedirects: 0,
-      connectTimeoutMs: FETCH_TIMEOUT_MS.GENERATE,
-      // Media can contain video; bound buffering at 96 MiB. Hosts may inject a stricter policy.
-      maxResponseBytes: 96 * 1024 * 1024,
-      maxDecompressedBytes: 96 * 1024 * 1024,
-    },
-  });
+/** Resolve the trusted client on legacy context carriers without constructing a fallback.
+ * @throws TypeError before I/O if a standalone renderer/runtime has no injected client.
+ */
+export function requireMediaHttpClient({ httpClient }: Pick<MediaOutboundOptions, 'httpClient'>): HttpClientPort {
+  if (!httpClient) throw new TypeError('Media outbound requires an injected guarded HttpClientPort');
+  return httpClient;
 }
 
 function isMediaMethod(method: string): method is HttpRequest['method'] {

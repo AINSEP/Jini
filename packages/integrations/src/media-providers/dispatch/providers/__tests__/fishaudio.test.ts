@@ -1,3 +1,4 @@
+import { createNodeMediaHttpClient } from '../../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderFishAudioTTS } from '../fishaudio.js';
 import type { RenderContext } from '../../types.js';
@@ -8,6 +9,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
+    httpClient: createNodeMediaHttpClient({}),
     surface: 'audio',
     model: 'fish-speech-2',
     wireModel: 'fish-speech-2',

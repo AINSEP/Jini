@@ -10,10 +10,12 @@
  * imports nothing at all, so this pair is genuinely dependency-free and safe to mark
  * `"universal"`.
  *
- * The constraint this file encodes: **it may only ever re-export modules with no runtime imports.**
+ * The constraint this file encodes: **runtime imports stay inside the pure catalog graph.**
+ * UI projections import only core types, erased before evaluation; no UI or React dependency exists.
  * Adding anything that reaches `dispatch/`, `staging.ts`, or `sqlite-task-store.ts` silently
  * reintroduces the node dependency for every browser consumer. `__tests__/catalog.test.ts` asserts
  * the import graph stays clean, so that mistake fails a test rather than a downstream bundle.
  */
 export * from './types.js';
 export * from './providers.js';
+export { DEFAULT_MEDIA_PROVIDER_CATALOG, DEFAULT_PROVIDER_PRESETS } from './ui-defaults.js';

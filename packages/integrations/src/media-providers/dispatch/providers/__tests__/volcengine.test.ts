@@ -1,3 +1,4 @@
+import { createNodeMediaHttpClient } from '../../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderVolcengineImage } from '../volcengine.js';
 import type { RenderContext } from '../../types.js';
@@ -8,6 +9,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
+    httpClient: createNodeMediaHttpClient({}),
     surface: 'image',
     model: 'doubao-seedream-3-0-t2i-250415',
     wireModel: 'doubao-seedream-3-0-t2i-250415',
@@ -86,7 +88,7 @@ describe('renderVolcengineImage', () => {
             return new Response(JSON.stringify({ data: [{ url: 'http://169.254.169.254/latest/meta-data/' }] }), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
-        await expect(renderVolcengineImage({ ctx: baseCtx(), credentials: { apiKey: 'ark-test' } })).rejects.toThrow(/^blocked download url \(Internal IPs blocked\)$/);
+        await expect(renderVolcengineImage({ ctx: baseCtx(), credentials: { apiKey: 'ark-test' } })).rejects.toThrow("egress to '169.254.169.254' (169.254.169.254) rejected: resolved address is link-local");
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
     it('surfaces a tagged error on a non-OK response', async () => {

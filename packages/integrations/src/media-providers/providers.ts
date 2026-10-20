@@ -40,6 +40,9 @@ export function normalizeMediaProviderMap<T>({ providers }: { providers: Readonl
   ]);
 }
 
+/** Host-injected UI policy; reuse the catalog's existing identity and normalization owner. */
+export const mediaProviderCatalogPolicy = { canonicalMediaProviderId, normalizeMediaProviderMap };
+
 export const MEDIA_PROVIDERS: readonly MediaProvider[] = [
   { id: 'openai', label: 'OpenAI', hint: 'gpt-image-2 / dall-e-3', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.openai },
   { id: 'volcengine', label: 'Volcengine Ark (Doubao)', hint: 'Seedance 2.0 / Seedream', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.volcengine },

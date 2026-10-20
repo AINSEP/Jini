@@ -1,3 +1,4 @@
+import { createNodeMediaHttpClient } from '../../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderSenseAudioImage, renderSenseAudioTTS } from '../senseaudio.js';
 import type { RenderContext } from '../../types.js';
@@ -8,6 +9,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
+    httpClient: createNodeMediaHttpClient({}),
     surface: 'audio',
     model: 'senseaudio-tts',
     wireModel: 'senseaudio-tts',
@@ -238,7 +240,7 @@ describe('renderSenseAudioImage', () => {
             throw new Error(`unexpected fetch: ${url}`);
         });
         vi.stubGlobal('fetch', fetchMock);
-        await expect(renderSenseAudioImage({ ctx: imageCtx(), credentials: { apiKey: 'sa-test' } })).rejects.toThrow(/blocked download url/);
+        await expect(renderSenseAudioImage({ ctx: imageCtx(), credentials: { apiKey: 'sa-test' } })).rejects.toThrow("egress to '10.0.0.5' (10.0.0.5) rejected: resolved address is private");
     });
     it('throws when the download response is not ok', async () => {
         const fetchMock = vi.fn(async (url: string) => {

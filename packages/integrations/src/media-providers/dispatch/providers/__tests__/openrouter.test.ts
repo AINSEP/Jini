@@ -1,3 +1,4 @@
+import { createNodeMediaHttpClient } from '../../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { openRouterAspectFor, renderOpenRouterImage } from '../openrouter.js';
 import type { RenderContext } from '../../types.js';
@@ -8,6 +9,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
+    httpClient: createNodeMediaHttpClient({}),
     surface: 'image',
     model: 'openrouter/black-forest-labs/flux-1.1-pro',
     wireModel: 'openrouter/black-forest-labs/flux-1.1-pro',
@@ -196,13 +198,13 @@ describe('renderOpenRouterImage response parsing (pinned before refactor)', () =
     it('downloads an http URL only through the SSRF guard, which refuses a private address', async () => {
         const fetchMock = vi.fn(async () => chatResponse([{ image_url: { url: 'http://10.0.0.5/x.png' } }]));
         vi.stubGlobal('fetch', fetchMock);
-        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(/blocked download url/);
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow("egress to '10.0.0.5' (10.0.0.5) rejected: resolved address is private");
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
     it('sends a non-URL string starting with "http" to the SSRF guard rather than decoding it as base64', async () => {
         const fetchMock = vi.fn(async () => chatResponse([{ image_url: { url: 'httpAAAA' } }]));
         vi.stubGlobal('fetch', fetchMock);
-        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(/blocked download url/);
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(new TypeError('Invalid URL'));
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
     it('truncates the body in the non-OK error to 240 chars', async () => {

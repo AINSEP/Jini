@@ -57,3 +57,5 @@ export {
 export { evaluateFeatureFlag, type FeatureFlagDecision } from './feature-flags.js';
 export { normalizeToolInput, withNormalizationNotes, ToolInputNormalizationError, type NormalizedToolInput, type ToolInputNormalizer } from './tool-input-normalization.js';
 export { applyBatchInputs, batchOutcomeFor, batchDescriptorFor, withBatchInput, DEFAULT_MAX_BATCH_ITEMS, type BatchableTool, type BatchResult, type BatchItemResult } from './batch-tool-inputs.js';
+
+export type { MediaProviderCatalogPolicy, MediaProviderOption, ProviderPreset, ProviderPresetKind } from './provider-catalog.js';

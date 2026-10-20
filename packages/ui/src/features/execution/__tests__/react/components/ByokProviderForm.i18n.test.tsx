@@ -1,3 +1,4 @@
+import { DEFAULT_PROVIDER_PRESETS } from '@jini-ai/integrations/media-providers/catalog';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
@@ -50,6 +51,7 @@ function renderLocalized(locale: 'es', apiKey: string) {
   return render(
     <I18nProvider initialLocale={locale} dictionaries={SETTINGS_DIALOG_DICTIONARIES}>
       <ByokProviderForm
+        presets={DEFAULT_PROVIDER_PRESETS}
         config={configWith(apiKey)}
         onConfigChange={vi.fn()}
         preset={GOOGLE_PRESET}
@@ -87,6 +89,7 @@ describe('ByokProviderForm — key-format warnings with no I18nProvider mounted'
   it('still renders the cross-vendor warning in English via the passthrough translator', () => {
     render(
       <ByokProviderForm
+        presets={DEFAULT_PROVIDER_PRESETS}
         config={configWith(ANTHROPIC_SHAPED_KEY)}
         onConfigChange={vi.fn()}
         preset={GOOGLE_PRESET}
@@ -101,6 +104,7 @@ describe('ByokProviderForm — key-format warnings with no I18nProvider mounted'
   it('still renders the too-short warning in English via the passthrough translator', () => {
     render(
       <ByokProviderForm
+        presets={DEFAULT_PROVIDER_PRESETS}
         config={configWith(TOO_SHORT_KEY)}
         onConfigChange={vi.fn()}
         preset={GOOGLE_PRESET}
@@ -130,6 +134,7 @@ describe('ByokProviderForm — host-reported no-key messages', () => {
   ) {
     const form = (
       <ByokProviderForm
+        presets={DEFAULT_PROVIDER_PRESETS}
         config={configWith('')}
         onConfigChange={vi.fn()}
         preset={GOOGLE_PRESET}

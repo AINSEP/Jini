@@ -1,11 +1,9 @@
-import { canonicalMediaProviderId } from '@jini-ai/integrations/media-providers/catalog';
 import { useState } from 'react';
 import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
-import type { MediaProvidersPort } from '../../ports.js';
+import type { MediaProviderCatalogPolicy, MediaProvidersPort } from '../../ports.js';
 import { invalidBaseUrlProviderIds, sortProvidersByConfigured } from '../../rules.js';
-import { DEFAULT_MEDIA_PROVIDER_CATALOG } from '../../constants.js';
 import type { MediaProviderMap, MediaProviderOption, MediaProvidersSaveState } from '../../types.js';
 import { useMediaProvidersTab } from '../hooks/useMediaProvidersTab.js';
 import { MediaProviderCard } from './MediaProviderCard.js';
@@ -44,10 +42,9 @@ export interface MediaProvidersTabLabels {
 
 export interface MediaProvidersTabProps {
   port: MediaProvidersPort;
-  /** The provider catalog to render. Optional — defaults to
-   *  `DEFAULT_MEDIA_PROVIDER_CATALOG`; see `MediaProviderOption`'s doc for
-   *  the host-override convention. */
-  catalog?: readonly MediaProviderOption[];
+  /** Host-owned provider catalog and its matching identity policy. */
+  catalog: readonly MediaProviderOption[];
+  catalogPolicy: MediaProviderCatalogPolicy;
   /** Host-persisted local edits from before this tab mounted. See
    *  `useMediaProvidersTab`'s doc for how this feeds the first-load merge. */
   initialProviders?: MediaProviderMap;
@@ -73,7 +70,8 @@ export interface MediaProvidersTabProps {
  */
 export function MediaProvidersTab({
   port,
-  catalog = DEFAULT_MEDIA_PROVIDER_CATALOG,
+  catalog,
+  catalogPolicy,
   initialProviders,
   pinnedProviderIds,
   labels,
@@ -81,7 +79,8 @@ export function MediaProvidersTab({
 }: MediaProvidersTabProps) {
   const t = useT();
   const { providers, load, save, hasAnyConfigured, pendingProviderIds, updateProvider, clearProvider, saveChanges, reload } =
-    useMediaProvidersTab({ port, initialProviders });
+    useMediaProvidersTab({ port, catalogPolicy, initialProviders });
+  const { canonicalMediaProviderId } = catalogPolicy;
   const [visibleApiKeys, setVisibleApiKeys] = useState<ReadonlySet<string>>(() => new Set());
   const resolved = resolveMediaProvidersTabLabels({ t }, { labels });
 

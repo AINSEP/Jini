@@ -1,3 +1,4 @@
+import { createNodeMediaHttpClient } from '../../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderAIHubMixImage, renderAIHubMixTTS } from '../aihubmix.js';
 import type { RenderContext } from '../../types.js';
@@ -9,6 +10,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
+    httpClient: createNodeMediaHttpClient({}),
     surface: 'image',
     model: 'aihubmix-gpt-image-1',
     wireModel: 'aihubmix-gpt-image-1',
@@ -97,7 +99,7 @@ describe('renderAIHubMixImage', () => {
     });
     it('rejects an SSRF-blocked download url without ever fetching it', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: [{ url: 'http://192.168.1.1/x.png' }] }), { status: 200 })));
-        await expect(renderAIHubMixImage({ ctx: baseCtx(), credentials: { apiKey: 'ahm-test' } })).rejects.toThrow(/blocked download url/);
+        await expect(renderAIHubMixImage({ ctx: baseCtx(), credentials: { apiKey: 'ahm-test' } })).rejects.toThrow("egress to '192.168.1.1' (192.168.1.1) rejected: resolved address is private");
     });
     it('throws when the url-fetch fallback response is not ok', async () => {
         const fetchMock = vi.fn(async (url: string) => {

@@ -1,43 +1,20 @@
+import { requireMediaHttpClient } from './outbound.js';
 import { normalizeMediaProviderMap } from '../providers.js';
 import type { RequiredArgs, OptionalArgs } from '../../args.js';
-/**
- * The media dispatch engine — validates a generation request against the
- * catalogue, clamps registry-bound numeric inputs, resolves per-provider
- * credentials, and routes to the matching renderer (or a deterministic
- * placeholder when `allowStubFallback` is set and no real renderer is
- * wired up for the pair). Generalized from Open Design's
- * `apps/daemon/src/media/index.ts` `generateMedia` orchestration — see
- * `types.ts`'s module doc for the boundary redesign (no filesystem I/O,
- * no OD project resolution) and `archived provenance ledger` for the full port record.
- *
- * 2026-07-21: renderer resolution now checks `vendor-registry.ts`'s
- * `mediaVendorRegistry` first (populated by every vendor migrated onto the
- * generic vendor-adapter dispatch engine — see `vendor-adapter.ts`'s
- * module doc), falling back to the static `ROUTES` table below for vendors
- * not yet migrated. Every vendor wired into this engine as of this pass
- * (`openai`/`minimax`/`senseaudio`/`fishaudio`/`imagerouter`/`custom-image`/
- * `grok`/`nanobanana`/`openrouter`/`volcengine`/`elevenlabs`/`aihubmix`) is
- * now registered in `mediaVendorRegistry` instead — every module below is
- * imported for its registration side effect only (not by name), except
- * `custom-image.js`, whose `renderCustomOpenAIImage`/
- * `customImageOverridesOpenAIModel` exports are still referenced directly
- * by the openai-image-override branch further down. `ROUTES` itself is
- * therefore empty right now — kept as the fallback mechanism `resolveRenderer`
- * still checks second, for whichever vendor is ported next without going
- * through the registry (e.g. one of the async-polling vendors in
- * `archived provenance ledger`'s deferred bucket, if a future pass chooses not to build
- * its own polling-aware adapter shape).
+/** Media dispatch validates catalogue inputs, resolves live credentials and returns generated
+ * bytes. Registries belong to the host so embedded engines cannot alter each other's routes.
+ * Filesystem/project resolution remains outside this engine (locked architecture §2.1).
  */
 import { AUDIO_DURATIONS_SEC, VIDEO_LENGTHS_SEC, findMediaModel, findProvider, modelsForSurface } from '../providers.js';
 import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from '../types.js';
 import { buildRenderContext } from './context.js';
-// Built-ins are now registered lazily by vendor-registry; the historical rationale above
-// describes the former import-time mechanism. No renderer module mutates that registry.
 
 import { renderCustomOpenAIImage, customImageOverridesOpenAIModel } from './providers/custom-image.js';
 import { renderStub } from './stub.js';
 import type {
   MediaDispatchEngine,
+  MediaDispatchEngineRequired,
+  VendorAdapterLookup,
   MediaDispatchEngineOptions,
   MediaGenerationRequest,
   MediaGenerationResult,
@@ -46,7 +23,6 @@ import type {
   RenderResult,
 } from './types.js';
 import { dispatchVendorRequest } from './vendor-adapter.js';
-import { mediaVendorRegistry } from './vendor-registry.js';
 
 const SURFACES: ReadonlySet<MediaSurface> = new Set(['image', 'video', 'audio']);
 const AUDIO_KINDS: ReadonlySet<AudioKind> = new Set(['music', 'speech', 'sfx']);
@@ -103,9 +79,8 @@ export type Renderer = (required: { ctx: RenderContext; credentials: ProviderCre
  * Empty as of 2026-07-21: every vendor previously listed here
  * (`imagerouter`/`custom-image`/`grok`/`nanobanana`/`openrouter`/
  * `volcengine`/`elevenlabs`/`aihubmix`) has migrated onto
- * `vendor-registry.ts`'s `mediaVendorRegistry` (see `resolveRenderer`
- * below and each vendor's own module for its `mediaVendorRegistry.register(...)`
- * call) — joining `openai`/`minimax`/`senseaudio`/`fishaudio`, migrated the
+ * host-populated vendor registries (see `builtin-vendors.ts` and each vendor's
+ * explicit registration function) — joining `openai`/`minimax`/`senseaudio`/`fishaudio`, migrated the
  * pass before. Kept (not deleted) as `resolveRenderer`'s fallback path for
  * the next vendor this engine wires up.
  */
@@ -122,7 +97,7 @@ function routeKeyFor(surface: MediaSurface, audioKind: AudioKind | undefined): s
  * constant) specifically so its `providerId`-found/not-found and
  * `routeKey`-found/not-found branches stay directly testable even while
  * the production `ROUTES` table itself is empty (every vendor wired into
- * this engine has migrated onto `mediaVendorRegistry` — see `ROUTES`'s own
+ * this engine has migrated onto vendor adapters — see `ROUTES`'s own
  * doc comment above): exercising every branch through `resolveRenderer`
  * end-to-end would otherwise need a real, currently-nonexistent
  * ROUTES-only vendor to hit the "found" side. Same "extract to a
@@ -135,18 +110,22 @@ export function lookupRoute(routes: Readonly<Record<string, Readonly<Record<stri
 
 /**
  * Resolves the renderer for `(providerId, routeKey)`: checks
- * `mediaVendorRegistry` first (vendors migrated onto the generic engine),
+ * the host registry first (vendors migrated onto the generic engine),
  * falling back to the static `ROUTES` table for everything else.
  */
-function resolveRenderer(providerId: string, routeKey: string): Renderer | undefined {
-  const adapter = mediaVendorRegistry.get({ providerId: providerId, routeKey: routeKey });
+function resolveRenderer({ registry, providerId, routeKey }: { registry: VendorAdapterLookup; providerId: string; routeKey: string }): Renderer | undefined {
+  const adapter = registry.get({ providerId, routeKey });
   if (adapter) {
     return ({ ctx, credentials }) => dispatchVendorRequest({ adapter, ctx, credentials });
   }
   return lookupRoute(ROUTES, providerId, routeKey);
 }
 
-export function createMediaDispatchEngine(_required: Record<string, never>, options: MediaDispatchEngineOptions = {}): MediaDispatchEngine {
+/** Creates an engine over the host's registry; registration remains live between requests.
+ * @returns A generation service; validation, missing routes and provider failures reject generate.
+ */
+export function createMediaDispatchEngine({ registry, httpClient }: MediaDispatchEngineRequired, options: MediaDispatchEngineOptions = {}): MediaDispatchEngine {
+  requireMediaHttpClient({ httpClient });
   const allowStubFallback = options.allowStubFallback === true;
 
   return {
@@ -157,8 +136,8 @@ export function createMediaDispatchEngine(_required: Record<string, never>, opti
       assertRequestShape(request);
       const { def, resolvedAudioKind } = resolveCatalogModel(request);
       const { length, duration, warnings } = clampRequestInputs(request);
-      const ctx = engineRenderContext({ request, resolvedAudioKind, length, duration, options });
-      const { providerId, renderer, credentials } = selectRenderer({ def, surface: request.surface, resolvedAudioKind, ctx, configuredCredentials });
+      const ctx = engineRenderContext({ request, resolvedAudioKind, length, duration, options: { ...options, httpClient } });
+      const { providerId, renderer, credentials } = selectRenderer({ registry, def, surface: request.surface, resolvedAudioKind, ctx, configuredCredentials });
 
       if (!renderer) {
         if (!allowStubFallback) {
@@ -229,12 +208,12 @@ function engineRenderContext(required: {
   resolvedAudioKind: AudioKind | undefined;
   length: number | undefined;
   duration: number | undefined;
-  options: MediaDispatchEngineOptions;
+  options: MediaDispatchEngineOptions & Pick<MediaDispatchEngineRequired, 'httpClient'>;
 }): RenderContext {
   const { request, resolvedAudioKind, length, duration, options } = required;
   return {
     ...buildRenderContext({ request: request, resolvedAudioKind: resolvedAudioKind, length: length, duration: duration }),
-    ...(options.httpClient === undefined ? {} : { httpClient: options.httpClient }),
+    httpClient: options.httpClient,
     ...(options.allowPrivateNetwork === undefined ? {} : { allowPrivateNetwork: options.allowPrivateNetwork }),
     ...(options.outboundMessages === undefined ? {} : { outboundMessages: options.outboundMessages }),
   };
@@ -242,13 +221,14 @@ function engineRenderContext(required: {
 
 /** Picks the provider id, renderer (undefined when none is wired) and credentials for a validated request. */
 function selectRenderer(required: {
+  registry: VendorAdapterLookup;
   def: MediaModel;
   surface: MediaSurface;
   resolvedAudioKind: AudioKind | undefined;
   ctx: RenderContext;
   configuredCredentials: Readonly<Record<string, ProviderCredentials>>;
 }): { providerId: string; renderer: Renderer | undefined; credentials: ProviderCredentials } {
-  const { def, surface, resolvedAudioKind, ctx, configuredCredentials } = required;
+  const { registry, def, surface, resolvedAudioKind, ctx, configuredCredentials } = required;
   // `openai` + image can be overridden by a caller-configured
   // `custom-image` credential that names the same model — mirrors the
   // origin's `customImageOverridesOpenAIModel` precedence.
@@ -260,7 +240,7 @@ function selectRenderer(required: {
   }
   return {
     providerId: def.provider,
-    renderer: resolveRenderer(def.provider, routeKeyFor(surface, resolvedAudioKind)),
+    renderer: resolveRenderer({ registry, providerId: def.provider, routeKey: routeKeyFor(surface, resolvedAudioKind) }),
     credentials: configuredCredentials[def.provider] ?? {},
   };
 }

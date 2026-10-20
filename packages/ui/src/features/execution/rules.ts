@@ -3,7 +3,6 @@ import {
   API_KEY_CROSS_VENDOR_WARNING,
   API_KEY_TOO_SHORT_WARNING,
   CUSTOM_PRESET_ID,
-  DEFAULT_BASE_URL_BY_PROTOCOL,
   MIN_PLAUSIBLE_API_KEY_LENGTH,
 } from './constants.js';
 import type {
@@ -301,15 +300,15 @@ export function nextConfigForPresetSelect(config: ByokConfig, preset: ProviderPr
 function presetCredentials(saved: ByokProviderCredentials | undefined, preset: ProviderPreset): ByokProviderCredentials {
   return {
     apiKey: saved?.apiKey ?? '',
-    baseUrl: saved?.baseUrl ?? (preset.baseUrl || DEFAULT_BASE_URL_BY_PROTOCOL[preset.protocol]),
+    baseUrl: saved?.baseUrl ?? preset.baseUrl,
     model: saved?.model ?? preset.preferredModels[0] ?? '',
     maxTokens: saved?.maxTokens,
   };
 }
 
 /** Switching protocol by hand drops the preset selection (the old preset no
- *  longer speaks this protocol) and adopts the protocol's default endpoint
- *  only when the operator hasn't typed their own. */
+ *  longer speaks this protocol) and keeps operator-entered endpoints. Hosts
+ *  seed endpoints through presets; protocol selection never chooses a vendor. */
 export function nextConfigForProtocolSelect(
   config: ByokConfig,
   protocol: ByokConfig['protocol'],
@@ -319,7 +318,7 @@ export function nextConfigForProtocolSelect(
     ...config,
     protocol,
     providerId: null,
-    baseUrl: config.baseUrl.trim() ? config.baseUrl : DEFAULT_BASE_URL_BY_PROTOCOL[protocol],
+    baseUrl: config.baseUrl.trim() ? config.baseUrl : '',
   };
 }
 

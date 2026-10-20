@@ -22,6 +22,8 @@ import type { RequiredArgs, OptionalArgs } from '../../args.js';
  * filesystem-backed `AttachmentStaging` adapter copies and prunes local
  * attachments; provider dispatch performs network I/O through its transport.
  */
+import type { HttpClientPort } from '@jini-ai/core/primitives';
+import type { VendorAdapterRegistry } from './vendor-registry.js';
 import type { MediaOutboundOptions } from './outbound.js';
 import type { AudioKind, MediaSurface } from '../types.js';
 
@@ -98,7 +100,15 @@ export interface MediaGenerationResult {
   readonly warnings: readonly string[];
 }
 
-export interface MediaDispatchEngineOptions extends MediaOutboundOptions {
+/** Dispatch only reads routes; the host owns registration and registry lifetime. */
+export type VendorAdapterLookup = Pick<VendorAdapterRegistry, 'get'>;
+
+export interface MediaDispatchEngineRequired {
+  readonly registry: VendorAdapterLookup;
+  readonly httpClient: HttpClientPort;
+}
+
+export interface MediaDispatchEngineOptions extends Omit<MediaOutboundOptions, 'httpClient'> {
   /** Per-provider credentials, keyed by provider id (see `providers.ts`'s `MEDIA_PROVIDERS` for valid ids). */
   readonly credentials?: Readonly<Record<string, ProviderCredentials>>;
   /**

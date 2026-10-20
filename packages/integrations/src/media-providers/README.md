@@ -34,7 +34,7 @@ aggregator prefix) and `MEDIA_CAPABILITY_SEED` as a starting set.
 `AUDIO_MODELS_BY_KIND`, `MEDIA_ASPECTS`, `VIDEO_LENGTHS_SEC`, `AUDIO_DURATIONS_SEC`,
 `PROVIDER_CREDENTIAL_ENV_VARS`, with lookups `findMediaModel`, `findProvider`, `modelsForSurface`.
 
-**Dispatch engine** — `createMediaDispatchEngine({}, { credentials, allowStubFallback, httpClient })` →
+**Dispatch engine** — `createMediaDispatchEngine({ registry, httpClient }, { credentials, allowStubFallback })` →
 `MediaDispatchEngine` with `generate({ surface, model }, optionalRequestFields)` → `MediaGenerationResult`
 (`{ bytes, providerNote, suggestedExt?, providerId, usedStubFallback, warnings }`).
 `resolveProviderCredentialsFromEnv({ providerId, env })` fills `ProviderCredentials` from the documented
@@ -49,8 +49,8 @@ mistaken for a real result.
 `renderAIHubMixImage`, `renderAIHubMixTTS`, `renderCustomOpenAIImage`, plus `renderStub` /
 `svgPlaceholder` for the deterministic placeholder path.
 
-**Generic vendor-adapter layer** — `VendorAdapterRegistry`, `createVendorAdapterRegistry`, the shared
-`mediaVendorRegistry`, `dispatchVendorRequest`, `requireApiKey`, and the
+**Generic vendor-adapter layer** — `VendorAdapterRegistry`, `createVendorAdapterRegistry`, `createBuiltinVendorAdapterRegistry`,
+the deprecated shared `mediaVendorRegistry`, `dispatchVendorRequest`, `requireApiKey`, and the
 `VendorAdapter` / `VendorRequestBuilder` / `VendorResponseParser` / `VendorCredentialGuard` seams,
 with ready-made parsers `createRawBytesParser` and `createHexEnvelopeAudioParser`.
 
@@ -91,12 +91,14 @@ with `stage({ imagePaths }, { uploadRoot })`.
 ```ts
 import {
   createCapabilityRegistry,
+  createBuiltinVendorAdapterRegistry,
   createMediaDispatchEngine,
   createAllowlistMediaPolicy,
   createInMemoryMediaTaskStore,
   resolveProviderCredentialsFromEnv,
   MEDIA_CAPABILITY_SEED,
 } from '@jini-ai/integrations/media-providers';
+import { createNodeMediaHttpClient } from '@jini-ai/integrations/media-providers/node';
 
 const registry = createCapabilityRegistry({}, { seed: MEDIA_CAPABILITY_SEED });
 
@@ -110,7 +112,10 @@ const policy = createAllowlistMediaPolicy({}, {
 const denial = policy.evaluate({ surface: 'image' }, { model: 'dall-e-3' });
 if (denial) throw new Error(`${denial.code}: ${denial.message}`);
 
-const engine = createMediaDispatchEngine({}, {
+const engine = createMediaDispatchEngine({
+  registry: createBuiltinVendorAdapterRegistry(),
+  httpClient: createNodeMediaHttpClient({}),
+}, {
   credentials: { openai: resolveProviderCredentialsFromEnv({ providerId: 'openai', env: process.env }) },
   // allowStubFallback stays false — a missing renderer must fail, not fake a result.
 });

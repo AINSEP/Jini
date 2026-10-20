@@ -26,7 +26,7 @@
  * `allowedInternalHosts` argument is empty/absent (its own first line is
  * `if (!allowedInternalHosts || allowedInternalHosts.length === 0) return
  * false;`) — so the allowlist branch is provably dead code on this call
- * path and is not ported. The default asset-download path is strict. Only an explicit
+ * path and is not ported. The explicit Node adapter defaults to strict asset downloads. Only its
  * `allowPrivateNetwork: true` development capability or a host-supplied
  * policy-enforcing client can change the network policy; a host
  * that wants an operator-configurable internal-host allowlist for its own
@@ -40,7 +40,7 @@
 import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
 import { promises as dnsPromises } from 'node:dns';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
-import { defaultMediaOutboundMessages, fetchMediaOutbound } from './outbound.js';
+import { defaultMediaOutboundMessages, fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
 import type { MediaOutboundOptions } from './outbound.js';
 
 export interface DnsLookupAddress {
@@ -150,10 +150,11 @@ export async function assertExternalAssetUrl({ rawUrl }: { rawUrl: string }, { l
  * forgotten at a call site); the forced `redirect` is spread last so it
  * overrides any value the caller passed in `init`. Callers keep their own
  * `!resp.ok` HTTP-status handling.
- * @throws URL/policy refusals and DNS/transport failures, before unsafe I/O.
+ * `lookup` is retained for source compatibility; DNS configuration belongs on httpClient.
+ * @throws URL/policy refusals, a missing client, and DNS/transport failures before unsafe I/O.
  * @complexity O(a + b) for a DNS answers and b bounded decoded asset bytes.
  */
-export async function assertAndFetchExternalAsset({ url }: { url: string }, { init = {}, lookup, ...outbound }: MediaOutboundOptions & { init?: RequestInit | undefined; lookup?: DnsLookupFn | undefined } = {}): Promise<Response> {
+export async function assertAndFetchExternalAsset({ url }: { url: string }, { init = {}, lookup: _lookup, ...outbound }: MediaOutboundOptions & { init?: RequestInit | undefined; lookup?: DnsLookupFn | undefined } = {}): Promise<Response> {
   // Preserve the early URL diagnostic. DNS vetting belongs to the client that pins the socket,
   // not an independent lookup followed by a fetch that resolves the hostname a second time.
   if (outbound.allowPrivateNetwork !== true && outbound.httpClient === undefined) {
@@ -163,7 +164,7 @@ export async function assertAndFetchExternalAsset({ url }: { url: string }, { in
   // Downloading an already-generated asset, not waiting on generation — UPLOAD-class (2min).
   return fetchMediaOutbound({ url, timeoutMs: FETCH_TIMEOUT_MS.UPLOAD }, {
     ...outbound,
+    httpClient: requireMediaHttpClient(outbound),
     init: { ...init, redirect: 'error' },
-    ...(lookup === undefined ? {} : { dns: { resolve: async ({ hostname }: { hostname: string }) => (await lookup({ hostname })).map(entry => entry.address) } }),
   });
 }

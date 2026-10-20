@@ -27,7 +27,7 @@ import { partitionArgs } from '../../args.js';
  */
 import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
 
-import { fetchMediaOutbound } from './outbound.js';
+import { fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
 import type { MediaOutboundOptions } from './outbound.js';
 
 import type {
@@ -96,7 +96,7 @@ async function performSigned(
   timeoutMs: number,
 ): Promise<Response> {
   const signed = await deps.signer({ request: request });
-  return fetchMediaOutbound({ url: signed.url, timeoutMs }, { ...deps, init: signed.init });
+  return fetchMediaOutbound({ url: signed.url, timeoutMs }, { ...deps, httpClient: requireMediaHttpClient(deps), init: signed.init });
 }
 
 /** Thread only the outbound capability into parsers; stores and signers remain runtime-private. */

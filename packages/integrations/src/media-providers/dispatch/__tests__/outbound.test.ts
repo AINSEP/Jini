@@ -1,11 +1,11 @@
+import { createNodeMediaHttpClient } from '../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HttpClientPort, HttpRequest } from '@jini-ai/core/primitives';
 import type { DnsResolver } from '@jini-ai/platform/http/guarded';
 import { defaultMediaOutboundMessages, fetchMediaOutbound } from '../outbound.js';
 import { testPinnedRequests } from './outbound-fixtures.js';
 
-// The default (no httpClient) path builds a real policy client; swap only its transport ports for the
-// deterministic fixture so the real guard policy still runs.
+// Explicit Node clients use a deterministic transport fixture; the real guard policy still runs.
 vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
   const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
   const { testNodeGuardedHttpPorts } = await import('./outbound-fixtures.js');
@@ -36,6 +36,15 @@ function withDispatcher(init: RequestInit, value: unknown): RequestInit {
 }
 
 describe('fetchMediaOutbound wire request validation', () => {
+  it('fails closed without an injected client instead of constructing a Node fallback', async () => {
+    const raw = vi.fn(async () => new Response('must not fetch'));
+    vi.stubGlobal('fetch', raw);
+    // @ts-expect-error Network dispatch requires the core HTTP port.
+    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, {}))
+      .rejects.toThrow(new TypeError('Media outbound requires an injected guarded HttpClientPort'));
+    expect(raw).not.toHaveBeenCalled();
+  });
+
   it('defaults the method to GET', async () => {
     const { client, sent } = recordingClient();
     await fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { httpClient: client });
@@ -76,16 +85,12 @@ describe('fetchMediaOutbound wire request validation', () => {
 
   it('checks the dispatcher before the method', async () => {
     const { client } = recordingClient();
-    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, {
-      httpClient: client, init: withDispatcher({ method: 'TRACE' }, {}),
-    })).rejects.toThrow(new TypeError(defaultMediaOutboundMessages.dispatcherRefused));
+    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { httpClient: client, init: withDispatcher({ method: 'TRACE' }, {}) })).rejects.toThrow(new TypeError(defaultMediaOutboundMessages.dispatcherRefused));
   });
 
   it('checks the method before the body', async () => {
     const { client } = recordingClient();
-    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, {
-      httpClient: client, init: { method: 'TRACE', body: new Blob(['x']) },
-    })).rejects.toThrow(new TypeError(defaultMediaOutboundMessages.unsupportedMethod));
+    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { httpClient: client, init: { method: 'TRACE', body: new Blob(['x']) } })).rejects.toThrow(new TypeError(defaultMediaOutboundMessages.unsupportedMethod));
   });
 
   it.each([
@@ -95,9 +100,7 @@ describe('fetchMediaOutbound wire request validation', () => {
     ['FormData', () => new FormData()],
   ])('refuses a %s body before I/O', async (_name, makeBody) => {
     const { client, sent } = recordingClient();
-    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, {
-      httpClient: client, init: { method: 'POST', body: makeBody() },
-    })).rejects.toThrow(new TypeError('Media HTTP body must be a string or URLSearchParams'));
+    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { httpClient: client, init: { method: 'POST', body: makeBody() } })).rejects.toThrow(new TypeError('Media HTTP body must be a string or URLSearchParams'));
     expect(sent).toHaveLength(0);
   });
 
@@ -115,9 +118,7 @@ describe('fetchMediaOutbound wire request validation', () => {
 
   it('forwards a URLSearchParams body in its serialized form', async () => {
     const { client, sent } = recordingClient();
-    await fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, {
-      httpClient: client, init: { method: 'POST', body: new URLSearchParams({ a: '1', b: 'x y' }) },
-    });
+    await fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { httpClient: client, init: { method: 'POST', body: new URLSearchParams({ a: '1', b: 'x y' }) } });
     expect(sent[0]?.request.body).toBe('a=1&b=x+y');
   });
 
@@ -132,9 +133,7 @@ describe('fetchMediaOutbound wire request validation', () => {
     const outboundMessages = { unsupportedMethod: 'custom method' };
     await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { httpClient: client, outboundMessages, init: { method: 'TRACE' } }))
       .rejects.toThrow(new TypeError('custom method'));
-    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, {
-      httpClient: client, outboundMessages, init: { method: 'POST', body: new Blob(['x']) },
-    })).rejects.toThrow(new TypeError(defaultMediaOutboundMessages.unsupportedBody));
+    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { httpClient: client, outboundMessages, init: { method: 'POST', body: new Blob(['x']) } })).rejects.toThrow(new TypeError(defaultMediaOutboundMessages.unsupportedBody));
   });
 });
 
@@ -166,7 +165,7 @@ describe('fetchMediaOutbound forwarding to the guarded client', () => {
   });
 });
 
-describe('fetchMediaOutbound default policy client', () => {
+describe('fetchMediaOutbound with the explicit Node policy client', () => {
   function stubFetchOk() {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('bytes')));
   }
@@ -174,37 +173,37 @@ describe('fetchMediaOutbound default policy client', () => {
 
   it('fetches a public https URL with the 96 MiB response bound', async () => {
     stubFetchOk();
-    const response = await fetchMediaOutbound({ url: URL_A, timeoutMs: 500 });
+    const response = await fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { httpClient: createNodeMediaHttpClient({}) });
     expect(await response.text()).toBe('bytes');
     expect(testPinnedRequests[0]?.maxResponseBytes).toBe(96 * 1024 * 1024);
   });
 
   it('refuses a non-http scheme', async () => {
     stubFetchOk();
-    await expect(fetchMediaOutbound({ url: 'ftp://cdn.example/a', timeoutMs: 500 })).rejects.toThrow(/scheme/i);
+    await expect(fetchMediaOutbound({ url: 'ftp://cdn.example/a', timeoutMs: 500 }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/scheme/i);
     expect(testPinnedRequests).toHaveLength(0);
   });
 
   it('uses an injected DNS resolver and refuses its private answer by default', async () => {
     stubFetchOk();
-    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { dns: privateDns })).rejects.toThrow(/rejected/);
+    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { httpClient: createNodeMediaHttpClient({}, { dns: privateDns }) })).rejects.toThrow(/rejected/);
     expect(testPinnedRequests).toHaveLength(0);
   });
 
   it('allows a private answer only with allowPrivateNetwork: true', async () => {
     stubFetchOk();
-    const response = await fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { dns: privateDns, allowPrivateNetwork: true });
+    const response = await fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { allowPrivateNetwork: true, httpClient: createNodeMediaHttpClient({}, { dns: privateDns, allowPrivateNetwork: true }) });
     expect(response.status).toBe(200);
   });
 
   it('treats a non-true allowPrivateNetwork as denied', async () => {
     stubFetchOk();
-    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { dns: privateDns, allowPrivateNetwork: false })).rejects.toThrow(/rejected/);
+    await expect(fetchMediaOutbound({ url: URL_A, timeoutMs: 500 }, { allowPrivateNetwork: false, httpClient: createNodeMediaHttpClient({}, { dns: privateDns, allowPrivateNetwork: false }) })).rejects.toThrow(/rejected/);
   });
 
-  it('ignores allowPrivateNetwork and dns when the host injects its own client', async () => {
+  it('keeps the injected client policy authoritative over legacy allowPrivateNetwork', async () => {
     const { client, sent } = recordingClient();
-    await fetchMediaOutbound({ url: 'http://127.0.0.1/a', timeoutMs: 500 }, { httpClient: client, dns: privateDns, allowPrivateNetwork: false });
+    await fetchMediaOutbound({ url: 'http://127.0.0.1/a', timeoutMs: 500 }, { httpClient: client, allowPrivateNetwork: false });
     expect(sent).toHaveLength(1);
     expect(testPinnedRequests).toHaveLength(0);
   });

@@ -1,6 +1,5 @@
-import { normalizeMediaProviderMap, canonicalMediaProviderId } from '@jini-ai/integrations/media-providers/catalog';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MediaProvidersPort } from '../../ports.js';
+import type { MediaProviderCatalogPolicy, MediaProvidersPort } from '../../ports.js';
 import {
   hasAnyConfiguredProvider,
   isEntryEmpty,
@@ -23,6 +22,8 @@ export type MediaProviderEditPatch = Pick<MediaProviderCredentials, 'apiKey' | '
 
 export interface UseMediaProvidersTabOptions {
   port: MediaProvidersPort;
+  /** Identity rules shared by catalog rows, local edits and daemon responses. Stable while mounted. */
+  catalogPolicy: MediaProviderCatalogPolicy;
   /** Host-persisted local edits from before this tab mounted (e.g. the
    *  host's own locally-cached config, read before the daemon round-trip
    *  completes). Defaults to none. Threaded into the initial
@@ -115,7 +116,8 @@ function saveErrorMessage({ error }: { error: unknown }): string {
  * `{}` before merging — would make a transient daemon blip read as "the
  * server manages nothing" and silently wipe local edits.
  */
-export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvidersTabOptions): UseMediaProvidersTabResult {
+export function useMediaProvidersTab({ port, catalogPolicy, initialProviders }: UseMediaProvidersTabOptions): UseMediaProvidersTabResult {
+  const { normalizeMediaProviderMap, canonicalMediaProviderId } = catalogPolicy;
   const [providers, setProviders] = useState<MediaProviderMap>(() => normalizeMediaProviderMap({ providers: initialProviders ?? {} }));
   const [pendingProviderIds, setPendingProviderIds] = useState<ReadonlySet<string>>(() => new Set());
   const [load, setLoad] = useState<MediaProvidersLoadState>({ status: 'loading' });
@@ -238,7 +240,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
       setSave({ status: 'save-error', message: saveErrorMessage({ error }) });
       return { status: 'failed' };
     }
-  }, [applyProviders, applyPending]);
+  }, [applyProviders, applyPending, normalizeMediaProviderMap]);
 
   /** True while a write is at the port. */
   const writing = useRef(false);
@@ -324,7 +326,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
         }
       });
     },
-    [persist, applyProviders],
+    [persist, applyProviders, normalizeMediaProviderMap],
   );
 
   useEffect(() => {
@@ -354,7 +356,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
       if (!currentPending.has(providerId)) applyPending(new Set(currentPending).add(providerId));
       mutatedSinceSend.current.add(providerId);
     },
-    [applyProviders, applyPending],
+    [applyProviders, applyPending, canonicalMediaProviderId],
   );
 
   const clearProvider = useCallback(
@@ -390,7 +392,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
         applyProviders({ ...providersRef.current, [providerId]: previousEntry });
       })();
     },
-    [persist, applyProviders],
+    [persist, applyProviders, canonicalMediaProviderId],
   );
 
   const saveChanges = useCallback(() => {

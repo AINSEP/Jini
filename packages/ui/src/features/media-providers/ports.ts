@@ -1,3 +1,6 @@
+/** Catalog policy is UI-owned; the shared contract lives once in core. */
+export type { MediaProviderCatalogPolicy } from '@jini-ai/core';
+
 import type { MediaProviderMap } from './types.js';
 
 /**

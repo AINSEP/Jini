@@ -20,6 +20,8 @@ export type { DnsLookupAddress, DnsLookupFn } from './ssrf-guard.js';
 export type {
   MediaDispatchEngine,
   MediaDispatchEngineOptions,
+  MediaDispatchEngineRequired,
+  VendorAdapterLookup,
   MediaGenerationRequest,
   MediaGenerationRequestInit,
   MediaGenerationResult,
@@ -32,7 +34,7 @@ export type {
 // which vendors are registered onto it.
 export { dispatchVendorRequest, requireApiKey } from './vendor-adapter.js';
 export type { VendorAdapter, VendorCredentialGuard, VendorRequest, VendorRequestBuilder, VendorResponseParser } from './vendor-adapter.js';
-export { createVendorAdapterRegistry, mediaVendorRegistry, VendorAdapterRegistry } from './vendor-registry.js';
+export { createBuiltinVendorAdapterRegistry, createVendorAdapterRegistry, mediaVendorRegistry, VendorAdapterRegistry } from './vendor-registry.js';
 export { createHexEnvelopeAudioParser, createRawBytesParser } from './response-parsers.js';
 // The submit-then-poll tier (added 2026-09-02) — purely additive alongside `VendorAdapter`, for
 // vendors that hand back a job handle instead of finishing inside one request/response. See

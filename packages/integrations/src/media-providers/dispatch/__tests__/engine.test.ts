@@ -1,6 +1,9 @@
+import { createNodeMediaHttpClient } from '../node.js';
 import { partitionArgs } from '../../../args.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMediaDispatchEngine, lookupRoute } from '../engine.js';
+import { createVendorAdapterRegistry, createBuiltinVendorAdapterRegistry } from '../vendor-registry.js';
+import type { VendorAdapter } from '../vendor-adapter.js';
 import type { Renderer } from '../engine.js';
 import type { MediaGenerationRequest } from '../types.js';
 import type { HttpClientPort } from '@jini-ai/core/primitives';
@@ -33,33 +36,33 @@ describe('lookupRoute', () => {
 
 describe('createMediaDispatchEngine — validation', () => {
     it('rejects an unsupported surface', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) });
         await expect(engine.generate(...partitionArgs({ surface: 'unknown' as never, model: 'x' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/unsupported surface/);
     });
     it('rejects a missing model', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) });
         await expect(engine.generate(...partitionArgs({ surface: 'image', model: '' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/model required/);
     });
     it('rejects an unknown model id', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) });
         await expect(engine.generate(...partitionArgs({ surface: 'image', model: 'not-a-real-model' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/unknown model/);
     });
     it('rejects a model not registered for the given surface', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) });
         // gpt-image-2 is an image model, not a video model.
         await expect(engine.generate(...partitionArgs({ surface: 'video', model: 'gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/not registered for surface "video"/);
     });
     it('rejects an invalid audioKind', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) });
         await expect(engine.generate(...partitionArgs({ surface: 'audio', model: 'gpt-4o-mini-tts', audioKind: 'bogus' as never } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/unsupported audioKind/);
     });
     it('rejects a model not registered for the resolved audioKind', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) });
         // gpt-4o-mini-tts is a 'speech' model, not registered under 'music'.
         await expect(engine.generate(...partitionArgs({ surface: 'audio', model: 'gpt-4o-mini-tts', audioKind: 'music' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/not registered for surface "audio · music"/);
     });
     it('defaults audioKind to "music" when omitted entirely', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) });
         // Same assertion as the explicit-'music' case above, but proves the
         // `request.audioKind || 'music'` default itself, not just that 'music'
         // works when passed explicitly.
@@ -70,19 +73,19 @@ describe('createMediaDispatchEngine — validation', () => {
 describe('createMediaDispatchEngine — clamping', () => {
     it('clamps an out-of-range video length and reports a warning', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('vid').toString('base64') }] }), { status: 200 })));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { imagerouter: { apiKey: 'k' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { imagerouter: { apiKey: 'k' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'video', model: 'bytedance/seedance-1.5-pro', length: 9999 } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.warnings.some((w) => w.includes('clamped'))).toBe(true);
     });
     it('does not warn when length is already an allowed value', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('vid').toString('base64') }] }), { status: 200 })));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { imagerouter: { apiKey: 'k' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { imagerouter: { apiKey: 'k' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'video', model: 'bytedance/seedance-1.5-pro', length: 8 } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.warnings).toEqual([]);
     });
     it('clamps an out-of-range audio duration and reports a warning', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(Buffer.from('audio'), { status: 200 })));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { openai: { apiKey: 'sk-test' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { openai: { apiKey: 'sk-test' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'audio', audioKind: 'speech', model: 'gpt-4o-mini-tts', duration: 9999 } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.warnings.some((w) => w.includes('duration'))).toBe(true);
     });
@@ -96,7 +99,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             return new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('img').toString('base64') }] }), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { openai: { apiKey: 'sk-test' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { openai: { apiKey: 'sk-test' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2', prompt: 'x' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('openai');
         expect(result.usedStubFallback).toBe(false);
@@ -104,14 +107,14 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
     });
     it('routes openai + audio:speech to renderOpenAISpeech', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(Buffer.from('audio'), { status: 200 })));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { openai: { apiKey: 'sk-test' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { openai: { apiKey: 'sk-test' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'audio', audioKind: 'speech', model: 'gpt-4o-mini-tts' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('openai');
         expect(result.bytes.toString('utf8')).toBe('audio');
     });
     it('routes imagerouter + image and imagerouter + video', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('x').toString('base64') }] }), { status: 200 })));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { imagerouter: { apiKey: 'k' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { imagerouter: { apiKey: 'k' } } });
         const imageResult = await engine.generate(...partitionArgs({ surface: 'image', model: 'openai/gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(imageResult.providerId).toBe('imagerouter');
         const videoResult = await engine.generate(...partitionArgs({ surface: 'video', model: 'bytedance/seedance-1.5-pro' } satisfies MediaGenerationRequest, ['surface', 'model']));
@@ -119,7 +122,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
     });
     it('routes custom-image + image to renderCustomOpenAIImage', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('x').toString('base64') }] }), { status: 200 })));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { 'custom-image': { baseUrl: 'https://x.example.com', model: 'm' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { 'custom-image': { baseUrl: 'https://x.example.com', model: 'm' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'custom-image' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('custom-image');
     });
@@ -131,7 +134,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             return new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('x').toString('base64') }] }), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { 'custom-image': { baseUrl: 'https://x.example.com', model: 'm' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { 'custom-image': { baseUrl: 'https://x.example.com', model: 'm' } } });
         const result = await engine.generate(...partitionArgs({
             surface: 'image',
             model: 'custom-image',
@@ -145,12 +148,10 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             return new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('x').toString('base64') }] }), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({
-            credentials: {
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: {
                 openai: { apiKey: 'sk-should-not-be-used' },
                 'custom-image': { baseUrl: 'https://custom.example.com', model: 'dall-e-3' },
-            },
-        }, []));
+            } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'dall-e-3' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('custom-image');
     });
@@ -162,7 +163,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             return new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('x').toString('base64') }] }), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { grok: { apiKey: 'xai-key' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { grok: { apiKey: 'xai-key' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'grok-imagine-image' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('grok');
     });
@@ -172,7 +173,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             return new Response(Buffer.from('audio'), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { grok: { apiKey: 'xai-key' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { grok: { apiKey: 'xai-key' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'audio', audioKind: 'speech', model: 'grok-tts' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('grok');
         expect(result.bytes.toString('utf8')).toBe('audio');
@@ -183,7 +184,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { data: Buffer.from('x').toString('base64') } }] } }] }), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { nanobanana: { apiKey: 'g-key' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { nanobanana: { apiKey: 'g-key' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'gemini-3.1-flash-image-preview' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('nanobanana');
     });
@@ -194,7 +195,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             return new Response(JSON.stringify({ choices: [{ message: { images: [{ image_url: { url: dataUrl } }] } }] }), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { openrouter: { apiKey: 'or-key' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { openrouter: { apiKey: 'or-key' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'openrouter/black-forest-labs/flux-1.1-pro' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('openrouter');
     });
@@ -206,13 +207,13 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             return new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('x').toString('base64') }] }), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { volcengine: { apiKey: 'ark-key' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { volcengine: { apiKey: 'ark-key' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'doubao-seedream-3-0-t2i-250415' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('volcengine');
     });
     it('routes elevenlabs + audio:speech and elevenlabs + audio:sfx', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(Buffer.from('audio'), { status: 200 })));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { elevenlabs: { apiKey: 'el-key' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { elevenlabs: { apiKey: 'el-key' } } });
         const ttsResult = await engine.generate(...partitionArgs({ surface: 'audio', audioKind: 'speech', model: 'elevenlabs-v3', prompt: 'hi' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(ttsResult.providerId).toBe('elevenlabs');
         const sfxResult = await engine.generate(...partitionArgs({ surface: 'audio', audioKind: 'sfx', model: 'elevenlabs-sfx', prompt: 'a door creak' } satisfies MediaGenerationRequest, ['surface', 'model']));
@@ -220,7 +221,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
     });
     it('routes minimax + audio:speech to renderMinimaxTTS', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: { audio: Buffer.from('audio').toString('hex') } }), { status: 200 })));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { minimax: { apiKey: 'mm-key' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { minimax: { apiKey: 'mm-key' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'audio', audioKind: 'speech', model: 'minimax-tts' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('minimax');
         expect(result.bytes.toString('utf8')).toBe('audio');
@@ -239,7 +240,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             throw new Error(`unexpected fetch: ${url}`);
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { senseaudio: { apiKey: 'sa-key' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { senseaudio: { apiKey: 'sa-key' } } });
         const imageResult = await engine.generate(...partitionArgs({ surface: 'image', model: 'senseaudio-image-2.0-260319' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(imageResult.providerId).toBe('senseaudio');
         const ttsResult = await engine.generate(...partitionArgs({ surface: 'audio', audioKind: 'speech', model: 'senseaudio-tts' } satisfies MediaGenerationRequest, ['surface', 'model']));
@@ -247,7 +248,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
     });
     it('routes fishaudio + audio:speech to renderFishAudioTTS', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(Buffer.from('audio'), { status: 200 })));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { fishaudio: { apiKey: 'fa-key' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { fishaudio: { apiKey: 'fa-key' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'audio', audioKind: 'speech', model: 'fish-speech-2' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('fishaudio');
         expect(result.bytes.toString('utf8')).toBe('audio');
@@ -263,7 +264,7 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             throw new Error(`unexpected fetch: ${url}`);
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { aihubmix: { apiKey: 'ahm-key' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { aihubmix: { apiKey: 'ahm-key' } } });
         const imageResult = await engine.generate(...partitionArgs({ surface: 'image', model: 'aihubmix-gpt-image-1' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(imageResult.providerId).toBe('aihubmix');
         const ttsResult = await engine.generate(...partitionArgs({ surface: 'audio', audioKind: 'speech', model: 'aihubmix-tts-1' } satisfies MediaGenerationRequest, ['surface', 'model']));
@@ -275,12 +276,10 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             return new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('x').toString('base64') }] }), { status: 200 });
         });
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine(...partitionArgs({
-            credentials: {
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: {
                 openai: { apiKey: 'sk-test' },
                 'custom-image': { baseUrl: 'https://custom.example.com', model: 'some-other-model' },
-            },
-        }, []));
+            } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'dall-e-3' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('openai');
     });
@@ -288,14 +287,14 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
 
 describe('createMediaDispatchEngine — stub fallback', () => {
     it('throws a clear error when no renderer is wired and allowStubFallback is not set (fail closed by default)', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) });
         // leonardo+image has no renderer in this pass — the real vendor call is
         // submit-then-poll shaped (see archived provenance ledger), deferred alongside the
         // other async-polling vendors rather than ported this pass.
         await expect(engine.generate(...partitionArgs({ surface: 'image', model: 'leonardo-phoenix' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/no renderer configured/);
     });
     it('returns placeholder bytes when allowStubFallback is true and no renderer is wired', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({ allowStubFallback: true }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { allowStubFallback: true });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'leonardo-phoenix' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.usedStubFallback).toBe(true);
         expect(result.providerId).toBe('leonardo');
@@ -303,7 +302,7 @@ describe('createMediaDispatchEngine — stub fallback', () => {
     });
     it('never falls back to a stub for a (provider, surface) pair that IS wired, even with allowStubFallback true', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('real').toString('base64') }] }), { status: 200 })));
-        const engine = createMediaDispatchEngine(...partitionArgs({ allowStubFallback: true, credentials: { openai: { apiKey: 'sk-test' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { allowStubFallback: true, credentials: { openai: { apiKey: 'sk-test' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.usedStubFallback).toBe(false);
         expect(result.bytes.toString('utf8')).toBe('real');
@@ -311,7 +310,7 @@ describe('createMediaDispatchEngine — stub fallback', () => {
 });
 
 describe('createMediaDispatchEngine — characterization', () => {
-    const stubEngine = () => createMediaDispatchEngine(...partitionArgs({ allowStubFallback: true }, []));
+    const stubEngine = () => createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { allowStubFallback: true });
     const b64Image = () => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('img').toString('base64') }] }), { status: 200 });
 
     it('checks the surface before the model', async () => {
@@ -383,16 +382,16 @@ describe('createMediaDispatchEngine — characterization', () => {
         expect(result.warnings).toHaveLength(1);
     });
     it('names the exact provider and image route in the no-renderer error', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) });
         await expect(engine.generate(...partitionArgs({ surface: 'image', model: 'leonardo-phoenix' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow('no renderer configured for provider "leonardo" / surface "image" — pass allowStubFallback: true to get placeholder bytes instead, or wire up a real integration for this pair.');
     });
     it('names the audio:<kind> route key in the no-renderer error', async () => {
-        const engine = createMediaDispatchEngine(...partitionArgs({}, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) });
         await expect(engine.generate(...partitionArgs({ surface: 'audio', model: 'doubao-tts', audioKind: 'speech' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/no renderer configured for provider "volcengine" \/ surface "audio:speech"/);
     });
     it('does not apply the custom-image override to a non-openai image provider', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => b64Image()));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { grok: { apiKey: 'k' }, 'custom-image': { baseUrl: 'https://custom.example/v1', model: 'grok-imagine-image', apiKey: 'c' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { grok: { apiKey: 'k' }, 'custom-image': { baseUrl: 'https://custom.example/v1', model: 'grok-imagine-image', apiKey: 'c' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'grok-imagine-image' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.providerId).toBe('grok');
     });
@@ -407,7 +406,7 @@ describe('createMediaDispatchEngine — characterization', () => {
                 return { status: 200, headers: { 'content-type': 'application/json' }, bodyText: Buffer.from(bodyBytes).toString('utf8'), bodyBytes };
             },
         };
-        const engine = createMediaDispatchEngine(...partitionArgs({ httpClient, credentials: { openai: { apiKey: 'k' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient }, { credentials: { openai: { apiKey: 'k' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.bytes.toString('utf8')).toBe('via-client');
         expect(sent).toHaveLength(1);
@@ -415,12 +414,12 @@ describe('createMediaDispatchEngine — characterization', () => {
     });
     it('refuses a private-network vendor URL by default', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => b64Image()));
-        const engine = createMediaDispatchEngine(...partitionArgs({ credentials: { openai: { apiKey: 'k', baseUrl: 'http://127.0.0.1:9/v1' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { credentials: { openai: { apiKey: 'k', baseUrl: 'http://127.0.0.1:9/v1' } } });
         await expect(engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow(/^egress to '127\.0\.0\.1' \(127\.0\.0\.1\) r/);
     });
     it('allows a private-network vendor URL when allowPrivateNetwork is set', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => b64Image()));
-        const engine = createMediaDispatchEngine(...partitionArgs({ allowPrivateNetwork: true, credentials: { openai: { apiKey: 'k', baseUrl: 'http://127.0.0.1:9/v1' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }) }, { credentials: { openai: { apiKey: 'k', baseUrl: 'http://127.0.0.1:9/v1' } } });
         const result = await engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2' } satisfies MediaGenerationRequest, ['surface', 'model']));
         expect(result.bytes.toString('utf8')).toBe('img');
     });
@@ -429,7 +428,7 @@ describe('createMediaDispatchEngine — characterization', () => {
         vi.stubGlobal('fetch', fetchMock);
         // Opaque marker object: the outbound layer refuses any dispatcher, so no real undici Dispatcher is needed.
         const dispatcher = {} as NonNullable<RequestInit['dispatcher']>;
-        const engine = createMediaDispatchEngine(...partitionArgs({ outboundMessages: { dispatcherRefused: 'host says: no dispatcher' }, credentials: { openai: { apiKey: 'k' } } }, []));
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}) }, { outboundMessages: { dispatcherRefused: 'host says: no dispatcher' }, credentials: { openai: { apiKey: 'k' } } });
         await expect(engine.generate(...partitionArgs({ surface: 'image', model: 'gpt-image-2', requestInit: { dispatcher } } satisfies MediaGenerationRequest, ['surface', 'model']))).rejects.toThrow('host says: no dispatcher');
         expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -439,4 +438,57 @@ vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
   const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
   const { testNodeGuardedHttpPorts } = await import('./outbound-fixtures.js');
   return { ...original, createNodeGuardedHttpPorts: testNodeGuardedHttpPorts };
+});
+
+
+describe('host-owned media registries', () => {
+  it('requires a client at construction even when stub fallback is enabled', () => {
+    expect(() => {
+      // @ts-expect-error A client is a required engine dependency.
+      createMediaDispatchEngine({ registry: createVendorAdapterRegistry() }, { allowStubFallback: true });
+    }).toThrow(new TypeError('Media outbound requires an injected guarded HttpClientPort'));
+  });
+
+  const adapter = (bytes: string): VendorAdapter => ({
+    buildRequest: () => ({ url: 'https://vendor.example/generate', init: {}, meta: undefined }),
+    parseResponse: async () => ({ bytes: Buffer.from(bytes), providerNote: bytes }),
+  });
+  const httpClient: HttpClientPort = { send: async () => ({ status: 200, headers: {}, bodyText: '' }) };
+
+  it('dispatches the same key independently in two engines without consulting the singleton', async () => {
+    const first = createVendorAdapterRegistry();
+    const second = createVendorAdapterRegistry();
+    first.register({ providerId: 'openai', routeKey: 'image', adapter: adapter('first') });
+    second.register({ providerId: 'openai', routeKey: 'image', adapter: adapter('second') });
+    const a = createMediaDispatchEngine({ registry: first, httpClient });
+    const b = createMediaDispatchEngine({ registry: second, httpClient });
+    expect((await a.generate({ surface: 'image', model: 'dall-e-3' })).bytes.toString()).toBe('first');
+    expect((await b.generate({ surface: 'image', model: 'dall-e-3' })).bytes.toString()).toBe('second');
+    expect(() => first.register({ providerId: 'openai', routeKey: 'image', adapter: adapter('duplicate') }))
+      .toThrow('already registered');
+  });
+
+  it('keeps an empty host registry empty even for a builtin route', async () => {
+    const engine = createMediaDispatchEngine({ registry: createVendorAdapterRegistry(), httpClient });
+    await expect(engine.generate({ surface: 'image', model: 'dall-e-3' }))
+      .rejects.toThrow('no renderer configured for provider "openai" / surface "image"');
+  });
+
+  it('sees host registrations made after engine construction', async () => {
+    const registry = createVendorAdapterRegistry();
+    const engine = createMediaDispatchEngine({ registry, httpClient });
+    await expect(engine.generate({ surface: 'image', model: 'dall-e-3' })).rejects.toThrow('no renderer configured');
+    registry.register({ providerId: 'openai', routeKey: 'image', adapter: adapter('registered later') });
+    expect((await engine.generate({ surface: 'image', model: 'dall-e-3' })).bytes.toString()).toBe('registered later');
+  });
+
+  it('constructs fresh builtin registries with the same routes and no shared mutation', () => {
+    const a = createBuiltinVendorAdapterRegistry();
+    const b = createBuiltinVendorAdapterRegistry();
+    expect(a).not.toBe(b);
+    expect(a.list()).toEqual(b.list());
+    expect(a.has({ providerId: 'openai', routeKey: 'image' })).toBe(true);
+    a.register({ providerId: 'host-only', routeKey: 'image', adapter: adapter('host') });
+    expect(b.get({ providerId: 'host-only', routeKey: 'image' })).toBeUndefined();
+  });
 });
