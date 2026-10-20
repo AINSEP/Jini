@@ -20,7 +20,7 @@ const userManage = (c: ActionContext) => hasAdminGrant({ permissions: c.permissi
 const targetsNonSeeded = (c: ActionContext) => c.seeded !== null && c.user.principalId !== c.seeded;
 // A Map (not an object literal) so a malformed action such as "constructor" cannot resolve to an
 // Object.prototype member; any action without a rule of its own needs user.manage.
-const ACTION_RULES = new Map<UserAction, (c: ActionContext) => boolean>([
+const ACTION_RULES: ReadonlyMap<UserAction, (c: ActionContext) => boolean> = new Map([
   ['delete', c => userManage(c) && c.caller.canManageUserTrash === true && !c.self && targetsNonSeeded(c)],
   ['disable', c => c.user.status === 'active' && targetsNonSeeded(c) && userManage(c)],
   ['enable', c => c.user.status === 'disabled' && userManage(c)],
