@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { ModelDiscoveryDeps } from '../../model-discovery-types.js';
 import { antigravityAgentDef, parseAgyModels, redactAntigravityAuthUrls } from '../antigravity.js';
+import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 describe('antigravityAgentDef shape', () => {
   it('honors the explicit Full CLI access bypass without enabling it for restricted runs', () => {
@@ -338,5 +340,31 @@ describe('antigravityAgentDef reasoning-effort declaration', () => {
     expect(args).toEqual(['--model', 'gemini-3.1-pro-high', '-p', 'hi']);
     expect(args.join(' ')).not.toContain('--effort');
     expect(args.join(' ')).not.toContain('reasoning');
+  });
+});
+
+describe('antigravityAgentDef.discoverModels', () => {
+  it('falls back to the def\'s fallbackModels (minus the synthetic default) when agy is offline', async () => {
+    const catalog = await antigravityAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toEqual(antigravityAgentDef.fallbackModels.slice(1).map((model) => model.id));
+  });
+
+  it('parses `agy models` output through parseAgyModels', async () => {
+    const catalog = await antigravityAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps('Fetching available models...\ngemini-3.1-pro-high\tGemini 3.1 Pro (High)\n') });
+    expect(catalog.freshness).toBe('fresh');
+    expect(catalog.models.map((model) => model.id)).toEqual(['gemini-3.1-pro-high']);
+  });
+
+  it('runs `agy models` with the def\'s 10s listing budget', async () => {
+    const calls: Array<{ args: readonly string[]; timeoutMs: number }> = [];
+    const process: ModelDiscoveryDeps['process'] = {
+      async run({ args, timeoutMs }) {
+        calls.push({ args, timeoutMs });
+        return { stdout: 'gemini-3.1-pro-high\tGemini 3.1 Pro (High)\n', stderr: '' };
+      },
+    };
+    await antigravityAgentDef.discoverModels({ context: discoveryContext }, { deps: { ...offlineDiscoveryDeps(), process } });
+    expect(calls).toEqual([{ args: ['models'], timeoutMs: 10_000 }]);
   });
 });
