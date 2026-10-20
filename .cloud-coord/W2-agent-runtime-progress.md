@@ -22,6 +22,7 @@ claude-segment-usage 32/25, detection 23/19, model-discovery 34/24, qoder-stream
 | L283 | MERGED 95a9e86d | 7c4964d6, 073a6995, bacab59c | antigravity 11/- → 8/9, pi 11/- → 5/2 | 100/100/100 both (544 defs tests) | eslint 0, tsc ok; removed dead empty-id/label guards in parseAgyModels (provably unreachable: line trimmed) |  | | | |
 
 ## Timings
+- Interim whole-package suite after 6 lots merged (bbe5a632, agent-runtime dist rebuilt): 148 files, 3403 passed, 1 skipped (pre-existing), 29 s — green.
 - Setup (install + `pnpm --no-bail -r build`): 156 s; only `@jini-ai/integrations` failed tsc (expected), all dist emitted.
 - Baseline: all 66 lot test files green on unmodified tree (1449 passed, 1 pre-existing skip). agent-runtime tsc clean.
 - Round 1 dispatched 01:30Z.
