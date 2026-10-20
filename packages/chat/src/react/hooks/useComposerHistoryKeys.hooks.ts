@@ -38,29 +38,45 @@ function visualLineBounds({ textarea }: { textarea: HTMLTextAreaElement }) {
   }
 }
 
+type CaretPlacement = 'start' | 'end';
+
+function placeCaret(textarea: HTMLTextAreaElement, { placement }: { placement: CaretPlacement }): void {
+  const offset = placement === 'start' ? 0 : textarea.value.length;
+  textarea.setSelectionRange(offset, offset);
+}
+
+function hasModifier(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
+  return event.shiftKey || event.ctrlKey || event.altKey || event.metaKey;
+}
+
+/** Keys another handler or an IME already owns, or that an open popup should get instead. */
+function isClaimedElsewhere(event: KeyboardEvent<HTMLTextAreaElement>, { popupOpen }: { popupOpen: boolean }): boolean {
+  return event.defaultPrevented || popupOpen || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+}
+
+function isHistoryKey(event: KeyboardEvent<HTMLTextAreaElement>, { popupOpen }: { popupOpen: boolean }): boolean {
+  if (hasModifier(event) || isClaimedElsewhere(event, { popupOpen })) return false;
+  return ['ArrowUp', 'ArrowDown', 'Escape'].includes(event.key);
+}
+
 export function useComposerHistoryKeys(
   { composer, textareaRef }: { composer: UseComposerResult; textareaRef: RefObject<HTMLTextAreaElement | null> },
   { popupOpen = false }: { popupOpen?: boolean } = {},
 ) {
-  const pendingCaretRef = useRef<'start' | 'end' | null>(null);
+  const pendingCaretRef = useRef<CaretPlacement | null>(null);
   // A duplicate history entry can equal the current value, so setDraft may bail out.
   // Still commit the caret request now rather than carrying it into the next real edit.
   const [, requestCaretCommit] = useReducer((revision: number) => revision + 1, 0);
   useLayoutEffect(() => {
-    if (!pendingCaretRef.current) return;
     const placement = pendingCaretRef.current;
+    if (!placement) return;
     pendingCaretRef.current = null;
     const textarea = textareaRef.current;
-    if (textarea) {
-      const offset = placement === 'start' ? 0 : textarea.value.length;
-      textarea.setSelectionRange(offset, offset);
-    }
+    if (textarea) placeCaret(textarea, { placement });
   });
 
   return (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false;
-    if (event.defaultPrevented || popupOpen || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return false;
-    if (!['ArrowUp', 'ArrowDown', 'Escape'].includes(event.key)) return false;
+    if (!isHistoryKey(event, { popupOpen })) return false;
     const textarea = event.currentTarget;
     const handled = composer.history?.navigate({
       key: event.key,
@@ -79,11 +95,11 @@ export function useComposerHistoryKeys(
       // that commit clamps it to the OLD draft's length and breaks multiline Down gating.
       // Up stays on the first line of even a multiline recall so repeated Up can browse
       // older entries. Down/Escape go to the end, including when restoring the draft.
-      pendingCaretRef.current = event.key === 'ArrowUp' ? 'start' : 'end';
+      const placement: CaretPlacement = event.key === 'ArrowUp' ? 'start' : 'end';
+      pendingCaretRef.current = placement;
       requestCaretCommit();
       // Recalling an identical string may not cause a render; the existing value is safe.
-      const offset = pendingCaretRef.current === 'start' ? 0 : textarea.value.length;
-      textarea.setSelectionRange(offset, offset);
+      placeCaret(textarea, { placement });
     }
     return handled;
   };
