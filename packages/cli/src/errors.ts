@@ -100,7 +100,7 @@ export interface HttpFailureLike {
 export function structuredErrorData({ error }: { error: DaemonErrorBody | undefined }): Record<string, unknown> | undefined {
   if (error === undefined) return undefined;
   const data: Record<string, unknown> = {};
-  if (error.data !== undefined && typeof error.data === 'object' && error.data !== null) {
+  if (typeof error.data === 'object' && error.data !== null) {
     Object.assign(data, sanitizeUnknownDeep({ value: error.data }) as Record<string, unknown>);
   }
   if (error.details !== undefined) data.details = sanitizeUnknownDeep({ value: error.details });
@@ -136,20 +136,36 @@ export async function structuredHttpFailure(
   { resp }: { resp: HttpFailureLike },
   { fallbackCode = 'daemon-not-running', ...options }: StructuredErrorOptions & { fallbackCode?: string } = {},
 ): Promise<never> {
-  let raw = '';
-  let parsed: unknown = {};
-  try {
-    raw = await resp.text();
-    parsed = raw.length > 0 ? JSON.parse(raw) : {};
-  } catch {
-    parsed = {};
-  }
+  const { raw, parsed } = await readErrorBody({ resp });
   const errorObj = extractErrorObject(parsed);
-  const data = structuredErrorData({ error: errorObj });
   const code = typeof errorObj?.code === 'string' ? stripControlSequences({ text: errorObj.code }) : fallbackCode;
   const structuredMessage = typeof errorObj?.message === 'string' ? sanitizeUntrustedText({ text: errorObj.message }) : undefined;
   const message = structuredMessage ?? `HTTP ${resp.status}`;
-  const rawExcerpt = structuredMessage === undefined && raw.length > 0 ? sanitizeUntrustedText({ text: raw }) : undefined;
-  const mergedData = rawExcerpt !== undefined ? { ...(data ?? {}), rawExcerpt } : data;
-  return exitWithStructuredError({ code, message }, { ...(mergedData !== undefined ? { data: mergedData } : {}), ...options });
+  const data = envelopeData({ errorObj, rawExcerptSource: structuredMessage === undefined ? raw : '' });
+  // A caller-supplied `options.data` is spread last, so it replaces the daemon-derived data.
+  return exitWithStructuredError({ code, message }, { ...(data !== undefined ? { data } : {}), ...options });
+}
+
+/**
+ * Read and JSON-parse a failure body. A `text()` rejection, an empty body, and unparsable JSON
+ * all yield `parsed: {}`; `raw` keeps whatever text was read (empty when `text()` rejected).
+ */
+async function readErrorBody({ resp }: { resp: HttpFailureLike }): Promise<{ raw: string; parsed: unknown }> {
+  let raw = '';
+  try {
+    raw = await resp.text();
+    return { raw, parsed: raw.length > 0 ? JSON.parse(raw) : {} };
+  } catch {
+    return { raw, parsed: {} };
+  }
+}
+
+/**
+ * The envelope `data`: {@link structuredErrorData} plus, when `rawExcerptSource` is non-empty
+ * (i.e. there was no structured message), a sanitized `rawExcerpt` of the raw body.
+ */
+function envelopeData({ errorObj, rawExcerptSource }: { errorObj: DaemonErrorBody | undefined; rawExcerptSource: string }): Record<string, unknown> | undefined {
+  const data = structuredErrorData({ error: errorObj });
+  if (rawExcerptSource.length === 0) return data;
+  return { ...data, rawExcerpt: sanitizeUntrustedText({ text: rawExcerptSource }) };
 }
