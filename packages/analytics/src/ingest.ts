@@ -60,27 +60,27 @@ const EMAIL_SHAPE_PATTERN = /[^\s@]+@[^\s@]+\.[^\s@]+/;
 const PII_KEY_NAME_PATTERN =
   /email|phone|ssn|social[-_]?security|password|credit[-_]?card|street[-_]?address|full[-_]?name|first[-_]?name|last[-_]?name/i;
 
-/** A PII-suggestive key name is rejected regardless of its value type or shape. */
-function validatePropKeyName(key: string): void {
+function validateEventPropEntry(required: {
+  key: string;
+  value: unknown;
+  maxLength: number;
+  pending: Record<string, unknown>[];
+}, _optional: Record<string, never> = {}): void {
+  const { key, value, maxLength, pending } = required;
+  /** A PII-suggestive key name is rejected regardless of its value type or shape. */
   if (PII_KEY_NAME_PATTERN.test(key)) {
     throw new AnalyticsPiiRejectedError({ message: `event property key '${key}' looks PII-shaped` });
   }
-}
-
-/** String values additionally get a length bound and an email-shape rejection. */
-function validatePropStringValue(key: string, value: string, maxLength: number): void {
-  if (value.length > maxLength) {
-    throw new AnalyticsPiiRejectedError({ message: `event property '${key}' exceeds ${maxLength} characters` });
+  /** String values additionally get a length bound and an email-shape rejection. */
+  if (typeof value === "string") {
+    if (value.length > maxLength) {
+      throw new AnalyticsPiiRejectedError({ message: `event property '${key}' exceeds ${maxLength} characters` });
+    }
+    if (EMAIL_SHAPE_PATTERN.test(value)) {
+      throw new AnalyticsPiiRejectedError({ message: `event property '${key}' looks like an email address` });
+    }
   }
-  if (EMAIL_SHAPE_PATTERN.test(value)) {
-    throw new AnalyticsPiiRejectedError({ message: `event property '${key}' looks like an email address` });
-  }
-}
-
-function validateEventPropEntry(key: string, value: unknown, maxLength: number): void {
-  validatePropKeyName(key);
-  if (typeof value !== "string") return;
-  validatePropStringValue(key, value, maxLength);
+  if (value !== null && typeof value === "object") pending.push(value as Record<string, unknown>);
 }
 
 /**
@@ -114,8 +114,7 @@ export function validateEventProps(required: { props: JsonObject | null | undefi
     }
     for (const key of currentKeys) {
       const value = current[key];
-      validateEventPropEntry(key, value, privacyPolicy.maxEventPropStringLength);
-      if (value !== null && typeof value === "object") pending.push(value as Record<string, unknown>);
+      validateEventPropEntry({ key, value, maxLength: privacyPolicy.maxEventPropStringLength, pending });
     }
   }
 
@@ -492,6 +491,41 @@ function extractUtm(pathWithMaybeQuery: string): UtmParams {
   };
 }
 
+function buildNormalizedHit(required: {
+  beacon: IngestBeacon;
+  context: IngestContext;
+  deps: IngestHitDeps;
+  workspaceId: UUID;
+  eventProps: JsonObject | null;
+  hash: AnalyticsHashPort;
+}, _optional: Record<string, never> = {}): NormalizedHit {
+  const { beacon, context, deps, workspaceId, eventProps, hash } = required;
+  const utcDate = toUtcDate(context.receivedAt);
+  const dailySalt = hash.deriveDailySalt({ rootKeySeed: deps.rootKeySeed, workspaceId, utcDate, saltContext: deps.saltContext });
+  const normalized = normalizeIngestContext({
+    input: { ip: context.ip, userAgent: context.userAgent, siteHost: beacon.host },
+    dailySalt,
+  }, { hash });
+
+  return {
+    workspaceId,
+    occurredAt: context.receivedAt,
+    kind: beacon.kind,
+    path: beacon.path.split(/[?#]/, 1)[0]!,
+    referrerHost: extractReferrerHost(beacon.referrer),
+    utm: extractUtm(beacon.path),
+    country: null,
+    region: null,
+    deviceClass: normalized.deviceClass,
+    browserFamily: normalized.browserFamily,
+    osFamily: normalized.osFamily,
+    visitorHash: normalized.visitorHash,
+    sessionId: deriveSessionId(normalized.visitorHash, context.receivedAt, deps.privacyPolicy.sessionWindowMinutes, hash),
+    eventName: beacon.eventName ?? null,
+    eventProps,
+  };
+}
+
 /**
  * The ingest application service: beacon + transient context → normalized, PII-free hit → sink.
  * Never blocks on aggregation (fire-and-forget, ADR-035 §5) and never throws for expected/policy
@@ -541,30 +575,7 @@ export async function ingestHit(required: IngestHitRequired, optional: IngestHit
     throw err;
   }
 
-  const utcDate = toUtcDate(context.receivedAt);
-  const dailySalt = hash.deriveDailySalt({ rootKeySeed: deps.rootKeySeed, workspaceId, utcDate, saltContext: deps.saltContext });
-  const normalized = normalizeIngestContext({
-    input: { ip: context.ip, userAgent: context.userAgent, siteHost: beacon.host },
-    dailySalt,
-  }, { hash });
-
-  const hit: NormalizedHit = {
-    workspaceId,
-    occurredAt: context.receivedAt,
-    kind: beacon.kind,
-    path: beacon.path.split(/[?#]/, 1)[0]!,
-    referrerHost: extractReferrerHost(beacon.referrer),
-    utm: extractUtm(beacon.path),
-    country: null,
-    region: null,
-    deviceClass: normalized.deviceClass,
-    browserFamily: normalized.browserFamily,
-    osFamily: normalized.osFamily,
-    visitorHash: normalized.visitorHash,
-    sessionId: deriveSessionId(normalized.visitorHash, context.receivedAt, deps.privacyPolicy.sessionWindowMinutes, hash),
-    eventName: beacon.eventName ?? null,
-    eventProps,
-  };
+  const hit = buildNormalizedHit({ beacon, context, deps, workspaceId, eventProps, hash });
 
   const finalHit = optional.hooks ? await optional.hooks.beforeIngest({ hit }) : hit;
   if (finalHit === null) {
