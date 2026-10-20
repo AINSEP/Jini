@@ -274,3 +274,24 @@ describe('revocation honesty', () => {
     expect([retried.status, retried.remoteRevocation, h.tokens.entries.has(ref)]).toEqual(['disconnected', 'confirmed', false]);
   });
 });
+
+describe('characterization: account actions that must keep their behaviour (pinned before G1c)', () => {
+  it('cancelling a staged switch revokes the staged grant and keeps the live account serving', async () => {
+    const ref = await connect('alice');
+    await complete((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
+    const cancelled = await h.service.cancelSwitchAccount({ connectionRef: ref });
+    expect([cancelled.remoteRevocation, cancelled.pendingSwitch, provider.revoked]).toEqual(['confirmed', null, ['acme-rt-2']]);
+    expect(await h.service.getAccessToken({ connectionRef: ref }, { expectedAccountId: 'alice' })).toBe('acme-at-1');
+  });
+  it('a same-account reconnect never calls the revoke hook (the new tokens share the grant)', async () => {
+    await connect('alice');
+    await complete((await signIn(h, provider, { account: 'alice' })).callbackParams);
+    expect(provider.revoked).toEqual([]);
+  });
+  it('a confirmed switch never calls the revoke hook for the previous account', async () => {
+    const ref = await connect('alice');
+    await complete((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
+    await h.service.confirmSwitchAccount({ connectionRef: ref, actorId: 'actor-1' });
+    expect(provider.revoked).toEqual([]);
+  });
+});
