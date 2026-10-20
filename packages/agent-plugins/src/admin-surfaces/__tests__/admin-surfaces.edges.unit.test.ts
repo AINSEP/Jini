@@ -9,6 +9,7 @@ import { WORKSPACE_ID } from '../../lifecycle/tools/__tests__/support.js';
 import { AdminSurfaceActionError } from '../action-dispatcher.js';
 import { createAdminSurfaceCallbackInbox } from '../callback-field-inbox.js';
 import { parseAdminSurfaceCapabilityDeclarations } from '../capability-declarations.js';
+import { defineAdminSurfaceContribution } from '../contribution.js';
 import { parseAdminSurfacesFile, type AdminSurfaceDescriptor } from '../descriptor.js';
 import { validateAdminSurfaceMessage } from '../host-validator.js';
 import { adminSurfaceInitMessage } from '../protocol.js';
@@ -72,14 +73,32 @@ describe('capability declarations', () => {
   });
 });
 
+const parsed = parseAdminSurfacesFile({ raw: JSON.stringify({ schemaVersion: 1, surfaces: [{ id: 'settings', title: 'Settings', entry: 'index.html' }] }) });
+const descriptor = (parsed.ok ? parsed.descriptors[0] : undefined) as AdminSurfaceDescriptor;
+
 describe('host message gate', () => {
-  const parsed = parseAdminSurfacesFile({ raw: JSON.stringify({ schemaVersion: 1, surfaces: [{ id: 'settings', title: 'Settings', entry: 'index.html' }] }) });
-  const descriptor = (parsed.ok ? parsed.descriptors[0] : undefined) as AdminSurfaceDescriptor;
   const frame = {};
+
+  test('a request envelope without a payload key is not a request', () => {
+    const data = { protocol: 'jini.admin-surface', version: 1, kind: 'action-request', mountId: 'm-1', requestId: 'r1', action: 'save' };
+    expect(validateAdminSurfaceMessage({ event: { origin: 'null', source: frame, data }, mount: { mountId: 'm-1', frame, descriptor } }))
+      .toEqual({ ok: false, ignored: 'not-an-action-request' });
+  });
 
   test.each([[null], ['action-request'], [7]])('non-object data %j from the frame is ignored as not a request', (data) => {
     expect(validateAdminSurfaceMessage({ event: { origin: 'null', source: frame, data }, mount: { mountId: 'm-1', frame, descriptor } }))
       .toEqual({ ok: false, ignored: 'not-an-action-request' });
+  });
+});
+
+describe('contribution definition', () => {
+  test('is a data contribution (no plugin code runs) on the host-chosen filename', async () => {
+    const definition = defineAdminSurfaceContribution({ filename: 'host-admin-surfaces.json' });
+    expect(definition).toMatchObject({ filename: 'host-admin-surfaces.json', contribution: 'admin surfaces', kind: 'data' });
+    expect(definition.parse({ raw: '[]' })).toEqual({ ok: false, reason: 'schemaVersion must be 1' });
+    const plugin = { pluginId: 'acme-office', packageRoot: '/plugins/acme-office' };
+    const importModule = async () => 'never called';
+    await expect(Promise.resolve(definition.load({ plugin, descriptor, importModule }))).resolves.toEqual({ plugin, descriptor });
   });
 });
 
