@@ -1,4 +1,4 @@
-import { StatusPill } from './StatusPill.js';
+import { ResourceRowListItemActions, ResourceRowListItemContent } from './ResourceRowListItemParts.js';
 import { ResourceRunHistoryList } from './ResourceRunHistoryList.js';
 import type { ResourceRowItem, ResourceRunHistoryItem, ResourceStatusToneMap } from '../../types.js';
 
@@ -49,36 +49,18 @@ export function ResourceRowListItem({
   return (
     <li className={`resource-row-list-item${row.paused ? ' is-paused' : ''}`} data-testid="resource-row-list-item">
       <div className="resource-row-list-item-main">
-        <div className="resource-row-list-item-content">
-          <span className="resource-row-list-item-title">{row.title}</span>
-          {row.metaLine ? <span className="resource-row-list-item-meta">{row.metaLine}</span> : null}
-          {row.detailLine ? <span className="resource-row-list-item-detail">{row.detailLine}</span> : null}
-          {row.lastRunStatus ? (
-            <span className="resource-row-list-item-last-run">
-              <StatusPill status={row.lastRunStatus} label={statusLabel(row.lastRunStatus)} {...(toneMap ? { toneMap } : {})} />
-              {row.lastRunLabel ? <span>{row.lastRunLabel}</span> : null}
-            </span>
-          ) : null}
-        </div>
+        <ResourceRowListItemContent row={row} statusLabel={statusLabel} toneMap={toneMap} />
       </div>
-      <div className="resource-row-list-item-actions">
-        {row.actions.map((action) => (
-          <button
-            key={action.kind}
-            type="button"
-            className={action.danger ? 'danger' : undefined}
-            disabled={busy || action.disabled}
-            onClick={() => onAction(action.kind)}
-          >
-            {action.label}
-          </button>
-        ))}
-        {canExpandHistory ? (
-          <button type="button" aria-expanded={expanded} onClick={onToggleExpand}>
-            {expanded ? hideHistoryLabel : showHistoryLabel}
-          </button>
-        ) : null}
-      </div>
+      <ResourceRowListItemActions
+        row={row}
+        busy={busy}
+        canExpandHistory={canExpandHistory}
+        expanded={expanded}
+        showHistoryLabel={showHistoryLabel}
+        hideHistoryLabel={hideHistoryLabel}
+        onToggleExpand={onToggleExpand}
+        onAction={onAction}
+      />
       {expanded ? (
         <ResourceRunHistoryList
           items={historyItems}
