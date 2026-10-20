@@ -460,6 +460,19 @@ function planMediaMarkerAttributes(marker: EmbedMarker): MediaMarkerAttributePla
   return { occurrence: { elementAttributes: withoutControls(mediaElementAttrs), controls }, wrapperAttributes, movedAnyAttribute: mediaElementAttrs.length > 0 };
 }
 
+/** The `"media"` arm of {@link substituteHtmlEmbeds}; see its per-type handling notes. */
+function substituteMediaMarker(
+  { marker, ref, resolve }: { marker: EmbedMarker; ref: PageHtmlEmbedRef; resolve: (ref: PageHtmlEmbedRef, occurrence: EmbedOccurrence) => string | undefined },
+): string | undefined {
+  const plan = planMediaMarkerAttributes(marker);
+  const replacement = resolve(ref, plan.occurrence);
+  if (replacement === undefined) return undefined;
+  if (SELF_RENDERING_MEDIA_TAGS.has(marker.tag.toLowerCase())) return replacement;
+  return plan.movedAnyAttribute
+    ? withInnerContentAndAttributes({ marker: marker, attrs: plan.wrapperAttributes, inner: replacement })
+    : withInnerContentFinal({ marker: marker, inner: replacement });
+}
+
 /**
  * Replaces every embed placeholder in `html` with `resolve(ref, occurrence)`'s return value.
  * `resolve` is synchronous and pure from this function's own perspective — the caller is expected
@@ -502,15 +515,7 @@ export function substituteHtmlEmbeds(
   return substituteMarkers({ html: normalizeLegacyWidgetMarkers({ html }), resolve: (marker) => {
     const ref = toEmbedRef(marker);
 
-    if (ref.type === "media") {
-      const plan = planMediaMarkerAttributes(marker);
-      const replacement = resolve(ref, plan.occurrence);
-      if (replacement === undefined) return undefined;
-      if (SELF_RENDERING_MEDIA_TAGS.has(marker.tag.toLowerCase())) return replacement;
-      return plan.movedAnyAttribute
-        ? withInnerContentAndAttributes({ marker: marker, attrs: plan.wrapperAttributes, inner: replacement })
-        : withInnerContentFinal({ marker: marker, inner: replacement });
-    }
+    if (ref.type === "media") return substituteMediaMarker({ marker, ref, resolve });
 
     const replacement = resolve(ref, DEFAULT_OCCURRENCE);
     if (replacement === undefined) return undefined;
