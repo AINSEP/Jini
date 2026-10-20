@@ -5,7 +5,7 @@ import type { SessionTokenPort, UsernameChangePort } from "../core/runtime-ports
 import type { Clock, IdGenerator, ISODateTime, UUID } from "@jini-ai/core/primitives";
 import { resolveEffectivePermissions } from "./authorize.js";
 import type { IdentityRepos, PasswordHasherPort } from "../core/ports.js";
-import { AuthInvalidCredentialsError, type PrincipalRecord, type SessionRecord } from "../core/types.js";
+import { AuthInvalidCredentialsError, type PrincipalRecord, type SessionRecord, type UserRecord } from "../core/types.js";
 import { normalizeUsername } from "./username.js";
 
 /**
@@ -85,6 +85,43 @@ export async function createSessionForPrincipal(required: {
 }
 
 /**
+ * The one status that may log in or keep a live session: the principal exists AND is `active`.
+ * Shared by `login` and `validateSession` so the two fail-closed checks cannot drift apart.
+ */
+function isActivePrincipal(principal: PrincipalRecord | null): principal is PrincipalRecord {
+  return principal?.status === "active";
+}
+
+/**
+ * The credential checks of `login`, in their fixed order: blank input is refused before any lookup,
+ * and the (slow) hash verify runs only once a live principal is found. Every refusal throws the same
+ * `AuthInvalidCredentialsError` message — no user-enumeration signal.
+ */
+async function verifyCredentials(required: {
+  deps: AuthServiceDeps;
+  input: { workspaceId: UUID; username: string; password: string };
+  invalidCredentialsMessage: string;
+}): Promise<{ userRow: UserRecord; principal: PrincipalRecord }> {
+  const { deps, input, invalidCredentialsMessage } = required;
+  const refuse = (): AuthInvalidCredentialsError => new AuthInvalidCredentialsError({ message: invalidCredentialsMessage });
+  const username = normalizeUsername({ raw: input.username });
+  if (!username || !input.password) throw refuse();
+
+  const userRow = await deps.repos.users.findByUsername({ workspaceId: input.workspaceId, username });
+  if (!userRow) throw refuse();
+
+  const principal = await deps.repos.principals.findById({
+    workspaceId: input.workspaceId,
+    id: userRow.principalId,
+  });
+  if (!isActivePrincipal(principal)) throw refuse();
+
+  const passwordOk = await deps.hasher.verify({ hash: userRow.passwordHash, password: input.password });
+  if (!passwordOk) throw refuse();
+  return { userRow, principal };
+}
+
+/**
  * Verify `username`+`password` for an `active` principal and mint a session
  * Constant-shaped failure: a nonexistent username, a
  * disabled principal, and a wrong password are all `AuthInvalidCredentialsError`
@@ -101,29 +138,8 @@ export async function login(required: {
 }, optional: { ip?: string; userAgent?: string; sessionTtlMs?: number; messages?: UserManagementMessages } = {}): Promise<{ principal: PrincipalRecord; session: SessionRecord; rawToken: string }> {
   const { deps } = required;
   const input = { ...required.input, ...optional };
-  const username = normalizeUsername({ raw: input.username });
-
-  if (!username || !input.password) {
-    throw new AuthInvalidCredentialsError({ message: (optional.messages ?? defaultUserManagementMessages).invalidCredentials });
-  }
-
-  const userRow = await deps.repos.users.findByUsername({ workspaceId: input.workspaceId, username });
-  if (!userRow) {
-    throw new AuthInvalidCredentialsError({ message: (optional.messages ?? defaultUserManagementMessages).invalidCredentials });
-  }
-
-  const principal = await deps.repos.principals.findById({
-    workspaceId: input.workspaceId,
-    id: userRow.principalId,
-  });
-  if (!principal || principal.status !== "active") {
-    throw new AuthInvalidCredentialsError({ message: (optional.messages ?? defaultUserManagementMessages).invalidCredentials });
-  }
-
-  const passwordOk = await deps.hasher.verify({ hash: userRow.passwordHash, password: input.password });
-  if (!passwordOk) {
-    throw new AuthInvalidCredentialsError({ message: (optional.messages ?? defaultUserManagementMessages).invalidCredentials });
-  }
+  const invalidCredentialsMessage = (optional.messages ?? defaultUserManagementMessages).invalidCredentials;
+  const { userRow, principal } = await verifyCredentials({ deps, input, invalidCredentialsMessage });
 
   const { session, rawToken } = await createSessionForPrincipal({ deps, input: { workspaceId: input.workspaceId, principalId: principal.id } }, { ip: input.ip, userAgent: input.userAgent, sessionTtlMs: optional.sessionTtlMs, messages: optional.messages });
   // Reuses the session's own `createdAt` rather than a second `kernelNowIso({ clock: clock })` call — both are
@@ -166,7 +182,7 @@ export async function validateSession(required: {
     id: session.principalId,
   });
   // a disabled principal's live session stops validating immediately. See docs/decisions/DR-001-identity-and-session-boundary.md.
-  if (!principal || principal.status !== "active") return null;
+  if (!isActivePrincipal(principal)) return null;
 
   return { principal, session };
 }

@@ -95,11 +95,13 @@ describe("fresh seed", () => {
 
   test("an interrupted seed's system principal is reused, not duplicated", async () => {
     const h = buildTraceHarness();
-    await h.repos.principals.save({ id: "sys-old", workspaceId: WORKSPACE, kind: "system", displayName: "System", status: "active", createdAt: "x" });
+    await h.repos.principals.save({ id: "sys-old", workspaceId: WORKSPACE, kind: "system", displayName: "Old System", status: "active", createdAt: "x" });
     const result = await seedIdentity({ deps: depsOf(h), input: INPUT });
     expect(result.systemPrincipalId).toBe("sys-old");
     const systems = (await h.repos.principals.list({ workspaceId: WORKSPACE })).filter((p) => p.kind === "system");
     expect(systems.map((p) => p.id)).toEqual(["sys-old", "user-local"]);
+    // Reused as-is: the prior row is not rewritten.
+    expect(systems[0]).toMatchObject({ displayName: "Old System", createdAt: "x" });
   });
 
   test("a legacy user-local row alone does not count as the system principal", async () => {

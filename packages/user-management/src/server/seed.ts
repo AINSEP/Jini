@@ -2,7 +2,7 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { IdentityRepos, PasswordHasherPort } from "../core/ports.js";
 import { normalizeUsername } from "./username.js";
-import { IdentityNotFoundError } from "../core/types.js";
+import { IdentityNotFoundError, type PrincipalRecord, type UserRecord } from "../core/types.js";
 
 /**
  * @file First-boot identity seed (state.spec `SEED_FIRST_BOOT`).
@@ -309,9 +309,8 @@ async function seedBuiltinRoleWithPolicy(required: {
   workspaceId: UUID;
   name: string;
   permissions: readonly string[];
-  nowIso: string;
 }): Promise<{ roleId: UUID; policyId: UUID }> {
-  const { deps, workspaceId, name, permissions, nowIso } = required;
+  const { deps, workspaceId, name, permissions } = required;
 
   const roleId = await ensureBuiltinRole({ deps, workspaceId, name });
   const policyId = await ensureBuiltinPolicy({ deps, workspaceId, name });
@@ -323,8 +322,6 @@ async function seedBuiltinRoleWithPolicy(required: {
   }
 
   await ensurePolicyPermissions({ deps, workspaceId, policyId, permissions });
-
-  void nowIso; // reserved for a future createdAt column on roles/policies
   return { roleId, policyId };
 }
 
@@ -358,9 +355,8 @@ async function ensureOwnerRoleBinding(required: {
   deps: SeedIdentityDeps;
   workspaceId: UUID;
   ownerPrincipalId: UUID;
-  nowIso: string;
 }): Promise<void> {
-  const { deps, workspaceId, ownerPrincipalId, nowIso } = required;
+  const { deps, workspaceId, ownerPrincipalId } = required;
 
   const heldRoles = await deps.repos.principalRoles.listByPrincipalId({
     workspaceId,
@@ -373,7 +369,6 @@ async function ensureOwnerRoleBinding(required: {
     workspaceId,
     name: OWNER_ROLE_NAME,
     permissions: OWNER_ROLE_PERMISSIONS,
-    nowIso,
   });
   await deps.repos.principalRoles.save({
     id: deps.idGen.newId(),
@@ -381,6 +376,128 @@ async function ensureOwnerRoleBinding(required: {
     principalId: ownerPrincipalId,
     roleId,
   });
+}
+
+/** The seeded built-in roles below the owner, in seed order, each with its permission list. */
+const BUILTIN_NON_OWNER_ROLES: ReadonlyArray<{ name: string; permissions: readonly string[] }> = [
+  { name: "admin", permissions: BUILTIN_ADMIN_PERMISSIONS },
+  { name: "editor", permissions: BUILTIN_EDITOR_PERMISSIONS },
+  { name: "viewer", permissions: BUILTIN_VIEWER_PERMISSIONS },
+];
+
+/** The workspace's non-legacy `system` principal, if one exists (first in roster order). */
+async function findSystemPrincipal(required: { deps: SeedIdentityDeps; workspaceId: UUID }): Promise<PrincipalRecord | undefined> {
+  const { deps, workspaceId } = required;
+  return (await deps.repos.principals.list({ workspaceId })).find(
+    (row) => row.kind === "system" && row.id !== LEGACY_USER_LOCAL_PRINCIPAL_ID
+  );
+}
+
+/**
+ * The owner user a previous seed already wrote, or `null` on a first (or interrupted-before-owner) seed.
+ *
+ * An explicit binding is authoritative, even when somebody has reused its former login name.
+ * A missing bound row is an error, never permission to mint a replacement owner.
+ */
+async function findExistingOwnerUser(required: {
+  deps: SeedIdentityDeps;
+  workspaceId: UUID;
+  ownerUsername: string;
+  seededOwnerPrincipalId: UUID | undefined;
+}): Promise<UserRecord | null> {
+  const { deps, workspaceId, ownerUsername, seededOwnerPrincipalId } = required;
+  if (seededOwnerPrincipalId === undefined) {
+    return deps.repos.users.findByUsername({ workspaceId, username: ownerUsername });
+  }
+  const seededOwnerUser = await deps.repos.users.findByPrincipalId({ workspaceId, principalId: seededOwnerPrincipalId });
+  if (!seededOwnerUser) {
+    throw new IdentityNotFoundError({ message: "the bound seeded owner user was not found; restore the owner identity before booting" });
+  }
+  return seededOwnerUser;
+}
+
+/** Write the `system` principal (reusing an interrupted seed's) and the disabled legacy actor; returns the system id. */
+async function ensureSystemPrincipals(required: { deps: SeedIdentityDeps; workspaceId: UUID; nowIso: string }): Promise<UUID> {
+  const { deps, workspaceId, nowIso } = required;
+  // Reuse the system principal a prior interrupted seed may already have written: `principals` has
+  // no unique index on kind, so a blind re-insert would leave TWO non-legacy system principals and
+  // `seedIdentity`'s early-return branch picking between them by list order.
+  const existingSystem = await findSystemPrincipal({ deps, workspaceId });
+  const systemPrincipalId = existingSystem?.id ?? deps.idGen.newId();
+  if (!existingSystem) {
+    await deps.repos.principals.save({
+      id: systemPrincipalId,
+      workspaceId,
+      kind: "system",
+      displayName: "System",
+      status: "active",
+      createdAt: nowIso,
+    });
+  }
+
+  // disabled legacy actor so historical `actorId='user-local'`. See docs/decisions/DR-001-identity-and-session-boundary.md.
+  // change-sets resolve without rewriting history.
+  await deps.repos.principals.save({
+    id: LEGACY_USER_LOCAL_PRINCIPAL_ID,
+    workspaceId,
+    kind: "system",
+    displayName: "Legacy actor (pre-identity)",
+    status: "disabled",
+    disabledAt: nowIso,
+    createdAt: nowIso,
+  });
+  return systemPrincipalId;
+}
+
+/** Write the owner principal, its user row, and its owner-role link — the seed's final writes, in that order. */
+async function createOwner(required: {
+  deps: SeedIdentityDeps;
+  workspaceId: UUID;
+  ownerUsername: string;
+  ownerPassword: string;
+  ownerEmail: string | undefined;
+  ownerRoleId: UUID;
+  nowIso: string;
+}): Promise<UUID> {
+  const { deps, workspaceId, ownerUsername, ownerPassword, ownerEmail, ownerRoleId, nowIso } = required;
+  // Hashed BEFORE the owner principal row is written, not inline in the `users.save` below.
+  // argon2id is deliberately slow, which made it by far the widest window in this un-awaited,
+  // non-transactional sequence for a process to exit between the principal insert and the user
+  // insert that gives it meaning — leaving an orphan `kind: "user"` principal behind on every
+  // interrupted boot. Hashing first shrinks that window to a single adjacent await.
+  const ownerPasswordHash = await deps.hasher.hash({ password: ownerPassword });
+
+  const ownerPrincipalId = deps.idGen.newId();
+  await deps.repos.principals.save({
+    id: ownerPrincipalId,
+    workspaceId,
+    kind: "user",
+    displayName: "Owner",
+    status: "active",
+    createdAt: nowIso,
+  });
+  await deps.repos.users.save({
+    principalId: ownerPrincipalId,
+    workspaceId,
+    username: ownerUsername,
+    email: ownerEmail,
+    passwordHash: ownerPasswordHash,
+  });
+  // `principal_roles` carries no unique index either — same converge-don't-duplicate rule as the
+  // `role_policies` link in `seedBuiltinRoleWithPolicy`.
+  const ownerRoleLinks = await deps.repos.principalRoles.listByPrincipalId({
+    workspaceId,
+    principalId: ownerPrincipalId,
+  });
+  if (!ownerRoleLinks.some((link) => link.roleId === ownerRoleId)) {
+    await deps.repos.principalRoles.save({
+      id: deps.idGen.newId(),
+      workspaceId,
+      principalId: ownerPrincipalId,
+      roleId: ownerRoleId,
+    });
+  }
+  return ownerPrincipalId;
 }
 
 /**
@@ -412,135 +529,44 @@ export async function seedIdentity(required: {
   const input = { ...required.input, ...optional };
   const workspaceId = input.workspaceId;
   const ownerUsername = normalizeUsername({ raw: input.ownerUsername });
-  const ownerPassword = input.ownerPassword;
   const nowIso = kernelNowIso({ clock: deps.clock });
 
-  // An explicit binding is authoritative, even when somebody has reused its former login name.
-  // A missing bound row is an error, never permission to mint a replacement owner.
-  const seededOwnerUser = input.seededOwnerPrincipalId !== undefined
-    ? await deps.repos.users.findByPrincipalId({ workspaceId, principalId: input.seededOwnerPrincipalId }) : null;
-  if (input.seededOwnerPrincipalId !== undefined && !seededOwnerUser) {
-    throw new IdentityNotFoundError({ message: "the bound seeded owner user was not found; restore the owner identity before booting" });
-  }
-  const existingOwnerUser = seededOwnerUser ?? await deps.repos.users.findByUsername({
+  const existingOwnerUser = await findExistingOwnerUser({
+    deps,
     workspaceId,
-    username: ownerUsername,
+    ownerUsername,
+    seededOwnerPrincipalId: input.seededOwnerPrincipalId,
   });
   if (existingOwnerUser) {
     // The owner user alone is NOT proof the seed finished — its role link is written after it. See
     // `ensureOwnerRoleBinding`: on a healthy workspace this is one read and no write.
-    await ensureOwnerRoleBinding({
-      deps,
-      workspaceId,
-      ownerPrincipalId: existingOwnerUser.principalId,
-      nowIso,
-    });
-    const existingSystem = (await deps.repos.principals.list({ workspaceId })).find(
-      (row) => row.kind === "system" && row.id !== LEGACY_USER_LOCAL_PRINCIPAL_ID
-    );
+    await ensureOwnerRoleBinding({ deps, workspaceId, ownerPrincipalId: existingOwnerUser.principalId });
+    const existingSystem = await findSystemPrincipal({ deps, workspaceId });
     return {
       ownerPrincipalId: existingOwnerUser.principalId,
       systemPrincipalId: existingSystem?.id ?? LEGACY_USER_LOCAL_PRINCIPAL_ID,
     };
   }
 
-  // Reuse the system principal a prior interrupted seed may already have written: `principals` has
-  // no unique index on kind, so a blind re-insert would leave TWO non-legacy system principals and
-  // the early-return branch above picking between them by list order.
-  const existingSystem = (await deps.repos.principals.list({ workspaceId })).find(
-    (row) => row.kind === "system" && row.id !== LEGACY_USER_LOCAL_PRINCIPAL_ID
-  );
-  const systemPrincipalId = existingSystem?.id ?? deps.idGen.newId();
-  if (!existingSystem) {
-    await deps.repos.principals.save({
-      id: systemPrincipalId,
-      workspaceId,
-      kind: "system",
-      displayName: "System",
-      status: "active",
-      createdAt: nowIso,
-    });
-  }
-
-  // disabled legacy actor so historical `actorId='user-local'`. See docs/decisions/DR-001-identity-and-session-boundary.md.
-  // change-sets resolve without rewriting history.
-  await deps.repos.principals.save({
-    id: LEGACY_USER_LOCAL_PRINCIPAL_ID,
-    workspaceId,
-    kind: "system",
-    displayName: "Legacy actor (pre-identity)",
-    status: "disabled",
-    disabledAt: nowIso,
-    createdAt: nowIso,
-  });
-
+  const systemPrincipalId = await ensureSystemPrincipals({ deps, workspaceId, nowIso });
   const { roleId: ownerRoleId } = await seedBuiltinRoleWithPolicy({
     deps,
     workspaceId,
     name: OWNER_ROLE_NAME,
     permissions: OWNER_ROLE_PERMISSIONS,
-    nowIso,
   });
-
-  await seedBuiltinRoleWithPolicy({
-    deps,
-    workspaceId,
-    name: "admin",
-    permissions: BUILTIN_ADMIN_PERMISSIONS,
-    nowIso,
-  });
-  await seedBuiltinRoleWithPolicy({
-    deps,
-    workspaceId,
-    name: "editor",
-    permissions: BUILTIN_EDITOR_PERMISSIONS,
-    nowIso,
-  });
-  await seedBuiltinRoleWithPolicy({
-    deps,
-    workspaceId,
-    name: "viewer",
-    permissions: BUILTIN_VIEWER_PERMISSIONS,
-    nowIso,
-  });
-
-  // Hashed BEFORE the owner principal row is written, not inline in the `users.save` below.
-  // argon2id is deliberately slow, which made it by far the widest window in this un-awaited,
-  // non-transactional sequence for a process to exit between the principal insert and the user
-  // insert that gives it meaning — leaving an orphan `kind: "user"` principal behind on every
-  // interrupted boot. Hashing first shrinks that window to a single adjacent await.
-  const ownerPasswordHash = await deps.hasher.hash({ password: ownerPassword });
-
-  const ownerPrincipalId = deps.idGen.newId();
-  await deps.repos.principals.save({
-    id: ownerPrincipalId,
-    workspaceId,
-    kind: "user",
-    displayName: "Owner",
-    status: "active",
-    createdAt: nowIso,
-  });
-  await deps.repos.users.save({
-    principalId: ownerPrincipalId,
-    workspaceId,
-    username: ownerUsername,
-    email: input.ownerEmail,
-    passwordHash: ownerPasswordHash,
-  });
-  // `principal_roles` carries no unique index either — same converge-don't-duplicate rule as the
-  // `role_policies` link in `seedBuiltinRoleWithPolicy`.
-  const ownerRoleLinks = await deps.repos.principalRoles.listByPrincipalId({
-    workspaceId,
-    principalId: ownerPrincipalId,
-  });
-  if (!ownerRoleLinks.some((link) => link.roleId === ownerRoleId)) {
-    await deps.repos.principalRoles.save({
-      id: deps.idGen.newId(),
-      workspaceId,
-      principalId: ownerPrincipalId,
-      roleId: ownerRoleId,
-    });
+  for (const role of BUILTIN_NON_OWNER_ROLES) {
+    await seedBuiltinRoleWithPolicy({ deps, workspaceId, name: role.name, permissions: role.permissions });
   }
 
+  const ownerPrincipalId = await createOwner({
+    deps,
+    workspaceId,
+    ownerUsername,
+    ownerPassword: input.ownerPassword,
+    ownerEmail: input.ownerEmail,
+    ownerRoleId,
+    nowIso,
+  });
   return { ownerPrincipalId, systemPrincipalId };
 }
