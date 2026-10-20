@@ -1,4 +1,4 @@
-import { humanConfirmedHandler, requireInputRecord, type HumanConfirmer } from './registration-kit.js';
+import { humanConfirmedHandler, requireInputRecord, type HumanConfirmationAnswer, type HumanConfirmer } from './registration-kit.js';
 import { ToolInputError } from './tool-registry.js';
 import type { ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolRegistration } from './tool-registry.js';
 
@@ -25,6 +25,9 @@ export async function resolveApproval(
     return signal.aborted ? { confirmed: false, reason: 'abandoned' } : answer;
   } finally { signal.removeEventListener('abort', abandon); }
 }
+/** The confirmer is always the run's own delegating principal, as a user. */
+const confirmerOf = (ctx: ToolExecutionContext): HumanConfirmer => ({ id: ctx.principal.id, kind: 'user' });
+
 export interface RememberedApprovalPort {
   has(required: { ctx: ToolExecutionContext; key: string }): Promise<boolean>;
   grant(required: { ctx: ToolExecutionContext; key: string; confirmer: HumanConfirmer }): Promise<void>;
@@ -54,6 +57,26 @@ export function createApprovalHandler<TPrepared, TDescription>(
   { remembered }: { remembered?: RememberedApprovalPort } = {},
 ): ToolHandler {
   type Prepared = { ctx: ToolExecutionContext; value?: TPrepared; plan?: ApprovalPlan<TDescription>; choice?: string | undefined };
+  const confirmed = (): HumanConfirmationAnswer => ({ confirmed: true });
+  const abandoned = (prepared: Prepared): HumanConfirmationAnswer => ({ confirmed: false, result: steps.notConfirmed({ reason: 'abandoned', prepared: prepared.value }) });
+  /** A remembered grant applies only when the plan offers a key and the host bound a store. */
+  const grantSlot = (plan: ApprovalPlan<TDescription>) =>
+    plan.rememberKey !== undefined && remembered ? { store: remembered, key: plan.rememberKey } : undefined;
+
+  /** Ask the host transport; record the choice and any reusable grant only on an explicit yes. */
+  const askFresh = async (
+    { prepared, plan }: { prepared: Prepared; plan: ApprovalPlan<TDescription> }, options: ToolExecutionOptions = {},
+  ): Promise<HumanConfirmationAnswer> => {
+    const { ctx } = prepared;
+    const answer = await resolveApproval({ signal: ctx.signal, askHuman: () => steps.askHuman({ ctx, description: plan.description }, options) });
+    if (ctx.signal.aborted) return abandoned(prepared);
+    if (answer.confirmed !== true) return { confirmed: false, result: steps.notConfirmed({ reason: answer.reason, prepared: prepared.value }) };
+    prepared.choice = answer.choice;
+    const slot = grantSlot(plan);
+    if (slot) await slot.store.grant({ ctx, key: slot.key, confirmer: confirmerOf(ctx) });
+    return ctx.signal.aborted ? abandoned(prepared) : confirmed();
+  };
+
   return humanConfirmedHandler<Prepared>({
     prepare: async ({ ctx }, options = {}) => {
       const snapshot = { ...ctx, input: structuredClone(ctx.input), principal: { ...ctx.principal }, run: { ...ctx.run } };
@@ -64,29 +87,21 @@ export function createApprovalHandler<TPrepared, TDescription>(
       return { ctx: snapshot, value, plan };
     },
     askHuman: async ({ prepared }, options = {}) => {
-      const { ctx, plan, value } = prepared;
-      const abandoned = () => ({ confirmed: false as const, result: steps.notConfirmed({ reason: 'abandoned', prepared: value }) });
-      if (ctx.signal.aborted || !plan) return abandoned();
-      if (!plan.ask) return { confirmed: true };
-      if (plan.rememberKey !== undefined && remembered) {
-        const approved = await remembered.has({ ctx, key: plan.rememberKey });
-        if (ctx.signal.aborted) return abandoned();
-        if (approved) return { confirmed: true };
+      const { ctx, plan } = prepared;
+      if (ctx.signal.aborted || !plan) return abandoned(prepared);
+      if (!plan.ask) return confirmed();
+      const slot = grantSlot(plan);
+      if (slot) {
+        const approved = await slot.store.has({ ctx, key: slot.key });
+        if (ctx.signal.aborted) return abandoned(prepared);
+        if (approved) return confirmed();
       }
-      const answer = await resolveApproval({ signal: ctx.signal, askHuman: () => steps.askHuman({ ctx, description: plan.description }, options) });
-      if (ctx.signal.aborted) return abandoned();
-      if (answer.confirmed !== true) return { confirmed: false, result: steps.notConfirmed({ reason: answer.reason, prepared: value }) };
-      prepared.choice = answer.choice;
-      if (plan.rememberKey !== undefined && remembered) {
-        await remembered.grant({ ctx, key: plan.rememberKey, confirmer: { id: ctx.principal.id, kind: 'user' } });
-      }
-      if (ctx.signal.aborted) return abandoned();
-      return { confirmed: true };
+      return askFresh({ prepared, plan }, options);
     },
     run: ({ prepared }, options = {}) => {
       const { ctx, value, choice } = prepared;
       if (ctx.signal.aborted) return Promise.resolve(steps.notConfirmed({ reason: 'abandoned', prepared: value }));
-      return steps.run({ ctx, prepared: value as TPrepared, confirmer: { id: ctx.principal.id, kind: 'user' }, choice }, options);
+      return steps.run({ ctx, prepared: value as TPrepared, confirmer: confirmerOf(ctx), choice }, options);
     },
   });
 }
