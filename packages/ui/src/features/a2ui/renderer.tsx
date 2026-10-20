@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { InteractiveUiRegistry } from '../interactive-ui/registry.js';
-import type { A2uiInterpreter } from './protocol.js';
+import type { A2uiInterpreter, ComponentInstance } from './protocol.js';
 import { useA2uiSurfaceRoot } from './use-a2ui-surface.js';
 
 // Explicit provider contracts, not a guessed common callback. Display-only cards/charts
@@ -30,6 +30,29 @@ interface NodeProps {
   readonly componentId: string;
   readonly ancestors: ReadonlySet<string>;
   readonly onAction: (componentId: string) => void;
+}
+
+function renderRegistryComponent({ component, registry, componentId, onAction }: {
+  component: ComponentInstance;
+  registry: InteractiveUiRegistry;
+  componentId: string;
+  onAction: NodeProps['onAction'];
+}, _options: Record<string, never> = {}): ReactNode {
+  const entry = registry.resolveById({ id: component.component });
+  if (!entry) {
+    return (
+      <span className="a2ui-placeholder" data-a2ui-status="unrenderable-type" data-a2ui-component-id={componentId}>
+        ⚠ no renderer yet for component type "{component.component}"
+      </span>
+    );
+  }
+  const RegistryComponent = entry.Component;
+  // `onRowClick` belongs to `native.data-table`/`shadcn.data-table`, not a generic
+  // per-component-type feedback convention — each non-table provider needs an explicit
+  // callback contract, supplied by the built-in map or its registry entry, not a guess.
+  // Unannotated custom entries retain the old table callback for compatibility.
+  const actionProp = entry.actionProp ?? PROVIDER_ACTION_PROPS.get(entry.id) ?? 'onRowClick';
+  return <RegistryComponent {...component.props} {...{ [actionProp]: () => onAction(componentId) }} />;
 }
 
 /**
@@ -120,23 +143,8 @@ function RenderNode({ interpreter, surfaceId, registry, componentId, ancestors, 
           <RenderNode {...childProps} componentId={String(component.props.child)} />
         </button>
       );
-    default: {
-      const entry = registry.resolveById({ id: component.component });
-      if (!entry) {
-        return (
-          <span className="a2ui-placeholder" data-a2ui-status="unrenderable-type" data-a2ui-component-id={componentId}>
-            ⚠ no renderer yet for component type "{component.component}"
-          </span>
-        );
-      }
-      const RegistryComponent = entry.Component;
-      // `onRowClick` belongs to `native.data-table`/`shadcn.data-table`, not a generic
-      // per-component-type feedback convention — each non-table provider needs an explicit
-      // callback contract, supplied by the built-in map or its registry entry, not a guess.
-      // Unannotated custom entries retain the old table callback for compatibility.
-      const actionProp = entry.actionProp ?? PROVIDER_ACTION_PROPS.get(entry.id) ?? 'onRowClick';
-      return <RegistryComponent {...component.props} {...{ [actionProp]: () => onAction(componentId) }} />;
-    }
+    default:
+      return renderRegistryComponent({ component, registry, componentId, onAction });
   }
 }
 
