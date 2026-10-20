@@ -1,3 +1,4 @@
+import { once } from "node:events";
 import nodeFs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -19,6 +20,11 @@ function reader(rootPath: string, { filesystem = {}, limit = {} }: { filesystem?
 function refusal(run: () => unknown): FsFilePathError {
   try { run(); } catch (error) { if (error instanceof FsFilePathError) return error; throw error; }
   throw new Error("expected an FsFilePathError refusal");
+}
+// A real ReadStream opens its file asynchronously and keeps doing I/O after destroy() until it
+// closes; settle that before the test ends so afterEach's rmSync cannot race a late open.
+async function settled(stream: nodeFs.ReadStream | undefined): Promise<void> {
+  if (stream && !stream.closed) await once(stream, "close");
 }
 async function asyncRefusal(run: () => Promise<unknown>): Promise<FsFilePathError> {
   try { await run(); } catch (error) { if (error instanceof FsFilePathError) return error; throw error; }
@@ -173,6 +179,7 @@ test("readBytes reports a non-Error stream failure as a typed refusal", async ()
   }) as GuardedReaderFilesystem["createReadStream"];
   expect((await asyncRefusal(() => reader(dir, { filesystem: { createReadStream } }).readBytes({ relativePath: "a.bin", maxBytes: 8 }))).message).toBe("path 'a.bin' could not be read: stream gone");
   expect(opened?.destroyed).toBe(true);
+  await settled(opened);
 });
 test("readBytes concatenates every chunk of a multi-chunk stream", async () => {
   const dir = root({ "a.bin": "abcdef" });
@@ -181,12 +188,15 @@ test("readBytes concatenates every chunk of a multi-chunk stream", async () => {
 });
 test("readBytes reports an Error stream failure by its message", async () => {
   const dir = root({ "a.bin": "abc" });
+  let opened: nodeFs.ReadStream | undefined;
   const createReadStream = ((target: string) => {
     const stream = nodeFs.createReadStream(target);
     stream[Symbol.asyncIterator] = async function* () { yield* []; throw new Error("EIO: i/o error, read"); };
+    opened = stream;
     return stream;
   }) as GuardedReaderFilesystem["createReadStream"];
   expect((await asyncRefusal(() => reader(dir, { filesystem: { createReadStream } }).readBytes({ relativePath: "a.bin", maxBytes: 8 }))).message).toBe("path 'a.bin' could not be read: EIO: i/o error, read");
+  await settled(opened);
 });
 test("resolving the root itself passes the effective-target deny check", () => {
   const dir = root();
