@@ -12,6 +12,7 @@ export const LISTING_KEY_MAX = 10;
 
 const BATCH_PATH = /^((?:\/[^/]+)*)\/_more\/([1-9]\d?)\/(\d{1,6})(?:(\.json)|\/?)$/;
 const RESERVED_FIRST_SEGMENTS: ReadonlySet<string> = new Set(['admin', 'api']);
+const REFUSED_SEGMENTS: ReadonlySet<string> = new Set(['.', '..', '_more']);
 
 export interface ListingBatchRequest {
   /** The listing page's own path (`/` for home). */
@@ -42,11 +43,19 @@ export function parseListingBatchPath({ path }: { path: string }, _optional: Rec
   const match = BATCH_PATH.exec(path);
   if (!match) return undefined;
   const [, page = '', rawKey = '', rawAfter = '', json] = match;
-  const segments = page.split('/').filter(Boolean);
-  if (segments.some((segment) => segment === '.' || segment === '..' || segment === '_more')) return undefined;
-  if (segments[0] !== undefined && RESERVED_FIRST_SEGMENTS.has(segments[0])) return undefined;
   const key = Number(rawKey);
   const after = Number(rawAfter);
-  if (key > LISTING_KEY_MAX || after > LISTING_AFTER_MAX) return undefined;
+  if (isRefusedPage({ page }) || isOutOfBounds({ key, after })) return undefined;
   return { pagePath: page === '' ? '/' : page, key, after, ...(json ? { format: 'json' as const } : {}) };
+}
+
+/** A page path holding a `.`/`..`/`_more` segment, or starting with an `admin`/`api` segment. @complexity O(n) over `page`. */
+function isRefusedPage({ page }: { page: string }, _optional: Record<string, never> = {}): boolean {
+  const segments = page.split('/').filter(Boolean);
+  return RESERVED_FIRST_SEGMENTS.has(segments[0] ?? '') || segments.some((segment) => REFUSED_SEGMENTS.has(segment));
+}
+
+/** A key past {@link LISTING_KEY_MAX} or a cursor past {@link LISTING_AFTER_MAX}. @complexity O(1). */
+function isOutOfBounds({ key, after }: { key: number; after: number }, _optional: Record<string, never> = {}): boolean {
+  return key > LISTING_KEY_MAX || after > LISTING_AFTER_MAX;
 }
