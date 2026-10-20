@@ -18,7 +18,7 @@
 | L104 | MERGED (2nd try) | 4ba75e8f | daemon-client 14/20→9/6; tool-protocol normalizeToolArguments 23/26→10/5 (moved to tool-arguments.ts, not re-exported); argumentShapeMessage 11/10→6/1; tool-server run 11/7→6/3; tool-protocol worst now handleToolCall 10/8 (untouched) | 4 files 100/100/100 (my run: 26 files, 566 tests) | eslint 0, tsc 0, tests ok no Errors, guard = base. 1st merge rejected (new `as unknown as` test double) → fix subagent (83k tokens, 11 calls) typed FakeProcessStdin extends net.Socket, RED-checked |
 | L113-L188-L203-L236 | MERGED | 96cb2b7d | client extractRelativeRefs 23/42→5/5 (file 6/7); serve 23/14→7/5; ask-choice 15/17→7/6; install planAgentInstall 16/0→4/1 (file 8/5) | 4 files 100/100/100 (my run: 15 files, 322 tests) | eslint 0, tsc 0, tests ok no Errors, guard = base |
 | L036a | MERGED | 23ee2630 | search-enricher 13/0→10/3; github-backend 11/0→4/0; github-client 11/11→6/5 | all 3 files 100/100/100 (my run: 8 files, 133 tests) | eslint 0, tsc 0, tests ok no Errors, guard = base |
-| L036b | running | | 39/25 → | | |
+| L036b | MERGED | 13391069 | versioning 39/25→10/8; trust 26/20→8/6 (incl. new trust-certificates.ts, not exported); static-backend 21/24→9/7 | 4 files 100/100/100 (my run: 10 files, 228 tests) | eslint 0, tsc 0, tests ok no Errors, guard = base |
 
 ## Guard baseline
 - `pnpm guard` is RED on base origin/general-work (26 violations, none in packages/mcp or packages/registry; HW3-module-state etc.). Verify criterion used: violation set identical to base (diff of sorted lines).
@@ -55,3 +55,9 @@
 - Checks removed: none. Messages changed: none.
 - SECURITY (pinned, reported not fixed): non-size body-read error rethrown without URL redaction (only handleToolCall's later sanitizer cleans it); timeout message carries raw route. Token never in errors (pinned).
 - Pre-existing (not this wave): tool-server.test.ts ~579 `as unknown as NodeJS.ReadStream` cast; FakeProcessStdin could replace it.
+### L036b (subagent: ~176k tokens, 55 tool calls)
+- Commits 3082d186 (pins) 2503a6b7 (versioning) cf6a4505 (trust) 13391069 (static-backend).
+- Temp differentials (deleted): versioning 200k entries/ranges; trust 63,624 signature×root combos (all 16 refusal reasons + 8 verified variants hit); static-backend 8k raw manifests over list/search/doctor/resolve — identical.
+- Over-engineering: list's 4 reassigning filter passes → one predicate; tag/term matching shared by list+search; doctor's copied vendor/name regex → RegistryEntrySchema.shape.name (coordinator verified identical regex in protocol/src/registry.ts:79); dead `?.` on parsed filter (.unwrap()); 2 hand-written 4-step digest fallbacks → distField; X.509 helpers moved verbatim (comments incl.) to internal trust-certificates.ts so the never-throw catch is testable via typed Pick<> fake.
+- Checks removed: none (doctor `!name` subsumed by name schema which rejects undefined/""; RED-checked). Trust check order verified unchanged by coordinator.
+- BUGS/SECURITY (pinned, reported not fixed): (1) versioning default/`latest` path returns distTags.latest even when that version has no ledger record → serves top-level source under that version (the mislabelling CR-008 blocks for explicit requests); (2) trust.ts verifiedSubject = signer-chosen `signature.subject` even when it disagrees with the certificate SAN identity — MAIN SECURITY FINDING; (3) RegExp identity pattern with `g` flag alternates true/false (fails closed). Pre-existing committed EC private keys/certs in registry trust.test.ts and static-backend.test.ts (not added this wave).
