@@ -54,6 +54,11 @@ function exactOrigins({ values }: { values: readonly string[] }): string[] {
   });
 }
 
+/** @throws Error naming the first invalid origin. @complexity O(origins). */
+function validatedOrigins({ resourceOrigins = [], categoryOrigins = {} }: { resourceOrigins?: readonly string[] | undefined; categoryOrigins?: ConsentCategoryOrigins | undefined }): ResourceOrigins {
+  return { resourceOrigins: exactOrigins({ values: resourceOrigins }), categoryOrigins: { functional: exactOrigins({ values: categoryOrigins.functional ?? [] }), analytics: exactOrigins({ values: categoryOrigins.analytics ?? [] }) } };
+}
+
 /** Pre-consent resource policy for one choice set: theme origins plus each granted category's
  * origins, so an analytics grant reaches its collector without granting marketing. @complexity O(origins). */
 function resourcePolicy({ choices, origins }: { choices: ConsentChoices; origins: ResourceOrigins }): string {
@@ -75,10 +80,10 @@ function resourcePolicies({ origins }: { origins: ResourceOrigins }): Record<str
 /** Bootstrap must be inserted before every site script; JSON cannot terminate its script element.
  * @throws Error when a resource or category origin is not an exact HTTP(S) origin.
  * @complexity O(config text length + origins). */
-export function renderConsentHead({ record, gpc, regionMode = 'opt-in' }: { record: ConsentRecord | null; gpc: boolean; regionMode?: ConsentRegionMode }, { nonce, runtimeToken, resourceOrigins = [], categoryOrigins = {} }: { nonce?: string; runtimeToken?: string; resourceOrigins?: readonly string[]; categoryOrigins?: ConsentCategoryOrigins } = {}): string {
+export function renderConsentHead({ record, gpc, regionMode = 'opt-in' }: { record: ConsentRecord | null; gpc: boolean; regionMode?: ConsentRegionMode }, { nonce, runtimeToken, resourceOrigins, categoryOrigins }: { nonce?: string; runtimeToken?: string; resourceOrigins?: readonly string[]; categoryOrigins?: ConsentCategoryOrigins } = {}): string {
   const choices = resolveConsentChoices({ choices: record?.choices, gpc, regionMode });
   const gpcChoices = resolveConsentChoices({ choices: record?.choices, gpc: true, regionMode });
-  const origins: ResourceOrigins = { resourceOrigins: exactOrigins({ values: resourceOrigins }), categoryOrigins: { functional: exactOrigins({ values: categoryOrigins.functional ?? [] }), analytics: exactOrigins({ values: categoryOrigins.analytics ?? [] }) } };
+  const origins = validatedOrigins({ resourceOrigins, categoryOrigins });
   const state = JSON.stringify({ resourcePolicies: resourcePolicies({ origins }), choices, gpcChoices, signalCategories: GOOGLE_CONSENT_SIGNAL_CATEGORIES, hasRecord: record !== null, optOut: regionMode === 'opt-out', gpc }).replace(/</g, '\\u003c');
   // A local stylesheet can import remote CSS/fonts that HTML traversal cannot see.
   // Each choice reloads, so restrictive policy can be removed only after a saved grant.
