@@ -38,7 +38,7 @@ function compose(required: { readonly tool: LoadedAgentPluginTool['module']; rea
     descriptor: { name: 'look', description: 'Look.', effect: 'read', module: 'tools/look.mjs', inputSchema: { type: 'object' } } });
   projection.sync({ loaded: [loadedTool(required.tool)], refusals: [] });
   const fake = createFakeSurfaceHost();
-  const surfaces = createAdminSurfaceHandlerHost({ capabilities: fake.port, issuedTokens: required.issuedTokens });
+  const surfaces = createAdminSurfaceHandlerHost({ hostKind: 'hosted', capabilities: fake.port, issuedTokens: required.issuedTokens });
   surfaces.sync({ loaded: [{ pluginId: PLUGIN, descriptor: surfaceDescriptor(), module: required.surface }], refusals: [] });
   return {
     fake,

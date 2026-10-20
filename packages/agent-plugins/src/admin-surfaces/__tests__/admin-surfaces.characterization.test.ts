@@ -33,7 +33,7 @@ test('a field the caller context carries beyond the known ones never reaches the
   const descriptor = descriptorOf({ id: 'settings', title: 'Settings', entry: 'index.html', actions: [{ name: 'save', input, result }], handlerModule: 'server/handlers.mjs' });
   const seen: unknown[] = [];
   const { port } = createFakeSurfaceHost();
-  const host = createAdminSurfaceHandlerHost({ capabilities: port, issuedTokens: createIssuedTokenMemories() });
+  const host = createAdminSurfaceHandlerHost({ hostKind: 'hosted', capabilities: port, issuedTokens: createIssuedTokenMemories() });
   host.sync({ loaded: [{ pluginId: 'acme-office', descriptor: descriptor as AdminSurfaceDescriptor & { handlerModule: string }, module: { actions: { save: async ({ context }) => { seen.push(context); return { saved: true }; } } } }], refusals: [] });
   // Malformed input on purpose: a route that spreads request data into the context must not let it reach the plugin.
   const context = { workspaceId: WORKSPACE_ID, pluginId: 'acme-office', surfaceId: 'settings', hostKind: 'desktop', extra: 'x' } as AdminSurfaceHandlerContext;

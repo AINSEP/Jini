@@ -66,7 +66,7 @@ test('an acme-style surface administers its own connection, takes a callback fie
       importModule: ({ plugin, modulePath }) => importContainedModule(plugin, modulePath),
     });
     const fake = createFakeSurfaceHost({ config: { ACME_APP_ID: 'app-123' } });
-    const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: fake.port });
+    const host = createAdminSurfaceHandlerHost({ hostKind: 'hosted', issuedTokens: createIssuedTokenMemories(), capabilities: fake.port });
     const surfaces = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceContribution({ filename: FILENAME }) });
     const handlerLoad = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceHandlerContribution({ filename: FILENAME }) });
     expect([...surfaces.refusals, ...host.sync({ loaded: handlerLoad.items, refusals: handlerLoad.refusals }).refusals]).toEqual([]);
@@ -133,7 +133,7 @@ test('a product flag the surface writes is what the same plugin\'s tool reads: t
       importModule: ({ plugin, modulePath }) => importContainedModule(plugin, modulePath),
     });
     const fake = createFakeSurfaceHost();
-    const surfaceHost = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: fake.port });
+    const surfaceHost = createAdminSurfaceHandlerHost({ hostKind: 'hosted', issuedTokens: createIssuedTokenMemories(), capabilities: fake.port });
     const surfaces = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceContribution({ filename: FILENAME }) });
     const handlerLoad = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceHandlerContribution({ filename: FILENAME }) });
     expect([...surfaces.refusals, ...surfaceHost.sync({ loaded: handlerLoad.items, refusals: handlerLoad.refusals }).refusals]).toEqual([]);

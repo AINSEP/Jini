@@ -50,7 +50,7 @@ test('an acme-style plugin surface runs its own handler and bootstrap provider t
       importModule: ({ plugin, modulePath }) => importContainedModule(plugin, modulePath),
     });
     const { log, port } = createFakeSurfaceHost();
-    const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: port });
+    const host = createAdminSurfaceHandlerHost({ hostKind: 'hosted', issuedTokens: createIssuedTokenMemories(), capabilities: port });
 
     const surfaces = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceContribution({ filename: FILENAME }) });
     const handlerLoad = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceHandlerContribution({ filename: FILENAME }) });

@@ -29,10 +29,17 @@ export interface AdminSurfaceHandlerContext {
   readonly surfaceId: string;
 }
 
+/** Which kind of host is running the surface, so a plugin picks its flow (for example a sign-in in
+ * the system browser on desktop) without inferring it from config. */
+export type AdminSurfaceHostKind = 'hosted' | 'desktop';
+const HOST_KINDS: readonly string[] = ['hosted', 'desktop'] satisfies readonly AdminSurfaceHostKind[];
+
 /** The context a handler sees: the route's context plus the plugin's own declared connection ids
- * (ids, never refs: the host resolves the ref, so a plugin can never name another plugin's connection). */
+ * (ids, never refs: the host resolves the ref, so a plugin can never name another plugin's connection)
+ * and the host kind the host was built with (never a caller's or the plugin's value). */
 export interface AdminSurfacePluginContext extends AdminSurfaceHandlerContext {
   readonly connectionIds: readonly string[];
+  readonly hostKind: AdminSurfaceHostKind;
 }
 
 /** What a bootstrap provider receives. */
@@ -127,10 +134,15 @@ const keyOf = (pluginId: string, surfaceId: string) => `${pluginId}\u0000${surfa
  * from a load loses its handlers, and capabilities its module kept are revoked.
  * @param required.capabilities - Host port building one call's admin-surface capabilities.
  * @param required.issuedTokens - Per-plugin token memory shared with the plugin's tool projection.
+ * @param required.hostKind - The kind of host this process is; every handler and bootstrap call sees it.
+ * @throws TypeError when `hostKind` is neither `hosted` nor `desktop`.
  * @returns `sync`, plus `handlersFor` and `bootstrapData` for the host's action dispatcher and bootstrap route.
  * @complexity sync is O(s + a) surfaces and actions; lookups are O(1).
  */
-export function createAdminSurfaceHandlerHost(required: { readonly capabilities: AdminSurfaceCapabilitiesPort; readonly issuedTokens: IssuedTokenMemories }, _optional: Record<string, never> = {}) {
+export function createAdminSurfaceHandlerHost(required: { readonly capabilities: AdminSurfaceCapabilitiesPort; readonly issuedTokens: IssuedTokenMemories; readonly hostKind: AdminSurfaceHostKind }, _optional: Record<string, never> = {}) {
+  // Checked at run time too: a JavaScript host may pass an unchecked config value, and a plugin would pick its flow from it.
+  if (!HOST_KINDS.includes(required.hostKind)) throw new TypeError("createAdminSurfaceHandlerHost: hostKind must be 'hosted' or 'desktop'.");
+  const { hostKind } = required;
   let admitted = new Map<string, AdmittedSurface>();
 
   /** One call's capability session, scoped to the loaded plugin and the route's workspace/principal. */
@@ -140,7 +152,7 @@ export function createAdminSurfaceHandlerHost(required: { readonly capabilities:
     const capabilities = required.capabilities({ pluginId, workspaceId: context.workspaceId, ...principal });
     const session = openAdminSurfaceCapabilitySession({ capabilities, isLive: self.isLive, declared: descriptor, issued: self.issued }, { ...(principal.principalId !== undefined && { actorId: principal.principalId }) });
     const connectionIds = (descriptor.connections ?? []).map((connection) => connection.id);
-    return { session, context: { workspaceId: context.workspaceId, ...principal, pluginId, surfaceId: descriptor.id, connectionIds } };
+    return { session, context: { workspaceId: context.workspaceId, ...principal, pluginId, surfaceId: descriptor.id, connectionIds, hostKind } };
   }
 
   function actionHandler(self: AdmittedSurface, run: AdminSurfaceHandlerModule['actions'][string]): AdminSurfaceActionHandler<AdminSurfaceHandlerContext> {

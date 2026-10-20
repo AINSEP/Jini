@@ -20,7 +20,7 @@ export { defineAdminSurfaceContribution, readAdminSurfaceFile, type LoadedAdminS
 export {
   defineAdminSurfaceHandlerContribution, createAdminSurfaceHandlerHost,
   type AdminSurfaceHandlerContext, type AdminSurfacePluginContext, type AdminSurfaceBootstrapCall, type AdminSurfaceHandlerCall,
-  type AdminSurfaceHandlerModule, type LoadedAdminSurfaceHandlers,
+  type AdminSurfaceHandlerModule, type LoadedAdminSurfaceHandlers, type AdminSurfaceHostKind,
 } from './surface-handlers.js';
 export type { AdminSurfaceConnectionDeclaration, AdminSurfaceCapabilityDeclarations } from './capability-declarations.js';
 export {
