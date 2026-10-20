@@ -1,0 +1,148 @@
+/**
+ * @file Parses a plugin's admin-surface contribution file: which surfaces it ships, the contained
+ * files each one serves, the actions it may ask the host to run (with their schemas) and the few
+ * extra Content-Security-Policy sources it needs.
+ *
+ * Why parsing is strict: everything here is later trusted by the host. A file path that is not a
+ * plain relative path, an action schema outside the supported subset, or a CSP source that is not a
+ * bare `https://` origin refuses the WHOLE file, so a half-valid declaration never widens what a
+ * surface can reach. Containment on disk (symlinks) is the lifecycle's job (`readTrustedPluginFile`);
+ * this file only guarantees the declared strings cannot name anything outside the package root.
+ */
+import { checkAdminSurfaceActionSchema, type AdminSurfaceActionSchema } from './action-schema.js';
+
+/** The CSP directives a descriptor may extend. Everything else stays at the strict default. */
+export const ADMIN_SURFACE_CSP_DIRECTIVES = ['script-src', 'style-src', 'img-src', 'font-src', 'connect-src', 'frame-src'] as const;
+export type AdminSurfaceCspDirective = (typeof ADMIN_SURFACE_CSP_DIRECTIVES)[number];
+
+export interface AdminSurfaceAction {
+  readonly name: string;
+  readonly input: AdminSurfaceActionSchema;
+  /** When declared, the dispatcher refuses a handler result that does not conform. */
+  readonly result?: AdminSurfaceActionSchema;
+}
+
+export interface AdminSurfaceDescriptor {
+  readonly id: string;
+  readonly title: string;
+  /** The `.html` document the frame loads, relative to the plugin root. */
+  readonly entry: string;
+  /** Other files the entry loads (`.mjs`, `.js`, `.css`, `.json`); nothing else is ever served. */
+  readonly files: readonly string[];
+  readonly actions: readonly AdminSurfaceAction[];
+  readonly csp: Readonly<Partial<Record<AdminSurfaceCspDirective, readonly string[]>>>;
+}
+
+type Parsed<T> = T | string;
+type Entry = Readonly<Record<string, unknown>>;
+
+const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const MAX_ID_LENGTH = 64;
+const MAX_TITLE_LENGTH = 100;
+const MAX_SURFACES = 16;
+const MAX_FILES = 32;
+const MAX_ACTIONS = 32;
+const MAX_SOURCES = 8;
+const MAX_RAW_BYTES = 64 * 1024;
+/** One path segment: no `.`/`..`, no separators, no `%` (no encoded traversal), no leading dot. */
+const SEGMENT_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
+const FILE_EXTENSIONS = ['.mjs', '.js', '.css', '.json'];
+/** A bare https origin with a DNS host name: no wildcard, path, query, credentials, IP or scheme keyword. */
+const CSP_SOURCE_PATTERN = /^https:\/\/(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{1,5})?$/;
+
+function isPlainObject(value: unknown): value is Entry {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+const isId = (value: unknown): value is string => typeof value === 'string' && value.length <= MAX_ID_LENGTH && ID_PATTERN.test(value);
+
+/** True when `value` is a relative POSIX path whose every segment is plain and that ends in one of
+ * `extensions`. @complexity O(n) in the path length. */
+export function isContainedAdminSurfacePath(required: { readonly value: unknown; readonly extensions: readonly string[] }, _optional: Record<string, never> = {}): boolean {
+  const { value, extensions } = required;
+  if (typeof value !== 'string' || value.length > 200) return false;
+  return value.split('/').every((segment) => SEGMENT_PATTERN.test(segment)) && extensions.some((extension) => value.endsWith(extension));
+}
+
+/** True when `value` is a CSP source this protocol allows a plugin to add.
+ * @complexity O(n) in the source length. */
+export function isAllowedAdminSurfaceCspSource(required: { readonly value: unknown }, _optional: Record<string, never> = {}): boolean {
+  const { value } = required;
+  if (typeof value !== 'string' || !CSP_SOURCE_PATTERN.test(value)) return false;
+  // The URL parser normalizes default ports and IDNA forms; anything it rewrites is not a bare origin.
+  return new URL(value).origin === value;
+}
+
+/**
+ * Parses the contribution file. One invalid surface refuses the whole file (the loader reports it).
+ * @complexity O(s * (f + a + c)) surfaces with their files, actions and CSP sources; input bounded to 64 KiB.
+ */
+export function parseAdminSurfacesFile(required: { readonly raw: string }, _optional: Record<string, never> = {}): { readonly ok: true; readonly descriptors: readonly AdminSurfaceDescriptor[] } | { readonly ok: false; readonly reason: string } {
+  if (required.raw.length > MAX_RAW_BYTES) return { ok: false, reason: 'larger than 64 KiB' };
+  let value: unknown;
+  try { value = JSON.parse(required.raw); } catch { return { ok: false, reason: 'not valid JSON' }; }
+  if (!isPlainObject(value) || value.schemaVersion !== 1) return { ok: false, reason: 'schemaVersion must be 1' };
+  const surfaces = value.surfaces;
+  if (!Array.isArray(surfaces) || surfaces.length > MAX_SURFACES) return { ok: false, reason: `surfaces must be an array of at most ${MAX_SURFACES}` };
+  const descriptors: AdminSurfaceDescriptor[] = [];
+  for (const [index, entry] of surfaces.entries()) {
+    const parsed = parseSurface(entry, `surfaces[${index}]`);
+    if (typeof parsed === 'string') return { ok: false, reason: parsed };
+    if (descriptors.some((seen) => seen.id === parsed.id)) return { ok: false, reason: `surfaces[${index}].id '${parsed.id}' is declared twice` };
+    descriptors.push(parsed);
+  }
+  return { ok: true, descriptors };
+}
+
+function parseSurface(entry: unknown, at: string): Parsed<AdminSurfaceDescriptor> {
+  if (!isPlainObject(entry)) return `${at} must be an object`;
+  const { id, title, entry: html } = entry;
+  if (!isId(id)) return `${at}.id must be a lowercase hyphenated id`;
+  if (typeof title !== 'string' || !title.trim() || title.length > MAX_TITLE_LENGTH) return `${at}.title must be a non-empty string of at most ${MAX_TITLE_LENGTH} characters`;
+  if (!isContainedAdminSurfacePath({ value: html, extensions: ['.html'] })) return `${at}.entry must be a plain relative path ending in .html`;
+  const files = parseFiles(entry.files ?? [], at);
+  if (typeof files === 'string') return files;
+  const actions = parseActions(entry.actions ?? [], at);
+  if (typeof actions === 'string') return actions;
+  const csp = parseCsp(entry.csp ?? {}, at);
+  if (typeof csp === 'string') return csp;
+  return { id, title, entry: html as string, files, actions, csp };
+}
+
+function parseFiles(value: unknown, at: string): Parsed<readonly string[]> {
+  if (!Array.isArray(value) || value.length > MAX_FILES) return `${at}.files must be an array of at most ${MAX_FILES}`;
+  const bad = value.findIndex((file) => !isContainedAdminSurfacePath({ value: file, extensions: FILE_EXTENSIONS }));
+  return bad === -1 ? (value as string[]) : `${at}.files[${bad}] must be a plain relative path ending in ${FILE_EXTENSIONS.join(', ')}`;
+}
+
+function parseActions(value: unknown, at: string): Parsed<readonly AdminSurfaceAction[]> {
+  if (!Array.isArray(value) || value.length > MAX_ACTIONS) return `${at}.actions must be an array of at most ${MAX_ACTIONS}`;
+  const actions: AdminSurfaceAction[] = [];
+  for (const [index, action] of value.entries()) {
+    const parsed = parseAction(action, `${at}.actions[${index}]`);
+    if (typeof parsed === 'string') return parsed;
+    if (actions.some((seen) => seen.name === parsed.name)) return `${at}.actions[${index}].name '${parsed.name}' is declared twice`;
+    actions.push(parsed);
+  }
+  return actions;
+}
+
+function parseAction(action: unknown, at: string): Parsed<AdminSurfaceAction> {
+  if (!isPlainObject(action)) return `${at} must be an object`;
+  if (!isId(action.name)) return `${at}.name must be a lowercase hyphenated id`;
+  const input = checkAdminSurfaceActionSchema({ schema: action.input });
+  if (input !== null) return `${at}.input ${input}`;
+  if (action.result === undefined) return { name: action.name, input: action.input as AdminSurfaceActionSchema };
+  const result = checkAdminSurfaceActionSchema({ schema: action.result });
+  if (result !== null) return `${at}.result ${result}`;
+  return { name: action.name, input: action.input as AdminSurfaceActionSchema, result: action.result as AdminSurfaceActionSchema };
+}
+
+function parseCsp(value: unknown, at: string): Parsed<AdminSurfaceDescriptor['csp']> {
+  if (!isPlainObject(value)) return `${at}.csp must be an object`;
+  for (const [directive, sources] of Object.entries(value)) {
+    if (!(ADMIN_SURFACE_CSP_DIRECTIVES as readonly string[]).includes(directive)) return `${at}.csp may not extend '${directive.slice(0, 32)}'`;
+    if (!Array.isArray(sources) || sources.length > MAX_SOURCES) return `${at}.csp['${directive}'] must be an array of at most ${MAX_SOURCES}`;
+    if (!sources.every((source) => isAllowedAdminSurfaceCspSource({ value: source }))) return `${at}.csp['${directive}'] may only list bare https origins (no wildcards, paths or keywords)`;
+  }
+  return value as AdminSurfaceDescriptor['csp'];
+}

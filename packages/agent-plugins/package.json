@@ -21,7 +21,9 @@
       "./manifest": "universal",
       "./persistent-state": "node",
       "./folder-zip": "universal",
-      "./folder-zip/node": "node"
+      "./folder-zip/node": "node",
+      "./admin-surfaces": "universal",
+      "./admin-surfaces/client": "universal"
     },
     "isolation": {
       "entries": {
@@ -77,6 +79,16 @@
       "types": "./dist/folder-zip-node.d.ts",
       "import": "./dist/folder-zip-node.js",
       "default": "./dist/folder-zip-node.js"
+    },
+    "./admin-surfaces": {
+      "types": "./dist/admin-surfaces/index.d.ts",
+      "import": "./dist/admin-surfaces/index.js",
+      "default": "./dist/admin-surfaces/index.js"
+    },
+    "./admin-surfaces/client": {
+      "types": "./dist/admin-surfaces/surface-client.d.ts",
+      "import": "./dist/admin-surfaces/surface-client.js",
+      "default": "./dist/admin-surfaces/surface-client.js"
     }
   },
   "files": [
