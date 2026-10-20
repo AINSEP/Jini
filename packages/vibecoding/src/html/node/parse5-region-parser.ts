@@ -118,11 +118,6 @@ function* walkElements(node: Parse5Node): Generator<Parse5Element> {
   for (const child of children) yield* walkElements(child);
 }
 
-/** Fresh `<div>` fragment-context element — see this module's doc for why `<div>`, not the default. */
-function divFragmentContext(): Parse5Element {
-  return defaultTreeAdapter.createElement("div", html.NS.HTML, []);
-}
-
 /** A parse-error entry, phrased for the model rather than left as parse5's bare kebab-case code. */
 function describeParseError(error: ParserError): string {
   return `${error.code.replace(/-/g, " ")} near character ${error.startOffset}`;
@@ -135,6 +130,43 @@ interface DocumentAnalysis {
   readonly parseErrorReasons: readonly string[];
 }
 
+function analyzeRegion(
+  { element, handle }: { readonly element: Parse5Element; readonly handle: string },
+  _options: Record<string, never> = {},
+): { readonly region: ParsedRegion } | { readonly locationProblem: string } {
+  const location = element.sourceCodeLocation;
+  if (location === null || location === undefined || location.startTag === undefined) {
+    return {
+      locationProblem:
+        `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") could not be located in the document — ` +
+        "the parser's error-recovery rules likely dropped or repositioned it. Rewrite the document " +
+        "so this element is reachable in ordinary document structure (for example, not a table-only " +
+        "tag used outside a <table>).",
+    };
+  }
+  if (location.endTag === undefined) {
+    return {
+      locationProblem: VOID_ELEMENTS.has(element.tagName)
+        ? `"${handle}" tags a <${element.tagName}> element, which is void and has no inner content — ` +
+          `void elements cannot be a ${AGENT_ELEMENT_ATTRIBUTE} region`
+        : `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") has no closing tag the parser could ` +
+          "locate — its content boundaries cannot be determined safely. Close the tag explicitly.",
+    };
+  }
+
+  const role = attributeValue(element, "data-agent-role");
+  const label = attributeValue(element, "data-agent-label");
+  return {
+    region: {
+      handle,
+      innerStart: location.startTag.endOffset,
+      innerEnd: location.endTag.startOffset,
+      ...(role === undefined ? {} : { role }),
+      ...(label === undefined ? {} : { label }),
+    },
+  };
+}
+
 /**
  * One parse pass, shared by `findRegions` and `checkWellFormed` so both methods judge the same
  * parse5 run rather than parsing the document twice with a chance of disagreeing.
@@ -143,7 +175,9 @@ interface DocumentAnalysis {
  */
 function analyzeDocument(html_: string): DocumentAnalysis {
   const parseErrorReasons: string[] = [];
-  const fragment = parseFragment(divFragmentContext(), html_, {
+  /** Fresh `<div>` fragment-context element — see this module's doc for why `<div>`, not the default. */
+  const context = defaultTreeAdapter.createElement("div", html.NS.HTML, []);
+  const fragment = parseFragment(context, html_, {
     sourceCodeLocationInfo: true,
     onParseError: (error) => parseErrorReasons.push(describeParseError(error)),
   });
@@ -153,38 +187,15 @@ function analyzeDocument(html_: string): DocumentAnalysis {
 
   for (const element of walkElements(fragment)) {
     const handle = attributeValue(element, AGENT_ELEMENT_ATTRIBUTE);
-    if (handle === undefined) continue;
-    if (locationProblem !== undefined) continue; // Already failed; stop accumulating regions.
+    if (handle === undefined || locationProblem !== undefined) continue; // Already failed; stop accumulating regions.
 
-    const location = element.sourceCodeLocation;
-    if (location === null || location === undefined || location.startTag === undefined) {
-      locationProblem =
-        `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") could not be located in the document — ` +
-        "the parser's error-recovery rules likely dropped or repositioned it. Rewrite the document " +
-        "so this element is reachable in ordinary document structure (for example, not a table-only " +
-        "tag used outside a <table>).";
-      continue;
-    }
-    if (location.endTag === undefined) {
-      locationProblem = VOID_ELEMENTS.has(element.tagName)
-        ? `"${handle}" tags a <${element.tagName}> element, which is void and has no inner content — ` +
-          `void elements cannot be a ${AGENT_ELEMENT_ATTRIBUTE} region`
-        : `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") has no closing tag the parser could ` +
-          "locate — its content boundaries cannot be determined safely. Close the tag explicitly.";
+    const analyzed = analyzeRegion({ element, handle });
+    if ("locationProblem" in analyzed) {
+      locationProblem = analyzed.locationProblem;
       continue;
     }
 
-    regions.push({
-      handle,
-      innerStart: location.startTag.endOffset,
-      innerEnd: location.endTag.startOffset,
-      ...(attributeValue(element, "data-agent-role") === undefined
-        ? {}
-        : { role: attributeValue(element, "data-agent-role") as string }),
-      ...(attributeValue(element, "data-agent-label") === undefined
-        ? {}
-        : { label: attributeValue(element, "data-agent-label") as string }),
-    });
+    regions.push(analyzed.region);
   }
 
   if (locationProblem === undefined) {
