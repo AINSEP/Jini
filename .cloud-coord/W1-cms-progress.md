@@ -9,9 +9,9 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 |---|---|---|---|---|---|---|---|
 | L010 | forms descriptor-rules, field-registry, html-render | merged | done (47 tool calls) | 36b96063, 5375e7b7, 9a8bc1ec | 53/52 → ≤10/≤10 | 100/100/100 | eslint 0, tsc 0, forms 490 ✓; 99 new tests also green on old code |
 | L017 | forms/html authoring-adapter, html-authoring | merged | done (15 tool calls) | f59b2cd8, 2c038dab | 10/8 → 10/8 (already ≤10) | 100/100/100 | eslint 0, tsc 0, 86 tests ✓ |
-| L073 | widgets config-validation, embed-service, gallery-resolver, resolver-service | merged (partial cov) | stopped at ~185k (94 tool calls) | dcef1137, 43e72e7a, cd470eeb, dbb0b44c | 32/36 → ≤10/≤10 | 100 ×3; resolver-service 76.2/93.3/74.4 (whole widgets suite) | eslint 0, tsc 0; 121 new tests green on old code |
+| L073 | widgets config-validation, embed-service, gallery-resolver, resolver-service | merged (cov completed by L073b+c) | stopped at ~185k (94 tool calls) | dcef1137, 43e72e7a, cd470eeb, dbb0b44c | 32/36 → ≤10/≤10 | 100 ×3; resolver-service 76.2/93.3/74.4 (whole widgets suite) | eslint 0, tsc 0; 121 new tests green on old code |
 | L073b | resolver-service.ts coverage (tests only) | merged | done (37 tool calls) | 407bbb30, a6ae59af, 75105101, 7d1b7a72 | unchanged | 99.67/99.61/100 (1019-1020 unreachable) | tsc 0 at tip (a6ae59af/75105101 intermediate commits do not typecheck), 556 widgets ✓ |
-| L073c | drop unreachable neither-key fallback in findPublishedPostByRef | running | fresh | | — | | |
+| L073c | drop unreachable neither-key fallback in findPublishedPostByRef | merged | done (7 tool calls) | 6374a730 | — | resolver-service 100/100/100 | tsc 0, 556 widgets ✓, RED confirmed |
 | L108 | widgets/html gallery-render, html-embeds, legacy-widget-markers, server-fragment | merged | done (46 tool calls) | 2f92117a, 0ef5b201, c94e6ba3, 232e610d | 20/22 → ≤10/≤10 | 100/100/100 | eslint 0, tsc 0, widgets 379 ✓ |
 | L109 | widgets/markers gallery, html-attributes | merged | done (23 tool calls) | bcd89622, fbd539cd | 26/20 → ≤10/≤10 | 100/100/100 (was 78.7/77.9) | eslint 0, tsc 0, widgets 336 ✓ |
 | L123 | redirects host-config, redirects | merged | done (52 tool calls) | 8778aace, d15f1058 | 18/29 → 8/9 | 100/100/100 (was 93.3–96.5) | eslint 0, tsc 0, 322 ✓ |
@@ -33,6 +33,12 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 - L073 flagged: `collectWidgetConfigStrings` has no callers but is publicly re-exported via widgets/index.ts.
 - L176 flagged: `SubmitFormOptional.validateEmails` appears inert (field-registry already rejects bad emails as invalid_email; flipping it fails no test). Public option — left as is.
 - L073b possible bug (not pinned): widget marker with non-object `config.content` gets a placement key but never resolves (no override built, id not loaded) — depends on whether marker validation admits it.
-## Next
+## Next (resolved)
 - Whole-suite after L010–L176 merges (head 59371458, after `pnpm --filter @jini-ai/cms build` = 0): 3000/3001 pass (240 files, 48 s, maxWorkers=4). Only failure = the pre-existing `media/video-frames.ffmpeg.test.ts` one, which also fails on unmodified origin/general-work.
 - Remaining: L073b (resolver-service.ts coverage to 100, tests only) — then re-run whole suite + tsc once more.
+
+## FINAL (wave 1 cms complete)
+- All 10 lots + 2 follow-ups merged into cloud/w1-cms. 75 baseline cyc/cog>10 violations → 0 (eslint cc10 over all 25 lot files = 0).
+- `pnpm --filter @jini-ai/cms build` = 0; `tsc --noEmit -p packages/cms` = 0.
+- Whole suite: 3046/3047 pass (baseline 2549/2550 → +497 tests). Sole failure `src/media/__tests__/video-frames.ffmpeg.test.ts > reports temporary files that cannot be removed and still releases the lock` is pre-existing on origin/general-work (out of scope).
+- Nothing left for this wave. Not pushed to general-work (by design) — a human should review/merge cloud/w1-cms.
