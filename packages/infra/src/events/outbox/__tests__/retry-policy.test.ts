@@ -5,7 +5,7 @@
  */
 import { afterEach, expect, test, vi } from 'vitest';
 import { processOutbox, startOutboxDrainer, type OutboxRetryPolicyResolver } from '../index.js';
-import { fixture, NOW, row } from './fixtures.js';
+import { deferred, fixture, NOW, row } from './fixtures.js';
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -39,6 +39,21 @@ test('a throwing resolver or an invalid policy falls back to the default policy 
       message: '[outbox-worker] the retry policy for outbox event "demo.event" (evt) failed; using the default policy for this row',
     }, { error: expect.any(Error) });
   }
+});
+
+test('a custom policy governs the over-cap seal, the timeout status and the late outcome', async () => {
+  vi.useFakeTimers();
+  const f = fixture([row('held', 7)]);
+  const held = deferred();
+  f.bus.publish.mockImplementationOnce(() => held.promise);
+  const processing = processOutbox(f.args, { deliveryTimeoutMs: 10, retryPolicyForEvent: () => ({ maxAttempts: 12, backoffMs: () => 1_000 }) });
+  await vi.advanceTimersByTimeAsync(10);
+  await processing;
+  expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'held', error: 'delivery of outbox event "demo.event" (held) timed out after 10ms',
+    nextAttemptAt: at(30 * 60 * 1000), nextStatus: 'pending' });
+  held.reject(new Error('late failure'));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(f.outbox.markFailed).toHaveBeenLastCalledWith({ id: 'held', error: 'late failure', nextAttemptAt: at(1_000), nextStatus: 'pending' });
 });
 
 test('the drainer keeps the resolver through its resolved options', async () => {
