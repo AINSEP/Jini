@@ -10,9 +10,9 @@ Temp eslint config (untracked, git-excluded): `.eslint-cx.tmp.mjs` (complexity 1
 | L037 | features/source-config-list | running | | | | |
 | L040 | features/skills | running | | | | |
 | L042 | features/memory | running | | | | |
-| L049 | features/about | running | | | | |
+| L049 | features/about | merged | rules 38/39→≤10, AboutTab 38/28→≤10 | 100/100/100 | 79ecdac7, 45e230a7 | eslint 0, tsc ok, 79 tests green, why-comments moved (checked) |
 | L050 | features/mcp-ui | running | | | | |
-| L066 | utils | queued | | | | |
+| L066 | utils | running | | | | |
 | L067 | renderers | queued | | | | |
 | L075 | features/media-providers | queued | | | | |
 | L080 | features/resource-dashboard | queued | | | | |
