@@ -96,5 +96,26 @@ Verify = coordinator eslint (cyc/cog 10) on lot files + new helpers, tsc, lot te
 - SEC pinned (reported, memory fake only): users `write()` checks existence/Trash before permission (id enumeration by an ungranted caller); members fake serves listMembers/getMember (emails) without member.manage.
 - Commit messages 00b5be9a/9d9918a8/a28864fa carry pre-measurement (wrong) figures; empty commit 7885c2d0 records measured ones: userActionAllowed 27/17→5/1, describeRolesError 12/12→5/3, createMemoryRolesApi 13/0→4/0.
 
+## Final verification (wave head cc6c0cf7 + this file)
+- `pnpm --filter @jini-ai/user-management build`: ok.
+- Whole suite (wave): 71 files / 964 tests passed, EXIT 0, no `Errors` line, 23 s.
+- Whole suite (base origin/general-work 6bdca722, clean worktree, run after the wave): 50 files / 451 tests passed, no `Errors` line. No failures on either side.
+- tsc --noEmit -p packages/user-management: 0. pnpm guard: 26 violations, identical to base (0 in user-management, 0 new).
+- Coordinator eslint (cyc/cog 10) on all 19 lot files + new helpers (UserRowParts.tsx, error-copy.ts): 0 (base: 32).
+- Worktrees removed; no processes left.
+
+## Subagent usage
+L105 177k/57 calls; L118a 139k/44; L118b 145k/39; L182a 135k/45; L182b 132k/30; L182c 197k/56; L154-L272 145k/44; L205 155k/58; L154 fix 58k/7. No hand-offs, none past 200k.
+
+## Open items for the owner (reported, not fixed)
+1. SEC permission-migrations `grantMissingTargets`: scoped `from` grant → unscoped `to` grant (privilege widening).
+2. SEC agent-tool-input: inherited (prototype) schema members enforced but never validated (fail-open).
+3. SEC auth-service `login`: no dummy hash for unknown/disabled users → username enumeration by timing.
+4. auth-service `validateSession` ISO string compare depends on normalised `nowIso` (not pinned).
+5. errors.ts / rules.ts code lookup through Object.prototype ("constructor").
+6. errors.ts shows raw Error.message for VALIDATION_ERROR/unmapped codes.
+7. memory adapter fakes: existence-before-permission in users write(); members list/get without member.manage.
+8. Wrong complexity figures in commit messages fe8ead1a (L105) and 00b5be9a/9d9918a8/a28864fa (L154; corrected by 7885c2d0); history not rewritten.
+
 ## Next steps
-- Wait for lot reports; VERIFY + MERGE each; dispatch queued lots as slots free.
+- Wave complete. Owner reviews cloud/w3-user-management and merges into general-work.
