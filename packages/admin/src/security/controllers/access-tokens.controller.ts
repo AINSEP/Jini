@@ -1,7 +1,11 @@
 import { createControllerStore } from '../../core/module/controller-store.js';
 import type { SecurityApiPort } from '../ports.js';
 import type { CredentialSummary, CredentialProvider, CredentialDraft, CredentialKind, CredentialCategory, CredentialInput } from '../models.js';
-import { blankCredentialDraft, buildCredentialPatch, credentialStore, validateCredentialDraft, writePermission, credentialLabel } from '../rules.js';
+import { blankCredentialDraft, buildCredentialPatch, credentialCategory, credentialStore, validateCredentialDraft, writePermission, credentialLabel } from '../rules.js';
+/** An edit draft never carries the saved secret: token and extra values start blank. */
+function draftFromRow({ row, providers }: { row: CredentialSummary; providers: readonly CredentialProvider[] }, _optional = {}): CredentialDraft {
+  return { ...blankCredentialDraft({ kind: row.kind, providerId: row.providerId }), id: row.id, label: credentialLabel({ row, providers }), category: credentialCategory({ row }), baseUrl: row.baseUrl ?? '', additionalHosts: row.additionalHosts?.join('\n') ?? '', username: row.username ?? '' };
+}
 export function createAccessTokensController({ api, permissions = [] }: { api: SecurityApiPort; permissions?: readonly string[] }, _optional = {}) {
   const grants = new Set(permissions);
   const store = createControllerStore({ initial: { rows: [] as readonly CredentialSummary[], providers: [] as readonly CredentialProvider[], draft: null as CredentialDraft | null, loading: false, saving: false, error: null as string | null, errors: {} as Readonly<Record<string, string>>, query: '', category: 'all' as CredentialCategory | 'all' } });
@@ -21,31 +25,37 @@ export function createAccessTokensController({ api, permissions = [] }: { api: S
   }
   function begin({ row, kind, providerId }: { row?: CredentialSummary; kind?: CredentialKind; providerId?: string }, _optional = {}) {
     const k = row?.kind ?? kind ?? 'custom'; if (!allowed(k) || store.getSnapshot().saving) return;
-    const draft = row ? { ...blankCredentialDraft({ kind: row.kind, providerId: row.providerId }), id: row.id, label: credentialLabel({ row, providers: store.getSnapshot().providers }), category: row.category ?? (row.kind === 'publish' ? 'hosting' : row.kind === 'source-control' ? 'source-control' : 'general'), baseUrl: row.baseUrl ?? '', additionalHosts: row.additionalHosts?.join('\n') ?? '', username: row.username ?? '' } : blankCredentialDraft({ kind: k, ...(providerId ? { providerId } : {}) });
+    const draft = row ? draftFromRow({ row, providers: store.getSnapshot().providers }) : blankCredentialDraft({ kind: k, ...(providerId ? { providerId } : {}) });
     store.set({ patch: { draft, error: null } });
   }
   async function save(_required: Record<string, never>, _optional = {}) {
     const state = store.getSnapshot(), draft = state.draft; if (!draft || !allowed(draft.kind) || state.saving) return false;
     const error = validateCredentialDraft({ draft, rows: state.rows, providers: state.providers }); if (error) { store.set({ patch: { error } }); return false; }
-    const patch = buildCredentialPatch({ draft, providers: state.providers }); const target = credentialStore({ api, kind: draft.kind }); store.set({ patch: { saving: true, error: null } });
-    try {
+    const patch = buildCredentialPatch({ draft, providers: state.providers }); const target = credentialStore({ api, kind: draft.kind });
+    return mutate({ failure: 'Unable to save credential', run: async () => {
       const row = draft.id ? await target.update({ id: draft.id, patch }, { signal: store.signal }) : await target.create(patch as CredentialInput, { signal: store.signal });
       // Clear accepted secrets before any later read can fail. A successful save must never leave a saved secret visible.
       store.set({ patch: { draft: null, rows: Object.freeze([...store.getSnapshot().rows.filter(r => !(r.kind === row.kind && r.id === row.id)), row]) } });
-      // First-create default assignment can change siblings; the server owns that invariant.
-      await load({}); return !store.signal.aborted;
-    } catch { store.set({ patch: { error: 'Unable to save credential' } }); return false; }
-    finally { store.set({ patch: { saving: false } }); }
+    } });
   }
   async function write({ row, remove }: { row: CredentialSummary; remove: boolean }) {
-    if (!allowed(row.kind) || store.getSnapshot().saving) return false; store.set({ patch: { saving: true, error: null } });
-    try {
+    if (!allowed(row.kind) || store.getSnapshot().saving) return false;
+    return mutate({ failure: 'Unable to update credential', run: async () => {
       const target = credentialStore({ api, kind: row.kind });
       if (remove) await target.remove({ id: row.id }, { signal: store.signal }); else await target.update({ id: row.id, patch: { isDefault: true } }, { signal: store.signal });
+    } });
+  }
+  /** Shared write lifecycle: one write at a time, a fixed failure message, and a refetch after success. */
+  async function mutate({ run, failure }: { run: () => Promise<void>; failure: string }, _optional = {}) {
+    store.set({ patch: { saving: true, error: null } }); let ok = false;
+    try {
+      await run();
+      // First-create default assignment can change siblings; the server owns that invariant.
       // Remove/default can promote another row. Refetch rather than duplicating server promotion rules.
-      await load({}); return !store.signal.aborted;
-    } catch { store.set({ patch: { error: 'Unable to update credential' } }); return false; }
+      await load({}); ok = !store.signal.aborted;
+    } catch { store.set({ patch: { error: failure } }); }
     finally { store.set({ patch: { saving: false } }); }
+    return ok;
   }
   return {
     getSnapshot: store.getSnapshot, subscribe: store.subscribe, load, begin, save,
