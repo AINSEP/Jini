@@ -1,5 +1,6 @@
 import { splitServerFixture } from '../../__tests__/args-fixtures.js';
 import { EventEmitter } from 'node:events';
+import { Socket } from 'node:net';
 import { PassThrough, type Readable, type Writable } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -654,9 +655,24 @@ describe('run() context and transport options (characterization)', () => {
     expect(transportArgs).toEqual([[{}, { stdin, stdout }]]);
   });
 
+  /**
+   * Typed stand-in for `process.stdin`: a real, unconnected `net.Socket` (the base class of
+   * `tty.ReadStream`) plus the TTY members, so it satisfies `NodeJS.ReadStream & { fd: 0 }`
+   * without a cast. Keeps run()'s stdin EOF listeners off the worker's real stdin.
+   */
+  class FakeProcessStdin extends Socket {
+    readonly fd = 0 as const;
+    readonly isTTY = true as const;
+    isRaw = false;
+    setRawMode(mode: boolean): this {
+      this.isRaw = mode;
+      return this;
+    }
+  }
+
   it('passes only stdout to createTransport when stdin is not configured', async () => {
     const stdout: Writable = new PassThrough();
-    const getStdin = vi.spyOn(process, 'stdin', 'get').mockReturnValue(new EventEmitter() as unknown as NodeJS.ReadStream & { fd: 0 });
+    const getStdin = vi.spyOn(process, 'stdin', 'get').mockReturnValue(new FakeProcessStdin());
     try {
       const { transportArgs } = await runOnce({ stdout }, undefined, { omitStdin: true });
       expect(transportArgs).toEqual([[{}, { stdout }]]);
