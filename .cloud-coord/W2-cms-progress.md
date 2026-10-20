@@ -26,12 +26,14 @@
 |---|---|---|---|---|---|---|
 | L186 seo | dispatched | cloud/w2-cms-L186 | | | | |
 | L193 widgets/resolvers | dispatched | cloud/w2-cms-L193 | | | | |
-| L200 core/commands | dispatched | cloud/w2-cms-L200 | | | | |
+| L200 core/commands | MERGED | cloud/w2-cms-L200 | 768f99e9 | executeCommand cyc18/cog16→5/3 (file worst 6/3) | 83/67/100→100/100/100 | eslint 0, tsc 0, 8 command-related files 103/103 |
 | L227 navigation | dispatched | cloud/w2-cms-L227 | | | | |
 | L258 listing | MERGED | cloud/w2-cms-L258 | 4d7243a3, 683b7935 | batch cyc8/cog11→7/6; paths cyc13/cog7→10/4 | 100/100/100 both | eslint 0, tsc 0, listing tests 36/36 |
 | L285 comments | dispatched | cloud/w2-cms-L285 | | | | |
 
 ## Problems / notes
 - L258 bugs pinned (reported, not fixed): readListingBatch NaN `after` → next NaN; parseListingBatchPath accepts zero-padded cursor `/_more/1/012` → 12 (two URLs, one batch). Test count 12→32 (listing.test.ts unchanged). Unused-by-callers options (limitKey/fallback/isVisible) kept: public exports.
+
+- L200: test moved core/__tests__/command-post-mutation-rollback.test.ts → core/commands/__tests__/; +16 boundary tests (9→25). Duplicate DuplicateCommandError construction unified. Kept (public sig): empty ExecuteCommandOptional, unused DuplicateCommandError optionalArgs. No bugs.
 
 ## Next
