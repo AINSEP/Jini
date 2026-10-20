@@ -39,6 +39,8 @@ export interface AdminSurfaceDescriptor extends AdminSurfaceCapabilityDeclaratio
   readonly handlerModule?: string;
   /** The schema bootstrap data from `handlerModule` must match before it reaches the frame. */
   readonly bootstrap?: AdminSurfaceActionSchema;
+  /** Bare https origins the host may open links to for this surface (`./external-links.ts`); present only when declared. */
+  readonly linkOrigins?: readonly string[];
   // `connections` and `publicConfig` (./capability-declarations.ts) also need a `handlerModule`.
 }
 
@@ -52,6 +54,7 @@ const MAX_SURFACES = 16;
 const MAX_FILES = 32;
 const MAX_ACTIONS = 32;
 const MAX_SOURCES = 8;
+const MAX_LINK_ORIGINS = 8;
 const MAX_RAW_BYTES = 64 * 1024;
 /** One path segment: no `.`/`..`, no separators, no `%` (no encoded traversal), no leading dot. */
 const SEGMENT_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
@@ -117,12 +120,21 @@ function parseSurface(entry: unknown, at: string): Parsed<AdminSurfaceDescriptor
   return parseSurfaceExtras(entry, { ...identity, files, actions }, at);
 }
 
-/** The CSP extensions and the optional handler fields, after the core fields parsed. */
+/** The CSP extensions, the optional link origins and the optional handler fields, after the core fields parsed. */
 function parseSurfaceExtras(entry: Entry, surface: Omit<AdminSurfaceDescriptor, 'csp'>, at: string): Parsed<AdminSurfaceDescriptor> {
   const csp = parseCsp(entry.csp ?? {}, at);
   if (typeof csp === 'string') return csp;
+  const linkOrigins = entry.linkOrigins === undefined ? undefined : parseLinkOrigins(entry.linkOrigins, `${at}.linkOrigins`);
+  if (typeof linkOrigins === 'string') return linkOrigins;
   const handler = parseHandler(entry, surface, at);
-  return typeof handler === 'string' ? handler : { ...surface, csp, ...handler };
+  return typeof handler === 'string' ? handler : { ...surface, csp, ...(linkOrigins && { linkOrigins }), ...handler };
+}
+
+/** At most 8 unique bare https origins, by the CSP source rule: a link the host opens leaves the sandbox. */
+function parseLinkOrigins(value: unknown, at: string): Parsed<readonly string[]> {
+  if (!Array.isArray(value) || value.length > MAX_LINK_ORIGINS) return `${at} must be an array of at most ${MAX_LINK_ORIGINS}`;
+  const bad = value.findIndex((origin, index) => !isAllowedAdminSurfaceCspSource({ value: origin }) || value.indexOf(origin) !== index);
+  return bad === -1 ? (value as string[]) : `${at}[${bad}] must be a unique bare https origin (no wildcards, paths or keywords)`;
 }
 
 /**

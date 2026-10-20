@@ -3,7 +3,8 @@
  * declares a surface in a HOST-NAMED contribution file; the real contribution loader and trusted file
  * reader admit it; the host serves its entry with the strict headers, mounts it, posts init with a
  * bootstrap, and a surface client round-trips one declared action through the host-page gate and the
- * server dispatcher to a host handler. Windows are simulated with structured-clone message passing
+ * server dispatcher to a host handler, then asks the host page to open one declared https link
+ * through the host's opener port (and is refused an undeclared one). Windows are simulated with structured-clone message passing
  * that, like a browser, drops a message whose target origin does not match the receiver.
  */
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
@@ -14,7 +15,7 @@ import { createPluginContributionLoader } from '../../lifecycle/contribution-loa
 import { readTrustedPluginFile } from '../../lifecycle/__tests__/test-support.js';
 import {
   adminSurfaceActionResponse, adminSurfaceInitMessage, createAdminSurfaceActionDispatcher, createAdminSurfaceBootstrap,
-  createAdminSurfaceMount, defineAdminSurfaceContribution, readAdminSurfaceFile, validateAdminSurfaceMessage,
+  createAdminSurfaceMount, defineAdminSurfaceContribution, openAdminSurfaceLink, readAdminSurfaceFile, validateAdminSurfaceMessage,
 } from '../index.js';
 import { createAdminSurfaceClient, type AdminSurfaceIncomingMessage } from '../surface-client.js';
 
@@ -45,6 +46,7 @@ test('a fixture plugin surface loads, is served strictly, mounts and round-trips
       actions: [{ name: 'save-selection', input: { type: 'object', properties: { resourceId: { type: 'string', maxLength: 128 } }, required: ['resourceId'] },
         result: { type: 'object', properties: { saved: { type: 'boolean' } }, required: ['saved'] } }],
       csp: { 'connect-src': ['https://api.example.com'] },
+      linkOrigins: ['https://accounts.example.com'],
     }],
   }));
   await writeFile(path.join(root, 'surface/index.html'), '<!doctype html><script type="module" src="app.mjs"></script>');
@@ -77,7 +79,11 @@ test('a fixture plugin surface loads, is served strictly, mounts and round-trips
   // How the frame sees its parent: posting to it lands in the host window as a message from the frame.
   const parentPort = { postMessage: (data: unknown, targetOrigin: string) => hostWindow.deliver({ data, targetOrigin, origin: 'null', source: frameWindow }) };
   const serverRoundTrips: Promise<void>[] = [];
+  const opened: string[] = [];
   hostWindow.listen((event) => {
+    serverRoundTrips.push(openAdminSurfaceLink({ event, mount: frameRecord, openLink: ({ url }) => { opened.push(url); } }).then((link) => {
+      if ('response' in link) frameWindow.deliver({ data: link.response, targetOrigin: '*', origin: HOST_ORIGIN, source: parentPort });
+    }));
     const verdict = validateAdminSurfaceMessage({ event, mount: frameRecord });
     if (!verdict.ok) return;
     // The host page forwards to its server route as JSON; the server, not the frame, supplies context.
@@ -99,5 +105,15 @@ test('a fixture plugin surface loads, is served strictly, mounts and round-trips
   await Promise.all(serverRoundTrips);
   await expect(result).resolves.toEqual({ saved: true });
   expect(handled).toEqual([{ payload: { resourceId: 'res-1' }, context: { workspaceId: 'w1' } }]);
+
+  const link = client.openLink({ url: 'https://accounts.example.com/permissions' });
+  await Promise.resolve();
+  await Promise.all(serverRoundTrips);
+  await expect(link).resolves.toBeUndefined();
+  const undeclared = client.openLink({ url: 'https://elsewhere.example.net/' });
+  await Promise.resolve();
+  await Promise.all(serverRoundTrips);
+  await expect(undeclared).rejects.toMatchObject({ name: 'AdminSurfaceCallError', code: 'link-undeclared', retryable: false });
+  expect(opened).toEqual(['https://accounts.example.com/permissions']);
   client.close();
 });

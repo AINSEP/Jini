@@ -66,6 +66,7 @@ Rules (any violation refuses the whole file, reported in the loader's `refusals`
 | `bootstrap` | optional schema (same subset) the handler module's bootstrap data must match; only with `handlerModule` |
 | `connections` | optional, only with `handlerModule`; at most 4 `{ id, startParams?, callbackFields? }`: the plugin's own connection ids (`[A-Za-z0-9][A-Za-z0-9._-]{0,63}`, unique) its handlers administer, the per-sign-in parameters they may set and the callback fields they may take (names `[A-Za-z0-9_.-]{1,64}`, at most 8 each) |
 | `publicConfig` | optional, only with `handlerModule`; at most 16 environment-style names (`[A-Z][A-Z0-9_]{0,63}`) the host may hand the handlers; a name containing `SECRET`, `TOKEN`, `PASSWORD`, `PASSWD`, `PRIVATE`, `CREDENTIAL`, `COOKIE`, `SESSION` or `SIGNING` is refused |
+| `linkOrigins` | optional, any surface; at most 8 unique bare `https://host[:port]` origins (the `csp` source rule) the host may open links to for this surface |
 | `csp` | keys only `script-src`, `style-src`, `img-src`, `font-src`, `connect-src`, `frame-src`; values only bare `https://host[:port]` origins with a DNS name (no wildcard, path, IP, keyword, `data:`/`blob:`) |
 
 Action schemas are a small closed subset of JSON Schema: every node declares `type` (`object`,
@@ -98,6 +99,7 @@ Every message carries `protocol: 'jini.admin-surface'` and `version: 1`.
 |---|---|---|
 | `init` | host page → frame, once per mount after the frame loads | `mountId`, optional `bootstrap` |
 | `action-request` | frame → host page | `mountId`, `requestId` (`[A-Za-z0-9_-]{1,64}`), `action`, `payload` |
+| `open-link` | frame → host page | `mountId`, `requestId`, `url`; answered with an `action-response` (`result: null`) |
 | `action-response` | host page → frame | `mountId`, `requestId`, then `ok: true, result` or `ok: false, error: { code, message, retryable }` |
 
 1. `createAdminSurfaceMount({ surfaceId })` → `{ surfaceId, mountId }` (128-bit random nonce); its messages must come from origin `'null'`.
@@ -122,6 +124,20 @@ Every message carries `protocol: 'jini.admin-surface'` and `version: 1`.
    (`AdminSurfaceActionError` keeps its code and message; anything else becomes `action-failed`
    with a generic message, and the raw error goes to `onHandlerError` for the server log).
 6. The host page posts `adminSurfaceActionResponse({ request, outcome })` back to the frame.
+
+### External links
+
+A sandboxed frame cannot open anything (no `allow-popups`, no top navigation), so a surface asks the
+host page: `client.openLink({ url })`. The host page passes every `message` event to
+`openAdminSurfaceLink({ event, mount, openLink })` as well as to `validateAdminSurfaceMessage` (each
+ignores the other's messages) and posts the verdict's `response` back when it has one. The gate
+applies the same origin, window and nonce checks as actions (`ignored` otherwise), then refuses
+(code, no URL echoed): `link-too-long` (over 2048 characters), `link-invalid` (unparseable or carrying
+credentials), `link-not-https` (`http:`, `javascript:`, `data:` …) and `link-undeclared` (origin not
+in the surface's `linkOrigins`; a mount record without `linkOrigins` opens nothing). Only then is the
+host's `openLink` port called, once, with the URL parser's normalized `href`; the host decides how to
+open it (a new tab with `noopener,noreferrer` on the web, the system browser on desktop). A throwing
+port answers `link-failed` (retryable), never its raw error.
 
 Dispatcher error codes: `action-undeclared`, `action-unavailable` (no host handler),
 `invalid-payload`, `invalid-result`, `action-failed`, or a handler's own `AdminSurfaceActionError` code.
@@ -177,7 +193,7 @@ export default {
   executable contribution (`../lifecycle/contribution-loader.ts`'s `defineExecutablePluginContribution`,
   the loader executable tools use): the plugin must be active, be the build's shipped digest, and the
   module must resolve inside the package root on disk. Refusals are lines in the load's `refusals`.
-- Admission: `createAdminSurfaceHandlerHost({ capabilities, issuedTokens }).sync({ loaded, refusals })` refuses a module
+- Admission: `createAdminSurfaceHandlerHost({ capabilities, issuedTokens, hostKind }).sync({ loaded, refusals })` refuses a module
   that exports a handler for an undeclared action, a `bootstrap()` the surface has no schema for, or a
   surface two loaded modules claim. Call it on boot and on every activation change; a surface missing
   from a load loses its handlers, a handler a route already holds answers `plugin-disabled`, and
@@ -185,7 +201,10 @@ export default {
 - Calls: `capabilities` is the admin-surface port (next section), built per call for the LOADED
   plugin id and the route's workspace/principal; `context.pluginId`/`surfaceId` are the loaded
   module's own, whatever the caller passed, and `context.connectionIds` lists the surface's declared
-  connection ids (never refs). A result or error that mentions a token the plugin obtained (in this
+  connection ids (never refs). `context.hostKind` (`'hosted' | 'desktop'`) is the value the host built
+  the handler host with, whatever the caller's context carries, so a plugin picks its flow (for
+  example a sign-in in the system browser on desktop) without inferring it from config; a plugin that
+  needs it in the frame returns it from `bootstrap()`. A result or error that mentions a token the plugin obtained (in this
   call or an earlier one, by a surface handler or by one of the plugin's tools; the newest 64 are
   remembered; `issuedTokens` is the host's one `createIssuedTokenMemories()`, also given to the tool projection) is withheld (`action-failed`), and
   such a token is never saved to state. `fail({ code, message }, { retryable })` builds a surface-safe
@@ -198,7 +217,7 @@ Host wiring:
 
 ```ts
 const handlerDefinition = defineAdminSurfaceHandlerContribution({ filename: '<product>-admin-surfaces.json' });
-const surfaceHandlers = createAdminSurfaceHandlerHost({ capabilities, issuedTokens }); // the tool projection's issuedTokens
+const surfaceHandlers = createAdminSurfaceHandlerHost({ capabilities, issuedTokens, hostKind: 'hosted' }); // the tool projection's issuedTokens; 'desktop' in a desktop build
 const load = await lifecycle.loadPluginContributions({ workspaceId, definition: handlerDefinition });
 surfaceHandlers.sync({ loaded: load.items, refusals: load.refusals });           // boot + every activation change
 // action route
@@ -213,7 +232,7 @@ never name another plugin's connection.
 
 ## Capability ports (`./surface-capabilities.ts`)
 
-`createAdminSurfaceHandlerHost({ capabilities, issuedTokens })` takes an `AdminSurfaceCapabilitiesPort`:
+`createAdminSurfaceHandlerHost({ capabilities, issuedTokens, hostKind })` takes an `AdminSurfaceCapabilitiesPort`:
 `(scope: { pluginId, workspaceId, principalId? }) => AdminSurfaceCapabilities`. The host implements
 it; Jini wraps each call in `openAdminSurfaceCapabilitySession`, which refuses anything the surface
 did not declare before the host sees it, revokes every port once the plugin is disabled (the same
@@ -222,7 +241,7 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 | port | methods | Jini checks |
 |---|---|---|
 | `http`, `limiter`, `artifacts` | as for executable tools | revocation |
-| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, status, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel }` | declared connection; token noted for the result/error scans |
+| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, status, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel, lastSignInAttempt }` (`lastSignInAttempt`: `{ code, nextAction }` or `null`) | declared connection; token noted for the result/error scans; `lastSignInAttempt` keeps only `code` and `nextAction`, and becomes `null` unless both are lowercase hyphenated codes (≤ 64) |
 | | `begin({ connectionId, action: 'connect' \| 'reconnect' \| 'switch' \| 'add-scopes' }, { scopeSetIds?, startParams? })` → `{ authorizationUrl, attemptId, expiresAt }`; the host starts the API connection with intent `ADMIN_SURFACE_ACTION_INTENTS[action]` | declared connection and start parameters, string values ≤ 2048, ≤ 16 scope-set ids, a signed-in admin (`principalId`) |
 | | `confirmSwitch`, `cancelSwitch` → status; `disconnect` → status + `revocation: 'confirmed' \| 'pending' \| 'not-needed'` | declared connection, a signed-in admin |
 | | `takeCallbackFields({ connectionId, attemptId })` → declared fields or `null` | declared connection, opaque attempt id, undeclared fields dropped |
@@ -234,7 +253,9 @@ the plugin's agent tools' read-only `state.get` (`../lifecycle/tools/README.md`)
 under the same keys, so a setting the surface saves (a product turned off) is what the tools honor; map
 `status` scopes to the plugin's scope-set ids; `disconnect` returns `confirmed` only when the provider
 confirmed (`revocation` uses the API-connection values `confirmed | pending | not-needed`, and
-`status` its four lifecycle values, so the host passes both through); never return a refresh token or secret from any port; give `publicConfig` only public values.
+`status` its four lifecycle values, so the host passes both through); fill `lastSignInAttempt` with
+your OWN codes for a sign-in that did not complete (for example `access-denied` + `reconnect`), never
+the provider's error text; never return a refresh token or secret from any port; give `publicConfig` only public values.
 
 Callback fields: when a sign-in started by `begin` completes successfully, the host's callback route
 deposits the provider's extra fields into `createAdminSurfaceCallbackInbox({ now })` (in-process,

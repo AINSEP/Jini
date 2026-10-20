@@ -41,8 +41,9 @@ export interface AgentPluginToolCapabilities {
   readonly http: { fetch(required: { readonly url: string }, optional?: AgentPluginHttpOptions): Promise<Response> };
   /** Plugin-declared budgets; the host keys and sizes them. */
   readonly limiter: { check(required: { readonly key: string }, optional?: Record<string, never>): Promise<AgentPluginLimitResult> };
-  /** Stores a file the run can hand to the user; returns an opaque reference, never a path. */
-  readonly artifacts: { write(required: { readonly name: string; readonly mediaType: string; readonly content: string | Uint8Array }, optional?: Record<string, never>): Promise<{ readonly artifactRef: string }> };
+  /** Stores a file the run can hand to the user; returns an opaque reference, never a path. Absent
+   *  when the host has no artifact store, so a tool checks `capabilities.artifacts` before relying on it. */
+  readonly artifacts?: { write(required: { readonly name: string; readonly mediaType: string; readonly content: string | Uint8Array }, optional?: Record<string, never>): Promise<{ readonly artifactRef: string }> };
   /** The SAME store the plugin's admin-surface state writes, keyed by the same plugin and workspace
    *  scope. Read-only here: the session exposes `get` alone whatever object the host passes. */
   readonly state: AgentPluginStateReader;
@@ -159,17 +160,20 @@ export function openCapabilityGate(required: { readonly isLive: () => boolean; r
 }
 
 export type AgentPluginCapabilityGate = ReturnType<typeof openCapabilityGate>;
+type ArtifactWriteInput = Parameters<NonNullable<AgentPluginToolCapabilities['artifacts']>['write']>[0];
 
-/** The host capabilities every session wraps the same way: guarded HTTP, limiter and artifacts. @complexity O(1). */
+/** The host capabilities every session wraps the same way: guarded HTTP, limiter and artifacts
+ * (artifacts only when the host gives a store: absent stays absent, never a wrapper that throws). @complexity O(1). */
 export function guardSharedCapabilities(
   required: { readonly gate: AgentPluginCapabilityGate; readonly host: Pick<AgentPluginToolCapabilities, 'http' | 'limiter' | 'artifacts'> },
   _optional: Record<string, never> = {},
 ): Pick<AgentPluginToolCapabilities, 'http' | 'limiter' | 'artifacts'> {
   const { gate: { guard }, host } = required;
+  const { artifacts } = host;
   return {
     http: Object.freeze({ fetch: guard((input: { readonly url: string }, options?: AgentPluginHttpOptions) => host.http.fetch(input, options)) }),
     limiter: Object.freeze({ check: guard((input: { readonly key: string }) => host.limiter.check(input)) }),
-    artifacts: Object.freeze({ write: guard((input: Parameters<AgentPluginToolCapabilities['artifacts']['write']>[0]) => host.artifacts.write(input)) }),
+    ...(artifacts !== undefined && { artifacts: Object.freeze({ write: guard((input: ArtifactWriteInput) => artifacts.write(input)) }) }),
   };
 }
 

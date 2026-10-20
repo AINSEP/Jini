@@ -25,7 +25,8 @@ export interface AdminSurfaceMountRecord {
   readonly mountId: string;
   /** The frame's `contentWindow`; the event's `source` must be this exact object. */
   readonly frame: unknown;
-  readonly descriptor: Pick<AdminSurfaceDescriptor, 'actions'>;
+  /** `linkOrigins` matters only to `openAdminSurfaceLink`; a record without it opens no links. */
+  readonly descriptor: Pick<AdminSurfaceDescriptor, 'actions' | 'linkOrigins'>;
 }
 
 /** `ignored`: not addressed to this mount; drop silently. `refused`: this mount's request was invalid;
@@ -35,7 +36,7 @@ export type AdminSurfaceMessageVerdict =
   | { readonly ok: false; readonly ignored: string }
   | { readonly ok: false; readonly refused: string; readonly response: AdminSurfaceActionResponse };
 
-const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+export const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 function isRequestEnvelope(data: unknown): data is AdminSurfaceActionRequest {
   if (typeof data !== 'object' || data === null) return false;
@@ -50,11 +51,19 @@ function hasRequestFields(message: Readonly<Record<string, unknown>>): boolean {
 }
 
 /** Character length of the payload as JSON, or Infinity when it is not JSON-serializable. */
-/** Which transport check `event` fails for `mount`, or `null` when it is this mount's well-formed request. */
-function transportRefusal(event: AdminSurfaceMessageEvent, mount: AdminSurfaceMountRecord): string | null {
+/** Whether `event` comes from `mount`'s frame at all (origin and window), for every inbound message kind.
+ * @returns The failed check, or `null`. @complexity O(1). */
+export function frameTransportRefusal(required: { readonly event: AdminSurfaceMessageEvent; readonly mount: Pick<AdminSurfaceMountRecord, 'frame'> }, _optional: Record<string, never> = {}): string | null {
+  const { event, mount } = required;
   // "null" is the origin of every frame sandboxed with `allow-scripts` only; nothing else may speak for a mount.
   if (event.origin !== SANDBOXED_FRAME_ORIGIN) return 'origin-mismatch';
-  if (event.source !== mount.frame) return 'source-mismatch';
+  return event.source === mount.frame ? null : 'source-mismatch';
+}
+
+/** Which transport check `event` fails for `mount`, or `null` when it is this mount's well-formed request. */
+function transportRefusal(event: AdminSurfaceMessageEvent, mount: AdminSurfaceMountRecord): string | null {
+  const frame = frameTransportRefusal({ event, mount });
+  if (frame !== null) return frame;
   if (!isRequestEnvelope(event.data)) return 'not-an-action-request';
   return event.data.mountId === mount.mountId ? null : 'mount-mismatch';
 }

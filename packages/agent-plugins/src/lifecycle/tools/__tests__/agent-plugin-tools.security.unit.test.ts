@@ -7,7 +7,7 @@
 import { expect, test } from 'vitest';
 import { ToolInputError } from '@jini-ai/core';
 import { createPluginContributionRegistry, pluginToolIdFor } from '@jini-ai/plugins/host';
-import { ISSUED_TOKEN_MEMORY_LIMIT, openCapabilityGate, REVOKED_MESSAGE, WITHHELD_ERROR_MESSAGE, WITHHELD_OUTPUT_MESSAGE, type AgentPluginToolCapabilities, createIssuedTokenMemories } from '../capabilities.js';
+import { ISSUED_TOKEN_MEMORY_LIMIT, openCapabilityGate, openCapabilitySession, REVOKED_MESSAGE, WITHHELD_ERROR_MESSAGE, WITHHELD_OUTPUT_MESSAGE, type AgentPluginToolCapabilities, createIssuedTokenMemories } from '../capabilities.js';
 import type { LoadedAgentPluginTool } from '../definition.js';
 import { createAgentPluginToolProjection } from '../projection.js';
 import { setAgentPluginActivation } from '../../__tests__/test-support.js';
@@ -200,7 +200,14 @@ test('disabling the plugin removes its tools, refuses authorized and direct call
     await expect(kept.connections.getAccessToken({ connectionRef: 'c1' })).rejects.toThrow(REVOKED_MESSAGE);
     await expect(kept.http.fetch({ url: 'https://api.example.test/' })).rejects.toThrow(REVOKED_MESSAGE);
     await expect(kept.limiter.check({ key: 'k' })).rejects.toThrow(REVOKED_MESSAGE);
-    await expect(kept.artifacts.write({ name: 'a.csv', mediaType: 'text/csv', content: 'a' })).rejects.toThrow(REVOKED_MESSAGE);
+    await expect(kept.artifacts!.write({ name: 'a.csv', mediaType: 'text/csv', content: 'a' })).rejects.toThrow(REVOKED_MESSAGE);
     expect(harness.log.tokenRequests).toEqual([]);
   });
+});
+
+test('a host without an artifact store leaves artifacts absent, not a wrapper that throws', () => {
+  const { artifacts: _omitted, ...host } = fakeCapabilities({ tokenRequests: [], requests: [] });
+  const { capabilities } = openCapabilitySession({ capabilities: host, isLive: () => true, issued: createIssuedTokenMemories().forPlugin({ pluginId: 'acme-office' }) });
+  expect(Object.hasOwn(capabilities, 'artifacts')).toBe(false);
+  expect(capabilities.artifacts).toBeUndefined();
 });

@@ -46,7 +46,7 @@ const saveModule = (save: AdminSurfaceHandlerModule['actions'][string]): AdminSu
 function hostFor(entries: readonly LoadedAdminSurfaceHandlers[]) {
   const scopes: string[] = [];
   const { log, port } = createFakeSurfaceHost();
-  const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: (scope) => { scopes.push(scope.pluginId); return port(scope); } });
+  const host = createAdminSurfaceHandlerHost({ hostKind: 'hosted', issuedTokens: createIssuedTokenMemories(), capabilities: (scope) => { scopes.push(scope.pluginId); return port(scope); } });
   const { refusals } = host.sync({ loaded: entries, refusals: [] });
   return { host, refusals, scopes, log };
 }
@@ -220,7 +220,7 @@ describe('dispatch through plugin handlers', () => {
     const { host, scopes } = hostFor([loaded(saveModule(async ({ context, capabilities }) => { seen.push(context); await capabilities.limiter.check({ key: 'k' }); return { saved: true }; }))]);
     await dispatcherFor(host).dispatch({ action: 'save', payload: { name: 'x' }, context: { ...CONTEXT, pluginId: 'other-plugin', surfaceId: 'other' } });
     expect(scopes).toEqual([PLUGIN]);
-    expect(seen).toEqual([{ workspaceId: WORKSPACE_ID, principalId: 'admin-1', pluginId: PLUGIN, surfaceId: 'settings', connectionIds: ['c1'] }]);
+    expect(seen).toEqual([{ workspaceId: WORKSPACE_ID, principalId: 'admin-1', pluginId: PLUGIN, surfaceId: 'settings', connectionIds: ['c1'], hostKind: 'hosted' }]);
   });
 });
 
@@ -285,12 +285,36 @@ describe('disabling the plugin revokes its handlers', () => {
     await withWorkspace(async (workspaceRoot) => {
       await installPlugin({ workspaceRoot, pluginId: PLUGIN, files: { [FILENAME]: surfacesFile(), 'surface/index.html': '<!doctype html>', 'surface/app.mjs': 'export {};',
         'server/handlers.mjs': 'export default { actions: { async save() { return { saved: true }; } } };\n' } });
-      const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: createFakeSurfaceHost().port });
+      const host = createAdminSurfaceHandlerHost({ hostKind: 'hosted', issuedTokens: createIssuedTokenMemories(), capabilities: createFakeSurfaceHost().port });
       host.sync(await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition }).then(({ items, refusals }) => ({ loaded: items, refusals })));
       expect(Object.keys(host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }))).toEqual(['save']);
       await setAgentPluginActivation({ workspaceRoot, pluginId: PLUGIN, enabled: false, actor: 'test' }, { origin: 'bundled' });
       host.sync(await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition }).then(({ items, refusals }) => ({ loaded: items, refusals })));
       expect(host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' })).toEqual({});
     });
+  });
+});
+
+describe('the host kind is the host\'s, never the caller\'s or the plugin\'s', () => {
+  const desktopHost = (module: AdminSurfaceHandlerModule, overrides: Record<string, unknown> = {}) => {
+    const host = createAdminSurfaceHandlerHost({ hostKind: 'desktop', issuedTokens: createIssuedTokenMemories(), capabilities: createFakeSurfaceHost().port });
+    host.sync({ loaded: [loaded(module, overrides)], refusals: [] });
+    return host;
+  };
+  test('a handler sees the host-supplied hostKind even when the caller context claims another', async () => {
+    const seen: string[] = [];
+    const host = desktopHost(saveModule(async ({ context }) => { seen.push(context.hostKind); return { saved: true }; }));
+    // Malformed input on purpose: a caller context carrying a hostKind field the host must override.
+    await dispatcherFor(host).dispatch({ action: 'save', payload: { name: 'x' }, context: { ...CONTEXT, hostKind: 'hosted' } as typeof CONTEXT });
+    expect(seen).toEqual(['desktop']);
+  });
+  test('a bootstrap provider sees the host-supplied hostKind', async () => {
+    const host = desktopHost({ actions: {}, bootstrap: async ({ context }) => ({ accessToken: context.hostKind }) }, { actions: [], bootstrap });
+    expect(await host.bootstrapData({ context: CONTEXT })).toEqual({ accessToken: 'desktop' });
+  });
+  test('a hostKind outside hosted and desktop is refused when the host is built', () => {
+    // Malformed input on purpose: a JavaScript host passing an unchecked config value.
+    expect(() => createAdminSurfaceHandlerHost({ hostKind: 'mobile' as 'hosted', issuedTokens: createIssuedTokenMemories(), capabilities: createFakeSurfaceHost().port }))
+      .toThrow("createAdminSurfaceHandlerHost: hostKind must be 'hosted' or 'desktop'.");
   });
 });

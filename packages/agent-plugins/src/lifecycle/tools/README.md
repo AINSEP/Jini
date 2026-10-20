@@ -103,7 +103,7 @@ The host passes `capabilities: ({ pluginId, workspaceId, principalId?, signal? }
 - `http.fetch({ url }, { method, headers, body, signal })` — the host's guarded HTTP client.
 - `limiter.check({ key })` — `{ allowed: true } | { allowed: false, retryAfterSeconds }`, the same shape
   as `@jini-ai/http-kit`'s `RateLimiter.check`.
-- `artifacts.write({ name, mediaType, content })` — returns `{ artifactRef }`.
+- `artifacts.write({ name, mediaType, content })` — returns `{ artifactRef }`. Optional: absent (not a throwing stub) when the host has no artifact store, so a tool checks `capabilities.artifacts` before relying on it.
 - `state.get({ key })` — the plugin's own settings, read-only (`null` when unset). The host backs it with
   the SAME store the plugin's admin-surface `state` writes, keyed by the same plugin and workspace, so a
   flag the surface saves (for example "this product is off") is what the tool reads and must honor.
