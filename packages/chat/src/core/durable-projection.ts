@@ -22,6 +22,21 @@ function textOf(events: readonly AgentEvent[]): string {
   return events.filter((event) => event.kind === 'text').map((event) => event.text).join('');
 }
 
+/** Records `key` and reports whether it was new, so each identifiable event is merged once. */
+function claimNewKey({ key, keys }: { key: string; keys: Set<string> }): boolean {
+  if (keys.has(key)) return false;
+  keys.add(key);
+  return true;
+}
+
+const NO_ROLLOUT = /no rollout found for thread id/;
+
+/** The missing native resume diagnostic, in either the status or the raw-line form a runtime emits. */
+function isNoRolloutDiagnostic({ event }: { event: AgentEvent }): boolean {
+  if (event.kind === 'status') return NO_ROLLOUT.test(`${event.label}\n${event.detail ?? ''}`);
+  return event.kind === 'raw' && NO_ROLLOUT.test(event.line);
+}
+
 /** Saved checkpoints can coalesce deltas and a completion may replay only a prefix. Keep the
  * saved projection, merge identifiable events, and append only text beyond its saved prefix. */
 export function mergeRunEvents({ saved, incoming }: { saved?: readonly AgentEvent[] | undefined; incoming: readonly AgentEvent[] }, _optional = {}): AgentEvent[] {
@@ -38,12 +53,8 @@ export function mergeRunEvents({ saved, incoming }: { saved?: readonly AgentEven
       const text = event.text.slice(skip);
       skip = Math.max(0, skip - event.text.length);
       if (text) result.push({ ...event, text });
-    } else {
-      const key = identity(event, incomingUsage);
-      if (!keys.has(key)) {
-        keys.add(key);
-        result.push(event);
-      }
+    } else if (claimNewKey({ key: identity(event, incomingUsage), keys })) {
+      result.push(event);
     }
   }
   return result;
@@ -82,14 +93,11 @@ export function recoveredRunEvents({ saved }: { saved: readonly AgentEvent[] }, 
     // A missing rollout is an expected reconstruction fallback, not a failed user turn. Keep an
     // invisible attempt marker for fencing/diagnostic offsets, and preserve all unrelated work.
     const attemptStart = saved.findLastIndex(event => event.kind === 'status' && event.code === 'run_recovering') + 1;
-    const diagnostic = saved.findIndex((event, index) => index >= attemptStart && (
-      (event.kind === 'status' && /no rollout found for thread id/.test(`${event.label}\n${event.detail ?? ''}`)) ||
-      (event.kind === 'raw' && /no rollout found for thread id/.test(event.line))));
+    const diagnostic = saved.findIndex((event, index) => index >= attemptStart && isNoRolloutDiagnostic({ event }));
     const events = saved.filter((event, index) => {
       if (diagnostic < 0 || index < attemptStart) return true;
-      if (event.kind === 'raw') return !/no rollout found for thread id/.test(event.line);
-      if (event.kind === 'status') return event.label !== 'Run failed — the agent process exited without answering' && !/no rollout found for thread id/.test(`${event.label}\n${event.detail ?? ''}`);
-      return true;
+      if (event.kind === 'status' && event.label === 'Run failed — the agent process exited without answering') return false;
+      return !isNoRolloutDiagnostic({ event });
     });
     return [...events, { kind: 'status', code: 'run_recovering', label: '' }];
   }
