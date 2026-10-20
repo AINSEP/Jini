@@ -311,3 +311,23 @@ describe('renderFieldControl exact markup', () => {
     expect(renderFieldControl({ kind: 'string', name: 's', label: 'S', secret: true, multiline: true }, { showSecret: 'Reveal', hideSecret: 'Conceal' })).toMatchSnapshot();
   });
 });
+
+// Exact-output pins for each control shape renderTextInput can emit, captured on the pre-refactor code.
+describe('renderTextInput exact markup', () => {
+  const shared = { name: 'f', label: 'F', hint: 'Help', placeholder: 'p<"', required: true, disabled: true } as const;
+  const cases: ReadonlyArray<readonly [string, Parameters<typeof renderTextInput>[0]]> = [
+    ['text input with escaped value', { ...shared, value: 'a&<"b' }],
+    ['bare text input', { name: 'f', label: 'F' }],
+    ['number input with constraints and numeric value', { ...shared, inputType: 'number', value: 7, min: 1, max: 9, step: 2 }],
+    ['number input ignores multiline and secret', { name: 'f', label: 'F', inputType: 'number', multiline: true, secret: true, rows: 4 }],
+    ['password input', { ...shared, secret: true }],
+    ['plain textarea with rows and value', { ...shared, multiline: true, rows: 5, value: 'line1\nline2' }],
+    ['bare textarea', { name: 'f', label: 'F', multiline: true }],
+    ['secret textarea with default reveal text', { ...shared, multiline: true, secret: true }],
+    ['secret textarea with host reveal text', { name: 'f', label: 'F', multiline: true, secret: true, showSecret: 'Reveal<', hideSecret: 'Conceal"' }],
+    ['explicit text input type', { name: 'f', label: 'F', inputType: 'text', secret: false, min: 1 }],
+  ];
+  it.each(cases)('%s', (_name, props) => {
+    expect(renderTextInput(props)).toMatchSnapshot();
+  });
+});

@@ -131,3 +131,79 @@ exports[`renderFieldControl exact markup > string, no props 1`] = `
 <input class="mcpui-input" type="text" id="mcpui-field-s" name="s">
 </div>"
 `;
+
+exports[`renderTextInput exact markup > bare text input 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-f">F</label>
+<input class="mcpui-input" type="text" id="mcpui-field-f" name="f">
+</div>"
+`;
+
+exports[`renderTextInput exact markup > bare textarea 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-f">F</label>
+<textarea class="mcpui-textarea" id="mcpui-field-f" name="f"></textarea>
+</div>"
+`;
+
+exports[`renderTextInput exact markup > explicit text input type 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-f">F</label>
+<input class="mcpui-input" type="text" id="mcpui-field-f" name="f">
+</div>"
+`;
+
+exports[`renderTextInput exact markup > number input ignores multiline and secret 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-f">F</label>
+<input class="mcpui-input" type="number" id="mcpui-field-f" name="f">
+</div>"
+`;
+
+exports[`renderTextInput exact markup > number input with constraints and numeric value 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-f">F<span class="mcpui-required" aria-hidden="true">*</span></label>
+<span class="mcpui-hint" id="mcpui-field-f-hint">Help</span>
+<input class="mcpui-input" type="number" id="mcpui-field-f" name="f" placeholder="p&lt;&quot;" required disabled aria-describedby="mcpui-field-f-hint" value="7" min="1" max="9" step="2">
+</div>"
+`;
+
+exports[`renderTextInput exact markup > password input 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-f">F<span class="mcpui-required" aria-hidden="true">*</span></label>
+<span class="mcpui-hint" id="mcpui-field-f-hint">Help</span>
+<input class="mcpui-input" type="password" id="mcpui-field-f" name="f" placeholder="p&lt;&quot;" required disabled aria-describedby="mcpui-field-f-hint" autocomplete="new-password">
+</div>"
+`;
+
+exports[`renderTextInput exact markup > plain textarea with rows and value 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-f">F<span class="mcpui-required" aria-hidden="true">*</span></label>
+<span class="mcpui-hint" id="mcpui-field-f-hint">Help</span>
+<textarea class="mcpui-textarea" id="mcpui-field-f" name="f" placeholder="p&lt;&quot;" required disabled aria-describedby="mcpui-field-f-hint" rows="5">line1
+line2</textarea>
+</div>"
+`;
+
+exports[`renderTextInput exact markup > secret textarea with default reveal text 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-f">F<span class="mcpui-required" aria-hidden="true">*</span></label>
+<span class="mcpui-hint" id="mcpui-field-f-hint">Help</span>
+<textarea class="mcpui-textarea" id="mcpui-field-f" name="f" placeholder="p&lt;&quot;" required disabled aria-describedby="mcpui-field-f-hint" data-mcpui-secret style="-webkit-text-security: disc;" autocomplete="off" spellcheck="false"></textarea><button type="button" class="mcpui-button" data-mcpui-secret-toggle="mcpui-field-f" data-mcpui-show-secret="Show" data-mcpui-hide-secret="Hide" aria-controls="mcpui-field-f" aria-pressed="false" disabled>Show</button>
+</div>"
+`;
+
+exports[`renderTextInput exact markup > secret textarea with host reveal text 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-f">F</label>
+<textarea class="mcpui-textarea" id="mcpui-field-f" name="f" data-mcpui-secret style="-webkit-text-security: disc;" autocomplete="off" spellcheck="false"></textarea><button type="button" class="mcpui-button" data-mcpui-secret-toggle="mcpui-field-f" data-mcpui-show-secret="Reveal&lt;" data-mcpui-hide-secret="Conceal&quot;" aria-controls="mcpui-field-f" aria-pressed="false">Reveal&lt;</button>
+</div>"
+`;
+
+exports[`renderTextInput exact markup > text input with escaped value 1`] = `
+"<div class="mcpui-field">
+<label class="mcpui-label" for="mcpui-field-f">F<span class="mcpui-required" aria-hidden="true">*</span></label>
+<span class="mcpui-hint" id="mcpui-field-f-hint">Help</span>
+<input class="mcpui-input" type="text" id="mcpui-field-f" name="f" placeholder="p&lt;&quot;" required disabled aria-describedby="mcpui-field-f-hint" value="a&amp;&lt;&quot;b">
+</div>"
+`;
