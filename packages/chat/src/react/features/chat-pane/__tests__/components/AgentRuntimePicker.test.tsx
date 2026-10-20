@@ -478,6 +478,39 @@ describe('AgentRuntimePicker', () => {
       expect(within(trigger).queryByText('Claude Code')).not.toBeInTheDocument();
     });
 
+    it('serves the provider mark from a host-vendored icon directory when agentIconBasePath is set', () => {
+      render(
+        <AgentRuntimePicker
+          agents={agents}
+          value={{ agentId: 'claude' }}
+          onChange={() => {}}
+          executionMode="api"
+          apiModeAvailable
+          byokRuntime={{ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite', iconId: 'gemini' }}
+          agentIconBasePath="/vendor-icons"
+        />,
+      );
+      const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
+      expect(trigger.querySelector('img')).toHaveAttribute('src', '/vendor-icons/gemini.svg');
+    });
+
+    it('offers the model picker with nothing chosen and no "set a model" warning when no model is configured yet', async () => {
+      render(
+        <AgentRuntimePicker
+          agents={agents}
+          value={{ agentId: 'claude' }}
+          onChange={() => {}}
+          executionMode="api"
+          apiModeAvailable
+          byokRuntime={{ providerLabel: 'Google Gemini', models: [{ id: 'gemini-3.1-pro-preview', label: 'gemini-3.1-pro-preview' }] }}
+          onByokModelChange={() => {}}
+        />,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+      expect(document.querySelector('.jini-runtime-byok-model .jini-select-trigger')).toBeInTheDocument();
+      expect(screen.queryByText('Set a model in the BYOK settings before sending a message.')).not.toBeInTheDocument();
+    });
+
     it('renders a real model picker when the host supplies a list and a writer', async () => {
       const onByokModelChange = vi.fn();
       render(
@@ -731,6 +764,17 @@ describe('AgentRuntimePicker', () => {
    * per-agent projection of that def-level fact; this only asserts the picker's own reaction to it,
    * not the derivation itself (covered by `registry.test.ts`).
    */
+  it('serves the CLI marks on the trigger and in the agent list from a host-vendored icon directory', async () => {
+    render(
+      <AgentRuntimePicker agents={agents} value={{ agentId: 'codex' }} onChange={() => {}} agentIconBasePath="/vendor-icons" />,
+    );
+    const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
+    expect(trigger.querySelector('img')).toHaveAttribute('src', '/vendor-icons/codex.svg');
+    await userEvent.click(trigger);
+    const radio = screen.getByRole('radio', { name: /Claude Code/ });
+    expect(radio.querySelector('img')).toHaveAttribute('src', '/vendor-icons/claude.svg');
+  });
+
   it('badges a runtime that cannot receive tools, and leaves tool-capable ones unbadged', async () => {
     const mixedAgents: ChatPaneAgent[] = [
       { id: 'claude', name: 'Claude Code', available: true, supportsTools: true },
