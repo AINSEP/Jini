@@ -41,13 +41,13 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 ## Lot status
 | Lot | Status | Branch | Commits | worst before→after | coverage | verify |
 |---|---|---|---|---|---|---|
-| L026 | REVIEW FIX in progress | cloud/w2-platform-L026 | d90a6582 d8188819 f1ea963e 347edbaa 99b75d01 5f217f73 e68b5d2a ea952781 | all 8 files →≤10 (worst was 25/29) | 100/100/100 all eight (agent-reported; verify at merge) | BLOCKED: e68b5d2a records retiredSource after dir fsync → on fsync EIO rollback deletes target without restoring source. Fresh fix agent dispatched. |
+| L026 | MERGED | cloud/w2-platform-L026 | d90a6582 d8188819 f1ea963e 347edbaa 99b75d01 5f217f73 e68b5d2a ea952781 + fix be475003 | atomic-write 20/23, boot-identity 15/16, running-lock 16, durable-json 17, guarded-reader 11/12, user-data-dirs 25, dir-move 25/23, file-reloc 18/29 → all ≤10 | 100/100/100 all eight | eslint0, tsc0, 504 fs tests (+1 pre-existing root skip). Review caught retiredSource-after-fsync regression in e68b5d2a → fixed by fresh agent in be475003 with pin test (green on old, red on refactor). |
 | L034 | MERGED | cloud/w2-platform-L034 | 9db42c18, e7ea61b5, 00b693a8, 5544c75c, 06768f1a | meta 20/19→9/8; repo.memory 17/17→9/7; service 38/22→10/8; types 21/12→7/8; keyring.env 11→8/5 | 100/100/100 all five | eslint0, tsc0, 314 secrets tests; wire-format pin unchanged; packages/db vault contract 34/34 green vs rebuilt platform dist |
 | L056 | MERGED | cloud/w2-platform-L056 | d6a5ca93, 718e47bf, 51fd1da4, db12b9db | toolchain 26/37→10/9; proxy-env 17/19→10/7; download 15/13→10/10 | 100/100/100 all three | eslint0, tsc0, 179 pass + 3 pre-existing skipIf(root) |
 | L093 | MERGED | cloud/w2-platform-L093 | e85550e1, 5634636b | address 30/41→10/10 (expandIpv6 untouched, isPrivateAddress 4/2); endpoint-policy 14→6/5 | 100/100/100 both | eslint0, tsc0, 265 tests green |
 | L110 | MERGED | cloud/w2-platform-L110 | fe57e091, 63cd031a | client 23/19→≤10; fetch-adapter 17/11→≤10 | 100/100/100 both (was 94%/75% branch) | eslint0, tsc0, 166 tests green |
 | L230 | MERGED | cloud/w2-platform-L230 | 8029339b, d83b96f0 | asset-cache 10/11→≤10/7; blob-storage 9/14→9/9 | 100/100/100 both | eslint0, tsc0, 220 tests |
-| L271 | waiting on L026 | | | | | |
+| L271 | running | cloud/w2-platform-L271 | | | | |
 
 ## Problems / notes
 - Baseline whole suite (unmodified tree @6bc87468): 77 files, 1173 passed, 6 skipped, 18s, exit 0.
