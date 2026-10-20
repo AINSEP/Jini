@@ -140,4 +140,34 @@ describe('createHexEnvelopeAudioParser', () => {
     it('throws when the hex payload decodes to zero bytes', async () => {
         await expect(parser({ resp: okResponse({ data: { audio: 'zz' } }), ctx: baseCtx(), request: req(meta) })).rejects.toThrow(/decoded zero bytes/);
     });
+    it('succeeds when base_resp is absent entirely', async () => {
+        const result = await parser({ resp: okResponse({ data: { audio: Buffer.from('ab').toString('hex') } }), ctx: baseCtx(), request: req(meta) });
+        expect(result.bytes.toString('utf8')).toBe('ab');
+    });
+    it('treats a base_resp without a status_code as an api error ("undefined" code, "unknown" message)', async () => {
+        await expect(parser({ resp: okResponse({ base_resp: {}, data: { audio: Buffer.from('x').toString('hex') } }), ctx: baseCtx(), request: req(meta) })).rejects.toThrow(/^acme tts api error undefined: unknown$/);
+    });
+    it('throws missing data.audio when data.audio is an empty string', async () => {
+        await expect(parser({ resp: okResponse({ data: { audio: '' } }), ctx: baseCtx(), request: req(meta) })).rejects.toThrow(/^acme tts response missing data\.audio$/);
+    });
+    it('throws missing data.audio when data.audio is not a string', async () => {
+        await expect(parser({ resp: okResponse({ data: { audio: 42 } }), ctx: baseCtx(), request: req(meta) })).rejects.toThrow(/^acme tts response missing data\.audio$/);
+    });
+    it('throws missing data.audio when the body has no data object', async () => {
+        await expect(parser({ resp: okResponse({}), ctx: baseCtx(), request: req(meta) })).rejects.toThrow(/^acme tts response missing data\.audio$/);
+    });
+    it('reports "?" seconds when extra_info.audio_length is 0', async () => {
+        const result = await parser({ resp: okResponse({ data: { audio: Buffer.from('x').toString('hex') }, extra_info: { audio_length: 0 } }), ctx: baseCtx(), request: req(meta) });
+        expect(result.providerNote).toBe('acme/acme-v2 · voice-1 · ?s · 1 bytes');
+    });
+    it('rounds audio_length milliseconds to tenths of a second', async () => {
+        const result = await parser({ resp: okResponse({ data: { audio: Buffer.from('x').toString('hex') }, extra_info: { audio_length: 1234 } }), ctx: baseCtx(), request: req(meta) });
+        expect(result.providerNote).toBe('acme/acme-v2 · voice-1 · 1.2s · 1 bytes');
+    });
+    it('truncates a long non-JSON body to 200 chars plus an ellipsis', async () => {
+        await expect(parser({ resp: new Response('x'.repeat(300), { status: 200 }), ctx: baseCtx(), request: req(meta) })).rejects.toThrow(/^acme tts non-JSON: x{199}…$/);
+    });
+    it('throws a raw TypeError on a JSON `null` body instead of a tagged error (reported, not fixed)', async () => {
+        await expect(parser({ resp: new Response('null', { status: 200 }), ctx: baseCtx(), request: req(meta) })).rejects.toThrow(TypeError);
+    });
 });
