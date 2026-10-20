@@ -595,6 +595,17 @@ export function agentExecutableRepairState(result: {
   return { detectedPath, canUseDetected: true };
 }
 
+/** Resolves alias evidence to a concrete picker row; other rows retain their identity. */
+function resolvedPickerModelOption(
+  { model }: { model: AgentModelOption },
+  _optional: Record<string, never> = {},
+): AgentModelOption {
+  const resolvedId = model.identityKind === 'alias' ? model.resolvedId : undefined;
+  if (!resolvedId) return model;
+  const label = model.label === model.id ? resolvedId : model.label;
+  return { ...model, id: resolvedId, label, identityKind: 'concrete' };
+}
+
 /**
  * Builds picker rows from catalog evidence without changing the source catalog. Resolved aliases
  * share a concrete row; unresolved aliases and routing modes remain selectable as reported.
@@ -609,12 +620,11 @@ export function pickerModelOptions(
 ): AgentModelOption[] {
   const choices = new Map<string, AgentModelOption>();
   for (const model of models) {
-    const resolvedId = model.identityKind === 'alias' ? model.resolvedId : undefined;
-    const id = resolvedId || model.id;
-    const label = model.label === model.id ? id : model.label;
+    const option = resolvedPickerModelOption({ model });
+    const { id, label } = option;
     const existing = choices.get(id);
     if (!existing) {
-      choices.set(id, resolvedId ? { ...model, id, label, identityKind: 'concrete' } : model);
+      choices.set(id, option);
     } else if (existing.label === id && label !== id) {
       choices.set(id, { ...existing, label });
     }
