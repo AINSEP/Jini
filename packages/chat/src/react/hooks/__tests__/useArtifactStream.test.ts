@@ -74,4 +74,39 @@ describe('useArtifactStream', () => {
     const { result: r2 } = renderHook(() => useArtifactStream({ content: withNeither }));
     expect(r2.current.items[0]?.file.name).toBe('artifact');
   });
+
+  it('lists two closed artifacts oldest first, with current pointing at the last one', () => {
+    const content =
+      '<artifact identifier="a" type="text/html" title="A">\none\n</artifact>\n' +
+      '<artifact identifier="b" type="text/html" title="B">\ntwo\n</artifact>';
+    const { result } = renderHook(() => useArtifactStream({ content: content }));
+    expect(result.current.items.map((i) => [i.identifier, i.status])).toEqual([
+      ['a', 'complete'],
+      ['b', 'complete'],
+    ]);
+    expect(result.current.items[1]?.content.trim()).toBe('two');
+    expect(result.current.current?.identifier).toBe('b');
+  });
+
+  it('reports a still-open artifact that follows a closed one as complete, not streaming (reported, not fixed)', () => {
+    // splitStreamingArtifact only inspects the FIRST real open tag; that one
+    // has a close, so it returns live=null and parseArtifacts' flush then
+    // synthesizes an artifact:end for the trailing open one.
+    const content =
+      '<artifact identifier="a" type="text/html" title="A">\none\n</artifact>\n' +
+      '<artifact identifier="c" type="text/html" title="C">\nthr';
+    const { result } = renderHook(() => useArtifactStream({ content: content }));
+    expect(result.current.items.map((i) => [i.identifier, i.status])).toEqual([
+      ['a', 'complete'],
+      ['c', 'complete'],
+    ]);
+  });
+
+  it('carries type and title through to the item and the synthesized file', () => {
+    const content = '<artifact identifier="page" type="text/html" title="Landing">\n<h1>Hi</h1>\n</artifact>';
+    const { result } = renderHook(() => useArtifactStream({ content: content }));
+    const item = result.current.items[0]!;
+    expect([item.artifactType, item.title]).toEqual(['text/html', 'Landing']);
+    expect(item.file).toEqual({ name: 'page', kind: 'text/html', content: item.content });
+  });
 });
