@@ -35,4 +35,9 @@ Temp eslint config (untracked, git-excluded): `.eslint-cx.tmp.mjs` (complexity 1
 - L085: `selectBeforeMention`/`selectAfterMention` near-duplicates (exported, under limit).
 - L049/L075: lot files not prettier-clean before the wave; left as is.
 
+## Final
+- `pnpm --filter @jini-ai/ui build` ok; `tsc --noEmit -p packages/ui` ok; whole ui suite (`vitest run --maxWorkers=4`): 549 files / 7540 tests passed, 162 s. No failures, so no base comparison needed.
+- Wall time ~45 min (23:59→00:44 UTC). Parallelism: 5 concurrent subagents; all 10 lots completed by one subagent each, none hit the context cap (97k–172k tokens).
+
 ## Next
+- Wave 1 ui done. cloud/w1-ui is ready for owner review/merge into general-work (coordinator never pushes there).
