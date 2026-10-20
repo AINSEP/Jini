@@ -25,17 +25,13 @@ export interface CommentSubmitRequired {
   clientIp: (required: { request: Request }, optional?: Record<string, never>) => string;
 }
 
-/** Resolve with the host's trust policy and hash before the address leaves HTTP. @complexity O(IP length). */
-function hashClientIp(req: Request, deps: CommentSubmitRequired): string {
-  const ip = deps.clientIp({ request: req }, {});
-  return createHash("sha256").update(`${ip}:${deps.ipHashSalt}`).digest("hex");
-}
-
 /** The per-request signal bag (honeypot value, IP hash) — split out of `buildCommentSubmission` so
- * that function's own field count stays clear of the complexity ceiling. @complexity O(1). */
+ * that function's own field count stays clear of the complexity ceiling. @complexity O(IP length). */
 function buildIngressContext(req: Request, deps: CommentSubmitRequired, body: Record<string, unknown>) {
+  // Resolve with the host's trust policy and hash before the address leaves HTTP.
+  const ip = deps.clientIp({ request: req }, {});
   return {
-    authorIpHash: hashClientIp(req, deps),
+    authorIpHash: createHash("sha256").update(`${ip}:${deps.ipHashSalt}`).digest("hex"),
     honeypotValue: typeof body.website === "string" ? body.website : "", // conventional honeypot field name
   };
 }
@@ -61,38 +57,43 @@ function buildCommentSubmission(req: Request, body: Record<string, unknown>, dep
   };
 }
 
+/** Refuses a missing or empty string dep by name. @throws {TypeError} When `value` is not a non-empty string. @complexity O(1). */
+function requireNonEmptyString(required: { name: "workspaceId" | "ipHashSalt"; value: unknown }, _optional: Record<string, never>): void {
+  if (typeof required.value !== "string" || required.value.length === 0) {
+    throw new TypeError(`comments submit handler requires ${required.name}`);
+  }
+}
+
+/** Construction-time refusal of a missing or invalid required port. @throws {TypeError} Naming the first bad dep. @complexity O(1). */
+function assertSubmitDeps(deps: CommentSubmitRequired): void {
+  if (typeof deps?.ingressPolicy?.submit !== "function") {
+    throw new TypeError("comments submit handler requires ingressPolicy");
+  }
+  requireNonEmptyString({ name: "workspaceId", value: deps.workspaceId }, {});
+  requireNonEmptyString({ name: "ipHashSalt", value: deps.ipHashSalt }, {});
+  if (typeof deps.rateLimiter?.check !== "function") {
+    throw new TypeError("comments submit handler requires rateLimiter");
+  }
+  if (typeof deps.clientIp !== "function") {
+    throw new TypeError("comments submit handler requires clientIp");
+  }
+}
+
 /** Builds the anonymous submission handler; the host owns route mounting and salt policy.
  * @throws {TypeError} When ingressPolicy, workspaceId, ipHashSalt, rateLimiter or clientIp is missing or invalid.
  * @returns An Express handler preserving the source route's normalization and HTTP responses.
  * @complexity O(body length) normalization and hashing plus the ingress port's work.
  */
 export function createCommentSubmitHandler(deps: CommentSubmitRequired, _optional: Record<string, never> = {}): RequestHandler {
-  if (!deps?.ingressPolicy || typeof deps.ingressPolicy.submit !== "function") {
-    throw new TypeError("comments submit handler requires ingressPolicy");
-  }
-  if (typeof deps.workspaceId !== "string" || deps.workspaceId.length === 0) {
-    throw new TypeError("comments submit handler requires workspaceId");
-  }
-  if (typeof deps.ipHashSalt !== "string" || deps.ipHashSalt.length === 0) {
-    throw new TypeError("comments submit handler requires ipHashSalt");
-  }
-  if (!deps.rateLimiter || typeof deps.rateLimiter.check !== "function") {
-    throw new TypeError("comments submit handler requires rateLimiter");
-  }
-  if (typeof deps.clientIp !== "function") {
-    throw new TypeError("comments submit handler requires clientIp");
-  }
+  assertSubmitDeps(deps);
   return async (req, res) => {
     try {
       const body = req.body as Record<string, unknown>;
       const submission = buildCommentSubmission(req, body, deps);
       const rateLimit = await deps.rateLimiter.check({ key: String(submission.ingressContext.authorIpHash) });
-      let result: CommentIngressResult;
-      if (rateLimit.allowed) {
-        result = await deps.ingressPolicy.submit(submission);
-      } else {
-        result = { ok: false, reason: "rate-limited" };
-      }
+      const result: CommentIngressResult = rateLimit.allowed
+        ? await deps.ingressPolicy.submit(submission)
+        : { ok: false, reason: "rate-limited" };
 
       if (!result.ok) {
         // No oracle: every rejection reason maps to the SAME generic 422, distinguishable only in

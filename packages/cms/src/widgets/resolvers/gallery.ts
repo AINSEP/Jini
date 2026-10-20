@@ -1,4 +1,4 @@
-import type { WidgetResolver, WidgetResolveResult } from '../types.js';
+import type { WidgetInstanceView, WidgetResolver, WidgetResolveResult } from '../types.js';
 import type { GalleryMediaResolver } from '../gallery-resolver.js';
 import { validateWidgetConfig } from '../config-validation.js';
 import { getWidgetTypeRegistration } from '../registry.js';
@@ -15,20 +15,32 @@ export function createGalleryWidgetResolver(
   _optional: Record<string, never> = {},
 ): WidgetResolver {
   return { async resolveMany(instances, context) {
-    const refs: PageHtmlEmbedRef[] = [];
     const results = new Map<string, WidgetResolveResult>();
+    const embedded: WidgetInstanceView[] = [];
     for (const instance of instances) {
-      const parsed = parseGalleryConfig({ config: instance.config }, { allowEmpty: true });
-      if (!parsed.config || !validateWidgetConfig({ schema: getWidgetTypeRegistration({ typeKey: instance.widgetType === 'media' ? 'media' : 'gallery' }).configSchema, config: instance.config }).valid) { results.set(instance.id, { ok: false, reason: 'resolver-error' }); continue; }
-      if (parsed.config.images.length === 0 && parsed.config.mode !== 'html') {
-        results.set(instance.id, { ok: true, ir: { componentId: instance.widgetType === 'media' ? 'media' : 'gallery', props: { config: instance.config, media: {} } }, dependencyKeys: [instance.id] });
-      } else refs.push({ type: instance.widgetType, id: instance.id, slug: null, name: null, variant: null, header: true, config: instance.config });
+      const settled = settleBeforeMedia({ instance });
+      if (settled) results.set(instance.id, settled);
+      else embedded.push(instance);
     }
+    const refs = embedded.map(({ id, widgetType, config }): PageHtmlEmbedRef => ({ type: widgetType, id, slug: null, name: null, variant: null, header: true, config }));
     const resolved = await resolveGalleryEmbeds({ refs, resolveMedia: ({ refs }) => resolveMedia({ refs, context }) });
-    for (const ref of refs) {
-      const ir = resolved.get(ref.id!);
-      results.set(ref.id!, ir ? { ok: true, ir, dependencyKeys: [ref.id!, ...galleryMediaReferences({ config: ref.config }).map(image => image.mediaId)] } : { ok: false, reason: 'resolver-error' });
+    for (const { id, config } of embedded) {
+      const ir = resolved.get(id);
+      results.set(id, ir ? { ok: true, ir, dependencyKeys: [id, ...galleryMediaReferences({ config }).map(image => image.mediaId)] } : { ok: false, reason: 'resolver-error' });
     }
     return results;
   } };
+}
+
+/** The outcome an instance gets without media: a rejected config or an empty starter.
+ * Undefined means the instance joins the page's one shared embed batch.
+ */
+function settleBeforeMedia({ instance }: { instance: WidgetInstanceView }): WidgetResolveResult | undefined {
+  const typeKey = instance.widgetType === 'media' ? 'media' : 'gallery';
+  const parsed = parseGalleryConfig({ config: instance.config }, { allowEmpty: true });
+  if (!parsed.config || !validateWidgetConfig({ schema: getWidgetTypeRegistration({ typeKey }).configSchema, config: instance.config }).valid) return { ok: false, reason: 'resolver-error' };
+  if (parsed.config.images.length === 0 && parsed.config.mode !== 'html') {
+    return { ok: true, ir: { componentId: typeKey, props: { config: instance.config, media: {} } }, dependencyKeys: [instance.id] };
+  }
+  return undefined;
 }

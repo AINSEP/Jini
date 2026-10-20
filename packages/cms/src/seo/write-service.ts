@@ -72,12 +72,6 @@ export const REGISTERED_KEYS: ReadonlyArray<string> = [
 /** `javascript:`/`data:` (and other script-capable schemes) are never a safe canonical override. */
 const UNSAFE_URL_SCHEME_PATTERN = /^\s*(javascript|data|vbscript|file):/i;
 
-/**
- * Pure validation over a raw patch object. Never mutates; throws the first
- * violation found. Kept separate from the chokepoint so Code Review/tests can
- * exercise it directly if needed, though `setEntrySeoOverrides` is the only
- * caller.
- */
 /** Every patch key must be a known `SeoExtFields` key (INV-01) — checked before any per-field rule. */
 function validateRegisteredKeys(patch: Record<string, unknown>): void {
   for (const key of Object.keys(patch)) {
@@ -126,21 +120,18 @@ function validateBooleanFields(patch: Record<string, unknown>): void {
   }
 }
 
+/** Closed-vocabulary fields and their allowed values, checked in this order. */
+const ENUM_FIELDS: ReadonlyArray<readonly [key: "ogType" | "twitterCard", values: readonly string[]]> = [
+  ["ogType", OG_TYPE_VALUES],
+  ["twitterCard", TWITTER_CARD_VALUES],
+];
+
 /** `null` is the clear sentinel (see file header) — skipped, same as `undefined`. */
 function validateEnumFields(patch: Record<string, unknown>): void {
-  if (
-    patch.ogType !== undefined &&
-    patch.ogType !== null &&
-    !(OG_TYPE_VALUES as readonly unknown[]).includes(patch.ogType)
-  ) {
-    throw new SeoFieldValidationError(`'ogType' must be one of ${OG_TYPE_VALUES.join(", ")}`);
-  }
-  if (
-    patch.twitterCard !== undefined &&
-    patch.twitterCard !== null &&
-    !(TWITTER_CARD_VALUES as readonly unknown[]).includes(patch.twitterCard)
-  ) {
-    throw new SeoFieldValidationError(`'twitterCard' must be one of ${TWITTER_CARD_VALUES.join(", ")}`);
+  for (const [key, values] of ENUM_FIELDS) {
+    const value = patch[key];
+    if (value === undefined || value === null || (values as readonly unknown[]).includes(value)) continue;
+    throw new SeoFieldValidationError(`'${key}' must be one of ${values.join(", ")}`);
   }
 }
 
@@ -156,6 +147,12 @@ async function validateShareImageRefs(media: FeaturedImageDeps, input: SetEntryS
   }
 }
 
+/**
+ * Pure validation over a raw patch object. Never mutates; throws the first
+ * violation found. Kept separate from the chokepoint so Code Review/tests can
+ * exercise it directly if needed, though `setEntrySeoOverrides` is the only
+ * caller.
+ */
 function validateSeoExtFieldsPatch(patch: Record<string, unknown>): void {
   validateRegisteredKeys(patch);
   validateStringLikeFields(patch, STRING_FIELDS, STRING_FIELD_MAX_LENGTH);
@@ -226,6 +223,51 @@ export interface SetEntrySeoOverridesRequired {
  */
 const MAX_MERGE_ATTEMPTS = 3;
 
+type SeoPostRow = NonNullable<Awaited<ReturnType<PostRepoPort["findById"]>>>;
+
+/** The row `patch` turns `existing` into (version bumped) and the override bag it now holds. Pure. */
+function mergePatchIntoRow(required: { existing: SeoPostRow; patch: SeoExtFieldsPatch }): { mergedOverrides: SeoExtFields; updatedRecord: SeoPostRow } {
+  const { existing, patch } = required;
+  const currentOverrides: SeoExtFields = existing.seoExtJson ? JSON.parse(existing.seoExtJson) : {};
+  const mergedOverrides: SeoExtFields = applyOverridesPatch(currentOverrides, patch);
+  const updatedRecord = {
+    ...existing,
+    // Zero remaining keys returns the row to its true original state (`NULL`), not a leftover
+    // `"{}"` — see file header.
+    seoExtJson: Object.keys(mergedOverrides).length === 0 ? null : JSON.stringify(mergedOverrides),
+    version: existing.version + 1,
+  };
+  return { mergedOverrides, updatedRecord };
+}
+
+/** Writes `updatedRecord` only while the row is still at `existing.version`, appending its revision
+ *  in the same transaction. Resolves `false` when another writer won the row. */
+async function saveWithRevision(required: {
+  postRepo: PostRepoPort; clock: ClockPort; existing: SeoPostRow; updatedRecord: SeoPostRow; actorId: string;
+}): Promise<boolean> {
+  const { postRepo, clock, existing, updatedRecord, actorId } = required;
+  // The write and its revision-ledger append are one atomic unit, same discipline as
+  // `createPost`/`updatePost`/`deletePost` (`post.ts`'s own doc on `PostRepoPort.transaction`) —
+  // a revision must never be recorded for a save that didn't apply, and an applied save must
+  // never land unaccompanied by its revision. A `saveIfVersion` miss (lost the race) returns
+  // normally with `applied: false` rather than throwing, so the transaction still commits (a
+  // harmless no-op) and the outer loop retries with a fresh read, exactly as before this change.
+  return postRepo.transaction({ fn: async () => {
+    const { applied: didApply } = await postRepo.saveIfVersion({ record: updatedRecord, ifVersion: existing.version });
+    if (!didApply) return false;
+    await postRepo.appendRevision({
+      postId: updatedRecord.id,
+      workspaceId: updatedRecord.workspaceId,
+      seq: updatedRecord.version,
+      op: "update",
+      stateJson: updatedRecord,
+      actorId,
+      recordedAt: clockNowIso({ clock: clock }),
+    });
+    return true;
+  } });
+}
+
 /**
  * The SEO chokepoint's whole write: read the row, merge the patch onto whatever it currently holds,
  * and persist it ONLY while it is still the row that was read.
@@ -278,37 +320,8 @@ async function mergeOverridesOntoCurrentRow(
     }
     assertEntityLive({ entityType: existing.kind, entityId: input.entryId, state: postRepo.isTrashed({ post: existing }) ? "trashed" : "live" });
 
-    const currentOverrides: SeoExtFields = existing.seoExtJson ? JSON.parse(existing.seoExtJson) : {};
-    const mergedOverrides: SeoExtFields = applyOverridesPatch(currentOverrides, input.patch);
-    const nextVersion = existing.version + 1;
-    const updatedRecord = {
-      ...existing,
-      // Zero remaining keys returns the row to its true original state (`NULL`), not a leftover
-      // `"{}"` — see file header.
-      seoExtJson: Object.keys(mergedOverrides).length === 0 ? null : JSON.stringify(mergedOverrides),
-      version: nextVersion,
-    };
-
-    // The write and its revision-ledger append are one atomic unit, same discipline as
-    // `createPost`/`updatePost`/`deletePost` (`post.ts`'s own doc on `PostRepoPort.transaction`) —
-    // a revision must never be recorded for a save that didn't apply, and an applied save must
-    // never land unaccompanied by its revision. A `saveIfVersion` miss (lost the race) returns
-    // normally with `applied: false` rather than throwing, so the transaction still commits (a
-    // harmless no-op) and the outer loop retries with a fresh read, exactly as before this change.
-    const applied = await postRepo.transaction({ fn: async () => {
-      const { applied: didApply } = await postRepo.saveIfVersion({ record: updatedRecord, ifVersion: existing.version });
-      if (!didApply) return false;
-      await postRepo.appendRevision({
-        postId: updatedRecord.id,
-        workspaceId: updatedRecord.workspaceId,
-        seq: nextVersion,
-        op: "update",
-        stateJson: updatedRecord,
-        actorId: input.callerPrincipalId,
-        recordedAt: clockNowIso({ clock: clock }),
-      });
-      return true;
-    } });
+    const { mergedOverrides, updatedRecord } = mergePatchIntoRow({ existing, patch: input.patch });
+    const applied = await saveWithRevision({ postRepo, clock, existing, updatedRecord, actorId: input.callerPrincipalId });
     if (applied) return mergedOverrides;
   }
 

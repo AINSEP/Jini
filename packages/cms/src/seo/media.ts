@@ -1,6 +1,6 @@
 import type { UUID } from "@jini-ai/core/primitives";
 import type { MediaRecord } from "../media/types.js";
-import type { TransformDefinitionRecord } from "../media/transform-types.js";
+import type { TransformDefinitionRecord, TransformParams } from "../media/transform-types.js";
 import { mimeForTransformFormat, type TransformFormat } from "../core/transform-format.js";
 import type { SeoMediaPort, SeoFeaturedImagePort } from "./ports.js";
 
@@ -84,7 +84,9 @@ async function resolveLatestTransformVersion(
 /** The `/m/{key}/{transformName}.v{version}/image.{ext}` URL contract (ADR-027 §4), keyed by the
  *  asset's current slug when it has a valid one (readable-slugs S4), otherwise its id. */
 function buildSeoImageUrl(deps: ResolveSeoImageRefDeps, asset: MediaRecord, transformName: string, latest: TransformDefinitionRecord): string {
-  const ext = EXT_BY_TRANSFORM_FORMAT[latest.params.format] ?? latest.params.format;
+  // No fallback for an unknown format: `params.format` is a `TransformFormat`, and the transform
+  // registry (`assertValidTransformParams`, the only insert path) refuses any other value.
+  const ext = EXT_BY_TRANSFORM_FORMAT[latest.params.format];
   return deps.featuredImage.mediaPublicPath({ key: deps.featuredImage.mediaUrlKey({ asset }), variant: { kind: "transform", name: transformName, version: latest.version, ext } });
 }
 
@@ -138,28 +140,38 @@ export async function resolveSeoImageDetails(
   const { deps, input } = required;
   const ref = input.ref?.trim();
   if (!ref) return undefined;
-  if (isAbsoluteUrl(ref)) return { url: ref, ...(optional.transformName === undefined ? {} : { ref }) };
+  const provenance = optional.transformName === undefined ? {} : { ref };
+  if (isAbsoluteUrl(ref)) return { url: ref, ...provenance };
   const parts = parseMediaRefParts(ref);
   if (!parts) return undefined;
   const asset = await resolveVisibleAsset(deps, input.workspaceId, parts.idOrSlug);
   if (!asset) return undefined;
-  let transformName = optional.transformName ?? parts.transformName;
-  let latest = await resolveLatestTransformVersion(deps, input.workspaceId, transformName);
+  const selected = await selectTransform({ deps, workspaceId: input.workspaceId, preferred: optional.transformName ?? parts.transformName, own: parts.transformName });
+  if (!selected) return undefined;
+  return { url: buildSeoImageUrl(deps, asset, selected.transformName, selected.latest), ...provenance, ...transformOutputMetadata({ params: selected.latest.params }) };
+}
+
+/** The latest definition of `preferred`, else of the ref's `own` transform, with the name chosen.
+ * @complexity O(v) in registered versions; at most two repository reads. */
+async function selectTransform(required: {
+  deps: ResolveSeoImageRefDeps; workspaceId: UUID; preferred: string; own: string;
+}): Promise<{ transformName: string; latest: TransformDefinitionRecord } | null> {
+  const { deps, workspaceId, preferred, own } = required;
+  const latest = await resolveLatestTransformVersion(deps, workspaceId, preferred);
+  if (latest) return { transformName: preferred, latest };
   // Share-transform registration may still be in flight at boot. Keep the persisted reference
   // servable through its own transform rather than dropping the image from both social cards.
-  if (!latest && transformName !== parts.transformName) {
-    transformName = parts.transformName;
-    latest = await resolveLatestTransformVersion(deps, input.workspaceId, transformName);
-  }
-  if (!latest) return undefined;
+  if (preferred === own) return null;
+  const ownLatest = await resolveLatestTransformVersion(deps, workspaceId, own);
+  return ownLatest ? { transformName: own, latest: ownLatest } : null;
+}
+
+/** Output MIME type, plus the declared box only when the transform produces exactly that box. */
+function transformOutputMetadata(required: { params: TransformParams }): Pick<SeoImageDetails, "width" | "height" | "type"> {
+  const { params } = required;
   // inside/outside fit does not produce the exact declared box, so don't advertise that box.
-  const exactBox = latest.params.width !== undefined && latest.params.height !== undefined && latest.params.fit !== "inside" && latest.params.fit !== "outside";
-  return {
-    url: buildSeoImageUrl(deps, asset, transformName, latest),
-    ...(optional.transformName === undefined ? {} : { ref }),
-    ...(exactBox ? { width: latest.params.width, height: latest.params.height } : {}),
-    type: mimeForTransformFormat({ format: latest.params.format }),
-  };
+  const exactBox = params.width !== undefined && params.height !== undefined && params.fit !== "inside" && params.fit !== "outside";
+  return { ...(exactBox ? { width: params.width, height: params.height } : {}), type: mimeForTransformFormat({ format: params.format }) };
 }
 
 /**

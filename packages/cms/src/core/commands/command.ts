@@ -2,7 +2,7 @@ import { ToolPermissionDeniedError as ForbiddenError } from "@jini-ai/core";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock, IdGenerator, JsonObject, UUID } from "@jini-ai/core/primitives";
 import type { DomainEvent, OutboxPort } from "../ports.js";
-import type { ChangeSetOperation, ChangeSetRepoPort } from "./change-set.js";
+import type { ChangeSetItemRecord, ChangeSetOperation, ChangeSetRecord, ChangeSetRepoPort } from "./change-set.js";
 
 /**
  * @file The single mutation write path.
@@ -211,122 +211,196 @@ export async function executeCommand<TResult>(
   // succeeded (no DUPLICATE_COMMAND / changeSetId leak). `permission`. See docs/decisions/DR-006-mutation-audit-atomicity.md.
   // and `authorize` are wired together or not at all (see ExecuteCommandDeps
   // doc) — partial wiring is a programming error, not a silent allow/skip.
-  if (Boolean(deps.authorize) !== Boolean(command.permission)) {
-    throw new Error(
-      "executeCommand: command.permission and deps.authorize must be supplied together " +
-        "— partial wiring would silently skip or misapply authorization"
-    );
-  }
-  if (deps.authorize && command.permission) {
-    const authResult = await deps.authorize({
-      principalId: command.actor.id,
-      permission: command.permission,
-      workspaceId: command.workspaceId,
-      entityType: mutation.entityType,
-      entityId: mutation.entityId,
-    });
-    if (!authResult.allowed) {
-      throw new ForbiddenError({ message: `principal '${command.actor.id}' is not authorized for '${command.permission}' (${authResult.reason})`, permission: command.permission, reason: authResult.reason }
-      );
-    }
-  }
-
-  if (command.idempotencyKey) {
-    const existing = await deps.changeSets.findByIdempotencyKey({
-      workspaceId: command.workspaceId,
-      idempotencyKey: command.idempotencyKey,
-    });
-    if (existing) {
-      throw new DuplicateCommandError({ message: `command with idempotency key '${command.idempotencyKey}' was already executed`, changeSetId: existing.id }
-      );
-    }
-  }
+  await authorizeCommand({ deps, command, mutation });
+  await rejectReplayedCommand({ deps, command });
 
   const inversePayload = await mutation.captureInverse();
   const result = await mutation.execute();
 
   let insertingRecord = false;
   try {
-    const entityVersionAtApply = mutation.captureEntityVersion?.({ result }) ?? undefined;
-
-    const now = kernelNowIso({ clock: deps.clock });
-    const changeSetId = deps.idGen.newId();
-
-    // the event rides into insert's optional object (see this function's doc comment) so a. See docs/decisions/DR-006-mutation-audit-atomicity.md.
-    // durable adapter co-persists it atomically with the record it belongs to. Built unconditionally
-    // (cheap, pure data) but only passed through when an outbox is actually wired.
-    const event: DomainEvent<{ changeSetId: UUID; entityType: string; entityId: UUID }> = {
-      id: deps.idGen.newId(),
-      name: "change-set.applied",
-      occurredAt: now,
-      aggregateId: changeSetId,
-      workspaceId: command.workspaceId,
-      actorId: command.actor.id,
-      changeSetId,
-      payload: {
-        changeSetId,
-        entityType: mutation.entityType,
-        entityId: mutation.entityId,
-      },
-    };
+    const { record, items, event } = buildAppliedChangeSet({ deps, command, mutation, result, inversePayload });
 
     // Unit of work: the change-set record (and, when an outbox is wired, its delivery event) must
     // land together, or the feature mutation is rolled back. On the in-memory. See docs/decisions/DR-006-mutation-audit-atomicity.md.
     // adapter this is a compensating restore via `mutation.rollback`; a caller-owned transaction
     // can instead cover the feature mutation and record together (see the rollback contract).
-    const itemId = deps.idGen.newId();
     insertingRecord = true;
-    await deps.changeSets.insert(
-      { record: {
-        id: changeSetId,
-        workspaceId: command.workspaceId,
-        actorId: command.actor.id,
-        status: "applied",
-        summary: command.summary,
-        idempotencyKey: command.idempotencyKey,
-        intentRef: command.intentRef,
-        createdAt: now,
-        appliedAt: now,
-      },
-      items: [
-        {
-          id: itemId,
-          changeSetId,
-          entityType: mutation.entityType,
-          entityId: mutation.entityId,
-          operation: mutation.operation,
-          inversePayload: inversePayload ?? undefined,
-          entityVersionAtApply,
-          position: 0,
-        },
-      ] },
-      { event: deps.outbox ? event : undefined }
-    );
-    return { result, changeSetId };
+    await deps.changeSets.insert({ record, items }, { event });
+    return { result, changeSetId: record.id };
   } catch (recordError) {
     // the mutation applied but its record did not. Undo the. See docs/decisions/DR-006-mutation-audit-atomicity.md.
     // mutation so holds when rollback is supplied (no mutation without a record). See docs/decisions/DR-006-mutation-audit-atomicity.md.
     // We surface the original preparation/persist error; a rollback that itself throws is a harder failure
     // that the SQLite transaction path is designed to remove.
     await mutation.rollback?.();
-
-    // TOCTOU: the idempotency check above and this insert are separated by
-    // `captureInverse`/`execute`, so two concurrent requests on the same key can both pass the
-    // check before either inserts — the DB's unique index then rejects the loser here instead of
-    // at the check. Re-throw as the intended `DuplicateCommandError` (referencing the WINNING
-    // change set) rather than letting the raw driver error escape, so callers' existing
-    // `instanceof DuplicateCommandError` handling (409) catches this race the same as the
-    // already-covered non-racing replay.
-    if (insertingRecord && command.idempotencyKey && isIdempotencyKeyConflict(recordError)) {
-      const winner = await deps.changeSets.findByIdempotencyKey({
-        workspaceId: command.workspaceId,
-        idempotencyKey: command.idempotencyKey,
-      });
-      if (winner) {
-        throw new DuplicateCommandError({ message: `command with idempotency key '${command.idempotencyKey}' was already executed`, changeSetId: winner.id }
-        );
-      }
-    }
-    throw recordError;
+    throw insertingRecord ? await resolveInsertFailure({ deps, command, error: recordError }) : recordError;
   }
+}
+
+/**
+ * Runs the `authorize()` gate for a command, or skips it on the legacy path where neither
+ * `command.permission` nor `deps.authorize` is wired.
+ *
+ * @param required - The gateway deps, the command envelope, and the mutation (for its target entity).
+ * @throws {Error} When exactly one of `command.permission` / `deps.authorize` is supplied (a wiring bug).
+ * @throws {ForbiddenError} When `authorize` denies the actor.
+ * @complexity O(1) plus one `authorize` call.
+ */
+async function authorizeCommand(
+  required: { deps: ExecuteCommandDeps; command: CommandEnvelope; mutation: Pick<CommandMutation<unknown>, "entityType" | "entityId"> },
+  _optional: Record<string, never> = {}
+): Promise<void> {
+  const { deps, command, mutation } = required;
+  if (Boolean(deps.authorize) !== Boolean(command.permission)) {
+    throw new Error(
+      "executeCommand: command.permission and deps.authorize must be supplied together " +
+        "— partial wiring would silently skip or misapply authorization"
+    );
+  }
+  if (!deps.authorize || !command.permission) return;
+  const authResult = await deps.authorize({
+    principalId: command.actor.id,
+    permission: command.permission,
+    workspaceId: command.workspaceId,
+    entityType: mutation.entityType,
+    entityId: mutation.entityId,
+  });
+  if (!authResult.allowed) {
+    throw new ForbiddenError({ message: `principal '${command.actor.id}' is not authorized for '${command.permission}' (${authResult.reason})`, permission: command.permission, reason: authResult.reason }
+    );
+  }
+}
+
+/**
+ * Pre-execute idempotency check: refuses a command whose key already produced a change set in
+ * this workspace. Keyless commands are never checked.
+ *
+ * @param required - The gateway deps and the command envelope.
+ * @throws {DuplicateCommandError} Referencing the prior change set when the key was already used.
+ * @complexity O(1) plus at most one `findByIdempotencyKey` query.
+ */
+async function rejectReplayedCommand(
+  required: { deps: ExecuteCommandDeps; command: CommandEnvelope },
+  _optional: Record<string, never> = {}
+): Promise<void> {
+  const { deps, command } = required;
+  if (!command.idempotencyKey) return;
+  const existing = await deps.changeSets.findByIdempotencyKey({
+    workspaceId: command.workspaceId,
+    idempotencyKey: command.idempotencyKey,
+  });
+  if (existing) {
+    throw duplicateCommandError({ idempotencyKey: command.idempotencyKey, changeSetId: existing.id });
+  }
+}
+
+/**
+ * Builds the auto-applied single-item change set (record, item, and `change-set.applied` event)
+ * for a mutation that has already executed. Ids are drawn in a fixed order: change set, event, item.
+ *
+ * @param required - The gateway deps, the envelope, the mutation, its execute result and captured inverse.
+ * @returns The record and items for `changeSets.insert`, and the event to pass only when an outbox is wired.
+ * @throws Whatever `mutation.captureEntityVersion`, the clock or the id generator throws.
+ * @complexity O(1).
+ */
+function buildAppliedChangeSet<TResult>(
+  required: {
+    deps: ExecuteCommandDeps;
+    command: CommandEnvelope;
+    mutation: CommandMutation<TResult>;
+    result: TResult;
+    inversePayload: JsonObject | null;
+  },
+  _optional: Record<string, never> = {}
+): { record: ChangeSetRecord; items: ChangeSetItemRecord[]; event: DomainEvent | undefined } {
+  const { deps, command, mutation, result, inversePayload } = required;
+  const entityVersionAtApply = mutation.captureEntityVersion?.({ result }) ?? undefined;
+
+  const now = kernelNowIso({ clock: deps.clock });
+  const changeSetId = deps.idGen.newId();
+
+  // the event rides into insert's optional object (see this function's doc comment) so a. See docs/decisions/DR-006-mutation-audit-atomicity.md.
+  // durable adapter co-persists it atomically with the record it belongs to. Built unconditionally
+  // (cheap, pure data) but only passed through when an outbox is actually wired.
+  const event: DomainEvent<{ changeSetId: UUID; entityType: string; entityId: UUID }> = {
+    id: deps.idGen.newId(),
+    name: "change-set.applied",
+    occurredAt: now,
+    aggregateId: changeSetId,
+    workspaceId: command.workspaceId,
+    actorId: command.actor.id,
+    changeSetId,
+    payload: {
+      changeSetId,
+      entityType: mutation.entityType,
+      entityId: mutation.entityId,
+    },
+  };
+
+  const itemId = deps.idGen.newId();
+  return {
+    record: {
+      id: changeSetId,
+      workspaceId: command.workspaceId,
+      actorId: command.actor.id,
+      status: "applied",
+      summary: command.summary,
+      idempotencyKey: command.idempotencyKey,
+      intentRef: command.intentRef,
+      createdAt: now,
+      appliedAt: now,
+    },
+    items: [
+      {
+        id: itemId,
+        changeSetId,
+        entityType: mutation.entityType,
+        entityId: mutation.entityId,
+        operation: mutation.operation,
+        inversePayload: inversePayload ?? undefined,
+        entityVersionAtApply,
+        position: 0,
+      },
+    ],
+    event: deps.outbox ? event : undefined,
+  };
+}
+
+/**
+ * Decides which error to surface after `changeSets.insert` failed (and the mutation was rolled back).
+ *
+ * @param required - The gateway deps, the envelope, and the insert error.
+ * @returns A `DuplicateCommandError` for the winning change set when the failure is the losing side
+ * of an idempotency-key race; otherwise the original insert error, unchanged.
+ * @throws Whatever the winner `findByIdempotencyKey` query throws.
+ * @complexity O(1) plus at most one `findByIdempotencyKey` query.
+ */
+async function resolveInsertFailure(
+  required: { deps: ExecuteCommandDeps; command: CommandEnvelope; error: unknown },
+  _optional: Record<string, never> = {}
+): Promise<unknown> {
+  const { deps, command, error } = required;
+  // TOCTOU: the idempotency check above and this insert are separated by
+  // `captureInverse`/`execute`, so two concurrent requests on the same key can both pass the
+  // check before either inserts — the DB's unique index then rejects the loser here instead of
+  // at the check. Re-throw as the intended `DuplicateCommandError` (referencing the WINNING
+  // change set) rather than letting the raw driver error escape, so callers' existing
+  // `instanceof DuplicateCommandError` handling (409) catches this race the same as the
+  // already-covered non-racing replay.
+  if (!command.idempotencyKey || !isIdempotencyKeyConflict(error)) return error;
+  const winner = await deps.changeSets.findByIdempotencyKey({
+    workspaceId: command.workspaceId,
+    idempotencyKey: command.idempotencyKey,
+  });
+  return winner ? duplicateCommandError({ idempotencyKey: command.idempotencyKey, changeSetId: winner.id }) : error;
+}
+
+/** The one `DuplicateCommandError` both the pre-check and the insert-race path raise. */
+function duplicateCommandError(
+  required: { idempotencyKey: string; changeSetId: UUID },
+  _optional: Record<string, never> = {}
+): DuplicateCommandError {
+  return new DuplicateCommandError({ message: `command with idempotency key '${required.idempotencyKey}' was already executed`, changeSetId: required.changeSetId }
+  );
 }

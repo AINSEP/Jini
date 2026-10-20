@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { DuplicateCommandError, executeCommand, type ExecuteCommandDeps, type CommandMutation } from "../commands/command.js";
+import { DuplicateCommandError, executeCommand, type ExecuteCommandDeps, type CommandMutation } from "../command.js";
 
 function fixture(failAt: "version" | "clock" | "id" | "insert" | "none" = "none") {
   let value = "before";
