@@ -200,15 +200,17 @@ export interface UsersController {
  *  `onSuccess` is skipped only when a switch actually happened since this call started — otherwise
  *  a stale grant's success would erase a NEW, unrelated selection the operator has since made for
  *  the panel they actually have open now. */
-async function runGrantMutation(
-  generationAtStart: number,
-  toggleGenerationRef: { current: number },
-  mutate: () => Promise<unknown>,
-  onSuccess: () => void,
-  setGrantSaving: Dispatch<SetStateAction<boolean>>,
-  setGrantError: Dispatch<SetStateAction<string | null>>,
-  describeError: (e: unknown) => string,
-): Promise<void> {
+async function runGrantMutation({ toggleGenerationRef, mutate, onSuccess, setGrantSaving, setGrantError, describeError }: {
+  toggleGenerationRef: { current: number };
+  mutate: () => Promise<unknown>;
+  onSuccess: () => void;
+  setGrantSaving: Dispatch<SetStateAction<boolean>>;
+  setGrantError: Dispatch<SetStateAction<string | null>>;
+  describeError: (e: unknown) => string;
+}): Promise<void> {
+  // Read synchronously, before the first `await` — the same instant both callers used to read and
+  // pass in themselves, so this is still the generation this call STARTED under.
+  const generationAtStart = toggleGenerationRef.current;
   setGrantSaving(true);
   setGrantError(null);
   try {
@@ -259,6 +261,34 @@ async function loadGrantOptions(port: UsersPort): Promise<{ roles: AdminRole[]; 
   }
 }
 
+type UsersListData = { users: AdminIdentityUser[]; grantOptions: { roles: AdminRole[]; policies: AdminPolicy[] } | null };
+
+/**
+ * The combined read split into the controller's list fields: all `null` (and `canGrant` false)
+ * until the read settles, then `[]` roles/policies with `canGrant` false when `loadGrantOptions`
+ * reported a 403. Pure so `useUsers` stays a flat wiring list.
+ */
+function selectUsersList({ data }: { data: UsersListData | undefined }) {
+  if (!data) return { users: null, roles: null, policies: null, canGrant: false };
+  const grantOptions = data.grantOptions;
+  return { users: data.users, roles: grantOptions?.roles ?? [], policies: grantOptions?.policies ?? [], canGrant: grantOptions != null };
+}
+
+/**
+ * The signed-in caller as the row-level permission checks see it: their own roster row (`null`
+ * while `me()` or the roster is unsettled, or when the caller is not in it), whether that row is an
+ * owner, and the role lookup both checks share. Computed once per render rather than once per row.
+ *
+ * @complexity O(users + roles) per render.
+ */
+function selectCaller({ users, roles, ownPrincipalId }: {
+  users: AdminIdentityUser[] | null; roles: AdminRole[] | null; ownPrincipalId: string | null;
+}) {
+  const roleMap = new Map((roles ?? []).map(role => [role.id, role]));
+  const ownProfile = users?.find(user => user.principalId === ownPrincipalId) ?? null;
+  return { roleMap, ownProfile, callerIsOwner: ownProfile !== null && isOwnerAccount({ user: ownProfile, roles: roleMap }) };
+}
+
 /**
  * Everything the Users screen does — full state, effects, and every server write, as one hook so
  * `Users.tsx` stays a pure render of whatever this returns. See this file's header for the
@@ -270,7 +300,6 @@ async function loadGrantOptions(port: UsersPort): Promise<{ roles: AdminRole[]; 
 export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   openOwnPasswordReset = false, onOwnPasswordResetClosed, passwordResetNotice,
 }: UsersOptions = {}): UsersController {
-  const boundT = translate;
   const describeError = (error: unknown, fallback: string) => describeApiError({ error, fallback, translate });
 
   // `portRef` (password-banner plan, 2026-09-24 Slice 3 deep-link half): captured once at mount and
@@ -289,10 +318,7 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
       return { users: u.users, grantOptions };
     },
   });
-  const users = list.data?.users ?? null;
-  const roles = list.data ? (list.data.grantOptions?.roles ?? []) : null;
-  const policies = list.data ? (list.data.grantOptions?.policies ?? []) : null;
-  const canGrant = list.data?.grantOptions != null;
+  const { users, roles, policies, canGrant } = selectUsersList({ data: list.data });
   const error = list.error ? describeError(list.error, translate("failed to load users")) : null;
 
   const [formOpen, setFormOpen] = useState(false);
@@ -392,26 +418,14 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     };
   }, []);
 
-  /** Guards the one-shot deep-link auto-open effect below so it fires at most once per mount, even
-   *  as `users`/`ownPrincipalId` keep changing identity across the renders it's waiting on (list
-   *  reloads, `me()` settling). Separate from {@link openedViaDeepLinkRef}, which tracks a DIFFERENT
-   *  question ("should closing the dialog navigate away") over the dialog's own open/close lifetime
-   *  — this one is "has the auto-open already been attempted", which must stay true forever once it
-   *  fires, including after the dialog this effect opened has since been closed. */
+  const { roleMap, ownProfile, callerIsOwner } = selectCaller({ users, roles, ownPrincipalId });
   function rowCapabilities(user: AdminIdentityUser): UserAccountCapabilities {
-    const roleMap = new Map((roles ?? []).map(role => [role.id, role]));
-    const ownRow = users?.find(row => row.principalId === ownPrincipalId);
-    return userAccountCapabilities({ user, callerPrincipalId: ownPrincipalId,
-      callerIsOwner: ownRow ? isOwnerAccount({ user: ownRow, roles: roleMap }) : false,
-      canManageUserTrash, roles: roleMap });
+    return userAccountCapabilities({ user, callerPrincipalId: ownPrincipalId, callerIsOwner, canManageUserTrash, roles: roleMap });
   }
 
-  const ownProfile = users?.find(user => user.principalId === ownPrincipalId) ?? null;
   function canRenameUser(user: AdminIdentityUser): boolean {
     if (user.canRename === false) return false;
     if (!ownPrincipalId || (!effectivePermissions.includes("*") && !effectivePermissions.includes("user.manage"))) return false;
-    const roleMap = new Map((roles ?? []).map(role => [role.id, role]));
-    const callerIsOwner = ownProfile ? isOwnerAccount({ user: ownProfile, roles: roleMap }) : false;
     // Server-supplied owner flags remain authoritative when role.manage is unavailable.
     const targetIsOwner = user.isOwner ?? (user.roleIds.some(id => !roleMap.has(id)) || isOwnerAccount({ user, roles: roleMap }));
     return !targetIsOwner || callerIsOwner;
@@ -426,6 +440,12 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     return canRenameUser(user) ? (target: AdminIdentityUser) => changeUsername.open({ user: target }) : undefined;
   }
 
+  /** Guards the one-shot deep-link auto-open effect below so it fires at most once per mount, even
+   *  as `users`/`ownPrincipalId` keep changing identity across the renders it's waiting on (list
+   *  reloads, `me()` settling). Separate from {@link openedViaDeepLinkRef}, which tracks a DIFFERENT
+   *  question ("should closing the dialog navigate away") over the dialog's own open/close lifetime
+   *  — this one is "has the auto-open already been attempted", which must stay true forever once it
+   *  fires, including after the dialog this effect opened has since been closed. */
   const deepLinkAttemptedRef = useRef(false);
   /** Set true exactly when this effect opens the dialog, cleared by the close-effect below the first
    *  time it observes `resetPasswordFor` go back to `null`. Read there to decide whether to navigate
@@ -433,13 +453,12 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
    *  normal reset, must not also get shoved to `/users`. */
   const openedViaDeepLinkRef = useRef(false);
   useEffect(() => {
-    if (!openOwnPasswordReset || deepLinkAttemptedRef.current) return;
-    if (!users || ownPrincipalId === null) return;
-    const ownRow = users.find((u) => u.principalId === ownPrincipalId);
-    if (!ownRow) return;
+    // `ownProfile` is derived from exactly `users`/`ownPrincipalId` (see `selectCaller`), so it is
+    // `null` until both have settled and the caller's own row is in the roster.
+    if (!openOwnPasswordReset || deepLinkAttemptedRef.current || !ownProfile) return;
     deepLinkAttemptedRef.current = true;
     openedViaDeepLinkRef.current = true;
-    openResetPassword(ownRow);
+    openResetPassword(ownProfile);
   }, [openOwnPasswordReset, users, ownPrincipalId]);
 
   useEffect(() => {
@@ -480,28 +499,26 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
 
   async function onAssignRole({ principalId }: { principalId: string }) {
     if (!pendingRoleId) return;
-    await runGrantMutation(
-      toggleGenerationRef.current,
+    await runGrantMutation({
       toggleGenerationRef,
-      () => assignRoleMutation.mutate({ input: { principalId, roleId: pendingRoleId } }),
-      () => setPendingRoleId(""),
+      mutate: () => assignRoleMutation.mutate({ input: { principalId, roleId: pendingRoleId } }),
+      onSuccess: () => setPendingRoleId(""),
       setGrantSaving,
       setGrantError,
-      (e) => describeError(e, translate("failed to assign role")),
-    );
+      describeError: (e) => describeError(e, translate("failed to assign role")),
+    });
   }
 
   async function onAttachPolicy({ principalId }: { principalId: string }) {
     if (!pendingPolicyId) return;
-    await runGrantMutation(
-      toggleGenerationRef.current,
+    await runGrantMutation({
       toggleGenerationRef,
-      () => attachPolicyMutation.mutate({ input: { principalId, policyId: pendingPolicyId } }),
-      () => setPendingPolicyId(""),
+      mutate: () => attachPolicyMutation.mutate({ input: { principalId, policyId: pendingPolicyId } }),
+      onSuccess: () => setPendingPolicyId(""),
       setGrantSaving,
       setGrantError,
-      (e) => describeError(e, translate("failed to attach policy")),
-    );
+      describeError: (e) => describeError(e, translate("failed to attach policy")),
+    });
   }
 
   // `onSaveEmail` was left out of the `runGrantMutation` fold above on purpose: it tracks its OWN
@@ -705,7 +722,7 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     deleteSaving: deleteUserMutation.status === "pending",
     confirmDelete,
 
-    t: boundT,
+    t: translate,
     translate,
   };
 }
