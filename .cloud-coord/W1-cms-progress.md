@@ -7,7 +7,7 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 
 | Lot | Files | Status | Subagent | Commits | before→after worst cyc/cog | Coverage | Verify |
 |---|---|---|---|---|---|---|---|
-| L010 | forms descriptor-rules, field-registry, html-render | running | | | 53/52 → | | |
+| L010 | forms descriptor-rules, field-registry, html-render | merged | done (47 tool calls) | 36b96063, 5375e7b7, 9a8bc1ec | 53/52 → ≤10/≤10 | 100/100/100 | eslint 0, tsc 0, forms 490 ✓; 99 new tests also green on old code |
 | L017 | forms/html authoring-adapter, html-authoring | merged | done (15 tool calls) | f59b2cd8, 2c038dab | 10/8 → 10/8 (already ≤10) | 100/100/100 | eslint 0, tsc 0, 86 tests ✓ |
 | L073 | widgets config-validation, embed-service, gallery-resolver, resolver-service | running | | | 32/36 → | | |
 | L108 | widgets/html gallery-render, html-embeds, legacy-widget-markers, server-fragment | merged | done (46 tool calls) | 2f92117a, 0ef5b201, c94e6ba3, 232e610d | 20/22 → ≤10/≤10 | 100/100/100 | eslint 0, tsc 0, widgets 379 ✓ |
@@ -25,4 +25,5 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 - L108 note (pinned, unchanged): gallery htmlAttributes can override wrapper role.
 - L123 flagged: `checkRedirectFieldsWouldWrite` exported with no callers; doc cites a non-existent publish-content precheck. Unreachable "matcher does not match" safety net in host-config kept + pinned via fake matcher.
 - Cross-package (http-kit): `checkSiteRelativeTarget` returns ok for raw backslash (`/a\b`) despite refusal wording; redirects.ts refuses it separately, so no behaviour impact.
+- L010 bugs pinned: file field — filename with no dot passes when whole name is a safe extension (e.g. `png`); renderHtmlFormBody — hidden input still points aria-describedby at unrendered help/error ids. Quirk: `<select>` gets a placeholder attribute.
 ## Next
