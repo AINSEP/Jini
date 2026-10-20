@@ -92,6 +92,25 @@ export function artifactIdentifiersMatch({ a, b }: { a: string; b: string }): bo
   return a === slugA || b === slugB;
 }
 
+function readStubGuardThresholds(
+  { env, names, defaults }: {
+    env: Readonly<Record<string, string | undefined>>;
+    names: { minRatio: string; minPriorBytes: string };
+    defaults: ArtifactStubGuardConfig;
+  },
+  _options: Record<string, never> = {},
+): Pick<ArtifactStubGuardConfig, 'minRetainedRatio' | 'minPriorBytes'> {
+  const ratioRaw = Number(env[names.minRatio]);
+  // Accept (0, 1] so a caller can set 1 to reject any shrinkage. Values <=0 or >1 fall back to default.
+  const minRetainedRatio =
+    Number.isFinite(ratioRaw) && ratioRaw > 0 && ratioRaw <= 1 ? ratioRaw : defaults.minRetainedRatio;
+
+  const minPriorBytesRaw = Number(env[names.minPriorBytes]);
+  const minPriorBytes =
+    Number.isInteger(minPriorBytesRaw) && minPriorBytesRaw > 0 ? minPriorBytesRaw : defaults.minPriorBytes;
+  return { minRetainedRatio, minPriorBytes };
+}
+
 /** Reads guard configuration from explicit environment values and host-owned names, using optional defaults for unset or invalid values. */
 export function readArtifactStubGuardConfigFromEnv(
   { env, names }: { env: Readonly<Record<string, string | undefined>>; names: { mode: string; minRatio: string; minPriorBytes: string } },
@@ -101,14 +120,7 @@ export function readArtifactStubGuardConfigFromEnv(
   const mode: ArtifactStubGuardMode =
     rawMode === 'reject' || rawMode === 'warn' || rawMode === 'off' ? rawMode : defaults.mode;
 
-  const ratioRaw = Number(env[names.minRatio]);
-  // Accept (0, 1] so a caller can set 1 to reject any shrinkage. Values <=0 or >1 fall back to default.
-  const minRetainedRatio =
-    Number.isFinite(ratioRaw) && ratioRaw > 0 && ratioRaw <= 1 ? ratioRaw : defaults.minRetainedRatio;
-
-  const minPriorBytesRaw = Number(env[names.minPriorBytes]);
-  const minPriorBytes =
-    Number.isInteger(minPriorBytesRaw) && minPriorBytesRaw > 0 ? minPriorBytesRaw : defaults.minPriorBytes;
+  const { minRetainedRatio, minPriorBytes } = readStubGuardThresholds({ env, names, defaults });
 
   return { mode, minRetainedRatio, minPriorBytes, siblingExtensions: defaults.siblingExtensions };
 }

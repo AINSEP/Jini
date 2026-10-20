@@ -56,10 +56,6 @@ async function readSidecarIdentifier(scanDir: string, entryName: string, filesys
   }
 }
 
-function extensionAlternation(extensions: readonly string[]): string {
-  return extensions.map((ext) => escapeRegExp(ext)).join('|');
-}
-
 function legacyCandidateIdentifiers(filename: string, extensionPattern: RegExp, suffixPattern: RegExp): string[] {
   const fullBasename = filename.replace(extensionPattern, '');
   const stripped = filename.replace(suffixPattern, '');
@@ -67,6 +63,52 @@ function legacyCandidateIdentifiers(filename: string, extensionPattern: RegExp, 
   if (fullBasename.length > 0) candidates.push(fullBasename);
   if (stripped.length > 0 && stripped !== fullBasename) candidates.push(stripped);
   return candidates;
+}
+
+function siblingPatterns(
+  { identifier, extAlternation }: { identifier: string; extAlternation: string },
+  _options: Record<string, never> = {},
+): { pattern: RegExp; extensionPattern: RegExp; suffixPattern: RegExp } {
+  const extensionPattern = new RegExp(`(?:${extAlternation})$`, 'i');
+  const suffixPattern = new RegExp(`(?:-\\d+)?(?:${extAlternation})$`, 'i');
+
+  const tokens = new Set<string>();
+  tokens.add(identifier);
+  const slug = slugifyArtifactIdentifier({ value: identifier });
+  if (slug.length > 0) tokens.add(slug);
+  else tokens.add(EMPTY_SLUG_FALLBACK_NAME);
+  const alternation = Array.from(tokens, escapeRegExp).join('|');
+  const pattern = new RegExp(`^(?:${alternation})(?:-\\d+)?(?:${extAlternation})$`, 'i');
+  return { pattern, extensionPattern, suffixPattern };
+}
+
+async function readMatchingSibling(
+  { scanDir, identifier, entry, extensionPattern, suffixPattern }: {
+    scanDir: string;
+    identifier: string;
+    entry: Dirent;
+    extensionPattern: RegExp;
+    suffixPattern: RegExp;
+  },
+  { filesystem = nativeFilesystem }: { filesystem?: ArtifactStubFilesystemPort } = {},
+): Promise<PriorArtifactSibling | null> {
+  const sidecarIdentifier = await readSidecarIdentifier(scanDir, entry.name, filesystem);
+  // `legacyCandidateIdentifiers` always returns at least one non-empty
+  // candidate here: the caller already matched `entry.name` against `pattern`, which
+  // requires its basename to start with one of `tokens` (all non-empty),
+  // so an explicit `candidateIdentifiers.length === 0` guard would be
+  // dead code — an empty array's `.some()` below already rejects the candidate.
+  const candidateIdentifiers = sidecarIdentifier !== null
+    ? [sidecarIdentifier]
+    : legacyCandidateIdentifiers(entry.name, extensionPattern, suffixPattern);
+  if (!candidateIdentifiers.some((c) => artifactIdentifiersMatch({ a: identifier, b: c }))) return null;
+  try {
+    const st = await filesystem.stat({ path: path.join(scanDir, entry.name) });
+    return { name: entry.name, size: st.size };
+  } catch {
+    // Ignore unreadable entries — they don't influence the guard decision.
+    return null;
+  }
 }
 
 /**
@@ -82,18 +124,9 @@ export async function findPriorArtifactSiblings(
   { filesystem = nativeFilesystem }: { filesystem?: ArtifactStubFilesystemPort } = {},
 ): Promise<PriorArtifactSibling[]> {
   if (identifier.length === 0) return [];
-  const extAlternation = extensionAlternation(config.siblingExtensions);
+  const extAlternation = config.siblingExtensions.map(escapeRegExp).join('|');
   if (!extAlternation) return [];
-  const extensionPattern = new RegExp(`(?:${extAlternation})$`, 'i');
-  const suffixPattern = new RegExp(`(?:-\\d+)?(?:${extAlternation})$`, 'i');
-
-  const tokens = new Set<string>();
-  tokens.add(identifier);
-  const slug = slugifyArtifactIdentifier({ value: identifier });
-  if (slug.length > 0) tokens.add(slug);
-  else tokens.add(EMPTY_SLUG_FALLBACK_NAME);
-  const alternation = Array.from(tokens, escapeRegExp).join('|');
-  const pattern = new RegExp(`^(?:${alternation})(?:-\\d+)?(?:${extAlternation})$`, 'i');
+  const { pattern, extensionPattern, suffixPattern } = siblingPatterns({ identifier, extAlternation });
 
   let entries: Dirent[];
   try {
@@ -105,22 +138,11 @@ export async function findPriorArtifactSiblings(
   for (const entry of entries) {
     if (!entry.isFile()) continue;
     if (!pattern.test(entry.name)) continue;
-    const sidecarIdentifier = await readSidecarIdentifier(scanDir, entry.name, filesystem);
-    // `legacyCandidateIdentifiers` always returns at least one non-empty
-    // candidate here: `entry.name` already matched `pattern` above, which
-    // requires its basename to start with one of `tokens` (all non-empty),
-    // so an explicit `candidateIdentifiers.length === 0` guard would be
-    // dead code — an empty array's `.some()` below already `continue`s.
-    const candidateIdentifiers = sidecarIdentifier !== null
-      ? [sidecarIdentifier]
-      : legacyCandidateIdentifiers(entry.name, extensionPattern, suffixPattern);
-    if (!candidateIdentifiers.some((c) => artifactIdentifiersMatch({ a: identifier, b: c }))) continue;
-    try {
-      const st = await filesystem.stat({ path: path.join(scanDir, entry.name) });
-      results.push({ name: entry.name, size: st.size });
-    } catch {
-      // Ignore unreadable entries — they don't influence the guard decision.
-    }
+    const sibling = await readMatchingSibling(
+      { scanDir, identifier, entry, extensionPattern, suffixPattern },
+      { filesystem },
+    );
+    if (sibling) results.push(sibling);
   }
   return results;
 }
