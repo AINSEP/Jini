@@ -61,3 +61,13 @@
 - Over-engineering: list's 4 reassigning filter passes → one predicate; tag/term matching shared by list+search; doctor's copied vendor/name regex → RegistryEntrySchema.shape.name (coordinator verified identical regex in protocol/src/registry.ts:79); dead `?.` on parsed filter (.unwrap()); 2 hand-written 4-step digest fallbacks → distField; X.509 helpers moved verbatim (comments incl.) to internal trust-certificates.ts so the never-throw catch is testable via typed Pick<> fake.
 - Checks removed: none (doctor `!name` subsumed by name schema which rejects undefined/""; RED-checked). Trust check order verified unchanged by coordinator.
 - BUGS/SECURITY (pinned, reported not fixed): (1) versioning default/`latest` path returns distTags.latest even when that version has no ledger record → serves top-level source under that version (the mislabelling CR-008 blocks for explicit requests); (2) trust.ts verifiedSubject = signer-chosen `signature.subject` even when it disagrees with the certificate SAN identity — MAIN SECURITY FINDING; (3) RegExp identity pattern with `g` flag alternates true/false (fails closed). Pre-existing committed EC private keys/certs in registry trust.test.ts and static-backend.test.ts (not added this wave).
+
+## Final (2026-10-20 ~04:59Z) — WAVE COMPLETE, all 6 lots merged
+- Built @jini-ai/mcp and @jini-ai/registry on the wave head: both exit 0. tsc on mcp and registry: 0 errors.
+- Whole suites on the wave head: mcp 63 files / 1197 tests passed; registry 18 / 339 passed. No `Errors` line in either.
+- Whole suites on base (origin/general-work worktree with dist copied in, run AFTER the wave runs finished): mcp 56 / 885 passed; registry 16 / 230 passed. No `Errors` line. No failures to compare.
+- Guard: 26 violations, the same set as base (red on base; none in mcp or registry).
+- Parallelism: 5 lots at once, then L036b started when L152a finished. Wall time about 04:30–04:59Z.
+- Subagent tokens: max ~196k (L152b), average ~159k over 6 lots, plus one fix subagent at 83k. No hand-offs, no overruns.
+- Coordinator context: well under 50%.
+- Next: the owner reviews cloud/w3-mcp-registry and merges it into general-work. Read the security findings above first: registry trust verifiedSubject, mcp SQL E-string bypass, registry github-client `..` path, install.ts argv/YAML injection, and stdio relative PATH.
