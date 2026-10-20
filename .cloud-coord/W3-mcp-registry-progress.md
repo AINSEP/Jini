@@ -14,8 +14,8 @@
 | lot | status | branch head | before→after worst cyc/cog | coverage (br/fn/ln) | verify |
 |---|---|---|---|---|---|
 | L152a | MERGED | e4c8ece4 | fn 13/11 → 9/7 (file worst 10/9) | trust.ts 100/100/100, no artifact lines (my run: 32 files, 593 tests) | eslint 0, tsc 0, tests ok no Errors line, guard 26 = base 26 (identical set) |
-| L152b | running | | 15/15 → | | |
-| L104 | running | | 23/26 → | | |
+| L152b | MERGED | 19393edb | call-confirmation 15/15→9/8 (new remembered-approval 10/4); revocation 11/0→8/5; stdio-launch-resolver 10/12→10/8; adapter.stdio 14/7→10/7 | all lot files 100/100/100 (my run: 37 files, 691 tests) | eslint 0, tsc 0, tests ok no Errors, guard = base |
+| L104 | REJECTED once (fix running) | b127c40b | daemon-client 14/20→9/6; tool-protocol normalizeToolArguments 23/26→10/5 (moved to tool-arguments.ts); tool-server run 11/7→6/3 | 4 files 100/100/100 (my run: 25 files, 546 tests) | eslint/tsc/tests/guard all ok; rejected for a new `as unknown as` test-double cast (tool-server.test.ts ~659); merge undone locally (never pushed), fresh fix subagent dispatched |
 | L113-L188-L203-L236 | MERGED | 96cb2b7d | client extractRelativeRefs 23/42→5/5 (file 6/7); serve 23/14→7/5; ask-choice 15/17→7/6; install planAgentInstall 16/0→4/1 (file 8/5) | 4 files 100/100/100 (my run: 15 files, 322 tests) | eslint 0, tsc 0, tests ok no Errors, guard = base |
 | L036a | MERGED | 23ee2630 | search-enricher 13/0→10/3; github-backend 11/0→4/0; github-client 11/11→6/5 | all 3 files 100/100/100 (my run: 8 files, 133 tests) | eslint 0, tsc 0, tests ok no Errors, guard = base |
 | L036b | running | | 39/25 → | | |
@@ -43,3 +43,8 @@
 - Check removed: ask-choice presentFallback `ticket !== undefined` before cleanup redeem. Proof: mint typed string, only package store always mints non-empty (pinned test), redeem(undefined) refused by contract. Coordinator: accepted — removal makes the invalidation unconditional (stricter), not an auth gate.
 - Message changed: serve.ts missing daemon URL → "no daemon URL resolved: <ENV> is unset or empty; the spawning Jini daemon must set it to its HTTP base URL." (old text advised flagUrl/discover/defaultUrl that this process lacks); pinned test updated.
 - SECURITY (pinned, reported not fixed): client.ts backslash `..\..\x` not split → passes root-escape check; install.ts relative APPDATA → relative config path; install.ts serverName starting with `-` goes into agent CLI argv (flag injection); install.ts hermes YAML snippet interpolates serverName/env keys unquoted (YAML injection); serve.ts bearer token still sent to remote plain-HTTP daemon URL (warn only).
+### L152b (subagent: ~196k tokens, 59 tool calls)
+- Commits df3dc8c9 74ec2f14 4a8a6280 ba2a642c f3ee421d 0d5ba6c8 19393edb. New helpers (not in barrel): remembered-approval.ts, scope-option.ts, revocation-reason.ts.
+- Over-engineering: 6x scope conditional → scopeOption; npx/npm/node ternary → NODE_TOOLCHAIN_CLI table; 2 identical launchUnavailable throws → 1; misplaced toolchainDir doc comment moved back.
+- Checks removed: none. Two redundant duplicate conditions merged (proofs in commit msgs): `offerAlways && !request.destructive` inside `if (!request.destructive…)`; `rememberable` already includes `!destructive`. Coordinator verified equivalence by reading the diff.
+- SECURITY: PINNED relative parent PATH entry (e.g. `.`) → resolver checks ./tool against daemon cwd but spawns bare `tool` (re-searched on child PATH) — check≠exec (stdio-launch-resolver findOnSearchDirs). Not pinned: revocation never enforces writeAllowedToolNames (by design since G3, trust.ts:510-515); secrets <4 chars not redacted from stderr (documented); darwin search path appends user-writable $HOME/.local/bin and $HOME/.cargo/bin (lowest rank); resolver check-then-spawn TOCTOU.
