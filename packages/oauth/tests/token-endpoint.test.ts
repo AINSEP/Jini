@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { exchangeOAuthAuthorizationCode, refreshAccessToken } from '../src/index.js';
 import { fixturePorts } from "./fixtures.js";
 import assert from "node:assert/strict";
+import { randomBytes } from 'node:crypto';
 import { test } from "vitest";
 import { requestOAuthToken } from "../src/index.js";
 import { assertOAuthRejects, createFetchDouble, createTestClock, TEST_CLIENT } from "./helpers.js";
@@ -66,6 +67,21 @@ test("HTTP 200 without an access_token is a malformed response", async () => {
         tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: "authorization_code" }
     }), "OAUTH_MALFORMED_RESPONSE");
 });
+for (const status of [200, 400, 503]) {
+    test(`HTTP ${status} provider error fields cannot disclose a token-shaped value`, async () => {
+        const providerError = `sk-${randomBytes(24).toString('base64url')}`;
+        const http = createFetchDouble([{ status, json: { error: providerError, error_description: providerError } }]);
+        const error = await assertOAuthRejects(() => requestOAuthToken({
+            ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
+            tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: 'authorization_code' },
+        }), 'OAUTH_PROVIDER_REJECTED');
+        assert.equal(error.message, `the authorization server refused the request (HTTP ${status}, invalid_provider_error)`);
+        assert.equal(error.providerErrorCode, 'invalid_provider_error');
+        assert.equal(error.cause, undefined);
+        assert.equal(JSON.stringify(error).includes(providerError), false);
+        assert.equal(http.callCount(), 1);
+    });
+}
 test("scope accepts comma and whitespace separators without empty scopes", async () => {
     const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: "at", scope: "  read,write  profile,  email " } }]);
     const tokens = await requestOAuthToken({

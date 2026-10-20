@@ -41,6 +41,40 @@ test("begin returns the user-facing code and URL plus the secret device code", a
     assert.equal(startedRequest.url, "https://auth.example.com/device");
     assert.equal(startedRequest.body.get("scope"), "images:generate");
 });
+test("Google's pre-RFC verification_url spelling is accepted", async () => {
+    const { verification_uri: _dropped, ...withoutUri } = DEVICE_RESPONSE;
+    const http = createFetchDouble([{ json: { ...withoutUri, verification_url: DEVICE_RESPONSE.verification_uri } }]);
+    const started = await beginDeviceAuthorization({
+        ...fixturePorts, provider: TEST_PROVIDER, clock: createTestClock(), fetchFn: http.fetchFn, client: TEST_CLIENT,
+    });
+    assert.equal(started.verificationUri, DEVICE_RESPONSE.verification_uri);
+    assert.equal(http.callCount(), 1);
+});
+test('verification_uri takes precedence over the legacy spelling', async () => {
+    const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE, verification_url: 'javascript:alert(1)' } }]);
+    const started = await beginDeviceAuthorization({
+        ...fixturePorts, provider: TEST_PROVIDER, clock: createTestClock(), fetchFn: http.fetchFn, client: TEST_CLIENT,
+    });
+    assert.equal(started.verificationUri, DEVICE_RESPONSE.verification_uri);
+});
+for (const verificationUri of [null, '', 42]) {
+    test(`a present invalid verification_uri (${String(verificationUri)}) is not repaired from verification_url`, async () => {
+        const http = createFetchDouble([{ json: { ...DEVICE_RESPONSE,
+            verification_uri: verificationUri, verification_url: DEVICE_RESPONSE.verification_uri } }]);
+        await assertOAuthRejects(() => beginDeviceAuthorization({
+            ...fixturePorts, provider: TEST_PROVIDER, clock: createTestClock(), fetchFn: http.fetchFn, client: TEST_CLIENT,
+        }), 'OAUTH_MALFORMED_RESPONSE');
+    });
+}
+for (const verificationUrl of [null, 42, 'javascript:alert(1)']) {
+    test(`a legacy verification_url (${String(verificationUrl)}) still requires a safe URL string`, async () => {
+        const { verification_uri: _dropped, ...withoutUri } = DEVICE_RESPONSE;
+        const http = createFetchDouble([{ json: { ...withoutUri, verification_url: verificationUrl } }]);
+        await assertOAuthRejects(() => beginDeviceAuthorization({
+            ...fixturePorts, provider: TEST_PROVIDER, clock: createTestClock(), fetchFn: http.fetchFn, client: TEST_CLIENT,
+        }), typeof verificationUrl === 'string' ? 'OAUTH_UNSAFE_ENDPOINT' : 'OAUTH_MALFORMED_RESPONSE');
+    });
+}
 for (const [expiresIn, expiresAt] of [
     [999999, "2026-08-25T12:30:00.000Z"],
     [1, "2026-08-25T12:00:30.000Z"],

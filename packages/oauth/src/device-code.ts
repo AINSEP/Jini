@@ -53,7 +53,14 @@ export async function beginDeviceAuthorization(requiredArgs: OAuthRequiredArgs<D
         operatorAction: 'Check network access to this provider, then start the connection again. Nothing was retried automatically.' } });
     try {
         const config = createOAuthClientConfiguration({ client, endpoint, endpointName: 'device_authorization_endpoint' });
-        config[customFetch] = async (url, options) => adaptOAuthResponse({ response: await guardedFetch(url, options) }, { successStatus: 200 });
+        config[customFetch] = async (url, options) => adaptOAuthResponse({ response: await guardedFetch(url, options) }, {
+            successStatus: 200,
+            project(body) {
+                // Google still emits the pre-RFC spelling; upstream validates the normalized field.
+                if (body.verification_uri === undefined && typeof body.verification_url === 'string')
+                    body.verification_uri = body.verification_url;
+            },
+        });
         const body = await initiateDeviceAuthorization(config, params);
         return {
             deviceCode: body.device_code, userCode: body.user_code,

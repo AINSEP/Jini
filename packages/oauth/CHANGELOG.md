@@ -19,7 +19,8 @@
 
 - Delete local token/device validators, discovery JSON-object parsing, registration response projections and repeated transport-error wrappers; call the pinned upstream processors directly.
 - Retain one facade response adapter for nonstandard error statuses, successful device/registration status normalization, provider token-type casing and opaque ID-token retention; upstream decodes protocol errors and validates fields.
-- Adopt upstream required/optional field validation: no local repair of missing token types, empty token fields, legacy `verification_url`, malformed device timing or incomplete secret-bearing registrations. Discovery requires an issuer and RFC 9728 resource binding.
+- Adopt upstream required/optional field validation: no local repair of missing token types, empty token fields, malformed device timing or incomplete secret-bearing registrations. Discovery requires an issuer and RFC 9728 resource binding.
+- Normalize Google's legacy string `verification_url` to `verification_uri` only when the standard field is absent, before upstream device-response validation and host display-URL safety checks.
 - Retain synchronous PKCE hashing with Node crypto because upstream hashing is asynchronous. Transport safety, state/cache lifecycle and refresh coordination remain host-owned.
 
 ### Changed — OAuth protocol library migration
@@ -30,7 +31,10 @@
 
 ### Intentional behavior changes
 
-- Refuse successful-looking token responses with a non-200 status or an unsupported token type as `OAUTH_MALFORMED_RESPONSE`. Preserve valid JSON responses with non-JSON media types, default `Bearer`, optional-field/lifetime normalization and provider token-type casing; device/registration compatibility still accepts successful 2xx JSON objects.
+- Refuse successful-looking token responses with a non-200 status, a missing token type or an unsupported token type as `OAUTH_MALFORMED_RESPONSE`. Preserve valid JSON responses with non-JSON media types and provider token-type casing; device/registration compatibility still accepts successful 2xx JSON objects.
+- Require HTTP 200 for authorization-server and protected-resource discovery documents; other successful statuses are malformed responses.
+- Send the HTTP Basic authorization header during device initiation when the client uses `client_secret_basic`.
+- Omit the authorization header for an explicitly empty dynamic-registration initial access token.
 - Refuse empty client ids, missing/empty confidential-client secrets, missing/empty grant types and empty refresh tokens as `OAUTH_INVALID_REQUEST` before dispatch. Synchronous authorization-URL formatting also refuses empty client ids and non-HTTP(S) authorization endpoints.
 - Encode HTTP Basic client credentials using RFC 6749 form encoding before Base64 (`+` for spaces replaces the old `%20` encoding).
 - Reject returned redirects even when an injected fetch port ignores redirect refusal; discovery treats these safety failures as terminal.
@@ -45,6 +49,7 @@
 
 ### Fixed
 
+- Replace provider `error` strings outside the 1–64 character ASCII letter/digit/underscore format with `invalid_provider_error` before upstream processing, preventing arbitrary text from reaching facade error messages or `providerErrorCode`.
 - Match the DNS-pinned transport's required dispatcher to Node's native `RequestInit` dispatcher type and forward standard request options without an opaque dispatcher intersection. Update dispatcher test doubles to satisfy the native contract.
 
 ### BREAKING — canonical OAuth API and core kernel

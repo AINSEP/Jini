@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import { afterEach, test, vi } from 'vitest';
 import { registerOAuthClientDynamically, type DynamicClientRegistrationInput } from '../../src/registration.js';
 import type { OAuthOptionalArgs } from '../../src/args.js';
@@ -104,7 +105,7 @@ for (const [status, document, suffix, providerErrorCode] of [
     [200, { error: 'invalid_client', client_id: 'id' }, ', invalid_client', 'invalid_client'],
     [400, {}, '', undefined],
     [400, { error: 123 }, '', undefined],
-    [200, { error: '' }, '', undefined],
+    [200, { error: '' }, ', invalid_provider_error', 'invalid_provider_error'],
 ] as const) {
     test(`registration rejects HTTP ${status} with error ${JSON.stringify(document)}`, async () => {
         const http = createFetchDouble([{ status, json: document }]);
@@ -126,12 +127,17 @@ test('registration uses host rejection copy and omits provider descriptions', as
     assert.equal(error.message, 'the authorization server refused the client registration (HTTP 403, denied)');
 });
 
-test('registration reflects arbitrary provider error-code text (reported, not fixed)', async () => {
-    const http = createFetchDouble([{ status: 400, json: { error: '<script>provider-text</script>' } }]);
-    const error = await assertOAuthRejects(() => registerOAuthClientDynamically({ ...REQUIRED, fetchFn: http.fetchFn }), 'OAUTH_PROVIDER_REJECTED');
-    assert.equal(error.message, 'the authorization server refused the client registration (HTTP 400, <script>provider-text</script>)');
-    assert.equal(error.providerErrorCode, '<script>provider-text</script>');
-});
+for (const [index, providerError] of ['<script>provider-text</script>', `sk-${randomBytes(24).toString('base64url')}`, 'a'.repeat(65), 'invalid_client\n'].entries()) {
+    test(`registration replaces arbitrary provider error text with a fixed code (case ${index + 1})`, async () => {
+        const http = createFetchDouble([{ status: 400, json: { error: providerError } }]);
+        const error = await assertOAuthRejects(() => registerOAuthClientDynamically({ ...REQUIRED, fetchFn: http.fetchFn }), 'OAUTH_PROVIDER_REJECTED');
+        assert.equal(error.message, 'the authorization server refused the client registration (HTTP 400, invalid_provider_error)');
+        assert.equal(error.providerErrorCode, 'invalid_provider_error');
+        assert.equal(error.cause, undefined);
+        assert.equal(JSON.stringify(error).includes(providerError), false);
+        assert.equal(http.callCount(), 1);
+    });
+}
 
 for (const clientId of [undefined, null, '', '  ', 12]) {
     test(`registration rejects missing or invalid client id ${JSON.stringify(clientId)}`, async () => {

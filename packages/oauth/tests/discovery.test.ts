@@ -55,7 +55,7 @@ test("discovery retains a device endpoint and refuses an unsafe advertised devic
     const origin = "http://127.0.0.1:1";
     for (const deviceEndpoint of [`${origin}/device`, "https://169.254.169.254/device"]) {
         const fetchFn: import('../src/index.js').OAuthFetch = async ({ url }) => new Response(JSON.stringify(String(url).includes("oauth-protected-resource")
-            ? { authorization_servers: [origin] }
+            ? { resource: `${origin}/resource`, authorization_servers: [origin] }
             : { issuer: origin, token_endpoint: `${origin}/token`, device_authorization_endpoint: deviceEndpoint }));
         if (deviceEndpoint.startsWith(origin)) {
             const discovered = await discoverAuthorizationServer({
