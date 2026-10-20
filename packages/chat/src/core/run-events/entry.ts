@@ -4,7 +4,7 @@
  * event names and excluded run-ID prefixes are explicit host inputs, never product wire defaults.
  * Authenticated routing, ownership, boot repair and storage transactions remain host responsibilities. */
 
-import { decodeSseFrames, parseSseRecord, type DecodedSseFrame } from "@jini-ai/agent-runtime/providers/sse-decode";
+import { decodeSseFrames, parseSseRecord, type DecodedSseFrame } from "@jini-ai/core/primitives";
 import { assistantContentFromEvents } from "../assistant-content.js";
 import { mergeAdjacentTextEvents } from "../compact-events.js";
 import { dedupeToolUsesById } from "../tool-events.js";

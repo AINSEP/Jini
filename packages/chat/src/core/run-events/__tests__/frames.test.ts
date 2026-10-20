@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   parseFrame,
   readSseFrames,
+  runContentFromEvents,
+  runEventsForSave,
   readTerminalOutcome,
   readTerminalReason,
   runInterruptedNotice,
@@ -106,6 +108,50 @@ describe('terminal readers', () => {
 });
 
 describe('SSE framing', () => {
+  it.each(['\n', '\r\n'])('keeps parsed and byte-streamed run reductions identical with %j delimiters', async (newline) => {
+    const payloads = [
+      { type: 'text_delta', delta: 'café ' },
+      { type: 'text_delta', delta: 'ready' },
+      { type: 'tool_use', id: 't1', name: 'search', input: {} },
+      { type: 'text_delta', delta: 'Après' },
+    ];
+    const records = [
+      ...payloads.map(payload => `event: agent${newline}data: ${JSON.stringify({ payload })}`),
+      `event: end${newline}data: ${end({ status: 'succeeded' })}`,
+    ];
+    const parsedOutcomes = records.map(rawFrame => {
+      const frame = parseFrame({ rawFrame });
+      expect(frame).not.toBeNull();
+      return translateRunFrame({ kind: frame!.event, raw: frame!.data, notices });
+    });
+    const bytes = new TextEncoder().encode(records.join(newline + newline) + newline + newline);
+    const body = new ReadableStream<Uint8Array>({
+      start(c) { for (const byte of bytes) c.enqueue(Uint8Array.of(byte)); c.close(); },
+    });
+    const streamedOutcomes = [];
+    for await (const frame of readSseFrames({ body })) {
+      streamedOutcomes.push(translateRunFrame({ kind: frame.event, raw: frame.data, notices }));
+    }
+    expect(parsedOutcomes).toEqual([
+      { events: [{ kind: 'text', text: 'café ' }] },
+      { events: [{ kind: 'text', text: 'ready' }] },
+      { events: [{ kind: 'tool_use', id: 't1', name: 'search', input: {} }] },
+      { events: [{ kind: 'text', text: 'Après' }] },
+      { events: [], terminal: 'succeeded' },
+    ]);
+    expect(streamedOutcomes).toEqual(parsedOutcomes);
+    for (const outcomes of [parsedOutcomes, streamedOutcomes]) {
+      const events = outcomes.flatMap(outcome => outcome.events);
+      expect(runEventsForSave({ events })).toEqual([
+        { kind: 'text', text: 'café ready' },
+        { kind: 'tool_use', id: 't1', name: 'search', input: {} },
+        { kind: 'text', text: 'Après' },
+      ]);
+      expect(runContentFromEvents({ events })).toBe('café ready\n\nAprès');
+    }
+    expect(body.locked).toBe(false);
+  });
+
   it('parseFrame defaults the event name to message and trims data lines', () => {
     expect(parseFrame({ rawFrame: 'data:  a \ndata: b' })).toEqual({ event: 'message', data: 'a\nb' });
   });

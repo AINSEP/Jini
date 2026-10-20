@@ -1,6 +1,11 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { parseFrame, readSseFrames, translateRunFrame, readTerminalOutcome, isDaemonRunId, asString } from '../entry.js';
 import { notices } from './fixture.js';
+
+// This universal entry must work without loading the optional runtime compatibility hop.
+vi.mock('@jini-ai/agent-runtime/providers/sse-decode', () => {
+  throw new Error('run-events must import SSE framing directly from core primitives');
+});
 
 it('rejects malformed wire payloads without throwing, including terminal nulls', () => {
   for (const raw of ['no-json', 'null', '[]', '1', '{}', '{"payload":null}', '{"payload":1}']) {
@@ -58,6 +63,32 @@ it('reads CRLF records with every byte split and ignores an incomplete terminal 
   const frames = []; for await (const frame of readSseFrames({ body })) frames.push(frame);
   expect(frames).toEqual([{ event: 'agent', data: 'café' }]);
   expect(body.locked).toBe(false); expect(canceled).toBe(false);
+});
+
+it.each([
+  { name: 'LF, no final newline', newline: '\n', tail: '', complete: false },
+  { name: 'LF, one final newline', newline: '\n', tail: '\n', complete: false },
+  { name: 'LF, complete terminal', newline: '\n', tail: '\n\n', complete: true },
+  { name: 'CRLF, no final newline', newline: '\r\n', tail: '', complete: false },
+  { name: 'CRLF, one final newline', newline: '\r\n', tail: '\r\n', complete: false },
+  { name: 'CRLF, complete terminal', newline: '\r\n', tail: '\r\n\r\n', complete: true },
+])('preserves records and EOF policy at every two-chunk split: $name', async ({ newline, tail, complete }) => {
+  const bytes = new TextEncoder().encode([
+    ': keepalive', '', 'event: ping', '',
+    'id: c1', 'event: agent ', 'data:  café ☕  ', 'data: second ', '',
+    'event: end', 'data: {}',
+  ].join(newline) + tail);
+  const expected = [{ event: 'agent', data: 'café ☕\nsecond' }];
+  if (complete) expected.push({ event: 'end', data: '{}' });
+  for (let split = 0; split <= bytes.length; split++) {
+    const body = new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(bytes.slice(0, split)); c.enqueue(bytes.slice(split)); c.close(); },
+    });
+    const frames = [];
+    for await (const frame of readSseFrames({ body })) frames.push(frame);
+    expect(frames, `split at byte ${split}`).toEqual(expected);
+    expect(body.locked).toBe(false);
+  }
 });
 
 it('releases the chat reader even when cancellation rejects', async () => {
