@@ -169,18 +169,40 @@ async function resolveCollapsedTarget(
   fromPattern: string,
   toTarget: string
 ): Promise<string> {
-  let finalTarget = toTarget;
-  if (!isAbsoluteOrProtocolRelative(finalTarget)) {
-    const chained = await repo.findByFromPattern({ workspaceId, fromPattern: finalTarget });
-    if (chained && chained.status === "active") {
-      finalTarget = chained.toTarget;
-    }
-  }
+  const finalTarget = await collapseOneHop({ repo, workspaceId, toTarget });
   if (finalTarget === fromPattern) {
     throw new RedirectLoopError(
       `redirect from '${fromPattern}' would create a cycle via '${toTarget}' (resolves back to '${fromPattern}')`
     );
   }
+  await assertChainDoesNotReturn({ repo, workspaceId, fromPattern, toTarget, finalTarget });
+  return finalTarget;
+}
+
+/**
+ * The single hop {@link resolveCollapsedTarget} collapses: a relative target that is itself an
+ * active rule's `fromPattern` becomes that rule's target (AC-16).
+ *
+ * @complexity O(1) plus one repo read for a relative target.
+ */
+async function collapseOneHop(
+  { repo, workspaceId, toTarget }: { repo: RedirectRepoPort; workspaceId: string; toTarget: string },
+): Promise<string> {
+  if (isAbsoluteOrProtocolRelative(toTarget)) return toTarget;
+  const chained = await repo.findByFromPattern({ workspaceId, fromPattern: toTarget });
+  return chained && chained.status === "active" ? chained.toTarget : toTarget;
+}
+
+/**
+ * Walk existing rules from `finalTarget` and refuse a write whose chain leads back to `fromPattern`.
+ *
+ * @throws {RedirectLoopError} When the walk reaches `fromPattern` within 32 hops.
+ * @complexity O(32) repo reads at most.
+ */
+async function assertChainDoesNotReturn(
+  { repo, workspaceId, fromPattern, toTarget, finalTarget }:
+  { repo: RedirectRepoPort; workspaceId: string; fromPattern: string; toTarget: string; finalTarget: string },
+): Promise<void> {
   // The collapse above only follows ONE hop (INV-04's own bound on what a request resolution
   // chases). But a create/update whose finalTarget lands on an EXISTING rule can still complete a
   // longer cycle through rules this call never collapses through — walk the rest of the chain (up
@@ -191,19 +213,18 @@ async function resolveCollapsedTarget(
   let cur = finalTarget;
   const seen = new Set<string>();
   for (let hop = 0; hop < 32; hop++) {
-    if (isAbsoluteOrProtocolRelative(cur)) break;
+    if (isAbsoluteOrProtocolRelative(cur)) return;
     if (cur === fromPattern) {
       throw new RedirectLoopError(
         `redirect from '${fromPattern}' would create a cycle via '${toTarget}' (following existing redirects leads back to '${fromPattern}')`
       );
     }
-    if (seen.has(cur)) break;
+    if (seen.has(cur)) return;
     seen.add(cur);
     const rule = await repo.findByFromPattern({ workspaceId, fromPattern: cur });
-    if (!rule || rule.status !== "active") break;
+    if (!rule || rule.status !== "active") return;
     cur = rule.toTarget;
   }
-  return finalTarget;
 }
 
 /**
@@ -359,6 +380,46 @@ async function assertNoDuplicate(
   }
 }
 
+/** The rule fields every create/update/precheck validates. */
+interface WriteValidatedFields {
+  matchType: RedirectMatchType;
+  fromPattern: string;
+  toTarget: string;
+  statusCode: RedirectStatusCode;
+  priority: number;
+}
+
+/**
+ * The one validation sequence {@link createRedirect}, {@link updateRedirect} and
+ * {@link checkRedirectFieldsWouldWrite} share, so the three can never drift onto different rulesets.
+ * Returns the target to store (one-hop collapsed, AC-16).
+ *
+ * @param optional.excludeId The row's own id, when validating an update against itself.
+ * @param optional.status A merged update's status, checked in the same position an update always checked it.
+ * @throws {RedirectValidationError | RedirectTargetNotAllowedError | RedirectLoopError | RedirectConflictError}
+ * @complexity O(n) in the target length, plus the repo and origin reads each check makes.
+ */
+async function validateWriteFields(
+  { deps, workspaceId, fields }: { deps: RedirectsWriteDeps; workspaceId: string; fields: WriteValidatedFields },
+  { excludeId, status }: { excludeId?: string | undefined; status?: RedirectStatus } = {},
+): Promise<string> {
+  const patternCheck = deps.matcher.validatePattern({ matchType: fields.matchType, fromPattern: fields.fromPattern });
+  if (!patternCheck.ok) throw new RedirectValidationError(patternCheck.reason);
+  validateToTargetLength(fields.toTarget);
+  validateStatusCode(fields.statusCode);
+  if (status !== undefined) validateStatus(status);
+  validatePriority(fields.priority);
+
+  assertRedirectSourceAllowed({ fromPattern: fields.fromPattern, reservedSegments: deps.reservedSegments });
+  await assertTargetAllowed(deps.originRegistry, workspaceId, fields.toTarget, deps.reservedSegments);
+  const finalTarget = await resolveCollapsedTarget(deps.repo, workspaceId, fields.fromPattern, fields.toTarget);
+  if (finalTarget !== fields.toTarget) {
+    await assertTargetAllowed(deps.originRegistry, workspaceId, finalTarget, deps.reservedSegments);
+  }
+  await assertNoDuplicate(deps.repo, workspaceId, fields.matchType, fields.fromPattern, excludeId);
+  return finalTarget;
+}
+
 /**
  * Pure precondition check mirroring every validator `createRedirect`/`updateRedirect` run, with NO
  * write — `features/redirects/publish-content.ts`'s `precheck()` reuses this so the two can never
@@ -382,18 +443,7 @@ export async function checkRedirectFieldsWouldWrite(
   { excludeId }: { excludeId?: string } = {},
 ): Promise<string | null> {
   try {
-    const patternCheck = deps.matcher.validatePattern({ matchType: fields.matchType, fromPattern: fields.fromPattern });
-    if (!patternCheck.ok) throw new RedirectValidationError(patternCheck.reason);
-    validateToTargetLength(fields.toTarget);
-    validateStatusCode(fields.statusCode);
-    validatePriority(fields.priority);
-    assertRedirectSourceAllowed({ fromPattern: fields.fromPattern, reservedSegments: deps.reservedSegments });
-    await assertTargetAllowed(deps.originRegistry, fields.workspaceId, fields.toTarget, deps.reservedSegments);
-    const finalTarget = await resolveCollapsedTarget(deps.repo, fields.workspaceId, fields.fromPattern, fields.toTarget);
-    if (finalTarget !== fields.toTarget) {
-      await assertTargetAllowed(deps.originRegistry, fields.workspaceId, finalTarget, deps.reservedSegments);
-    }
-    await assertNoDuplicate(deps.repo, fields.workspaceId, fields.matchType, fields.fromPattern, excludeId);
+    await validateWriteFields({ deps, workspaceId: fields.workspaceId, fields }, { excludeId });
     return null;
   } catch (err) {
     return err instanceof Error ? err.message : String(err);
@@ -439,23 +489,8 @@ export interface CreateRedirectRequired {
 export async function createRedirect(required: CreateRedirectRequired, _optional: Record<string, never> = {}): Promise<{ record: RedirectRecord }> {
   const { deps, input, source = "manual" } = required;
 
-  const patternCheck = deps.matcher.validatePattern({
-    matchType: input.matchType,
-    fromPattern: input.fromPattern,
-  });
-  if (!patternCheck.ok) throw new RedirectValidationError(patternCheck.reason);
-  validateToTargetLength(input.toTarget);
-  validateStatusCode(input.statusCode);
   const priority = input.priority ?? DEFAULT_PRIORITY;
-  validatePriority(priority);
-
-  assertRedirectSourceAllowed({ fromPattern: input.fromPattern, reservedSegments: deps.reservedSegments });
-  await assertTargetAllowed(deps.originRegistry, input.workspaceId, input.toTarget, deps.reservedSegments);
-  const finalTarget = await resolveCollapsedTarget(deps.repo, input.workspaceId, input.fromPattern, input.toTarget);
-  if (finalTarget !== input.toTarget) {
-    await assertTargetAllowed(deps.originRegistry, input.workspaceId, finalTarget, deps.reservedSegments);
-  }
-  await assertNoDuplicate(deps.repo, input.workspaceId, input.matchType, input.fromPattern);
+  const finalTarget = await validateWriteFields({ deps, workspaceId: input.workspaceId, fields: { ...input, priority } });
 
   const now = clockNowIso({ clock: deps.clock });
   const id = deps.idGen.newId();
@@ -566,34 +601,50 @@ function isRestoreOnlyUpdate(input: UpdateRedirectInput): boolean {
 }
 
 /**
- * Runs every field check a create runs against the merged update, and returns the target to store
- * (one-hop collapsed, AC-16). Split out of {@link updateRedirect} so a disable-only update can skip
- * it as one decision.
+ * S7: the only update a trashed rule accepts is a pure restore ({@link isRestoreOnlyUpdate}); any
+ * other PATCH is refused rather than editing a row the caller cannot see the current shape of.
  *
- * @throws {RedirectValidationError | RedirectTargetNotAllowedError | RedirectLoopError | RedirectConflictError}
- * @complexity O(n) in the target length, plus the repo and origin reads each check makes.
+ * @throws {EntityNotLiveError} On a non-restore update.
+ * @throws {RedirectNotFoundError | RedirectConflictError} When the restore does not land.
+ * @complexity O(1) plus the restore and one repo re-read.
  */
-async function validateUpdateFields(
-  deps: RedirectsWriteDeps,
-  workspaceId: string,
-  fields: UpdatableRedirectFields,
-  existingId: string
-): Promise<string> {
-  const patternCheck = deps.matcher.validatePattern({ matchType: fields.matchType, fromPattern: fields.fromPattern });
-  if (!patternCheck.ok) throw new RedirectValidationError(patternCheck.reason);
-  validateToTargetLength(fields.toTarget);
-  validateStatusCode(fields.statusCode);
-  validateStatus(fields.status);
-  validatePriority(fields.priority);
-
-  assertRedirectSourceAllowed({ fromPattern: fields.fromPattern, reservedSegments: deps.reservedSegments });
-  await assertTargetAllowed(deps.originRegistry, workspaceId, fields.toTarget, deps.reservedSegments);
-  const finalTarget = await resolveCollapsedTarget(deps.repo, workspaceId, fields.fromPattern, fields.toTarget);
-  if (finalTarget !== fields.toTarget) {
-    await assertTargetAllowed(deps.originRegistry, workspaceId, finalTarget, deps.reservedSegments);
+async function restoreTrashedRedirect(
+  { deps, input, existing }: { deps: RedirectsWriteDeps; input: UpdateRedirectInput; existing: RedirectRecord },
+): Promise<{ record: RedirectRecord }> {
+  if (!isRestoreOnlyUpdate(input)) {
+    assertEntityLive({ entityType: "redirect", entityId: input.id, state: "trashed" });
   }
-  await assertNoDuplicate(deps.repo, workspaceId, fields.matchType, fields.fromPattern, existingId);
-  return finalTarget;
+
+  assertRedirectSourceAllowed({ fromPattern: existing.fromPattern, reservedSegments: deps.reservedSegments });
+  const outcome = await deps.restore({
+    workspaceId: input.workspaceId,
+    id: input.id,
+    at: clockNowIso({ clock: deps.clock }),
+    actor: { principalId: input.actorId, pluginId: input.pluginId ?? null },
+  });
+  assertRestoreLanded({ outcome, id: input.id });
+
+  const restored = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
+  if (!restored) throw new RedirectNotFoundError(`redirect '${input.id}' was not found`);
+  await enqueueMutatedEvent(deps, restored, "updated");
+  return { record: restored };
+}
+
+/**
+ * Map a non-"restored" Trash outcome to the error the caller sees.
+ *
+ * @complexity O(1).
+ */
+function assertRestoreLanded(
+  { outcome, id }: { outcome: Awaited<ReturnType<RedirectsWriteDeps["restore"]>>; id: string },
+): void {
+  if (outcome === "not-found") throw new RedirectNotFoundError(`redirect '${id}' was not found`);
+  if (outcome === "version-changed") {
+    throw new RedirectConflictError(`redirect '${id}' changed while it was being restored`);
+  }
+  if (outcome === "adapter-unavailable") {
+    throw new Error(`trash: no Trash adapter is registered for entity type 'redirect' (id '${id}')`);
+  }
 }
 
 /**
@@ -616,36 +667,14 @@ export async function updateRedirect(required: UpdateRedirectRequired, _optional
   if (!existing) throw new RedirectNotFoundError(`redirect '${input.id}' was not found`);
 
   const inTrash = await deps.isInTrash({ workspaceId: input.workspaceId, id: input.id });
-  if (inTrash) {
-    if (!isRestoreOnlyUpdate(input)) {
-      assertEntityLive({ entityType: "redirect", entityId: input.id, state: "trashed" });
-    }
-
-    assertRedirectSourceAllowed({ fromPattern: existing.fromPattern, reservedSegments: deps.reservedSegments });
-    const outcome = await deps.restore({
-      workspaceId: input.workspaceId,
-      id: input.id,
-      at: clockNowIso({ clock: deps.clock }),
-      actor: { principalId: input.actorId, pluginId: input.pluginId ?? null },
-    });
-    if (outcome === "not-found") throw new RedirectNotFoundError(`redirect '${input.id}' was not found`);
-    if (outcome === "version-changed") {
-      throw new RedirectConflictError(`redirect '${input.id}' changed while it was being restored`);
-    }
-    if (outcome === "adapter-unavailable") {
-      throw new Error(`trash: no Trash adapter is registered for entity type 'redirect' (id '${input.id}')`);
-    }
-
-    const restored = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
-    if (!restored) throw new RedirectNotFoundError(`redirect '${input.id}' was not found`);
-    await enqueueMutatedEvent(deps, restored, "updated");
-    return { record: restored };
-  }
+  if (inTrash) return restoreTrashedRedirect({ deps, input, existing });
 
   const fields = resolveUpdateFields(input, existing);
+  // Every field check a create runs, against the merged update; a disable-only update skips it as
+  // one decision and keeps the existing target as-is.
   const finalTarget = isDisableOnlyUpdate(fields, existing)
     ? existing.toTarget
-    : await validateUpdateFields(deps, input.workspaceId, fields, existing.id);
+    : await validateWriteFields({ deps, workspaceId: input.workspaceId, fields }, { excludeId: existing.id, status: fields.status });
 
   const now = clockNowIso({ clock: deps.clock });
   const version = existing.version + 1;
