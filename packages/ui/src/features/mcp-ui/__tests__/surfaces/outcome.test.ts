@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { buildOutcomeSurface, renderOutcomeDocument } from '../../surfaces/outcome.js';
 import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
 import { mountSurface } from './mount-surface.js';
@@ -140,5 +141,31 @@ describe('buildOutcomeSurface', () => {
   it('still carries a preferred frame size when one is asked for', () => {
     const resource = buildOutcomeSurface({ ...PUBLISH_FAILURE, uri: 'ui://example-host/x/2', preferredFrameSize: ['100%', '240px'] });
     expect(resource.resource._meta?.[MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]).toEqual(['100%', '240px']);
+  });
+});
+
+describe('buildOutcomeSurface frame size', () => {
+  it('carries no preferred frame size when none is asked for', () => {
+    const resource = buildOutcomeSurface({ ...PUBLISH_FAILURE, uri: 'ui://example-host/x/3' });
+    expect(resource.resource._meta?.[MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]).toBeUndefined();
+  });
+});
+
+// Exact-output pins: sha256 of whole documents captured on the pre-refactor code, so any byte of
+// markup, script or framing that changes in a refactor fails here.
+describe('renderOutcomeDocument exact output', () => {
+  const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  const cases: ReadonlyArray<readonly [string, Parameters<typeof renderOutcomeDocument>[0], string]> = [
+    ['success with link and details', PUBLISH_SUCCESS, '688dde39abe77aa8c1fcaa8430f8da46119461c38459c47553dae334f0ae9a58'],
+    ['partial with custom link label, app, lang and tokens', { ...PUBLISH_SUCCESS, state: 'partial', openLinkLabel: 'View', app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#123456' } }, '73fb126bfebf3105037bd0111928e38706278c246e6e61e3746de17c6f82d5eb'],
+    ['failure with link', { ...PUBLISH_FAILURE, openLinkUrl: 'https://x.test/"</script>' }, 'cd02c8d5b6c02042da614c39ca30f8433b80f34da3faecfb16bdb991e23ea88b'],
+    ['failure without link', PUBLISH_FAILURE, '4289fca764208847cd4888d91bc93b7d3267511d5c1c5daf502194128270b672'],
+  ];
+  it.each(cases)('%s', (_name, spec, expected) => {
+    expect(digest(renderOutcomeDocument(spec))).toBe(expected);
+  });
+
+  it('pins the framed resource wrapper', () => {
+    expect(digest(buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://h/x/1', preferredFrameSize: ['1px', '2px'] }))).toBe('38c59e246fda02435f2c78af15187036773c70d3a32fbe53a3832231a002cd9a');
   });
 });
