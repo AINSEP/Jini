@@ -1,5 +1,7 @@
 /** @module json-event-stream
  * Multi-CLI JSON event parsing with per-handler stream state. */
+import { sanitizeUntrustedText } from '@jini-ai/core/text';
+
 type JsonObject = Record<string, unknown>;
 type StreamEvent = Record<string, unknown>;
 type StreamEventHandler = (event: StreamEvent) => void;
@@ -143,12 +145,16 @@ function isNonNullObject(value: unknown): value is object {
   return value !== null && typeof value === 'object';
 }
 
+/** Unwrap string/record error envelopes, retaining string or numeric codes alongside messages. */
 function extractErrorMessage(value: unknown, fallback: string): string {
   if (typeof value === 'string') {
     const parsed = safeParseJson(value);
     return isNonNullObject(parsed) ? extractErrorMessage(parsed, value) : value;
   }
-  return isRecord(value) ? extractRecordErrorMessage(value, fallback) : fallback;
+  if (!isRecord(value)) return fallback;
+  const message = extractRecordErrorMessage(value, '');
+  const code = typeof value.code === 'number' ? String(value.code) : trimmedNonBlank(value.code);
+  return (code ? [code, message].filter(Boolean).join(': ') : message) || fallback;
 }
 
 /** Field precedence for an error object: detail, message (itself maybe JSON), error, data, name. */
@@ -742,6 +748,28 @@ function completeCodexCommand(item: CodexItem, onEvent: StreamEventHandler, stat
   return true;
 }
 
+/**
+ * Select a failed MCP call's diagnostic without exposing arguments or result metadata.
+ * Codex 0.161.0's exec mapper carries result content/structured_content independently of error:
+ * https://github.com/openai/codex/blob/rust-v0.161.0/codex-rs/exec/src/event_processor_with_jsonl_output.rs#L195
+ * @returns Sanitized error text, or the generic failure when no diagnostic is present.
+ * @complexity O(n) time/space for n diagnostic characters, including the shared sanitizer pass.
+ */
+function codexMcpFailureContent({ item }: { item: CodexItem }, _options = {}): string {
+  const error = trimmedNonBlank(extractErrorMessage(item.error, ''));
+  const result = isRecord(item.result) ? item.result : {};
+  const blocks = Array.isArray(result.content) ? result.content : [];
+  // Keep text verbatim until sanitizing so JSON error envelopes retain codes and recovery hints.
+  const text = blocks.filter(isRecord)
+    .filter(block => block.type === 'text')
+    .map(block => trimmedNonBlank(block.text))
+    .filter(Boolean)
+    .join('\n');
+  const structuredText = extractErrorMessage(result.structured_content, '');
+  const diagnostic = error || text || trimmedNonBlank(structuredText) || 'MCP tool call failed';
+  return sanitizeUntrustedText({ text: diagnostic });
+}
+
 function completeCodexMcpToolCall(item: CodexItem, onEvent: StreamEventHandler, state: ParserState): boolean {
   resetCodexAgentMessageBoundary(state);
   // `item.started` normally already emitted the matching `tool_use` (see
@@ -758,7 +786,7 @@ function completeCodexMcpToolCall(item: CodexItem, onEvent: StreamEventHandler, 
   // stays correct even for a hypothetical future status this union does not name yet.
   const isError = item.status !== 'completed';
   const content = isError
-    ? extractErrorMessage(item.error, 'MCP tool call failed')
+    ? codexMcpFailureContent({ item })
     : stringifyContent(item.result);
   onEvent({ type: 'tool_result', toolUseId: item.id, content, isError });
   return true;

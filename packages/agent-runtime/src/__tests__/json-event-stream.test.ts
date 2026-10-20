@@ -246,6 +246,113 @@ describe('createJsonEventStreamHandler (codex)', () => {
     });
   });
 
+  // Source-shaped fixtures, not captured logs: installed Codex 0.161.0's exec schema and mapper
+  // preserve result.content/structured_content independently of error and status.
+  // https://github.com/openai/codex/blob/rust-v0.161.0/codex-rs/exec/src/exec_events.rs#L243
+  it.each([
+    {
+      name: 'result text when the error is null',
+      error: null,
+      result: { content: [{ type: 'text', text: 'TOOL_OPERATION_DENIED: Write access required.' }], structured_content: null },
+      expected: 'TOOL_OPERATION_DENIED: Write access required.',
+    },
+    {
+      name: 'all text blocks while ignoring image blocks and metadata',
+      error: null,
+      result: { content: [{ type: 'image', data: 'private-image', mimeType: 'image/png' },
+        { type: 'text', text: 'Permission denied.' }, { type: 'text', text: 'Request write access.' }],
+        structured_content: null, _meta: { trace: 'private-metadata' } },
+      expected: 'Permission denied.\nRequest write access.',
+    },
+    {
+      name: 'JSON text with its error code and recovery hint intact',
+      error: null,
+      result: { content: [{ type: 'text', text: '{"error":{"code":"DEFINITION_NOT_FOUND","message":"List forms first."}}' }], structured_content: null },
+      expected: '{"error":{"code":"DEFINITION_NOT_FOUND","message":"List forms first."}}',
+    },
+    {
+      name: 'structured errors with their code when there are no text blocks',
+      error: null,
+      result: { content: [], structured_content: { error: { code: 'TOOL_OPERATION_DENIED', message: 'Write access required.' } } },
+      expected: 'TOOL_OPERATION_DENIED: Write access required.',
+    },
+    {
+      name: 'explicit errors before result diagnostics',
+      error: { message: 'Approval denied.' },
+      result: { content: [{ type: 'text', text: 'Result diagnostic.' }], structured_content: null },
+      expected: 'Approval denied.',
+    },
+    {
+      name: 'result diagnostics when the explicit error message is blank',
+      error: { message: ' \n ' },
+      result: { content: [{ type: 'text', text: 'Permission denied.' }], structured_content: null },
+      expected: 'Permission denied.',
+    },
+    {
+      name: 'numeric codes in JSON encoded transport errors',
+      error: { message: '{"error":{"code":-32602,"message":"Invalid arguments."}}' },
+      result: null,
+      expected: '-32602: Invalid arguments.',
+    },
+    {
+      name: 'code-only errors in JSON encoded transport errors',
+      error: { message: '{"error":{"code":"TOOL_OPERATION_DENIED"}}' },
+      result: null,
+      expected: 'TOOL_OPERATION_DENIED',
+    },
+    {
+      name: 'the fallback when result and error are null',
+      error: null,
+      result: null,
+      expected: 'MCP tool call failed',
+    },
+    {
+      name: 'the fallback when result contains no diagnostic',
+      error: {},
+      result: { content: [{ type: 'text', text: ' \n ' }, { type: 'image', data: 'private-image' }], structured_content: {} },
+      expected: 'MCP tool call failed',
+    },
+  ])('reports $name for a failed MCP call', ({ error, result, expected }) => {
+    const events = feed('codex', [{ type: 'item.completed', item: {
+      id: 'mcp-failed', type: 'mcp_tool_call', server: 'probe', tool: 'probe_tool',
+      arguments: {}, error, result, status: 'failed',
+    } }]);
+    expect(events).toEqual([
+      { type: 'tool_use', id: 'mcp-failed', name: 'probe_tool', input: {} },
+      { type: 'tool_result', toolUseId: 'mcp-failed', content: expected, isError: true },
+    ]);
+  });
+
+  it.each(['error', 'text', 'structured'])('sanitizes failed MCP diagnostics from %s', source => {
+    const secret = 'x7Qm2Pz9Vb4Nc8Ld1Rf6Yt3Wk5';
+    const escape = String.fromCharCode(27);
+    const message = `${escape}[31mTOOL_OPERATION_DENIED api_key=${secret}${escape}[0m`;
+    const events = feed('codex', [{ type: 'item.completed', item: {
+      id: 'mcp-secret', type: 'mcp_tool_call', server: 'probe', tool: 'probe_tool', arguments: {},
+      error: source === 'error' ? { message } : null,
+      result: { content: source === 'text' ? [{ type: 'text', text: message }] : [],
+        structured_content: source === 'structured' ? { error: { message } } : null },
+      status: 'failed',
+    } }]);
+    expect(events.find(event => event.type === 'tool_result')).toEqual({
+      type: 'tool_result', toolUseId: 'mcp-secret',
+      content: 'TOOL_OPERATION_DENIED api_key=[redacted]', isError: true,
+    });
+    expect(JSON.stringify(events)).not.toContain(secret);
+    expect(JSON.stringify(events)).not.toContain('\\u001b');
+  });
+
+  it('bounds failed MCP diagnostics with the shared sanitizer', () => {
+    const events = feed('codex', [{ type: 'item.completed', item: {
+      id: 'mcp-long', type: 'mcp_tool_call', server: 'probe', tool: 'probe_tool', arguments: {},
+      error: null, result: { content: [{ type: 'text', text: 'denied '.repeat(200) }], structured_content: null },
+      status: 'failed',
+    } }]);
+    const content = events.find(event => event.type === 'tool_result')?.content as string;
+    expect(content).toHaveLength(500);
+    expect(content).toMatch(/^denied .*… \[truncated\]$/u);
+  });
+
   it('emits a TodoWrite tool_use for an item.started todo_list', () => {
     const events = feed('codex', [
       {
