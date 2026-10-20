@@ -131,4 +131,52 @@ describe('ExternalMcpTab characterization', () => {
     expect(screen.getByLabelText('Server ID', { exact: false })).toHaveValue('rejected');
     expect(screen.getAllByRole('button', { name: 'Add server' })[0]).toHaveAttribute('aria-expanded', 'true');
   });
+
+  it.each([
+    { name: 'the host message', result: { ok: false, message: 'Host refused this server.' }, error: 'Host refused this server.' },
+    { name: 'the fallback message', result: { ok: false }, error: 'Failed to add source.' },
+  ])('shows $name on rejection and removes it after a successful retry', async ({ result, error }) => {
+    const user = userEvent.setup();
+    const source: SourceConfigItem = { id: 'retry', fields: { id: 'retry' } };
+    const addSource = vi.fn<SourceConfigPort['addSource']>()
+      .mockResolvedValueOnce(result)
+      .mockResolvedValueOnce({ ok: true, source });
+    const port = createPort({ sources: [] }, { addSource });
+    const { container } = render(<ExternalMcpTab dependencies={{ port }} fieldSpecs={fields} />);
+    await screen.findByText('No MCP servers configured.');
+    const toggle = screen.getByRole('button', { name: 'Add server' });
+    await user.click(toggle);
+    expect(screen.queryByRole('alert')).toBeNull();
+    await user.type(screen.getByLabelText('Server ID', { exact: false }), 'retry');
+    const form = within(container.querySelector('form')!);
+    await user.click(form.getByRole('button', { name: 'Add server' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(error);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await user.click(form.getByRole('button', { name: 'Add server' }));
+    expect(await screen.findByText('retry')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    await user.click(toggle);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByLabelText('Server ID', { exact: false })).toHaveValue('');
+    expect(addSource).toHaveBeenNthCalledWith(1, { fields: { id: 'retry' } });
+    expect(addSource).toHaveBeenNthCalledWith(2, { fields: { id: 'retry' } });
+  });
+
+  it('keeps an empty host rejection message silent (reported, not fixed)', async () => {
+    const user = userEvent.setup();
+    const addSource = vi.fn<SourceConfigPort['addSource']>().mockResolvedValue({ ok: false, message: '' });
+    const port = createPort({ sources: [] }, { addSource });
+    const { container } = render(<ExternalMcpTab dependencies={{ port }} fieldSpecs={fields} />);
+    await screen.findByText('No MCP servers configured.');
+    const toggle = screen.getByRole('button', { name: 'Add server' });
+    await user.click(toggle);
+    await user.type(screen.getByLabelText('Server ID', { exact: false }), 'silent');
+    await user.click(within(container.querySelector('form')!).getByRole('button', { name: 'Add server' }));
+    await waitFor(() => expect(within(container.querySelector('form')!).getByRole('button', { name: 'Add server' })).toBeEnabled());
+    expect(addSource).toHaveBeenCalledWith({ fields: { id: 'silent' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText('Server ID', { exact: false })).toHaveValue('silent');
+    expect(screen.queryByTestId('source-config-item-card')).toBeNull();
+  });
 });

@@ -101,7 +101,7 @@ export function ExternalMcpTab({
           validation={addForm.validation}
           submitAttempted={addForm.submitAttempted}
           submitting={addForm.submitting}
-          {...(addForm.submitError ? { submitError: addForm.submitError } : {})}
+          submitError={addForm.submitError}
           onFieldChange={addForm.setField}
           onTrustChange={addForm.setTrust}
           onSubmit={() => void addForm.submit()}
