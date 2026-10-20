@@ -74,69 +74,57 @@ export function createCopilotStreamHandler({ onEvent }: { onEvent: EventSink }) 
   function handleObject(obj: unknown) {
     if (!isRecord(obj) || typeof obj.type !== 'string') return;
     const data = isRecord(obj.data) ? obj.data : {};
-
-    switch (obj.type) {
-      case 'session.tools_updated':
-        if (data.model) {
-          onEvent({ type: 'status', label: 'initializing', model: data.model });
-        }
-        return;
-
-      case 'assistant.turn_start':
-        onEvent({ type: 'status', label: 'streaming' });
-        return;
-
-      case 'assistant.reasoning_delta':
-        if (typeof data.deltaContent === 'string') {
-          onEvent({ type: 'thinking_delta', delta: data.deltaContent });
-        }
-        return;
-
-      case 'assistant.message_delta':
-        if (typeof data.deltaContent === 'string') {
-          onEvent({ type: 'text_delta', delta: data.deltaContent });
-        }
-        return;
-
-      case 'tool.execution_start':
-        onEvent({
-          type: 'tool_use',
-          id: data.toolCallId ?? null,
-          name: data.toolName ?? null,
-          input: data.arguments ?? null,
-        });
-        return;
-
-      case 'tool.execution_complete':
-        onEvent({
-          type: 'tool_result',
-          toolUseId: data.toolCallId ?? null,
-          content: stringifyResult(data.result),
-          isError: data.success === false,
-        });
-        return;
-
-      case 'result':
-        // `result` puts usage / exitCode at the top level, not under `data`.
-        // Treat a missing exitCode as success when `success: true` is set —
-        // strict `=== 0` would otherwise mis-flag turns where Copilot emits
-        // usage without a numeric exit code as `error`.
-        onEvent({
-          type: 'usage',
-          usage: obj.usage ?? null,
-          stopReason:
-            obj.success === true || obj.exitCode === 0 ? 'completed' : 'error',
-          durationMs: isRecord(obj.usage) ? obj.usage.sessionDurationMs ?? null : null,
-        });
-        return;
-
-      default:
-        return;
-    }
+    // Event types we have no UI lane for are dropped on the floor.
+    COPILOT_EVENT_HANDLERS.get(obj.type)?.({ obj, data, onEvent });
   }
 
   return { feed, flush };
 }
+
+type CopilotEventHandler = (requiredArgs: { obj: Record<string, unknown>; data: Record<string, unknown>; onEvent: EventSink }) => void;
+
+function emitDelta(type: 'thinking_delta' | 'text_delta'): CopilotEventHandler {
+  return ({ data, onEvent }) => {
+    if (typeof data.deltaContent === 'string') {
+      onEvent({ type, delta: data.deltaContent });
+    }
+  };
+}
+
+// Map (not an object literal) so a prototype-named `type` can never resolve to a handler.
+const COPILOT_EVENT_HANDLERS = new Map<string, CopilotEventHandler>([
+  ['session.tools_updated', ({ data, onEvent }) => {
+    if (data.model) {
+      onEvent({ type: 'status', label: 'initializing', model: data.model });
+    }
+  }],
+  ['assistant.turn_start', ({ onEvent }) => onEvent({ type: 'status', label: 'streaming' })],
+  ['assistant.reasoning_delta', emitDelta('thinking_delta')],
+  ['assistant.message_delta', emitDelta('text_delta')],
+  ['tool.execution_start', ({ data, onEvent }) => onEvent({
+    type: 'tool_use',
+    id: data.toolCallId ?? null,
+    name: data.toolName ?? null,
+    input: data.arguments ?? null,
+  })],
+  ['tool.execution_complete', ({ data, onEvent }) => onEvent({
+    type: 'tool_result',
+    toolUseId: data.toolCallId ?? null,
+    content: stringifyResult(data.result),
+    isError: data.success === false,
+  })],
+  // `result` puts usage / exitCode at the top level, not under `data`.
+  // Treat a missing exitCode as success when `success: true` is set —
+  // strict `=== 0` would otherwise mis-flag turns where Copilot emits
+  // usage without a numeric exit code as `error`.
+  ['result', ({ obj, onEvent }) => onEvent({
+    type: 'usage',
+    usage: obj.usage ?? null,
+    stopReason:
+      obj.success === true || obj.exitCode === 0 ? 'completed' : 'error',
+    durationMs: isRecord(obj.usage) ? obj.usage.sessionDurationMs ?? null : null,
+  })],
+]);
 
 function stringifyResult(r: unknown): string {
   if (r == null) return '';
