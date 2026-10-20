@@ -40,12 +40,6 @@ export interface OAuthTokenFile {
   token?: StoredOAuthToken;
 }
 
-const EMPTY: OAuthTokenFile = {};
-
-function tokenFilePath(dataDir: string, fileName: string): string {
-  return path.join(dataDir, fileName);
-}
-
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 }
@@ -57,31 +51,23 @@ export function sanitizeOAuthTokenFile({ raw }: { raw: unknown }): OAuthTokenFil
   return tok ? { token: tok } : {};
 }
 
+function trimmedTokenString({ value }: { value: unknown }, _options = {}): string | undefined {
+  return typeof value === 'string' ? value.trim() || undefined : undefined;
+}
+
+function finiteTokenNumber({ value }: { value: unknown }, _options = {}): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
 function sanitizeToken(raw: unknown): StoredOAuthToken | null {
   if (!isPlainObject(raw)) return null;
-  const accessToken =
-    typeof raw.accessToken === 'string' ? raw.accessToken.trim() : '';
+  const accessToken = trimmedTokenString({ value: raw.accessToken }) ?? '';
   if (!accessToken) return null;
-  const tokenType =
-    typeof raw.tokenType === 'string' && raw.tokenType.trim()
-      ? raw.tokenType.trim()
-      : 'Bearer';
-  const refreshToken =
-    typeof raw.refreshToken === 'string' && raw.refreshToken.trim()
-      ? raw.refreshToken.trim()
-      : undefined;
-  const scope =
-    typeof raw.scope === 'string' && raw.scope.trim()
-      ? raw.scope.trim()
-      : undefined;
-  const expiresAt =
-    typeof raw.expiresAt === 'number' && Number.isFinite(raw.expiresAt)
-      ? raw.expiresAt
-      : undefined;
-  const savedAt =
-    typeof raw.savedAt === 'number' && Number.isFinite(raw.savedAt)
-      ? raw.savedAt
-      : Date.now();
+  const tokenType = trimmedTokenString({ value: raw.tokenType }) || 'Bearer';
+  const refreshToken = trimmedTokenString({ value: raw.refreshToken });
+  const scope = trimmedTokenString({ value: raw.scope });
+  const expiresAt = finiteTokenNumber({ value: raw.expiresAt });
+  const savedAt = finiteTokenNumber({ value: raw.savedAt }) ?? Date.now();
   const out: StoredOAuthToken = { accessToken, tokenType, savedAt };
   if (refreshToken) out.refreshToken = refreshToken;
   if (scope) out.scope = scope;
@@ -91,14 +77,14 @@ function sanitizeToken(raw: unknown): StoredOAuthToken | null {
 
 export async function readOAuthTokenFile({ dataDir, fileName }: { dataDir: string; fileName: string }): Promise<OAuthTokenFile> {
   try {
-    const raw = await readFile(tokenFilePath(dataDir, fileName), 'utf8');
+    const raw = await readFile(path.join(dataDir, fileName), 'utf8');
     return sanitizeOAuthTokenFile({ raw: JSON.parse(raw) });
   } catch (err: unknown) {
     const e = err as { code?: string; name?: string; message?: string };
-    if (e.code === 'ENOENT') return { ...EMPTY };
+    if (e.code === 'ENOENT') return {};
     if (e.name === 'SyntaxError') {
       console.error('[oauth-tokens] Corrupted JSON, returning empty:', e.message);
-      return { ...EMPTY };
+      return {};
     }
     throw err;
   }
@@ -122,7 +108,7 @@ async function writeTokenFile(
   fileName: string,
   next: OAuthTokenFile,
 ): Promise<OAuthTokenFile> {
-  const file = tokenFilePath(dataDir, fileName);
+  const file = path.join(dataDir, fileName);
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = file + '.' + randomBytes(4).toString('hex') + '.tmp';
   await writeFile(tmp, JSON.stringify(next, null, 2), 'utf8');

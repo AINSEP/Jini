@@ -33,6 +33,9 @@ function foldToolError(content: string | OpenAiContentPart[], isError: boolean |
     return content;
   return typeof content === "string" ? `${TOOL_ERROR_PREFIX}${content}` : [{ type: "text", text: TOOL_ERROR_PREFIX.trimEnd() }, ...content];
 }
+function imageUrlMimeType({ url }: { url: string }, _options = {}): string {
+  return /^data:([^;,]+)/.exec(url)?.[1] ?? "url";
+}
 function imagePartMimeType(part: Record<string, unknown>): string | null {
   const source = part.source as {
     media_type?: unknown;
@@ -43,7 +46,7 @@ function imagePartMimeType(part: Record<string, unknown>): string | null {
     url?: unknown;
   } | undefined;
   if (part.type === "image_url" && typeof imageUrl?.url === "string")
-    return /^data:([^;,]+)/.exec(imageUrl.url)?.[1] ?? "url";
+    return imageUrlMimeType({ url: imageUrl.url });
   const inlineData = part.inlineData as {
     mimeType?: unknown;
   } | undefined;

@@ -84,35 +84,30 @@ function statusToKind(status: number): ConnectionTestKind {
   return 'unknown';
 }
 
+function nonBlankErrorMessage({ value }: { value: unknown }, _options = {}): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
 function extractProviderErrorDetail(data: unknown, rawText: string): string {
-  const obj = data && typeof data === 'object' ? data : null;
-  const error = obj ? (obj as { error?: unknown }).error : null;
+  const obj = data && typeof data === 'object' ? data as { error?: unknown; message?: unknown } : null;
+  const error = obj ? obj.error : null;
   if (typeof error === 'string') return error;
   if (error && typeof error === 'object') {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) return message;
+    const message = nonBlankErrorMessage({ value: (error as { message?: unknown }).message });
+    if (message !== undefined) return message;
   }
-  const message = obj ? (obj as { message?: unknown }).message : null;
-  if (typeof message === 'string' && message.trim()) return message;
-  return rawText.trim().slice(0, 240);
+  const message = nonBlankErrorMessage({ value: obj ? obj.message : null });
+  return message ?? rawText.trim().slice(0, 240);
 }
+
+const INVALID_BASE_URL_NETWORK_CODES = new Set<string | undefined>(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE']);
 
 function networkErrorToKind(err: unknown): ConnectionTestKind {
   if (err instanceof Error) {
     if (err.name === 'AbortError') return 'timeout';
     const cause = (err as { cause?: { code?: string } }).cause;
     const code = cause?.code;
-    if (
-      code === 'ENOTFOUND' ||
-      code === 'EAI_AGAIN' ||
-      code === 'ECONNREFUSED' ||
-      code === 'ECONNRESET' ||
-      code === 'ETIMEDOUT' ||
-      code === 'EHOSTUNREACH' ||
-      code === 'ENETUNREACH' ||
-      code === 'CERT_HAS_EXPIRED' ||
-      code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
-    ) {
+    if (INVALID_BASE_URL_NETWORK_CODES.has(code)) {
       return 'invalid_base_url';
     }
   }
@@ -131,26 +126,14 @@ function uniqueModels(models: ProviderModelOption[]): ProviderModelOption[] {
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }
 
+const NON_CHAT_MODEL_FRAGMENTS = ['embedding', 'moderation', 'rerank', 'whisper', 'tts', 'transcribe', 'speech', 'image', 'video', 'dall-e', 'stable-diffusion', 'flux'];
+
 function isOpenAiChatModelId(id: string): boolean {
   const normalized = id.trim().toLowerCase();
   if (!normalized) return false;
   if (
-    normalized.includes('embedding') ||
-    normalized.includes('moderation') ||
-    normalized.includes('rerank') ||
-    normalized.includes('whisper') ||
-    normalized.includes('tts') ||
-    normalized.includes('transcribe') ||
-    normalized.includes('speech') ||
-    normalized.includes('image') ||
-    normalized.includes('video') ||
-    normalized.includes('dall-e') ||
-    normalized.includes('stable-diffusion') ||
-    normalized.includes('flux') ||
-    (
-      normalized.includes('wan') &&
-      /(?:^|[-_.:])(?:t2v|i2v|v2v)(?:[-_.:]|$)/u.test(normalized)
-    )
+    NON_CHAT_MODEL_FRAGMENTS.some(fragment => normalized.includes(fragment)) ||
+    (normalized.includes('wan') && /(?:^|[-_.:])(?:t2v|i2v|v2v)(?:[-_.:]|$)/u.test(normalized))
   ) {
     return false;
   }
@@ -304,42 +287,8 @@ export async function listProviderModels(requiredArgs: Pick<ProviderModelsInput,
 ): Promise<ProviderModelsResponse> {
   const input: ProviderModelsInput = { ...optionalArgs, ...requiredArgs };
   const start = Date.now();
-  if (input.protocol === 'azure') {
-    return {
-      ok: false,
-      kind: 'unsupported_protocol',
-      latencyMs: Date.now() - start,
-      detail: 'Azure OpenAI deployment discovery is not supported from the inference endpoint.',
-    };
-  }
-
-  const validated = await validateBaseUrlResolved({ baseUrl: input.baseUrl, lookup: input.dnsLookup ?? defaultDnsLookup });
-  if (validated.error || !validated.parsed) {
-    return {
-      ok: false,
-      kind: validated.forbidden ? 'forbidden' : 'invalid_base_url',
-      latencyMs: Date.now() - start,
-      // Non-null assertion, not a runtime guard: every BaseUrlValidationResult
-      // this branch's guard condition can produce sets `error` alongside a
-      // missing `parsed` (connection-guard.ts never returns neither/both) —
-      // `?? ''` would satisfy the `detail: string` type too, but per this
-      // package's coverage-loop policy an assertion is more honest about
-      // "TS requires an `undefined` guard here that can't actually occur".
-      detail: validated.error!,
-    };
-  }
-  if (input.protocol === 'bedrock') {
-    return {
-      ok: true,
-      kind: 'success',
-      latencyMs: Date.now() - start,
-      models: BEDROCK_MODEL_OPTIONS,
-      detail: 'AWS Bedrock uses a static seed until AWS credential-backed discovery is available.',
-    };
-  }
-  if (PROTOCOLS_REQUIRING_API_KEY.has(input.protocol) && !input.apiKey.trim()) {
-    return missingApiKeyResponse(start);
-  }
+  const preflight = await modelCatalogPreflight({ input, start });
+  if (preflight) return preflight;
 
   let url: string;
   try {
@@ -382,87 +331,7 @@ export async function listProviderModels(requiredArgs: Pick<ProviderModelsInput,
   // assigns unconditionally.
   let result: ProviderModelsResponse;
   try {
-    const collected: ProviderModelOption[] = [];
-    const cursors = new Set<string>();
-    for (let page = 0; page < 100; page += 1) {
-    const response = await (input.fetchFn ?? fetch)(url, {
-      method: 'GET',
-      headers: providerModelsHeaders(input.protocol, input.apiKey),
-      ...input.requestInit,
-      signal: controller.signal,
-      redirect: 'error',
-    });
-    const latencyMs = Date.now() - start;
-    const rawText = await response.text();
-    let data: unknown = {};
-    let parseError: string | undefined;
-    try {
-      data = rawText ? JSON.parse(rawText) : {};
-    } catch (err) {
-      // JSON.parse only ever throws a SyntaxError (an Error); the cast
-      // documents that rather than adding an untestable non-Error branch.
-      parseError = (err as Error).message;
-    }
-
-    if (!response.ok) {
-      const detail = parseError
-        ? rawText.trim().slice(0, 240) || parseError
-        : extractProviderErrorDetail(data, rawText);
-      return {
-        ok: false,
-        kind: statusToKind(response.status),
-        latencyMs,
-        status: response.status,
-        detail: redactSecrets({ input: detail }, { exactSecrets: [input.apiKey] }),
-      };
-    }
-
-    if (parseError) {
-      return {
-        ok: false,
-        kind: 'unknown',
-        latencyMs,
-        status: response.status,
-        detail: redactSecrets({ input: parseError }, { exactSecrets: [input.apiKey] }),
-      };
-    }
-
-    // Safe: `url` above only resolves for the five protocols
-    // `ModelListProtocol` covers (providerModelsUrl throws for every other
-    // ConnectionTestProtocol, and azure/bedrock already returned above).
-    collected.push(...extractModels(input.protocol as ModelListProtocol, data));
-    const envelope = data && typeof data === 'object' ? data as { nextPageToken?: unknown; has_more?: unknown; last_id?: unknown; next_cursor?: unknown } : {};
-    const cursor = input.protocol === 'google' && typeof envelope.nextPageToken === 'string' ? envelope.nextPageToken
-      : envelope.has_more === true && typeof envelope.last_id === 'string' ? envelope.last_id
-      : typeof envelope.next_cursor === 'string' ? envelope.next_cursor : undefined;
-    if (envelope.has_more === true && !cursor) return { ok: false, kind: 'unknown', latencyMs, detail: 'Provider omitted its pagination cursor.' };
-    if (cursor) {
-      if (cursors.has(cursor)) return { ok: false, kind: 'unknown', latencyMs, detail: 'Provider repeated a pagination cursor.' };
-      cursors.add(cursor);
-      const next = new URL(url);
-      next.searchParams.set(input.protocol === 'google' ? 'pageToken' : input.protocol === 'anthropic' ? 'after_id' : 'cursor', cursor);
-      url = next.toString();
-      continue;
-    }
-    const models = uniqueModels(collected);
-    if (models.length === 0) {
-      return {
-        ok: false,
-        kind: 'no_models',
-        latencyMs,
-        status: response.status,
-        detail: 'Provider returned no usable text-generation models.',
-      };
-    }
-    return {
-      ok: true,
-      kind: 'success',
-      latencyMs,
-      status: response.status,
-      models,
-    };
-    }
-    return { ok: false, kind: 'unknown', latencyMs: Date.now() - start, detail: 'Provider pagination exceeded its safety limit.' };
+    return await collectModelPages({ input, start, url, signal: controller.signal });
   } catch (err) {
     const latencyMs = Date.now() - start;
     const kind = networkErrorToKind(err);
@@ -478,4 +347,172 @@ export async function listProviderModels(requiredArgs: Pick<ProviderModelsInput,
     input.signal?.removeEventListener('abort', abortFromParent);
   }
   return result;
+}
+
+async function modelCatalogPreflight(
+  { input, start }: { input: ProviderModelsInput; start: number }, _options = {},
+): Promise<ProviderModelsResponse | undefined> {
+  if (input.protocol === 'azure') {
+    return {
+      ok: false,
+      kind: 'unsupported_protocol',
+      latencyMs: Date.now() - start,
+      detail: 'Azure OpenAI deployment discovery is not supported from the inference endpoint.',
+    };
+  }
+
+  const validated = await validateBaseUrlResolved({ baseUrl: input.baseUrl, lookup: input.dnsLookup ?? defaultDnsLookup });
+  if (validated.error || !validated.parsed) {
+    return {
+      ok: false,
+      kind: validated.forbidden ? 'forbidden' : 'invalid_base_url',
+      latencyMs: Date.now() - start,
+      // Non-null assertion, not a runtime guard: every BaseUrlValidationResult
+      // this branch's guard condition can produce sets `error` alongside a
+      // missing `parsed` (connection-guard.ts never returns neither/both) —
+      // `?? ''` would satisfy the `detail: string` type too, but per this
+      // package's coverage-loop policy an assertion is more honest about
+      // "TS requires an `undefined` guard here that can't actually occur".
+      detail: validated.error!,
+    };
+  }
+  if (input.protocol === 'bedrock') {
+    return {
+      ok: true,
+      kind: 'success',
+      latencyMs: Date.now() - start,
+      models: BEDROCK_MODEL_OPTIONS,
+      detail: 'AWS Bedrock uses a static seed until AWS credential-backed discovery is available.',
+    };
+  }
+  if (PROTOCOLS_REQUIRING_API_KEY.has(input.protocol) && !input.apiKey.trim()) {
+    return missingApiKeyResponse(start);
+  }
+
+  return undefined;
+}
+
+type CatalogPage = { data: unknown; status: number; latencyMs: number };
+type CatalogPageResult = CatalogPage | { failure: ProviderModelsResponse };
+
+function parseCatalogBody({ rawText }: { rawText: string }, _options = {}): { data: unknown; parseError?: string } {
+  let data: unknown = {};
+  let parseError: string | undefined;
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch (err) {
+    // JSON.parse only ever throws a SyntaxError (an Error); the cast
+    // documents that rather than adding an untestable non-Error branch.
+    parseError = (err as Error).message;
+  }
+  return { data, ...(parseError === undefined ? {} : { parseError }) };
+}
+
+async function fetchCatalogPage(
+  { input, start, url, signal }: { input: ProviderModelsInput; start: number; url: string; signal: AbortSignal },
+  _options = {},
+): Promise<CatalogPageResult> {
+  const response = await (input.fetchFn ?? fetch)(url, {
+    method: 'GET',
+    headers: providerModelsHeaders(input.protocol, input.apiKey),
+    ...input.requestInit,
+    signal,
+    redirect: 'error',
+  });
+  const latencyMs = Date.now() - start;
+  const rawText = await response.text();
+  const { data, parseError } = parseCatalogBody({ rawText });
+
+  if (!response.ok) {
+    const detail = parseError
+      ? rawText.trim().slice(0, 240) || parseError
+      : extractProviderErrorDetail(data, rawText);
+    return { failure: {
+      ok: false,
+      kind: statusToKind(response.status),
+      latencyMs,
+      status: response.status,
+      detail: redactSecrets({ input: detail }, { exactSecrets: [input.apiKey] }),
+    } };
+  }
+
+  if (parseError) {
+    return { failure: {
+      ok: false,
+      kind: 'unknown',
+      latencyMs,
+      status: response.status,
+      detail: redactSecrets({ input: parseError }, { exactSecrets: [input.apiKey] }),
+    } };
+  }
+
+  return { data, status: response.status, latencyMs };
+}
+
+function catalogPageCursor(
+  { protocol, envelope }: { protocol: ConnectionTestProtocol; envelope: { nextPageToken?: unknown; has_more?: unknown; last_id?: unknown; next_cursor?: unknown } },
+  _options = {},
+): string | undefined {
+  if (protocol === 'google' && typeof envelope.nextPageToken === 'string') return envelope.nextPageToken;
+  if (envelope.has_more === true && typeof envelope.last_id === 'string') return envelope.last_id;
+  return typeof envelope.next_cursor === 'string' ? envelope.next_cursor : undefined;
+}
+
+function nextCatalogPage(
+  { protocol, data, cursors, url, latencyMs }: { protocol: ConnectionTestProtocol; data: unknown; cursors: Set<string>; url: string; latencyMs: number },
+  _options = {},
+): string | ProviderModelsResponse | undefined {
+  const envelope = data && typeof data === 'object' ? data as { nextPageToken?: unknown; has_more?: unknown; last_id?: unknown; next_cursor?: unknown } : {};
+  const cursor = catalogPageCursor({ protocol, envelope });
+  if (envelope.has_more === true && !cursor) return { ok: false, kind: 'unknown', latencyMs, detail: 'Provider omitted its pagination cursor.' };
+  if (!cursor) return undefined;
+  if (cursors.has(cursor)) return { ok: false, kind: 'unknown', latencyMs, detail: 'Provider repeated a pagination cursor.' };
+  cursors.add(cursor);
+  const next = new URL(url);
+  next.searchParams.set(protocol === 'google' ? 'pageToken' : protocol === 'anthropic' ? 'after_id' : 'cursor', cursor);
+  return next.toString();
+}
+
+function completedCatalog(
+  { collected, status, latencyMs }: { collected: ProviderModelOption[]; status: number; latencyMs: number },
+  _options = {},
+): ProviderModelsResponse {
+  const models = uniqueModels(collected);
+  if (models.length === 0) {
+    return {
+      ok: false,
+      kind: 'no_models',
+      latencyMs,
+      status,
+      detail: 'Provider returned no usable text-generation models.',
+    };
+  }
+  return {
+    ok: true,
+    kind: 'success',
+    latencyMs,
+    status,
+    models,
+  };
+}
+
+async function collectModelPages(
+  { input, start, url, signal }: { input: ProviderModelsInput; start: number; url: string; signal: AbortSignal },
+  _options = {},
+): Promise<ProviderModelsResponse> {
+  const collected: ProviderModelOption[] = [];
+  const cursors = new Set<string>();
+  for (let pageNumber = 0; pageNumber < 100; pageNumber += 1) {
+    const page = await fetchCatalogPage({ input, start, url, signal });
+    if ('failure' in page) return page.failure;
+    const { data, latencyMs } = page;
+    // Safe: `url` above only resolves for the five protocols
+    // `ModelListProtocol` covers (providerModelsUrl throws for every other
+    // ConnectionTestProtocol, and azure/bedrock already returned above).
+    collected.push(...extractModels(input.protocol as ModelListProtocol, data));
+    const next = nextCatalogPage({ protocol: input.protocol, data, cursors, url, latencyMs });
+    if (typeof next !== 'string') return next ?? completedCatalog({ collected, status: page.status, latencyMs });
+    url = next;
+  }
+  return { ok: false, kind: 'unknown', latencyMs: Date.now() - start, detail: 'Provider pagination exceeded its safety limit.' };
 }
