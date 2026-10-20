@@ -3,7 +3,8 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * explicitly by the host, whose native composition resolves CODEX_DISABLE_PLUGINS. */
 import { DEFAULT_MODEL_OPTION, clampCodexReasoning } from './shared.js';
 import type { RuntimeModelOption, RuntimeReasoningOption } from '../types.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext } from '../types.js';
+import type { NativeCapabilities } from '../native-tool-policy.js';
 
 /**
  * The `visibility` values that mean "reachable by id, but do not render in a picker".
@@ -107,16 +108,6 @@ function readCodexCatalogEntries(stdout: string): unknown[] | null {
   return Array.isArray(models) ? models : null;
 }
 
-/**
- * Parses `codex debug models` stdout into the Local-CLI picker's model rows.
- *
- * Each row carries the model's OWN supported effort levels when the catalog reports them — see
- * `RuntimeModelOption.reasoning`. Hidden entries are dropped (see `isHiddenVisibility`).
- *
- * @returns The rows, `default` sentinel first; `null` when the output is unparseable or yielded no
- * model at all, which is `detection.ts#fetchModels`'s signal to keep the static fallback list.
- * @complexity O(n·m) — one pass over n catalog entries, each with m declared effort levels.
- */
 /** One catalog entry as a picker row, or `null` when it is malformed, hidden, id-less, or a repeat
  *  of an id already taken. Split from the loop below purely to keep both units small. */
 function codexCatalogRow(raw: unknown, takenIds: ReadonlySet<string>): RuntimeModelOption | null {
@@ -129,6 +120,16 @@ function codexCatalogRow(raw: unknown, takenIds: ReadonlySet<string>): RuntimeMo
   return { id, label: codexEntryLabel(entry, id), ...(reasoning ? { reasoning } : {}) };
 }
 
+/**
+ * Parses `codex debug models` stdout into the Local-CLI picker's model rows.
+ *
+ * Each row carries the model's OWN supported effort levels when the catalog reports them — see
+ * `RuntimeModelOption.reasoning`. Hidden entries are dropped (see `isHiddenVisibility`).
+ *
+ * @returns The rows, `default` sentinel first; `null` when the output is unparseable or yielded no
+ * model at all, which is `detection.ts#fetchModels`'s signal to keep the static fallback list.
+ * @complexity O(n·m) — one pass over n catalog entries, each with m declared effort levels.
+ */
 export function parseCodexDebugModels({ stdout }: { stdout: string }): RuntimeModelOption[] | null {
   const models = readCodexCatalogEntries(stdout);
   if (!models) return null;
@@ -186,8 +187,125 @@ export function codexNeedsDangerFullAccessSandbox({  }: {  }, { platform = proce
   return Boolean(env.WSL_DISTRO_NAME?.trim());
 }
 
+type CodexTurn = 'create' | 'resume';
+type CodexSandboxTier = 'read-only' | 'danger-full-access' | 'workspace-write';
+
+const CODEX_TURN_COMMAND: Readonly<Record<CodexTurn, readonly string[]>> = {
+  create: ['exec', '--json', '--skip-git-repo-check'],
+  resume: ['exec', 'resume', '--json', '--skip-git-repo-check'],
+};
+
+// `codex exec resume` rejects `--sandbox` (only valid on a fresh
+// `exec`); the sandbox mode must be passed as a `-c sandbox_mode=...`
+// config override. We mirror the exact same effective sandbox policy as
+// the create turn so Codex's per-turn `turn_context` block byte-matches
+// across turns and does not break the upstream prefix cache the resume
+// is meant to reuse.
+const CODEX_SANDBOX_ARGS: Readonly<Record<CodexSandboxTier, Readonly<Record<CodexTurn, readonly string[]>>>> = {
+  'read-only': {
+    create: ['-c', 'sandbox_mode="read-only"'],
+    resume: ['-c', 'sandbox_mode="read-only"'],
+  },
+  'danger-full-access': {
+    create: ['--sandbox', 'danger-full-access'],
+    resume: ['-c', 'sandbox_mode="danger-full-access"'],
+  },
+  'workspace-write': {
+    create: ['--sandbox', 'workspace-write', '-c', 'sandbox_workspace_write.network_access=true'],
+    resume: ['-c', 'sandbox_mode="workspace-write"', '-c', 'sandbox_workspace_write.network_access=true'],
+  },
+};
+
+// Read-only prevents direct patches; disable every shell transport as well.
+// CLI config overrides apply on BOTH create and resume, regardless of the saved session.
+const CODEX_NATIVE_TOOLS_LOCKED_ARGS: readonly string[] = [
+  '-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false',
+  '-c', 'features.code_mode=false', '-c', 'features.apply_patch_freeform=false',
+  '-c', 'features.multi_agent=false', '-c', 'features.collab=false', '-c', 'features.plugins=false',
+  '-c', 'approval_policy="never"',
+];
+
+// Per-turn overrides also apply to resumed sessions, ahead of persisted CLI defaults.
+// One `-c` override per value, emitted in this order for each capability the host set to false.
+const CODEX_CAPABILITY_OVERRIDES: ReadonlyArray<readonly [keyof NativeCapabilities, readonly string[]]> = [
+  ['shell', ['features.shell_tool=false', 'features.unified_exec=false', 'features.code_mode=false']],
+  ['fileWrite', ['features.apply_patch_freeform=false']],
+  ['subagents', ['features.multi_agent=false', 'features.collab=false']],
+  ['web', ['web_search="disabled"']],
+  ['workflows', ['features.worktrees=false', 'features.remote_control=false']],
+  ['userSettings', ['features.skills=false', 'features.plugins=false']],
+];
+
+// Capture-style resume: when the caller has a stored Codex thread id
+// for this conversation it asks the CLI to continue that session
+// with `exec resume <thread_id>` instead of `exec` (a fresh
+// session). Codex mints its own id, so the caller does not specify
+// one — it captures the id from the create turn's
+// `thread.started.thread_id` event (see the json-event-stream
+// `codex` parser) and replays it here on resume.
+function codexResumeSessionId(runtimeContext: RuntimeContext): string | null {
+  const resumeSessionId = runtimeContext.resumeSessionId;
+  return typeof resumeSessionId === 'string' && resumeSessionId.length > 0 ? resumeSessionId : null;
+}
+
+function codexSandboxTier(options: RuntimeBuildOptions): CodexSandboxTier {
+  if (options.nativeToolAccess === false || options.nativeCapabilities?.fileWrite === false) return 'read-only';
+  // Codex CLI's `workspace-write` sandbox blocks shell invocations on
+  // Windows ("powershell.exe ... rejected: blocked by policy"),
+  // because Codex has no working OS-level sandbox on Windows and falls
+  // back to a coarse policy that rejects any shell. macOS (Seatbelt)
+  // and Linux (Landlock+seccomp) keep workspace-write because their
+  // sandbox enforcement permits shell while restricting writes.
+  const trustedBypass = options.cliParity === true && options.permissionMode === 'bypass';
+  return trustedBypass || codexNeedsDangerFullAccessSandbox({  }) ? 'danger-full-access' : 'workspace-write';
+}
+
+/** Approval, native-tool lock, per-capability overrides and plugin policy, in that order. */
+function codexPolicyArgs(options: RuntimeBuildOptions): string[] {
+  const nativeToolsLocked = options.nativeToolAccess === false;
+  const native = options.nativeCapabilities;
+  return [
+    ...(options.cliParity && options.permissionMode === 'bypass' && !nativeToolsLocked ? ['-c', 'approval_policy="never"'] : []),
+    ...(nativeToolsLocked ? CODEX_NATIVE_TOOLS_LOCKED_ARGS : []),
+    ...CODEX_CAPABILITY_OVERRIDES.flatMap(([key, values]) => (native?.[key] === false ? values.flatMap((value) => ['-c', value]) : [])),
+    ...(options.codexDisablePlugins === true ? ['--disable', 'plugins'] : []),
+  ];
+}
+
+// `-C <cwd>` and `--add-dir <dir>` are CREATE-only flags: `codex exec
+// resume` rejects both (`error: unexpected argument '-C' found`), so
+// appending them on a resume turn would make the follow-up turn die
+// before the first event. The caller already spawns the child with
+// `cwd: effectiveCwd`, and resuming by explicit SESSION_ID does not
+// use codex's cwd-based session filtering, so the resumed turn still
+// runs in the right workspace without `-C`. The extra writable dirs
+// were granted when the session was created and are carried by the
+// resumed session.
+function codexCreateOnlyArgs({ extraAllowedDirs, runtimeContext }: { extraAllowedDirs: readonly string[] | null | undefined; runtimeContext: RuntimeContext }): string[] {
+  return [
+    ...(runtimeContext.cwd ? ['-C', runtimeContext.cwd] : []),
+    ...nonEmptyStrings(extraAllowedDirs).flatMap((d) => ['--add-dir', d]),
+  ];
+}
+
+function codexModelArgs(options: RuntimeBuildOptions): string[] {
+  const args = options.model && options.model !== 'default' ? ['--model', options.model] : [];
+  if (options.reasoning && options.reasoning !== 'default') {
+    const effort = clampCodexReasoning(options.model, options.reasoning);
+    // Codex accepts `-c key=value` config overrides; reasoning effort
+    // is exposed as `model_reasoning_effort`.
+    args.push('-c', `model_reasoning_effort="${effort}"`);
+  }
+  return args;
+}
+
+/** Non-empty string entries only; a nullish list (loosely-typed caller) yields none. */
+function nonEmptyStrings(values: readonly string[] | null | undefined): string[] {
+  return (values || []).filter((value) => typeof value === 'string' && value.length > 0);
+}
+
 export const codexAgentDef = {
-  ...createAgentModelDiscovery('codex', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => codexAgentDef.fallbackModels, args: ['debug', 'models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => codexAgentDef.listModels.parse(input) }),
+  ...createAgentModelDiscovery('codex', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => codexAgentDef.fallbackModels, args: ['debug', 'models'], parse: parseCodexDebugModels }),
     id: 'codex',
     supportsNativeToolAccess: true,
     name: 'Codex CLI',
@@ -258,131 +376,32 @@ export const codexAgentDef = {
     // `error: unexpected argument '-' found` and the agent exits with
     // code 2 before any prompt is read. The pipe alone is sufficient for
     // stdin delivery.
-    buildArgs: ({ prompt: _prompt, imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}
-    ) => {
-      // Codex CLI's `workspace-write` sandbox blocks shell invocations on
-      // Windows ("powershell.exe ... rejected: blocked by policy"),
-      // because Codex has no working OS-level sandbox on Windows and falls
-      // back to a coarse policy that rejects any shell. macOS (Seatbelt)
-      // and Linux (Landlock+seccomp) keep workspace-write because their
-      // sandbox enforcement permits shell while restricting writes.
-      const needsDangerFullAccess = (options.cliParity === true && options.permissionMode === 'bypass' && options.nativeToolAccess !== false) || codexNeedsDangerFullAccessSandbox({  });
-      // Capture-style resume: when the caller has a stored Codex thread id
-      // for this conversation it asks the CLI to continue that session
-      // with `exec resume <thread_id>` instead of `exec` (a fresh
-      // session). Codex mints its own id, so the caller does not specify
-      // one — it captures the id from the create turn's
-      // `thread.started.thread_id` event (see the json-event-stream
-      // `codex` parser) and replays it here on resume.
-      const resumeSessionId =
-        typeof runtimeContext.resumeSessionId === 'string' &&
-        runtimeContext.resumeSessionId.length > 0
-          ? runtimeContext.resumeSessionId
-          : null;
-      // `codex exec resume` rejects `--sandbox` (only valid on a fresh
-      // `exec`); the sandbox mode must be passed as a `-c sandbox_mode=...`
-      // config override. We mirror the exact same effective sandbox policy as
-      // the create turn so Codex's per-turn `turn_context` block byte-matches
-      // across turns and does not break the upstream prefix cache the resume
-      // is meant to reuse.
-      const nativeToolsLocked = options.nativeToolAccess === false;
-      const native = options.nativeCapabilities;
-      const sandboxArgs = nativeToolsLocked || native?.fileWrite === false
-        ? ['-c', 'sandbox_mode="read-only"']
-        : needsDangerFullAccess
-        ? resumeSessionId
-          ? ['-c', 'sandbox_mode="danger-full-access"']
-          : ['--sandbox', 'danger-full-access']
-        : resumeSessionId
-          ? [
-              '-c',
-              'sandbox_mode="workspace-write"',
-              '-c',
-              'sandbox_workspace_write.network_access=true',
-            ]
-          : [
-              '--sandbox',
-              'workspace-write',
-              '-c',
-              'sandbox_workspace_write.network_access=true',
-            ];
-      const args = resumeSessionId
-        ? ['exec', 'resume', '--json', '--skip-git-repo-check', ...sandboxArgs]
-        : ['exec', '--json', '--skip-git-repo-check', ...sandboxArgs];
-      if (options.cliParity && options.permissionMode === 'bypass' && !nativeToolsLocked) {
-        args.push('-c', 'approval_policy="never"');
-      }
-      if (nativeToolsLocked) {
-        // Read-only prevents direct patches; disable every shell transport as well.
-        // CLI config overrides apply on BOTH create and resume, regardless of the saved session.
-        args.push('-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false',
-          '-c', 'features.code_mode=false', '-c', 'features.apply_patch_freeform=false',
-          '-c', 'features.multi_agent=false', '-c', 'features.collab=false', '-c', 'features.plugins=false',
-          '-c', 'approval_policy="never"');
-      }
-      // Per-turn overrides also apply to resumed sessions, ahead of persisted CLI defaults.
-      if (native?.shell === false) args.push('-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false', '-c', 'features.code_mode=false');
-      if (native?.fileWrite === false) args.push('-c', 'features.apply_patch_freeform=false');
-      if (native?.subagents === false) args.push('-c', 'features.multi_agent=false', '-c', 'features.collab=false');
-      if (native?.web === false) args.push('-c', 'web_search="disabled"');
-      if (native?.workflows === false) args.push('-c', 'features.worktrees=false', '-c', 'features.remote_control=false');
-      if (native?.userSettings === false) args.push('-c', 'features.skills=false', '-c', 'features.plugins=false');
-      if (options.codexDisablePlugins === true) {
-        args.push('--disable', 'plugins');
-      }
-      // `-C <cwd>` and `--add-dir <dir>` are CREATE-only flags: `codex exec
-      // resume` rejects both (`error: unexpected argument '-C' found`), so
-      // appending them on a resume turn would make the follow-up turn die
-      // before the first event. The caller already spawns the child with
-      // `cwd: effectiveCwd`, and resuming by explicit SESSION_ID does not
-      // use codex's cwd-based session filtering, so the resumed turn still
-      // runs in the right workspace without `-C`. The extra writable dirs
-      // were granted when the session was created and are carried by the
-      // resumed session.
-      if (!resumeSessionId) {
-        if (runtimeContext.cwd) {
-          args.push('-C', runtimeContext.cwd);
-        }
-        const dirs = (extraAllowedDirs || []).filter(
-          (d) => typeof d === 'string' && d.length > 0,
-        );
-        for (const d of dirs) {
-          args.push('--add-dir', d);
-        }
-      }
-      if (options.model && options.model !== 'default') {
-        args.push('--model', options.model);
-      }
-      if (options.reasoning && options.reasoning !== 'default') {
-        const effort = clampCodexReasoning(options.model, options.reasoning);
-        // Codex accepts `-c key=value` config overrides; reasoning effort
-        // is exposed as `model_reasoning_effort`.
-        args.push('-c', `model_reasoning_effort="${effort}"`);
-      }
-      // Own dedicated `-i/--image <FILE>` argv flag — confirmed against a
-      // real installed Codex CLI (0.151.0) on BOTH `codex exec --help` and
-      // `codex exec resume --help`, so unlike `-C`/`--add-dir` above this is
-      // not create-only and needs no `resumeSessionId` guard. Pushed for
-      // every claimed attachment path the caller hands in here, not only
-      // ones actually of kind "image": the caller
-      // (`agent-daemon-server.ts#resolveAttachmentRunFields`, in the consuming product) already
-      // stopped filtering by kind for the same reason `qoderAgentDef`'s
-      // `--attachment` above does not filter either — a same-shaped
-      // repeated-flag mechanism, see `imageDelivery`'s doc below.
-      const attachments = (imagePaths || []).filter(
-        (p) => typeof p === 'string' && p.length > 0,
-      );
-      for (const p of attachments) {
-        args.push('-i', p);
-      }
-      // The resume thread id is the positional SESSION_ID argument of
-      // `codex exec resume`; it must come after the flags. The prompt is
-      // delivered via stdin (promptViaStdin), so the thread id is the final
-      // argv entry.
-      if (resumeSessionId) {
-        args.push(resumeSessionId);
-      }
-      return args;
+    buildArgs: ({ imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
+      const resumeSessionId = codexResumeSessionId(runtimeContext);
+      const turn = resumeSessionId ? 'resume' : 'create';
+      return [
+        ...CODEX_TURN_COMMAND[turn],
+        ...CODEX_SANDBOX_ARGS[codexSandboxTier(options)][turn],
+        ...codexPolicyArgs(options),
+        ...(resumeSessionId ? [] : codexCreateOnlyArgs({ extraAllowedDirs, runtimeContext })),
+        ...codexModelArgs(options),
+        // Own dedicated `-i/--image <FILE>` argv flag — confirmed against a
+        // real installed Codex CLI (0.151.0) on BOTH `codex exec --help` and
+        // `codex exec resume --help`, so unlike `-C`/`--add-dir` above this is
+        // not create-only and needs no `resumeSessionId` guard. Pushed for
+        // every claimed attachment path the caller hands in here, not only
+        // ones actually of kind "image": the caller
+        // (`agent-daemon-server.ts#resolveAttachmentRunFields`, in the consuming product) already
+        // stopped filtering by kind for the same reason `qoderAgentDef`'s
+        // `--attachment` above does not filter either — a same-shaped
+        // repeated-flag mechanism, see `imageDelivery`'s doc below.
+        ...nonEmptyStrings(imagePaths).flatMap((p) => ['-i', p]),
+        // The resume thread id is the positional SESSION_ID argument of
+        // `codex exec resume`; it must come after the flags. The prompt is
+        // delivered via stdin (promptViaStdin), so the thread id is the final
+        // argv entry.
+        ...(resumeSessionId ? [resumeSessionId] : []),
+      ];
     },
     promptViaStdin: true,
     // Codex's CLI carries its own session across spawns: on a follow-up turn

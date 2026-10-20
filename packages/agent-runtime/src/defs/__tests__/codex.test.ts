@@ -422,6 +422,11 @@ describe('parseCodexDebugModels — per-model reasoning levels', () => {
     expect(models?.find((m) => m.id === 'm')?.reasoning).toEqual([{ id: 'turbo', label: 'Turbo' }]);
   });
 
+  it('omits `reasoning` when every declared level is unusable', () => {
+    const models = parseCodexDebugModels({ stdout: JSON.stringify({ models: [{ slug: 'm', supported_reasoning_levels: [7, ''] }] }) });
+    expect(models?.find((m) => m.id === 'm')).toEqual({ id: 'm', label: 'm' });
+  });
+
   it('omits `reasoning` entirely for a model that declares no levels', () => {
     const models = parseCodexDebugModels({ stdout: JSON.stringify({ models: [{ slug: 'm' }] }) });
     expect(models?.find((m) => m.id === 'm')).toEqual({ id: 'm', label: 'm' });
@@ -514,8 +519,8 @@ describe('codexAgentDef.buildArgs — permission and sandbox matrix', () => {
     ]);
   });
 
-  it('keeps workspace-write and approvals for cli parity outside bypass mode', () => {
-    expect(codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: { cliParity: true, permissionMode: 'default' } })).toEqual([
+  it('keeps workspace-write and approvals for cli parity in restricted mode', () => {
+    expect(codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: { cliParity: true, permissionMode: 'restricted' } })).toEqual([
       'exec', '--json', '--skip-git-repo-check', '--sandbox', 'workspace-write', '-c', 'sandbox_workspace_write.network_access=true',
     ]);
   });
