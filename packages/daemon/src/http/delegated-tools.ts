@@ -30,9 +30,7 @@ import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '../index.js';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, err, mountJsonRoute, ok, validationError, type AdapterContext, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 import * as readOnlyTools from '../core/read-only-tools.js';
 
 export interface DelegatedToolExecuteRequest {
@@ -164,27 +162,17 @@ function describeSafely(deps: DelegatedToolsHttpDeps, context: DelegatedToolsInt
   }
 }
 
-function reportInternalError(
-  deps: DelegatedToolsHttpDeps,
-  source: DelegatedToolsInternalErrorContext['source'],
-  error: unknown,
-  runId: string,
-  toolId: string,
-  status?: DelegatedToolsInternalErrorContext['status'],
-): ReturnType<typeof createApiError> {
+/** Which failure `reportInternalError` reports: everything in its context except the minted `correlationId`. */
+type InternalErrorReport = Omit<DelegatedToolsInternalErrorContext, 'correlationId'>;
+
+function reportInternalError(deps: DelegatedToolsHttpDeps, report: InternalErrorReport): ReturnType<typeof createApiError> {
   const correlationId = randomUUID();
-  const context: DelegatedToolsInternalErrorContext = {
-    source,
-    runId,
-    toolId,
-    correlationId,
-    error,
-    ...(status === undefined ? {} : { status }),
-  };
+  // Every caller either omits `status` or sets it, so spreading keeps "absent" absent.
+  const context: DelegatedToolsInternalErrorContext = { ...report, correlationId };
   const sink = deps.onInternalError ?? defaultInternalErrorSink;
   sink(context);
   const message = describeSafely(deps, context) ?? 'an internal error occurred';
-  return createApiError({ code: 'INTERNAL_ERROR', message: message }, { requestId: correlationId });
+  return createApiError({ code: 'INTERNAL_ERROR', message }, { requestId: correlationId });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -244,9 +232,7 @@ function parseDelegatedToolExecute(input: RouteInputContext): Result<DelegatedTo
  */
 function toolExecutionResultToApiResult(
   deps: DelegatedToolsHttpDeps,
-  runId: string,
-  toolId: string,
-  result: ToolExecutionResult,
+  { runId, toolId, result }: { readonly runId: string; readonly toolId: string; readonly result: ToolExecutionResult },
 ): Result<DelegatedToolExecuteResponse> {
   switch (result.status) {
     case 'completed':
@@ -257,16 +243,24 @@ function toolExecutionResultToApiResult(
       return err({ error: createApiError({ code: 'TOOL_OPERATION_DENIED', message: 'this operation was denied during confirmation' }) });
     case 'timed-out':
     case 'cancelled':
-      return err({ error: reportInternalError(deps, 'delegated-tool-execute', result.status, runId, toolId, result.status) });
+      return err({ error: reportInternalError(deps, { source: 'delegated-tool-execute', error: result.status, runId, toolId, status: result.status }) });
     case 'failed':
-      if (result.errorKind === 'validation') {
-        return err({ error: createApiError({ code: 'BAD_REQUEST', message: result.error ?? 'invalid tool input' }) });
-      }
-      if (result.error && deps.isModelSafeToolFailure?.({ result }) === true) {
-        return err({ error: createApiError({ code: 'TOOL_EXECUTION_FAILED', message: result.error }) });
-      }
-      return err({ error: reportInternalError(deps, 'delegated-tool-execute', result.error ?? result.status, runId, toolId, 'failed') });
+      return err({ error: failedResultToApiError(deps, { runId, toolId, result }) });
   }
+}
+
+/** The `failed` arm of {@link toolExecutionResultToApiResult} — see its doc for the three-way split. */
+function failedResultToApiError(
+  deps: DelegatedToolsHttpDeps,
+  { runId, toolId, result }: { readonly runId: string; readonly toolId: string; readonly result: ToolExecutionResult },
+): ReturnType<typeof createApiError> {
+  if (result.errorKind === 'validation') {
+    return createApiError({ code: 'BAD_REQUEST', message: result.error ?? 'invalid tool input' });
+  }
+  if (result.error && deps.isModelSafeToolFailure?.({ result }) === true) {
+    return createApiError({ code: 'TOOL_EXECUTION_FAILED', message: result.error });
+  }
+  return reportInternalError(deps, { source: 'delegated-tool-execute', error: result.error ?? result.status, runId, toolId, status: 'failed' });
 }
 
 /**
@@ -300,7 +294,7 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
     try {
       principal = await deps.resolvePrincipal({ request: input });
     } catch (error) {
-      return err({ error: reportInternalError(deps, 'resolve-principal', error, input.runId, input.toolId) });
+      return err({ error: reportInternalError(deps, { source: 'resolve-principal', error, runId: input.runId, toolId: input.toolId }) });
     }
 
     // Attenuates the resolved principal itself for a `requireReadOnly` call, so the constraint
@@ -338,12 +332,12 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
         input: input.input,
         ...(signal !== undefined ? { signal } : {}),
       });
-      return toolExecutionResultToApiResult(deps, input.runId, input.toolId, result);
+      return toolExecutionResultToApiResult(deps, { runId: input.runId, toolId: input.toolId, result });
     } catch (error) {
       if (error instanceof ToolInputError) {
         return err({ error: createApiError({ code: 'BAD_REQUEST', message: error.message }) });
       }
-      return err({ error: reportInternalError(deps, 'delegated-tool-execute', error, input.runId, input.toolId) });
+      return err({ error: reportInternalError(deps, { source: 'delegated-tool-execute', error, runId: input.runId, toolId: input.toolId }) });
     }
   }
 }, { requireSameOrigin: true });
