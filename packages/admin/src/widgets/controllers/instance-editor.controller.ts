@@ -25,6 +25,8 @@ export function createWidgetInstanceEditorController(
     config: isNew ? defaultConfig(params.widgetType ?? 'text') : {}, message: null, error: null, fieldErrors: [],
     loading: !isNew, saving: false, widgetType: resolveEditorWidgetType({ isNew, queryWidgetType: params.widgetType, widget: null }),
   } });
+  const isLiveLoad = ({ ticket }: { ticket: number }) => ticket === generation && !store.signal.aborted;
+  const isLiveSave = ({ savingFor }: { savingFor: string }) => currentKey() === savingFor && !store.signal.aborted;
   async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
     const ticket = ++generation;
     const isNew = params.widgetId === null;
@@ -33,20 +35,24 @@ export function createWidgetInstanceEditorController(
       store.set({ patch: { widget: null, title: '', config: defaultConfig(params.widgetType ?? 'text'), whereUsed: { count: 0, references: [] }, loading: false, widgetType: params.widgetType } });
       return;
     }
-    const requestedId = params.widgetId!;
+    await loadExisting({ ticket, requestedId: params.widgetId! });
+  }
+  async function loadExisting({ ticket, requestedId }: { ticket: number; requestedId: string }, _optional: Record<string, never> = {}) {
     store.set({ patch: { loading: true, error: null } });
     try {
       const result = await api.getWidget({ id: requestedId }, { signal: store.signal });
-      if (ticket !== generation || store.signal.aborted) return;
-      store.set({ patch: { widget: result.widget, title: result.widget.title, config: result.widget.config, whereUsed: result.whereUsed, widgetType: result.widget.widgetType } });
-      // Replace rather than push: an old id bookmark should not add a Back-button stop.
-      const redirect = widgetSlugRedirectPath({ requestedId, widget: result.widget }, { slugRedirectPath });
-      if (redirect) navigate?.(redirect, { replace: true });
+      if (isLiveLoad({ ticket })) applyLoaded({ requestedId, result });
     } catch (error) {
-      if (ticket === generation && !store.signal.aborted) store.set({ patch: { error: describeApiError({ e: widgetApiError({ error }) ?? error, fallback: t('failed to load widget') }) } });
+      if (isLiveLoad({ ticket })) store.set({ patch: { error: describeApiError({ e: widgetApiError({ error }) ?? error, fallback: t('failed to load widget') }) } });
     } finally {
-      if (ticket === generation && !store.signal.aborted) store.set({ patch: { loading: false } });
+      if (isLiveLoad({ ticket })) store.set({ patch: { loading: false } });
     }
+  }
+  function applyLoaded({ requestedId, result }: { requestedId: string; result: { widget: AdminWidget; whereUsed: AdminWidgetWhereUsed } }, _optional: Record<string, never> = {}) {
+    store.set({ patch: { widget: result.widget, title: result.widget.title, config: result.widget.config, whereUsed: result.whereUsed, widgetType: result.widget.widgetType } });
+    // Replace rather than push: an old id bookmark should not add a Back-button stop.
+    const redirect = widgetSlugRedirectPath({ requestedId, widget: result.widget }, { slugRedirectPath });
+    if (redirect) navigate?.(redirect, { replace: true });
   }
   async function save(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
     const { widgetType, isNew, widget, title, config } = store.getSnapshot();
@@ -54,21 +60,23 @@ export function createWidgetInstanceEditorController(
     const savingFor = currentKey();
     store.set({ patch: { saving: true, message: null, error: null, fieldErrors: [] } });
     try {
-      if (isNew) {
-        const { widget: created } = await api.createWidget({ widgetType, title, config }, { signal: store.signal });
-        // Creation intentionally navigates even if route identity changed while it was in flight.
-        navigate?.(`/widgets/${created.slug}`);
-        return;
-      }
-      if (!widget) return;
-      const { widget: saved } = await api.updateWidget({ id: widget.id, baseVersion: widget.version, title, config }, { signal: store.signal });
-      if (currentKey() !== savingFor || store.signal.aborted) return;
-      store.set({ patch: { widget: saved, title: saved.title, config: saved.config, widgetType: saved.widgetType, message: t('Saved · version {version}').replace('{version}', String(saved.version)) } });
+      if (isNew) await createAndOpen({ widgetType, title, config });
+      else if (widget) await updateExisting({ widget, title, config, savingFor });
     } catch (error) {
-      if (currentKey() === savingFor && !store.signal.aborted) store.set({ patch: resolveWidgetSaveError({ error }, { t }) });
+      if (isLiveSave({ savingFor })) store.set({ patch: resolveWidgetSaveError({ error }, { t }) });
     } finally {
-      if (currentKey() === savingFor && !store.signal.aborted) store.set({ patch: { saving: false } });
+      if (isLiveSave({ savingFor })) store.set({ patch: { saving: false } });
     }
+  }
+  async function createAndOpen({ widgetType, title, config }: { widgetType: AdminWidgetType; title: string; config: Record<string, unknown> }, _optional: Record<string, never> = {}) {
+    const { widget: created } = await api.createWidget({ widgetType, title, config }, { signal: store.signal });
+    // Creation intentionally navigates even if route identity changed while it was in flight.
+    navigate?.(`/widgets/${created.slug}`);
+  }
+  async function updateExisting({ widget, title, config, savingFor }: { widget: AdminWidget; title: string; config: Record<string, unknown>; savingFor: string }, _optional: Record<string, never> = {}) {
+    const { widget: saved } = await api.updateWidget({ id: widget.id, baseVersion: widget.version, title, config }, { signal: store.signal });
+    if (!isLiveSave({ savingFor })) return;
+    store.set({ patch: { widget: saved, title: saved.title, config: saved.config, widgetType: saved.widgetType, message: t('Saved · version {version}').replace('{version}', String(saved.version)) } });
   }
   return {
     getSnapshot: store.getSnapshot, subscribe: store.subscribe, load, save,
