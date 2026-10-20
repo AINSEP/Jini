@@ -151,7 +151,9 @@ async function resolveRobots(
     // Scheduled publishing (2026-10-05): a not-yet-live scheduled row is noindex like a draft.
     noindex = post.status !== "published" || deps.postRepo.isTrashed({ post }) || deps.liveness.isScheduledAt({ post, nowIso: deps.clock.nowIso() });
   }
-  const nofollow = overrides.nofollow ?? settings.defaultRobots.nofollow ?? false;
+  // No trailing `false` fallback: `SeoSettings.defaultRobots` is a required `RobotsDirective`
+  // (both booleans), so the site default always resolves.
+  const nofollow = overrides.nofollow ?? settings.defaultRobots.nofollow;
   return { noindex, nofollow };
 }
 
@@ -234,14 +236,44 @@ function buildOpenGraph(
     type: ogType,
     url: canonical,
     image: ogImage?.url,
+    ...openGraphImageFields({ post, overrides }, { ogImage }),
+    siteName: undefined,
+  };
+}
+
+/** The optional `og:image` metadata keys, each present only when known (key order is part of the shape). */
+function openGraphImageFields(
+  required: { post: PostRecord; overrides: SeoExtFields },
+  optional: { ogImage?: ResolvedShareImage | undefined } = {}
+): Partial<SeoMeta["openGraph"]> {
+  const { post, overrides } = required;
+  const { ogImage } = optional;
+  return {
     ...(ogImage?.ref === undefined ? {} : { imageRef: ogImage.ref }),
-    ...(ogImage ? { imageSource: overrides.ogImage ? 'override' as const : ogImage.sourceRef === featuredImageRef(post) ? 'content' as const : 'default' as const } : {}),
+    ...(ogImage ? { imageSource: shareImageSource({ post, overrides, ogImage }) } : {}),
     ...(overrides.ogImage ? { imageOverridden: true as const } : {}),
+    ...imageOutputFields({ ogImage }),
+  };
+}
+
+/** The resolved transform's output dimensions and MIME type, each present only when known. */
+function imageOutputFields(
+  required: { ogImage: SeoImageDetails | undefined },
+  _optional: Record<string, never> = {}
+): Pick<SeoMeta["openGraph"], "imageWidth" | "imageHeight" | "imageType"> {
+  const { ogImage } = required;
+  return {
     ...(ogImage?.width === undefined ? {} : { imageWidth: ogImage.width }),
     ...(ogImage?.height === undefined ? {} : { imageHeight: ogImage.height }),
     ...(ogImage?.type === undefined ? {} : { imageType: ogImage.type }),
-    siteName: undefined,
   };
+}
+
+/** Where the resolved share image came from: the entry's own override, its featured image, or the site default. */
+function shareImageSource(required: { post: PostRecord; overrides: SeoExtFields; ogImage: ResolvedShareImage }): "override" | "content" | "default" {
+  const { post, overrides, ogImage } = required;
+  if (overrides.ogImage) return "override";
+  return ogImage.sourceRef === featuredImageRef(post) ? "content" : "default";
 }
 
 function buildTwitter(
@@ -330,7 +362,7 @@ export async function analyzeEntry(
     });
   }
 
-  const score = issues.length === 0 ? 100 : Math.max(0, 100 - issues.length * 20);
+  const score = Math.max(0, 100 - issues.length * 20);
 
   return { entryId: input.entryId, score, issues, resolved };
 }

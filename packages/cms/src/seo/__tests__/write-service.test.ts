@@ -10,6 +10,7 @@ import {
 } from "../errors.js";
 import { setEntrySeoOverrides } from "./support/legacy-api.fixture.js";
 import { buildPostRecord } from "./support/post.fixture.js";
+import type { SeoExtFieldsPatch } from "../types.js";
 
 /**
  * @file T014 — failing-first unit certification of `setEntrySeoOverrides`
@@ -496,3 +497,32 @@ test("setEntrySeoOverrides: a trashed post is refused with the entity-liveness m
 
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+
+/** Untyped wire input, as a REST/tool caller sends it; the chokepoint validates it at runtime. */
+function wirePatch(json: string): SeoExtFieldsPatch {
+  return JSON.parse(json);
+}
+
+test.each([
+  ['{"ogType":"invalid_type"}', "'ogType' must be one of website, article, profile"],
+  ['{"twitterCard":"invalid_card"}', "'twitterCard' must be one of summary, summary_large_image"],
+  ['{"twitterCard":"invalid_card","ogType":"invalid_type"}', "'ogType' must be one of website, article, profile"],
+])("setEntrySeoOverrides: enum patch %s is refused with the field's allowed vocabulary", async (json, message) => {
+  const repo = new InMemoryPostRepo([seedPost()]);
+  await assert.rejects(
+    () => setEntrySeoOverrides({
+      deps: { postRepo: repo, authorize: alwaysAllow, invalidateSitemapCache: noopInvalidate, clock },
+      input: { workspaceId: WORKSPACE, entryId: ENTRY_ID, patch: wirePatch(json), callerPrincipalId: "p1" },
+    }),
+    (err: unknown) => err instanceof SeoFieldValidationError && err.message === message
+  );
+});
+
+test("setEntrySeoOverrides: null clears a stored enum override instead of failing enum validation", async () => {
+  const repo = new InMemoryPostRepo([seedPost({ seoExtJson: JSON.stringify({ ogType: "article", twitterCard: "summary", title: "Kept" }) })]);
+  const result = await setEntrySeoOverrides({
+    deps: { postRepo: repo, authorize: alwaysAllow, invalidateSitemapCache: noopInvalidate, clock },
+    input: { workspaceId: WORKSPACE, entryId: ENTRY_ID, patch: { ogType: null, twitterCard: null }, callerPrincipalId: "p1" },
+  });
+  assert.deepEqual(result.overrides, { title: "Kept" });
+});
