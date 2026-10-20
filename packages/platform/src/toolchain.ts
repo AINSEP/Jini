@@ -40,6 +40,16 @@ function resolveUserScopedHome(raw: string | undefined, home: string): string | 
   return isAbsolute(value) ? value : null;
 }
 
+/** @internal Trim an optional env value, treating a missing/non-string value as blank. */
+function trimmedEnv(value: string | undefined): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** @internal Whether the current process runs on Windows (read live so tests can swap `process.platform`). */
+function isWindows(): boolean {
+  return process.platform === "win32";
+}
+
 // Single source of truth for "user-level CLI install locations the daemon
 // must search even when launched with a minimal PATH". GUI launchers
 // (macOS .app bundles, Linux .desktop files) typically inherit a stripped
@@ -63,7 +73,7 @@ export function wellKnownUserToolchainBins(
   options: WellKnownUserToolchainOptions = {},
 ): string[] {
   const home = options.home ?? homedir();
-  const includeSystemBins = options.includeSystemBins ?? process.platform !== "win32";
+  const includeSystemBins = options.includeSystemBins ?? !isWindows();
   const env = options.env ?? process.env;
   const dirs: string[] = [];
   // Vite+ global installs expose CLI shims from VP_HOME/bin (default
@@ -74,6 +84,44 @@ export function wellKnownUserToolchainBins(
   if (vpHome) {
     dirs.push(join(vpHome, "bin"));
   }
+  dirs.push(...npmPrefixBins({ env, home }));
+  dirs.push(...conventionalUserBins({ home }));
+  dirs.push(...windowsUserBins({ env, home }));
+
+  // Mise shims: makes every tool installed with `mise install` visible to
+  // GUI-launched daemons even when the process inherits a stripped PATH.
+  // Respect MISE_DATA_DIR (the official way to relocate the whole mise tree).
+  // We only fall back to the legacy ~/.mise/shims path when no explicit
+  // MISE_DATA_DIR override is provided.
+  const miseDataOverride = resolveUserScopedHome(env.MISE_DATA_DIR, home);
+  const miseData = miseDataOverride ?? join(home, ".local", "share", "mise");
+  dirs.push(join(miseData, "shims"));
+
+  if (!miseDataOverride) {
+    dirs.push(join(home, ".mise", "shims"));
+  }
+
+  if (includeSystemBins) {
+    dirs.push("/opt/homebrew/bin", "/usr/local/bin");
+  }
+  // Per-version Node toolchains: scan the install root and surface every
+  // version directory's bin folder. Best-effort — missing roots simply
+  // contribute nothing.
+  // When MISE_DATA_DIR is set we use the same root for consistency with shims.
+  const miseInstalls = join(miseData, "installs");
+  // Surface bin dirs for npm-packaged toolchains installed under the mise
+  // installs root (e.g. `npm-openai-codex`).
+  dirs.push(...existingChildBinDirs(join(miseInstalls, "npm-openai-codex"), ["bin"]));
+  for (const installRoot of nodeInstallRoots({ env, home, miseInstalls })) {
+    dirs.push(...existingChildBinDirs(installRoot.root, installRoot.segments));
+  }
+  return dirs;
+}
+
+/** @internal The npm-prefix bins derived from the env plus the Windows `%APPDATA%\npm` default. */
+function npmPrefixBins(input: { env: NodeJS.ProcessEnv; home: string }): string[] {
+  const { env, home } = input;
+  const dirs: string[] = [];
   // The user's *explicit* npm prefix outranks every conventional
   // location below — including `~/.local/bin`. The env var is the
   // user's current npm configuration, so a binary installed via
@@ -89,21 +137,18 @@ export function wellKnownUserToolchainBins(
   // Trim before length-checking so accidental whitespace-only values
   // (`NPM_CONFIG_PREFIX=" "`) do not produce a `/bin`-suffixed garbage
   // entry.
-  const npmPrefixRaw = env.NPM_CONFIG_PREFIX ?? env.npm_config_prefix;
-  if (typeof npmPrefixRaw === "string") {
-    const npmPrefix = npmPrefixRaw.trim();
-    if (npmPrefix.length > 0) {
-      // Unix: npm global binaries live in <prefix>/bin. Always add it as a
-      // search-path candidate — existence is irrelevant for a PATH directory,
-      // and this preserves the long-standing helper contract.
-      dirs.push(join(npmPrefix, "bin"));
-      // Windows: npm installs global binaries directly into the prefix root
-      // (there is no /bin subdirectory), so add the root as well. Additive —
-      // the <prefix>/bin entry above is left untouched for cross-platform
-      // parity.
-      if (process.platform === "win32") {
-        dirs.push(npmPrefix);
-      }
+  const npmPrefix = trimmedEnv(env.NPM_CONFIG_PREFIX ?? env.npm_config_prefix);
+  if (npmPrefix.length > 0) {
+    // Unix: npm global binaries live in <prefix>/bin. Always add it as a
+    // search-path candidate — existence is irrelevant for a PATH directory,
+    // and this preserves the long-standing helper contract.
+    dirs.push(join(npmPrefix, "bin"));
+    // Windows: npm installs global binaries directly into the prefix root
+    // (there is no /bin subdirectory), so add the root as well. Additive —
+    // the <prefix>/bin entry above is left untouched for cross-platform
+    // parity.
+    if (isWindows()) {
+      dirs.push(npmPrefix);
     }
   }
   // Windows: %APPDATA%\npm is npm's default global prefix. NPM_CONFIG_PREFIX /
@@ -111,10 +156,16 @@ export function wellKnownUserToolchainBins(
   // child-process environments, so the block above no-ops for most Windows
   // users. Add the default location unconditionally — consistent with the
   // conventional dirs below, which are also added without an existence check.
-  if (process.platform === "win32") {
+  if (isWindows()) {
     dirs.push(join(home, "AppData", "Roaming", "npm"));
   }
-  dirs.push(
+  return dirs;
+}
+
+/** @internal Conventional home-relative toolchain bin dirs, added without an existence check. */
+function conventionalUserBins(input: { home: string }): string[] {
+  const { home } = input;
+  return [
     join(home, ".local", "bin"),
     join(home, ".vite-plus", "bin"),
     join(home, ".kimi-code", "bin"),
@@ -139,42 +190,33 @@ export function wellKnownUserToolchainBins(
     join(home, ".deno", "bin"),
     join(home, "go", "bin"),
     join(home, ".pyenv", "shims"),
-  );
+  ];
+}
 
+/** @internal Windows-only scoop shims and `%APPDATA%\npm`; empty on POSIX. */
+function windowsUserBins(input: { env: NodeJS.ProcessEnv; home: string }): string[] {
   // Windows-only user install roots that GUI launches miss. Scoop drops
   // shims under ~/scoop/shims, and npm's global prefix on Windows defaults
   // to %APPDATA%\npm rather than a `bin` subdir.
-  if (process.platform === "win32") {
-    dirs.push(join(home, "scoop", "shims"));
-    const appData = typeof env.APPDATA === "string" ? env.APPDATA.trim() : "";
-    if (appData.length > 0) {
-      dirs.push(join(appData, "npm"));
-    }
+  if (!isWindows()) return [];
+  const dirs = [join(input.home, "scoop", "shims")];
+  const appData = trimmedEnv(input.env.APPDATA);
+  if (appData.length > 0) {
+    dirs.push(join(appData, "npm"));
   }
+  return dirs;
+}
 
-  // Mise shims: makes every tool installed with `mise install` visible to
-  // GUI-launched daemons even when the process inherits a stripped PATH.
-  // Respect MISE_DATA_DIR (the official way to relocate the whole mise tree).
-  // We only fall back to the legacy ~/.mise/shims path when no explicit
-  // MISE_DATA_DIR override is provided.
-  const miseDataOverride = resolveUserScopedHome(env.MISE_DATA_DIR, home);
-  const miseData = miseDataOverride || join(home, ".local", "share", "mise");
-  dirs.push(join(miseData, "shims"));
+type NodeInstallRoot = { root: string; segments: string[] };
 
-  if (!miseDataOverride) {
-    dirs.push(join(home, ".mise", "shims"));
-  }
-
-  if (includeSystemBins) {
-    dirs.push("/opt/homebrew/bin", "/usr/local/bin");
-  }
-  // Per-version Node toolchains: scan the install root and surface every
-  // version directory's bin folder. Best-effort — missing roots simply
-  // contribute nothing.
-  // When MISE_DATA_DIR is set we use the same root for consistency with shims.
-  const miseInstalls = join(miseData, "installs");
-  dirs.push(...existingMiseNpmPackageBinDirs(miseInstalls));
-  const nodeInstallRoots: Array<{ root: string; segments: string[] }> = [
+/** @internal Per-version Node install roots to probe, in priority order (mise, nvm, fnm, then Windows fnm). */
+function nodeInstallRoots(input: {
+  env: NodeJS.ProcessEnv;
+  home: string;
+  miseInstalls: string;
+}): NodeInstallRoot[] {
+  const { env, home, miseInstalls } = input;
+  const roots: NodeInstallRoot[] = [
     {
       root: join(miseInstalls, "node"),
       segments: ["bin"],
@@ -200,37 +242,23 @@ export function wellKnownUserToolchainBins(
   // inherits a stripped PATH and reads no shell rc, so without an explicit
   // probe fnm-managed Node — and every agent CLI it runs — is silently
   // undetected on Windows. See issues #3517 and #3062.
-  if (process.platform === "win32") {
-    const fnmDirOverride = typeof env.FNM_DIR === "string" ? env.FNM_DIR.trim() : "";
-    const fnmRoots: string[] = [];
-    if (fnmDirOverride.length > 0) {
-      fnmRoots.push(fnmDirOverride);
-    } else {
-      for (const base of [env.LOCALAPPDATA, env.APPDATA]) {
-        const trimmed = typeof base === "string" ? base.trim() : "";
-        if (trimmed.length > 0) fnmRoots.push(join(trimmed, "fnm"));
-      }
-    }
-    for (const fnmRoot of fnmRoots) {
-      nodeInstallRoots.push({ root: join(fnmRoot, "node-versions"), segments: ["installation"] });
+  if (isWindows()) {
+    for (const fnmRoot of windowsFnmRoots({ env })) {
+      roots.push({ root: join(fnmRoot, "node-versions"), segments: ["installation"] });
     }
   }
-  for (const installRoot of nodeInstallRoots) {
-    for (const dir of existingChildBinDirs(installRoot.root, installRoot.segments)) {
-      dirs.push(dir);
-    }
-  }
-  return dirs;
+  return roots;
 }
 
-/** @internal Surface bin dirs for npm-packaged toolchains installed under a mise installs root (e.g. `npm-openai-codex`). */
-function existingMiseNpmPackageBinDirs(root: string): string[] {
-  const out: string[] = [];
-  for (const packageName of ["npm-openai-codex"]) {
-    const packageRoot = join(root, packageName);
-    out.push(...existingChildBinDirs(packageRoot, ["bin"]));
-  }
-  return out;
+/** @internal Windows fnm roots: `FNM_DIR` when set, else `%LOCALAPPDATA%\fnm` then `%APPDATA%\fnm`. */
+function windowsFnmRoots(input: { env: NodeJS.ProcessEnv }): string[] {
+  const { env } = input;
+  const fnmDirOverride = trimmedEnv(env.FNM_DIR);
+  if (fnmDirOverride.length > 0) return [fnmDirOverride];
+  return [env.LOCALAPPDATA, env.APPDATA]
+    .map(trimmedEnv)
+    .filter((base) => base.length > 0)
+    .map((base) => join(base, "fnm"));
 }
 
 /** @internal List existing `<root>/<versionDir>/<...segments>` directories, version-sorted, skipping non-directories. */
@@ -242,7 +270,9 @@ function existingChildBinDirs(root: string, segments: string[]): string[] {
   } catch {
     return out;
   }
-  for (const entry of sortVersionedDirEntries(entries)) {
+  // Sort directory entries by semver-like name (newest first), falling back to locale order.
+  const sorted = [...entries].sort((left, right) => compareVersionLikeDirNames(left.name, right.name));
+  for (const entry of sorted) {
     if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
     const candidate = join(root, entry.name, ...segments);
     if (existsSync(candidate)) out.push(candidate);
@@ -251,11 +281,6 @@ function existingChildBinDirs(root: string, segments: string[]): string[] {
 }
 
 type SemverParts = [major: number, minor: number, patch: number];
-
-/** @internal Sort directory entries by semver-like name (newest first), falling back to locale order. */
-function sortVersionedDirEntries(entries: import("node:fs").Dirent<string>[]): import("node:fs").Dirent<string>[] {
-  return [...entries].sort((left, right) => compareVersionLikeDirNames(left.name, right.name));
-}
 
 /** @internal Compare two version-like directory names descending; semver-parseable names precede non-parseable ones. */
 function compareVersionLikeDirNames(left: string, right: string): number {
