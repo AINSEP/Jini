@@ -8,11 +8,11 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 | Lot | Files | Status | Subagent | Commits | before→after worst cyc/cog | Coverage | Verify |
 |---|---|---|---|---|---|---|---|
 | L010 | forms descriptor-rules, field-registry, html-render | running | | | 53/52 → | | |
-| L017 | forms/html authoring-adapter, html-authoring | running | | | (none) → | | |
+| L017 | forms/html authoring-adapter, html-authoring | merged | done (15 tool calls) | f59b2cd8, 2c038dab | 10/8 → 10/8 (already ≤10) | 100/100/100 | eslint 0, tsc 0, 86 tests ✓ |
 | L073 | widgets config-validation, embed-service, gallery-resolver, resolver-service | running | | | 32/36 → | | |
 | L108 | widgets/html gallery-render, html-embeds, legacy-widget-markers, server-fragment | running | | | 20/22 → | | |
 | L109 | widgets/markers gallery, html-attributes | running | | | 26/20 → | | |
-| L123 | redirects host-config, redirects | queued | | | 18/29 → | | |
+| L123 | redirects host-config, redirects | running | | | 18/29 → | | |
 | L151 | content-types index-provisioning, write-service | queued | | | 19/20 → | | |
 | L164 | entries field-validation, write-service | queued | | | 17/16 → | | |
 | L169 | taxonomy write-service | queued | | | 16/20 → | | |
