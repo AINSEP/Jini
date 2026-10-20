@@ -36,6 +36,13 @@ describe('CommandRegistry.dispatch scan pins', () => {
     expect(calls).toEqual([['--daemon-url=http://127.0.0.1:1', 'x']]);
   });
 
+  it('never skips after a token containing "=", even when the whole token text is a value-flag name', async () => {
+    const { handler, calls } = recorder();
+    const reg = new CommandRegistry().add({ name: 'run', handler });
+    await reg.dispatch({ argv: ['--a=b', 'run'] }, { valueFlags: new Set(['a=b']) });
+    expect(calls).toEqual([['--a=b']]);
+  });
+
   it('a bare "--" is a flag token, not a stop marker', async () => {
     const { handler, calls } = recorder();
     const reg = new CommandRegistry().add({ name: 'run', handler });

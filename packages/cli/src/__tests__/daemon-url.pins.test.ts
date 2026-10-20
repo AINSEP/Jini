@@ -22,6 +22,21 @@ function recordingDiscover(result: string | null): { discover: Discover; calls: 
 
 const ENV = 'JINI_PIN_DAEMON_URL';
 
+function buildOptions(steps: {
+  flagUrl: string | undefined;
+  envUrl: string | undefined;
+  discover: Discover | undefined;
+  defaultUrl: string | undefined;
+}): ResolveDaemonUrlOptions {
+  return {
+    env: steps.envUrl === undefined ? {} : { [ENV]: steps.envUrl },
+    envVarName: ENV,
+    ...(steps.flagUrl !== undefined ? { flagUrl: steps.flagUrl } : {}),
+    ...(steps.discover !== undefined ? { discover: steps.discover } : {}),
+    ...(steps.defaultUrl !== undefined ? { defaultUrl: steps.defaultUrl } : {}),
+  };
+}
+
 // Every step can be absent, empty, or populated. The truth table walks all
 // 3^4 combinations and asserts the first populated step wins (defaultUrl wins
 // even when it is the empty string, because only `undefined` skips it).
@@ -31,30 +46,23 @@ describe('resolveDaemonUrl resolution-order truth table', () => {
   const cases: Array<[State, State, State, State]> = [];
   for (const f of states) for (const e of states) for (const d of states) for (const def of states) cases.push([f, e, d, def]);
 
-  it.each(cases)('flag=%s env=%s discover=%s default=%s', async (f, e, d, def) => {
-    const { discover, calls } = recordingDiscover(d === 'set' ? 'http://127.0.0.1:3' : d === 'empty' ? '' : null);
-    const options: ResolveDaemonUrlOptions = {
-      env: e === 'absent' ? {} : { [ENV]: e === 'set' ? 'http://127.0.0.1:2' : '' },
-      envVarName: ENV,
-      ...(f !== 'absent' ? { flagUrl: f === 'set' ? 'http://127.0.0.1:1' : '' } : {}),
-      ...(d !== 'absent' ? { discover } : {}),
-      ...(def !== 'absent' ? { defaultUrl: def === 'set' ? 'http://127.0.0.1:4' : '' } : {}),
-    };
-    let expected: string | Error;
-    if (f === 'set') expected = 'http://127.0.0.1:1';
-    else if (e === 'set') expected = 'http://127.0.0.1:2';
-    else if (d === 'set') expected = 'http://127.0.0.1:3';
-    else if (def === 'set') expected = 'http://127.0.0.1:4';
-    else if (def === 'empty') expected = '';
-    else expected = new Error('no daemon URL resolved');
+  // Each step's value per state; `undefined` means the option/probe result is omitted.
+  const value = (state: State, url: string): string | undefined => ({ absent: undefined, empty: '', set: url })[state];
 
-    if (expected instanceof Error) {
-      await expect(resolveDaemonUrl({}, options)).rejects.toThrow(
-        'no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, supply a discover() probe, or provide defaultUrl.',
-      );
-    } else {
-      await expect(resolveDaemonUrl({}, options)).resolves.toBe(expected);
-    }
+  it.each(cases)('flag=%s env=%s discover=%s default=%s', async (f, e, d, def) => {
+    const { discover, calls } = recordingDiscover(value(d, 'http://127.0.0.1:3') ?? null);
+    const flagUrl = value(f, 'http://127.0.0.1:1');
+    const envUrl = value(e, 'http://127.0.0.1:2');
+    const defaultUrl = value(def, 'http://127.0.0.1:4');
+    const options = buildOptions({ flagUrl, envUrl, discover: d === 'absent' ? undefined : discover, defaultUrl });
+    // First non-empty of flag/env/discover wins; otherwise defaultUrl as-is (even '').
+    const expected = [flagUrl, envUrl, value(d, 'http://127.0.0.1:3')].find((v) => v !== undefined && v.length > 0) ?? defaultUrl;
+    const result = resolveDaemonUrl({}, options);
+    await (expected === undefined
+      ? expect(result).rejects.toThrow(
+          'no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, supply a discover() probe, or provide defaultUrl.',
+        )
+      : expect(result).resolves.toBe(expected));
     // discover() is only probed when neither flag nor env produced a URL.
     const discoverShouldRun = d !== 'absent' && f !== 'set' && e !== 'set';
     expect(calls).toEqual(discoverShouldRun ? [800] : []);
