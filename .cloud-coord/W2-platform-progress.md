@@ -62,5 +62,7 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 - L026 bug pinned (reported, not fixed): guarded-reader refuses subpaths under a not-yet-existing root with a misleading 'resolves outside the allowed root through a symbolic link' (fails closed).
 - Whole suite after all merges (platform rebuilt): 99 files, 2037 passed, 6 skipped (same 6 as baseline) — BUT 2 unhandled ENOENT errors (exit 1) from new L026 test guarded-reader.boundaries.test.ts (fakes wrap a real ReadStream whose deferred open races afterEach cleanup). Test-only; production unaffected. Fresh agent fixing on cloud/w2-platform-L026fix. Baseline had 0 errors, so this is ours.
 - Coordinator verify lesson: grep for the vitest 'Errors' line too, not just Tests/FAIL — per-lot verify missed it.
+- L026fix 85880432 merged (test waits for the real ReadStream 'close'). FINAL whole suite: 99 files, 2037 passed, 6 skipped (same 6 as baseline), 0 errors, exit 0, 20s. tsc 0. All 25 lot files eslint 0 at cyc/cog 10.
 
 ## Next
+Wave complete. cloud/w2-platform is ready for owner review/merge into general-work (not done by coordinator). Follow-ups for the owner: decide on pinned bugs (esp. blob-storage listFiles namespace traversal, S3 ns-prefix bleed, SSRF gaps in net/ + guarded classifyAddress spelling); raise platform vitest.config.ts thresholds now that proxy-env/acquireLock gaps are closed.
