@@ -207,10 +207,6 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
   const dispatcher = suppliedDispatcher ?? createAssetCacheDispatcher({}, opts.lookupImpl ? { lookupImpl: opts.lookupImpl } : {});
   const inflight = new Map<string, Promise<AssetCacheResult>>();
 
-  function keyFor(rawUrl: string): string {
-    return createHash('sha256').update(rawUrl).digest('hex');
-  }
-
   async function readFromDisk(key: string): Promise<AssetCacheResult | null> {
     const blobPath = path.join(cacheDir, key);
     const metaPath = `${blobPath}.json`;
@@ -248,24 +244,21 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
     throw new AssetCacheError(415, `unsupported content-type: ${header || 'unknown'}`);
   }
 
-  /** Drain the body, aborting the moment the accumulated size exceeds
-   *  `maxBytes`. A response without a trustworthy Content-Length must never be
-   *  fully buffered first — that would turn this caller-supplied proxy into a
-   *  memory-exhaustion path. */
-  async function readBodyCapped(response: Response, controller: AbortController): Promise<Buffer> {
-    const body = response.body;
-    if (!body) {
-      const ab = await response.arrayBuffer();
-      if (ab.byteLength > maxBytes) throw new AssetCacheError(413, 'asset exceeds size limit');
-      return Buffer.from(ab);
-    }
-    const reader = body.getReader();
+  function assertWithinLimit(total: number): void {
+    if (total > maxBytes) throw new AssetCacheError(413, 'asset exceeds size limit');
+  }
+
+  /** Pull chunks until done, failing as soon as the running total passes
+   *  `maxBytes`. Always releases the reader, even on the size-limit throw. */
+  async function drainCapped(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    controller: AbortController,
+  ): Promise<Buffer> {
     const chunks: Uint8Array[] = [];
     let total = 0;
     try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      for (let next = await reader.read(); !next.done; next = await reader.read()) {
+        const value = next.value;
         if (!value) continue;
         total += value.byteLength;
         if (total > maxBytes) {
@@ -282,6 +275,18 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
       }
     }
     return Buffer.concat(chunks);
+  }
+
+  /** Drain the body, aborting the moment the accumulated size exceeds
+   *  `maxBytes`. A response without a trustworthy Content-Length must never be
+   *  fully buffered first — that would turn this caller-supplied proxy into a
+   *  memory-exhaustion path. */
+  async function readBodyCapped(response: Response, controller: AbortController): Promise<Buffer> {
+    const body = response.body;
+    if (body) return drainCapped(body.getReader(), controller);
+    const ab = await response.arrayBuffer();
+    assertWithinLimit(ab.byteLength);
+    return Buffer.from(ab);
   }
 
   async function fetchAndStore(rawUrl: string, key: string): Promise<AssetCacheResult> {
@@ -305,9 +310,7 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
         throw new AssetCacheError(502, `upstream responded ${response.status}`);
       }
       const declaredLength = Number(response.headers.get('content-length') ?? '');
-      if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-        throw new AssetCacheError(413, 'asset exceeds size limit');
-      }
+      if (Number.isFinite(declaredLength)) assertWithinLimit(declaredLength);
       const contentType = resolveContentType(response.headers.get('content-type'), url);
       const buf = await readBodyCapped(response, controller);
       const result: AssetCacheResult = { buf, contentType };
@@ -326,12 +329,13 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
     if (!isCacheableExternalUrl(rawUrl)) {
       throw new AssetCacheError(400, 'url is not a cacheable external media url');
     }
-    const key = keyFor(rawUrl.trim());
+    const url = rawUrl.trim();
+    const key = assetCacheKey(url);
     const cached = await readFromDisk(key);
     if (cached) return cached;
     const existing = inflight.get(key);
     if (existing) return existing;
-    const pending = fetchAndStore(rawUrl.trim(), key).finally(() => {
+    const pending = fetchAndStore(url, key).finally(() => {
       inflight.delete(key);
     });
     inflight.set(key, pending);
