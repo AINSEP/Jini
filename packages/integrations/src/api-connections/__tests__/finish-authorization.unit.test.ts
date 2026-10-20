@@ -119,6 +119,19 @@ describe('keeping the stored refresh token on a same-account re-consent', () => 
     expect([error, (await deps.records.read({ key: KEY }))?.revision]).toEqual([failure, 1]);
   });
 
+  it('does not borrow the refresh token an interrupted first connect left behind for another account', async () => {
+    // A first connect fenced the record (no account yet) and installed alice's tokens, then stopped
+    // before marking it connected. A hosted exchange for bob without a refresh token must not
+    // inherit alice's refresh token.
+    const store = memoryTokenStore();
+    store.entries.set(KEY, tokens('alice'));
+    const deps = unitDeps({ clientKind: 'confidential', tokens: store, hooks: fixedHooks({ accountId: 'bob', displayName: 'Bob' }).hooks,
+      client: { clientId: 'acme-web', clientSecret: 'web-secret', authMethod: 'client_secret_post' } });
+    await seedRecord(deps, connectedRecord({ status: 'reconnect-required', account: null }));
+    await finish(deps, { generation: 1 }, tokens('bob', { refreshToken: null }));
+    expect(store.entries.get(KEY)).toEqual(tokens('bob', { refreshToken: null }));
+  });
+
   it('does not borrow the stored refresh token for a different account', async () => {
     const deps = unitDeps({ hooks: fixedHooks({ accountId: 'alice', displayName: 'Alice' }).hooks });
     await seedRecord(deps, connectedRecord({ account: { accountId: 'carol', displayName: 'Carol' } }));

@@ -62,6 +62,10 @@ describe("token sets", () => {
     expect(codeOf(() => parseTokenSet({ value: "access-token" }))).toBe("invalid-record");
   });
 
+  it("refuses an array even when it carries every token field", () => {
+    expect(codeOf(() => parseTokenSet({ value: Object.assign([], tokenSet({ label: "one" })) }))).toBe("invalid-record");
+  });
+
   it("refuses an empty access token", () => {
     expect(codeOf(() => parseTokenSet({ value: { ...tokenSet({ label: "one" }), accessToken: "" } }))).toBe("invalid-record");
   });
@@ -110,6 +114,10 @@ describe("sealed payloads", () => {
 
   it("reports a malformed payload as replaceable (null generation) instead of refusing the install", () => {
     expect(readReplaceableGeneration({ payload: { ...payload(), generation: null }, key: KEY, owner: OWNER })).toBeNull();
+  });
+
+  it("reports a payload with a non-integer generation as replaceable (null)", () => {
+    expect(readReplaceableGeneration({ payload: { ...payload(), generation: "3" }, key: KEY, owner: OWNER })).toBeNull();
   });
 
   it("reports the generation of a row sealed for another client id of the same connection", () => {

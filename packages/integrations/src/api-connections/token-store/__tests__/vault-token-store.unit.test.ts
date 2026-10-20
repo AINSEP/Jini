@@ -216,11 +216,41 @@ describe("delete", () => {
   });
 });
 
+describe("token validation before writing", () => {
+  // Malformed on purpose: the store must not seal a token set its own reads would refuse.
+  const malformed = { ...tokenSet({ label: "bad" }), accessToken: "" };
+
+  it("refuses a malformed refresh result and keeps the stored tokens", async () => {
+    const f = createFixture();
+    const store = f.store();
+    await seed({ store, tokens: tokenSet({ label: "one" }) });
+    expect(await store.tryAcquireRefreshLease({ key: KEY })).toBe(true);
+    expect(await codeOf(store.persist({ key: KEY, tokens: malformed }))).toBe("invalid-record");
+    expect(await f.store().load({ key: KEY })).toEqual(tokenSet({ label: "one" }));
+  });
+
+  it("refuses a malformed sign-in credential and writes nothing", async () => {
+    const f = createFixture();
+    expect(await codeOf(f.store().install({ key: KEY, tokens: malformed, generation: 1 }))).toBe("invalid-record");
+    expect(await f.repo.find({ workspaceId: SCOPE.workspaceId, id: KEY })).toBeNull();
+  });
+});
+
 describe("reads", () => {
   it("serves nothing and records no load when no row is stored", async () => {
     const f = createFixture();
     const store = f.store();
     expect([await store.load({ key: KEY }), await store.loadForRevocation({ key: KEY })]).toEqual([null, null]);
+  });
+
+  it("ignores loads older than the observation window when judging a lease", async () => {
+    const f = createFixture();
+    const store = f.store();
+    await store.install({ key: KEY, tokens: tokenSet({ label: "one" }), generation: 1 });
+    await store.load({ key: KEY });
+    f.state.nowMs += 60_000;
+    f.state.generation = 2;
+    expect(await store.tryAcquireRefreshLease({ key: KEY })).toBe(true);
   });
 
   it("forgets earlier loads on delete, so a later lease is judged on loads after it", async () => {
