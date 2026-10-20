@@ -222,7 +222,7 @@ describe('createTerminalSessionManager — create/get/list', () => {
     const loadSpawnPty = async (): Promise<PtySpawn> => fakeSpawnPty().spawnPty;
     createTerminalSessionManager({}, { loadSpawnPty });
     createTerminalSessionManager({}, { loadSpawnPty, maxEvents: 1, maxBufferBytes: 2, exitTailBytes: 3, flushIntervalMs: 4, flushThresholdBytes: 5, ttlMs: 6, shutdownGraceMs: 7 });
-    createTerminalSessionManager({}, { loadSpawnPty, ttlMs: undefined, maxEvents: 9 });
+    createTerminalSessionManager({}, { loadSpawnPty, maxEvents: 9 });
     expect(createTerminalServiceOptions).toEqual([
       { loadSpawnPty },
       { loadSpawnPty, maxEvents: 1, maxBufferBytes: 2, exitTailBytes: 3, flushIntervalMs: 4, flushThresholdBytes: 5, ttlMs: 6, shutdownGraceMs: 7 },
