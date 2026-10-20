@@ -42,7 +42,7 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 | Lot | Status | Branch | Commits | worst before→after | coverage | verify |
 |---|---|---|---|---|---|---|
 | L026 | running | cloud/w2-platform-L026 | | | | |
-| L034 | running | cloud/w2-platform-L034 | | | | |
+| L034 | MERGED | cloud/w2-platform-L034 | 9db42c18, e7ea61b5, 00b693a8, 5544c75c, 06768f1a | meta 20/19→9/8; repo.memory 17/17→9/7; service 38/22→10/8; types 21/12→7/8; keyring.env 11→8/5 | 100/100/100 all five | eslint0, tsc0, 314 secrets tests; wire-format pin unchanged; packages/db vault contract 34/34 green vs rebuilt platform dist |
 | L056 | MERGED | cloud/w2-platform-L056 | d6a5ca93, 718e47bf, 51fd1da4, db12b9db | toolchain 26/37→10/9; proxy-env 17/19→10/7; download 15/13→10/10 | 100/100/100 all three | eslint0, tsc0, 179 pass + 3 pre-existing skipIf(root) |
 | L093 | MERGED | cloud/w2-platform-L093 | e85550e1, 5634636b | address 30/41→10/10 (expandIpv6 untouched, isPrivateAddress 4/2); endpoint-policy 14→6/5 | 100/100/100 both | eslint0, tsc0, 265 tests green |
 | L110 | MERGED | cloud/w2-platform-L110 | fe57e091, 63cd031a | client 23/19→≤10; fetch-adapter 17/11→≤10 | 100/100/100 both (was 94%/75% branch) | eslint0, tsc0, 166 tests green |
@@ -57,5 +57,6 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 
 - Container restart ~mid-batch-A: L026/L034/L056 resumed from transcripts; worktrees, pushes and uncommitted edits survived.
 - L056 follow-up (out of scope): packages/platform/vitest.config.ts still has 99% thresholds + a comment about proxy-env catch / acquireLock gaps that are now closed.
+- L034 review note: new tests use `as unknown as` only to feed malformed runtime input to validators (not typed fakes) — accepted.
 
 ## Next
