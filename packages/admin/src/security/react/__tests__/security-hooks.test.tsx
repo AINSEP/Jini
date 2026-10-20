@@ -261,3 +261,22 @@ describe('useRootKeyTab', () => {
     expect(view.result.current).toMatchObject({ token: '', confirm: '', result: null });
   });
 });
+
+describe('useRootKeyTab boundaries', () => {
+  it('reads as loading with nothing known before the controller exists', () => {
+    const view = mountRoot();
+    expect(view.first()).toMatchObject({ denied: false, loading: true, saving: false, status: undefined, error: undefined, result: undefined, preview: undefined, token: '', confirm: '', confirming: false, locked: false, canGenerate: false, canConfirm: false });
+  });
+  it('does not offer generation for an active key reported as missing', async () => {
+    const view = mountRoot({ rootKey: createMemoryRootKey({ status: { ...lockedStatus, state: 'missing', active: true } }) });
+    await waitFor(() => expect(view.result.current.status?.active).toBe(true)); expect(view.result.current.canGenerate).toBe(false);
+  });
+  it('falls back to the default scope notice when the host notice is not text', () => {
+    expect(mountRoot({ params: { scopeNotice: 42 } }).result.current.scopeNotice).toBe('This key protects saved credentials. Keep its backup separate from the database.');
+  });
+  it('cannot confirm a typed phrase without a preview', async () => {
+    const view = mountRoot({ rootKey: createMemoryRootKey({ status: lockedStatus }) }); await waitFor(() => expect(view.result.current.locked).toBe(true));
+    act(() => view.result.current.onConfirmText({ value: 'START FRESH' })); expect(view.result.current).toMatchObject({ confirm: 'START FRESH', canConfirm: false });
+  });
+  it('treats a mismatched key as locked', async () => { const view = mountRoot({ rootKey: createMemoryRootKey({ status: { ...lockedStatus, state: 'mismatch' } }) }); await waitFor(() => expect(view.result.current.locked).toBe(true)); });
+});
