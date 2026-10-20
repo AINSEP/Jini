@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, test } from "vitest";
 import type { DomainEvent, EventBusPort } from "../../../core/index.js";
-import { createFormDeliverySubscriptions } from "../index.js";
+import { createFormDeliverySubscriptions, FORM_DELIVERY_EVENT, FORM_SUBMISSION_RECEIVED_EVENT } from "../../index.js";
 
 /** Typed bus fake: the subscribe calls numbered in `failCalls` (1-based) reject; `subscribed` lists live handlers. */
 class FlakyBus implements EventBusPort {
@@ -14,6 +14,9 @@ class FlakyBus implements EventBusPort {
   constructor(private readonly failCalls: number[]) {}
   async publish<TPayload>(_event: DomainEvent<TPayload>): Promise<void> {}
   async publishBatch<TPayload>(_required: { events: Array<DomainEvent<TPayload>> }): Promise<void> {}
+  async subscribeAll(_required: { handler: (event: DomainEvent) => Promise<void> }): Promise<() => Promise<void>> {
+    throw new Error("delivery subscriptions never subscribe to every event");
+  }
   async subscribe<TPayload>(required: { eventName: string; handler: (event: DomainEvent<TPayload>) => Promise<void> }): Promise<() => Promise<void>> {
     if (this.failCalls.includes(++this.calls)) throw new Error("bus not ready");
     this.subscribed.push(required.eventName);
@@ -26,6 +29,15 @@ const subscriptionsOn = (bus: EventBusPort) =>
 const unhandled: unknown[] = [];
 const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
 afterEach(() => { process.off("unhandledRejection", onUnhandled); unhandled.length = 0; });
+
+describe("event names", () => {
+  test("the planner listens on the forms-owned received-submission event name", async () => {
+    expect(FORM_SUBMISSION_RECEIVED_EVENT).toBe("form.submission.received");
+    const bus = new FlakyBus([]);
+    await subscriptionsOn(bus).start();
+    expect(bus.subscribed).toEqual([FORM_SUBMISSION_RECEIVED_EVENT, FORM_DELIVERY_EVENT]);
+  });
+});
 
 describe("start", () => {
   test("installs both handlers once however often it is called", async () => {

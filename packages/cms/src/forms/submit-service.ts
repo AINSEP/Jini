@@ -37,7 +37,7 @@ import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js"
 import type { FormDefinitionViewPort } from "./ports.js";
 import { assertSubmissionEmails } from "./submission-email-validation.js";
 import { DUPLICATE_ATTEMPT, FORM_ATTEMPT_FIELD, type SubmissionAttempts } from "./submission-attempts.js";
-import type { FormSubmissionRecord, FormFileStoragePort, FormFileReference } from "./types.js";
+import { FORM_SUBMISSION_RECEIVED_EVENT, type FormSubmissionRecord, type FormFileStoragePort, type FormFileReference } from "./types.js";
 
 const HONEYPOT_KEY = "_hp";
 
@@ -140,7 +140,7 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
   };
   const event = {
     id: deps.idGen.newId(),
-    name: "form.submission.received",
+    name: FORM_SUBMISSION_RECEIVED_EVENT,
     occurredAt: now,
     workspaceId: input.workspaceId,
     aggregateId: submissionId,

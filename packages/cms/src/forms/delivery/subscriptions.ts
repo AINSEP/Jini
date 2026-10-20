@@ -5,10 +5,8 @@
  */
 import type { EventBusPort } from "../../core/index.js";
 import { deliverFormJob } from "./deliver-job.js";
+import { FORM_SUBMISSION_RECEIVED_EVENT } from "../types.js";
 import { FORM_DELIVERY_EVENT, type FormDeliveryJob, type FormDeliveryResult } from "./types.js";
-
-// Same literal as the notify subscriber: domain code owns its event names (see types.ts in forms).
-const FORM_SUBMISSION_RECEIVED_EVENT = "form.submission.received";
 
 interface FormSubmissionReceivedPayload { submissionId: string; formDefinitionId: string }
 
