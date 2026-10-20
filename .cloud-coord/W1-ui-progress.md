@@ -11,7 +11,7 @@ Temp eslint config (untracked, git-excluded): `.eslint-cx.tmp.mjs` (complexity 1
 | L040 | features/skills | merged | SkillDraftForm 44/12, SkillRow 54/32, SkillsTab 26/-, rules -/12 → all ≤10 | 100/100/100 | 0ff8e5de 1b859a44 e717fdee e45de4bb | eslint 0, tsc ok, 167 tests, no removed expects |
 | L042 | features/memory | merged | formatters 19/19→10/7, ConnectedPanel 42/41→9/6, MemoryList 11/13→4/3, store 11/11→10/8 | 100/100/100 | d123eb3a e6f1a20f ff4a2d05 5d4792e8 | eslint 0, tsc ok, 181 tests |
 | L049 | features/about | merged | rules 38/39→≤10, AboutTab 38/28→≤10 | 100/100/100 | 79ecdac7, 45e230a7 | eslint 0, tsc ok, 79 tests green, why-comments moved (checked) |
-| L050 | features/mcp-ui | running | | | | |
+| L050 | features/mcp-ui | merged | secret-card 22/22, fields 22/34, text-input 15/15, outcome 12/-, form 21/12, confirmation 21/14 → all ≤10 | 100/100/100 | 626dd818 3f9abfeb ca7daced df5da529 425af337 4b59f5c8 | eslint 0, tsc ok, 234 tests; new tests (sha256 digests + snapshots) also pass on OLD source → behaviour identical |
 | L066 | utils | running | | | | |
 | L067 | renderers | running | | | | |
 | L075 | features/media-providers | running | | | | |
