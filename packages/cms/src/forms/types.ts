@@ -4,6 +4,13 @@ import type { UUID } from "@jini-ai/core/primitives";
 // to replace registration without forcing domain code to import its configuration.
 export type FieldType = keyof typeof import("./field-registry.js").FIELD_TYPE_REGISTRY;
 
+/**
+ * Event emitted once per accepted, persisted submission; the notify and delivery subscribers both
+ * listen on it. Domain behaviour owns its event contract here rather than reading a host manifest
+ * back, which would invert dependency flow.
+ */
+export const FORM_SUBMISSION_RECEIVED_EVENT = "form.submission.received";
+
 export type FormDefinitionStatus = "active" | "disabled";
 
 export interface FieldDescriptor {

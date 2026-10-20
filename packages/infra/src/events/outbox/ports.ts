@@ -44,8 +44,25 @@ export interface OutboxWorkerArgs<Event extends EventEnvelope = EventEnvelope> {
   random: () => number;
   logger: Pick<Logger, 'error'>;
 }
+/**
+ * Retry policy for one event, chosen by the host per event name. Events with no policy keep the
+ * default six attempts and 15s..30min equal-jitter backoff. `error` is whatever failed the attempt
+ * (a publish failure, or a storage failure recording a delivery). A policy that throws, or returns an
+ * invalid cap or delay, is reported and the row falls back to the default policy (see worker.ts).
+ */
+export interface OutboxRetryPolicy {
+  /** Positive integer cap; a failed attempt at or past it is terminal. */
+  readonly maxAttempts: number;
+  /** Finite, nonnegative delay before the next attempt. */
+  backoffMs(required: { attempts: number; random: () => number; error: unknown }): number;
+  /** `false` makes this failure terminal at once; absent means every failure is retryable. */
+  retryable?(required: { error: unknown }): boolean;
+}
+/** The only per-event retry seam: return a policy for events that need one, `undefined` otherwise. */
+export type OutboxRetryPolicyResolver = (required: { event: EventEnvelope }) => OutboxRetryPolicy | undefined;
 export interface OutboxWorkerOptions {
   batchSize?: number;
   deliveryTimeoutMs?: number;
   claimLeaseMs?: number;
+  retryPolicyForEvent?: OutboxRetryPolicyResolver | undefined;
 }

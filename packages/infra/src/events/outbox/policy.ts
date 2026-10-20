@@ -1,4 +1,4 @@
-import type { OutboxWorkerOptions } from './ports.js';
+import type { OutboxRetryPolicyResolver, OutboxWorkerOptions } from './ports.js';
 
 export const MAX_OUTBOX_ATTEMPTS = 6;
 export const DEFAULT_OUTBOX_CLAIM_LEASE_MS = 30 * 60 * 1000;
@@ -14,18 +14,19 @@ export function computeOutboxBackoffMs(required: { attempts: number; random: () 
   return Math.round(half + random * half);
 }
 
-export interface ResolvedPolicy { batchSize: number; deliveryTimeoutMs: number; claimLeaseMs: number }
+export interface ResolvedPolicy { batchSize: number; deliveryTimeoutMs: number; claimLeaseMs: number; retryPolicyForEvent: OutboxRetryPolicyResolver | undefined }
 export function resolvePolicy(required: { options: OutboxWorkerOptions }): ResolvedPolicy {
-  const policy = {
+  const bounds = {
     batchSize: required.options.batchSize ?? 20,
     deliveryTimeoutMs: required.options.deliveryTimeoutMs ?? DEFAULT_OUTBOX_DELIVERY_TIMEOUT_MS,
     claimLeaseMs: required.options.claimLeaseMs ?? DEFAULT_OUTBOX_CLAIM_LEASE_MS,
   };
-  for (const [name, value] of Object.entries(policy)) {
+  for (const [name, value] of Object.entries(bounds)) {
     if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`outbox ${name} must be a positive integer`);
   }
-  if (policy.claimLeaseMs <= policy.batchSize * policy.deliveryTimeoutMs) {
+  if (bounds.claimLeaseMs <= bounds.batchSize * bounds.deliveryTimeoutMs) {
     throw new RangeError('outbox claim lease must outlast a full batch of delivery timeouts');
   }
-  return policy;
+  // The drainer passes this resolved policy back in as processOutbox options, so the resolver must survive it.
+  return { ...bounds, retryPolicyForEvent: required.options.retryPolicyForEvent };
 }
