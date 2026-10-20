@@ -170,6 +170,13 @@ function missingFieldHint(required: { input: Record<string, unknown> }, _optiona
   return hint;
 }
 
+/** The refusal for a required field: the expected kind, plus received-key hints only when the key is absent. */
+function requiredFieldError(required: { input: Record<string, unknown>; key: string; kind: string }, _optional: Record<string, never> = {}): ToolInputError {
+  const { input, key, kind } = required;
+  const hint = input[key] === undefined ? missingFieldHint({ input }) : "";
+  return new ToolInputError({ message: `'${key}' (${kind}) is required${hint}` });
+}
+
 /**
  * Reads a required non-empty string, with received-key hints when the field is missing.
  * @throws {ToolInputError} If the field is missing, empty, or not a string.
@@ -178,22 +185,14 @@ function missingFieldHint(required: { input: Record<string, unknown> }, _optiona
 export function requireString(required: { input: Record<string, unknown>; key: string }, _optional: Record<string, never> = {}): string {
   const { input, key } = required;
   const value = input[key];
-  if (typeof value !== "string" || value.length === 0) {
-    let message = `'${key}' (non-empty string) is required`;
-    if (value === undefined) message += missingFieldHint({ input });
-    throw new ToolInputError({ message });
-  }
+  if (typeof value !== "string" || value.length === 0) throw requiredFieldError({ input, key, kind: "non-empty string" });
   return value;
 }
 
 export function requireNumber(requiredArgs: { input: Record<string, unknown>; key: string }, optionalArgs: Record<string, never> = {}): number {
   const { input, key } = requiredArgs;
   const value = input[key];
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    let message = `'${key}' (number) is required`;
-    if (value === undefined) message += missingFieldHint({ input });
-    throw new ToolInputError({ message });
-  }
+  if (typeof value !== "number" || !Number.isFinite(value)) throw requiredFieldError({ input, key, kind: "number" });
   return value;
 }
 
@@ -201,11 +200,7 @@ export function requireObject(requiredArgs: { input: Record<string, unknown>; ke
   const { input, key } = requiredArgs;
   const value = input[key];
   const candidate = { value };
-  if (!isRecord(candidate) || Array.isArray(candidate.value)) {
-    let message = `'${key}' (object) is required`;
-    if (value === undefined) message += missingFieldHint({ input });
-    throw new ToolInputError({ message });
-  }
+  if (!isRecord(candidate) || Array.isArray(candidate.value)) throw requiredFieldError({ input, key, kind: "object" });
   return candidate.value;
 }
 
@@ -410,10 +405,28 @@ export function assertToolIsWirable(params: {
   handler?: ToolHandler;
 } = {}): void {
   const { toolId, catalogEntry } = params;
-  if (typeof catalogEntry.authorization?.permission !== "string" || catalogEntry.authorization.permission.trim().length === 0) {
+  if (!hasDeclaredPermission({ catalogEntry })) {
     throw new Error(`tool-registrations: '${toolId}' must declare an authorization permission before wiring`);
   }
-  const derived = params.derivedRisk.get(toolId);
+  assertRiskIsCorroborated({ toolId, catalogEntry, derivedRisk: params.derivedRisk });
+  if (needsHumanConfirmer({ catalogEntry }) && !isHumanConfirmedHandler({ handler: optional.handler })) {
+    throw new Error(
+      `tool-registrations: '${toolId}' declares actorClassRule '${catalogEntry.actorClassRule}', which needs a human confirmer — build its handler with humanConfirmedHandler so a human answers through the host's confirmation transport (see ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT)`,
+    );
+  }
+}
+
+/** A non-blank string permission; a malformed catalog (no authorization object) counts as none. */
+function hasDeclaredPermission({ catalogEntry }: { catalogEntry: AgentToolDefinition }): boolean {
+  const permission: unknown = catalogEntry.authorization?.permission;
+  return typeof permission === "string" && permission.trim().length > 0;
+}
+
+/** Refuses an unclassified tool, then a declaration the wiring layer's own classification contradicts. */
+function assertRiskIsCorroborated(
+  { toolId, catalogEntry, derivedRisk }: { toolId: string; catalogEntry: AgentToolDefinition; derivedRisk: DerivedRiskByToolId },
+): void {
+  const derived = derivedRisk.get(toolId);
   if (!derived) {
     throw new Error(
       `tool-registrations: '${toolId}' has no entry in DERIVED_RISK_BY_TOOL_ID — classify what its handler actually does before wiring it (unknown operations are refused, never assumed safe)`,
@@ -424,12 +437,14 @@ export function assertToolIsWirable(params: {
       `tool-registrations: '${toolId}' declares sideEffects '${catalogEntry.sideEffects}' but this layer derives '${derived}' from what its handler calls — reconcile the two rather than trusting the declaration`,
     );
   }
-  const needsHuman = catalogEntry.actorClassRule && ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT.has(catalogEntry.actorClassRule);
-  if (needsHuman && !(optional.handler && HUMAN_CONFIRMED_HANDLERS.has(optional.handler))) {
-    throw new Error(
-      `tool-registrations: '${toolId}' declares actorClassRule '${catalogEntry.actorClassRule}', which needs a human confirmer — build its handler with humanConfirmedHandler so a human answers through the host's confirmation transport (see ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT)`,
-    );
-  }
+}
+
+function needsHumanConfirmer({ catalogEntry }: { catalogEntry: AgentToolDefinition }): boolean {
+  return catalogEntry.actorClassRule !== undefined && ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT.has(catalogEntry.actorClassRule);
+}
+
+function isHumanConfirmedHandler({ handler }: { handler: ToolHandler | undefined }): boolean {
+  return handler !== undefined && HUMAN_CONFIRMED_HANDLERS.has(handler);
 }
 
 /**
@@ -478,55 +493,64 @@ export function buildDomainRegistrations(spec: {
   /** Host vocabulary and reviewed action policy; risk remains independently checked above. */
   metadata?: import('./tool-metadata.js').ToolMetadataById;
 }, optional: { unwiredToolIds?: ReadonlySet<string> } = {}): ToolRegistration[] {
-  const registrations: ToolRegistration[] = [];
+  const registrations = Object.entries(spec.handlers).map(([id, handler]) => registrationFor({ spec, id, handler }));
+  assertEveryEntryIsWiredOrDeclared({ spec }, optional);
+  return registrations;
+}
 
-  for (const [id, handler] of Object.entries(spec.handlers)) {
-    const catalogEntry = spec.catalog.get(id);
-    if (!catalogEntry) {
-      throw new Error(`tool-registrations: ${spec.domain} catalog has no entry named '${id}' — ${spec.catalogModule} drifted`);
-    }
-    assertToolIsWirable({ toolId: id, catalogEntry, derivedRisk: spec.derivedRisk }, { handler });
-    if (!catalogEntry.inputSchema) {
-      throw new Error(
-        `tool-registrations: wired tool '${id}' publishes no inputSchema — add one to its entry in ${spec.catalogModule} so the model gets a contract, or leave the tool unwired`,
-      );
-    }
-    const metadata = catalogEntry.metadata ?? toolMetadataFor({ toolId: id, metadata: spec.metadata });
-    const normalizeInput = spec.inputNormalizers?.[id];
-    registrations.push({
-      descriptor: {
-        id,
-        description: catalogEntry.description,
-        inputSchema: catalogEntry.inputSchema,
-        ...(metadata ? { metadata } : {}),
-        // The ONE place a domain's declared risk becomes the descriptor flag every read-only gate
-        // reads (`@jini-ai/core`'s `isReadOnlyTool`). Placed here rather than in each domain's
-        // `tool-registrations.ts` for the same reason the drift tripwire is: twelve copies of this
-        // line is twelve chances for one to say something different. Change what counts as
-        // read-only and every domain follows.
-        //
-        // Safe to derive from the declaration only because `assertToolIsWirable` has ALREADY run
-        // two lines above and refused any tool whose declared `sideEffects` disagrees with the
-        // wiring layer's own `DERIVED_RISK_BY_TOOL_ID` classification — so by this point the
-        // declaration has been independently corroborated, and a catalog entry cannot make itself
-        // read-only by editing one word.
-        readOnly: catalogEntry.sideEffects === "none",
-      },
-      handler,
-      ...(normalizeInput ? { normalizeInput } : {}),
-      policy: { authorize: () => "allow" },
-    });
+type DomainRegistrationSpec = Parameters<typeof buildDomainRegistrations>[0];
+
+/** One wired tool: every build-time gate first, then the descriptor/handler/policy triple. */
+function registrationFor({ spec, id, handler }: { spec: DomainRegistrationSpec; id: string; handler: ToolHandler }): ToolRegistration {
+  const catalogEntry = spec.catalog.get(id);
+  if (!catalogEntry) {
+    throw new Error(`tool-registrations: ${spec.domain} catalog has no entry named '${id}' — ${spec.catalogModule} drifted`);
   }
+  assertToolIsWirable({ toolId: id, catalogEntry, derivedRisk: spec.derivedRisk }, { handler });
+  if (!catalogEntry.inputSchema) {
+    throw new Error(
+      `tool-registrations: wired tool '${id}' publishes no inputSchema — add one to its entry in ${spec.catalogModule} so the model gets a contract, or leave the tool unwired`,
+    );
+  }
+  const metadata = catalogEntry.metadata ?? toolMetadataFor({ toolId: id, metadata: spec.metadata });
+  const normalizeInput = spec.inputNormalizers?.[id];
+  return {
+    descriptor: {
+      id,
+      description: catalogEntry.description,
+      inputSchema: catalogEntry.inputSchema,
+      ...(metadata ? { metadata } : {}),
+      // The ONE place a domain's declared risk becomes the descriptor flag every read-only gate
+      // reads (`@jini-ai/core`'s `isReadOnlyTool`). Placed here rather than in each domain's
+      // `tool-registrations.ts` for the same reason the drift tripwire is: twelve copies of this
+      // line is twelve chances for one to say something different. Change what counts as
+      // read-only and every domain follows.
+      //
+      // Safe to derive from the declaration only because `assertToolIsWirable` has ALREADY run
+      // two lines above and refused any tool whose declared `sideEffects` disagrees with the
+      // wiring layer's own `DERIVED_RISK_BY_TOOL_ID` classification — so by this point the
+      // declaration has been independently corroborated, and a catalog entry cannot make itself
+      // read-only by editing one word.
+      readOnly: catalogEntry.sideEffects === "none",
+    },
+    handler,
+    ...(normalizeInput ? { normalizeInput } : {}),
+    policy: { authorize: () => "allow" },
+  };
+}
 
+/** The tripwire: a catalog entry is either wired or recorded as deliberately unwired, never silently neither. */
+function assertEveryEntryIsWiredOrDeclared(
+  { spec }: { spec: DomainRegistrationSpec },
+  { unwiredToolIds }: { unwiredToolIds?: ReadonlySet<string> } = {},
+): void {
   for (const id of spec.catalog.keys()) {
     if (id in spec.handlers) continue;
-    if (optional.unwiredToolIds?.has(id)) continue;
+    if (unwiredToolIds?.has(id)) continue;
     throw new Error(
       `tool-registrations: ${spec.domain} catalog entry '${id}' is neither wired nor declared unwired — wire a handler for it, or add it to that domain's unwired set with the reason recorded next to it`,
     );
   }
-
-  return registrations;
 }
 
 /**

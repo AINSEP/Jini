@@ -97,6 +97,38 @@ export async function authorizeForHooks(
   return deps.authorizeInstance({ principalId, permission });
 }
 
+/** Fresh authorization gate shared by plan/confirm/execute; refuses with NOT_AUTHORIZED. */
+async function requireAuthorization(
+  required: { deps: GatewayDeps; hooks: GatedMutationHooks<unknown, unknown>; principalId: string; permission: string }
+): Promise<void> {
+  const { principalId, permission } = required;
+  const authResult = await authorizeForHooks(required);
+  if (!authResult.allowed) {
+    throw new ForbiddenError({ message: `principal '${principalId}' is not authorized for '${permission}' (${authResult.reason})`, reasonCode: "NOT_AUTHORIZED" });
+  }
+}
+
+/** The refusal for a token that cannot be redeemed: already redeemed, otherwise expired. */
+function unredeemableTokenError(record: ConfirmationTokenRecord | null): Error {
+  if (record?.status === "redeemed") {
+    return new TokenAlreadyRedeemedError({ message: `confirmation token has already been redeemed` });
+  }
+  return new TokenExpiredError({ message: `confirmation token has expired` });
+}
+
+/** Look up the presented token and refuse it unless it is still minted and unexpired. */
+async function loadRedeemableToken(
+  required: { deps: GatewayDeps; confirmationToken: string }
+): Promise<ConfirmationTokenRecord> {
+  const { deps, confirmationToken } = required;
+  const record = await deps.tokens.findByToken({ token: confirmationToken });
+  if (!record) {
+    throw new TokenExpiredError({ message: `confirmation token was not found` });
+  }
+  if (!isRedeemable({ record, now: nowIso({ clock: deps.clock }) })) throw unredeemableTokenError(record);
+  return record;
+}
+
 // Planning is read-only: check read permission and derive details, never invoke executeMutation.
 export async function plan(
   required: { deps: GatewayDeps; principalId: string; principalKind: PrincipalKind; hooks: GatedMutationHooks<unknown, unknown> },
@@ -104,10 +136,7 @@ export async function plan(
 ): Promise<GatewayPlan> {
   const { deps, principalId, hooks } = required;
 
-  const authResult = await authorizeForHooks({ deps, hooks, principalId, permission: hooks.readPermission });
-  if (!authResult.allowed) {
-    throw new ForbiddenError({ message: `principal '${principalId}' is not authorized for '${hooks.readPermission}' (${authResult.reason})`, reasonCode: "NOT_AUTHORIZED" });
-  }
+  await requireAuthorization({ deps, hooks, principalId, permission: hooks.readPermission });
 
   const { planHash, details } = await hooks.computePlan({});
   return { domain: hooks.domain, planId: deps.idGen.newId(), planHash, details };
@@ -132,10 +161,7 @@ export async function confirm(
     throw new ForbiddenError({ message: `agent principals may not confirm a gated mutation`, reasonCode: "AGENT_CANNOT_CONFIRM" });
   }
 
-  const authResult = await authorizeForHooks({ deps, hooks, principalId, permission: hooks.mutatePermission });
-  if (!authResult.allowed) {
-    throw new ForbiddenError({ message: `principal '${principalId}' is not authorized for '${hooks.mutatePermission}' (${authResult.reason})`, reasonCode: "NOT_AUTHORIZED" });
-  }
+  await requireAuthorization({ deps, hooks, principalId, permission: hooks.mutatePermission });
 
   const token = mintToken({
     planId,
@@ -168,20 +194,8 @@ export async function execute<TResult>(
 ): Promise<TResult> {
   // Reevaluate authorization here; confirm-time permission is not authority to execute later.
   const { deps, principalId, principalKind, hooks, confirmationToken } = required;
-  const authResult = await authorizeForHooks({ deps, hooks, principalId, permission: hooks.mutatePermission });
-  if (!authResult.allowed) {
-    throw new ForbiddenError({ message: `principal '${principalId}' is not authorized for '${hooks.mutatePermission}' (${authResult.reason})`, reasonCode: "NOT_AUTHORIZED" });
-  }
-  const record = await deps.tokens.findByToken({ token: confirmationToken });
-  if (!record) {
-    throw new TokenExpiredError({ message: `confirmation token was not found` });
-  }
-  if (!isRedeemable({ record, now: nowIso({ clock: deps.clock }) })) {
-    if (record.status === "redeemed") {
-      throw new TokenAlreadyRedeemedError({ message: `confirmation token has already been redeemed` });
-    }
-    throw new TokenExpiredError({ message: `confirmation token has expired` });
-  }
+  await requireAuthorization({ deps, hooks, principalId, permission: hooks.mutatePermission });
+  const record = await loadRedeemableToken({ deps, confirmationToken });
   const resolvedIdentity = await hooks.resolveActorClassIdentity({ principalId, principalKind });
   if (resolvedIdentity !== record.confirmerPrincipalId) {
     throw new ForbiddenError({ message: `principal '${principalId}' (kind '${principalKind}') is not the confirmer of this token`, reasonCode: "ACTOR_CLASS_MISMATCH" });
@@ -200,10 +214,7 @@ export async function execute<TResult>(
   // Concurrent executions can pass every earlier check; atomic redemption makes the loser fail
   // before its domain mutation, preventing a second application of the same approval.
   const { redeemed, record: latestRecord } = await deps.tokens.tryRedeem({ token: confirmationToken, now: nowIso({ clock: deps.clock }) });
-  if (!redeemed) {
-    if (!latestRecord || latestRecord.status !== "redeemed") throw new TokenExpiredError({ message: `confirmation token has expired` });
-    throw new TokenAlreadyRedeemedError({ message: `confirmation token has already been redeemed` });
-  }
+  if (!redeemed) throw unredeemableTokenError(latestRecord);
 
   return hooks.executeMutation({ planHash, details });
 }

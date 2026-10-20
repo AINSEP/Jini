@@ -2,8 +2,9 @@ import type { Clock, IdGenerator, JsonValue, UUID } from "../primitives/index.js
 import type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
 import type { SettingsRepoPort } from "./ports.js";
 import { resolveDefinitionRaw } from "./settings.js";
-import { SCOPE_BIT, type SettingValueSchema } from "./types.js";
-import { extendDefinitionScopes, reconcileDefinitionDefault, registerDefinitions, type AuthorizeFn } from "./write-service.js";
+import { SCOPE_BIT, type SettingDefinitionRecord, type SettingValueSchema } from "./types.js";
+import { extendDefinitionScopes, reconcileDefinitionDefault, registerDefinitions, type AuthorizeFn,
+  type SettingsWriteServiceDeps } from "./write-service.js";
 
 /**
  * @file The one boot-time "register these definitions if they aren't already,
@@ -111,80 +112,104 @@ export async function ensureSettingDefinitions(
   deps: EnsureSettingDefinitionsDeps,
   input: EnsureSettingDefinitionsInput,
 ): Promise<void> {
-  const ownerKind = input.ownerKind ?? "core";
   const workspaceId = input.ownerKind === "site" ? input.workspaceId : null;
-  const authWorkspaceId = workspaceId ?? input.systemPrincipalId;
-  const writeDeps = {
-    repo: deps.settingsRepo,
-    clock: deps.clock,
-    ids: deps.ids,
-    authorize: alwaysAllowBoot,
-    principals: deps.principals,
+  const target: BootTarget = {
+    namespace: input.namespace,
+    ownerKind: input.ownerKind ?? "core",
+    workspaceId,
+    authWorkspaceId: workspaceId ?? input.systemPrincipalId,
+    systemPrincipalId: input.systemPrincipalId,
+    writeDeps: {
+      repo: deps.settingsRepo,
+      clock: deps.clock,
+      ids: deps.ids,
+      authorize: alwaysAllowBoot,
+      principals: deps.principals,
+    },
   };
 
   for (const def of input.definitions) {
     const existing = await resolveDefinitionRaw(
       { repo: deps.settingsRepo },
-      { namespace: input.namespace, key: def.key, workspaceId },
+      { namespace: target.namespace, key: def.key, workspaceId },
     );
-    if (existing) {
-      // Core registration is once-only, but the DEFAULT is not. Without this, a
-      // `defaultValue` changed in source is unreachable in any install that
-      // has already booted — the stored `default_json` from first boot keeps
-      // winning, for every settings-dialog tab. See `reconcileDefinitionDefault`
-      // for the bug this closes.
-      //
-      // Three slots are deliberately left alone rather than reconciled:
-      // a non-`active` row (deprecated/tombstoned) is not ours to rewrite; a
-      // non-`core` row is operator-owned; and a row whose identity differs
-      // from the slot we asked for means `resolveDefinitionRaw` followed an
-      // alias, so rewriting it would silently change a DIFFERENT definition's
-      // default. `reconcileDefinitionDefault` would throw on the first two —
-      // this skips them quietly because boot must not fail on them.
-      const isSameSlot = existing.namespace === input.namespace && existing.key === def.key;
-      if (ownerKind === "core" && existing.status === "active" && existing.ownerKind === "core" && isSameSlot) {
-        // Existing installations need newly declared personal layers too, not just fresh boots.
-        if (def.scopes !== undefined) await extendDefinitionScopes({ deps: writeDeps, input: {
-          namespace: input.namespace, key: def.key, workspaceId: null, scopes: def.scopes,
-          callerPrincipalId: input.systemPrincipalId, authWorkspaceId,
-        } });
-        await reconcileDefinitionDefault({
-          deps: writeDeps,
-          input: {
-            namespace: input.namespace,
-            key: def.key,
-            workspaceId: null,
-            defaultValue: def.defaultValue,
-            callerPrincipalId: input.systemPrincipalId,
-            authWorkspaceId,
-          },
-        });
-      }
-      continue;
+    if (!existing) await registerMissingDefinition(target, def);
+    // Core registration is once-only, but the DEFAULT is not. Without this, a
+    // `defaultValue` changed in source is unreachable in any install that
+    // has already booted — the stored `default_json` from first boot keeps
+    // winning, for every settings-dialog tab. See `reconcileDefinitionDefault`
+    // for the bug this closes.
+    else if (isReconcilableCoreSlot(existing, { ownerKind: target.ownerKind, namespace: target.namespace, key: def.key })) {
+      await reconcileExistingCoreDefinition(target, def);
     }
-
-    await registerDefinitions({
-      deps: writeDeps,
-      input: {
-        callerPrincipalId: input.systemPrincipalId,
-        // Platform (core) definitions aren't scoped to any one workspace, but
-        // `registerDefinitions`'s authorization check still needs a workspace
-        // context to authorize against — the seeded workspace mirrors every
-        // other boot-time registrar's identical `authWorkspaceId` shape.
-        authWorkspaceId,
-        definitions: [
-          {
-            namespace: input.namespace,
-            key: def.key,
-            ownerKind,
-            workspaceId,
-            schema: def.schema,
-            defaultValue: def.defaultValue,
-            scopes: def.scopes ?? SCOPE_BIT.workspace,
-            secret: false,
-          },
-        ],
-      },
-    });
   }
+}
+
+/** Everything one boot pass shares across its definitions. */
+interface BootTarget {
+  namespace: string;
+  ownerKind: "core" | "site";
+  workspaceId: UUID | null;
+  authWorkspaceId: UUID;
+  systemPrincipalId: UUID;
+  writeDeps: SettingsWriteServiceDeps;
+}
+
+/**
+ * Three slots are deliberately left alone rather than reconciled:
+ * a non-`active` row (deprecated/tombstoned) is not ours to rewrite; a
+ * non-`core` row is operator-owned; and a row whose identity differs
+ * from the slot we asked for means `resolveDefinitionRaw` followed an
+ * alias, so rewriting it would silently change a DIFFERENT definition's
+ * default. `reconcileDefinitionDefault` would throw on the first two —
+ * this skips them quietly because boot must not fail on them. A site
+ * target never reconciles: its stored default belongs to the site.
+ */
+function isReconcilableCoreSlot(
+  existing: SettingDefinitionRecord,
+  slot: { ownerKind: "core" | "site"; namespace: string; key: string },
+): boolean {
+  const isSameSlot = existing.namespace === slot.namespace && existing.key === slot.key;
+  return slot.ownerKind === "core" && existing.status === "active" && existing.ownerKind === "core" && isSameSlot;
+}
+
+async function reconcileExistingCoreDefinition(target: BootTarget, def: SettingDefinitionSpec): Promise<void> {
+  const slot = {
+    namespace: target.namespace,
+    key: def.key,
+    workspaceId: null,
+    callerPrincipalId: target.systemPrincipalId,
+    authWorkspaceId: target.authWorkspaceId,
+  };
+  // Existing installations need newly declared personal layers too, not just fresh boots.
+  if (def.scopes !== undefined) {
+    await extendDefinitionScopes({ deps: target.writeDeps, input: { ...slot, scopes: def.scopes } });
+  }
+  await reconcileDefinitionDefault({ deps: target.writeDeps, input: { ...slot, defaultValue: def.defaultValue } });
+}
+
+async function registerMissingDefinition(target: BootTarget, def: SettingDefinitionSpec): Promise<void> {
+  await registerDefinitions({
+    deps: target.writeDeps,
+    input: {
+      callerPrincipalId: target.systemPrincipalId,
+      // Platform (core) definitions aren't scoped to any one workspace, but
+      // `registerDefinitions`'s authorization check still needs a workspace
+      // context to authorize against — the seeded workspace mirrors every
+      // other boot-time registrar's identical `authWorkspaceId` shape.
+      authWorkspaceId: target.authWorkspaceId,
+      definitions: [
+        {
+          namespace: target.namespace,
+          key: def.key,
+          ownerKind: target.ownerKind,
+          workspaceId: target.workspaceId,
+          schema: def.schema,
+          defaultValue: def.defaultValue,
+          scopes: def.scopes ?? SCOPE_BIT.workspace,
+          secret: false,
+        },
+      ],
+    },
+  });
 }

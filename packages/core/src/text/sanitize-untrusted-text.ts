@@ -40,6 +40,37 @@ function isOtherControlCode(code: number): boolean {
   return false;
 }
 
+/** True when position `j` starts an OSC terminator: BEL, or ST (`ESC \\`). */
+function isOscTerminatorAt(text: string, j: number): boolean {
+  const code = text.charCodeAt(j);
+  return code === BEL || (code === ESC && text.charCodeAt(j + 1) === BACKSLASH);
+}
+
+/** Index of a CSI's final byte at or after `from`, or `text.length` when the CSI is truncated. */
+function csiEnd(text: string, from: number): number {
+  let j = from;
+  while (j < text.length && !isCsiFinalByte(text.charCodeAt(j))) j++;
+  return j;
+}
+
+/** Index of the last code unit of an OSC body starting at `from`: the BEL, the `\\` of ST, or the
+ * final code unit when the OSC is never terminated. */
+function oscEnd(text: string, from: number): number {
+  let j = from;
+  while (j < text.length && !isOscTerminatorAt(text, j)) j++;
+  // charCodeAt past the end is NaN, so a truncated OSC never matches BEL here.
+  if (text.charCodeAt(j) === BEL) return j;
+  return Math.min(j + 1, text.length - 1);
+}
+
+/** Index of the last code unit consumed by the escape sequence whose ESC sits at `start`. */
+function escapeSequenceEnd(text: string, start: number): number {
+  const next = text.charCodeAt(start + 1);
+  if (next === CSI_OPEN) return csiEnd(text, start + 2);
+  if (next === OSC_OPEN) return oscEnd(text, start + 2);
+  return start; // bare ESC (or an unrecognized ESC-prefixed byte): drop just the ESC byte
+}
+
 /**
  * Strip ANSI/terminal escape sequences (CSI `ESC [ ... final-byte`, OSC `ESC ] ... BEL-or-ST`,
  * and bare ESC-prefixed bytes) plus other C0/C1 control characters from `text`. Written as an
@@ -51,36 +82,16 @@ export function stripControlSequences({ text }: { text: string }): string {
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i);
     if (code === ESC) {
-      const next = text.charCodeAt(i + 1);
-      if (next === CSI_OPEN) {
-        let j = i + 2;
-        while (j < text.length && !isCsiFinalByte(text.charCodeAt(j))) j++;
-        i = j; // land on the final byte; the outer loop's i++ steps past it
-        continue;
-      }
-      if (next === OSC_OPEN) {
-        let j = i + 2;
-        while (
-          j < text.length &&
-          text.charCodeAt(j) !== BEL &&
-          !(text.charCodeAt(j) === ESC && text.charCodeAt(j + 1) === BACKSLASH)
-        ) {
-          j++;
-        }
-        if (j < text.length && text.charCodeAt(j) === BEL) i = j;
-        else i = Math.min(j + 1, text.length - 1);
-        continue;
-      }
-      continue; // bare ESC (or an unrecognized ESC-prefixed byte): drop just the ESC byte
+      i = escapeSequenceEnd(text, i); // land on the last consumed byte; the loop's i++ steps past it
+      continue;
     }
-    if (isOtherControlCode(code)) continue;
-    out += text[i];
+    if (!isOtherControlCode(code)) out += text[i];
   }
   return out;
 }
 
 /** Exact diagnostic vocabulary only: unknown spellings and glued suffixes remain opaque. */
-const DIAGNOSTIC_TOKENS = new Set([
+const DIAGNOSTIC_TOKENS: ReadonlySet<string> = new Set([
   'additionalProperties', 'additionalItems', 'unevaluatedProperties', 'unevaluatedItems',
   'dependentRequired', 'dependentSchemas', 'exclusiveMinimum', 'exclusiveMaximum',
   'minContains', 'maxContains', 'patternProperties', 'propertyNames', 'prefixItems',

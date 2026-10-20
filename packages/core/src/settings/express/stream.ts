@@ -8,29 +8,19 @@ interface StreamRequired {
   isDisposed: () => boolean;
 }
 
-/** Starts after HTTP authorization. All scheduling and storage are injected. */
-/** Poll with bounded pages, tenant-scoped ids and retryable reads; close cancels all schedules.
+/** Starts after HTTP authorization. All scheduling and storage are injected.
+ * Poll with bounded pages, tenant-scoped ids and retryable reads; close cancels all schedules.
  * O(page size) per tick and O(1) connection state; repository effects live behind the feed port.
  * Invalid scheduler intervals/page sizes throw RangeError before opening; initial read errors propagate.
  */
 export async function openSettingsChangeStream(required: StreamRequired, optional: SettingsHttpOptions = {}): Promise<() => void> {
   const { request, response, workspaceId, principalId, changeFeed, scheduler } = required;
-  const pageSize = optional.revisionPageSize ?? 200;
-  const intervals = [optional.pollIntervalMs ?? 1_000, optional.keepaliveIntervalMs ?? 25_000, optional.reauthorizeIntervalMs ?? 30_000];
-  if (!Number.isSafeInteger(pageSize) || pageSize <= 0 || intervals.some((n) => !Number.isFinite(n) || n <= 0)) {
-    throw new RangeError("settings feed page size and intervals must be positive");
-  }
+  const { pageSize, pollIntervalMs, keepaliveIntervalMs, reauthorizeIntervalMs } = readStreamTimings(optional);
   let closed = false;
   let ticking = false;
   let checkingAuthorization = false;
   const cancellations: Array<() => void> = [];
-  const reportError = (operation: string, error: unknown): void => {
-    // Reporting is best-effort: a host hook must never turn recovery into an unhandled rejection.
-    try {
-      if (optional.onError) optional.onError({ operation, error });
-      else console.error(`[settings] change feed ${operation} failed`, error);
-    } catch { /* Diagnostic failures cannot interrupt stream cleanup or retries. */ }
-  };
+  const reportError = createErrorReporter(optional);
   const recover = (operation: string, effect: () => void): void => {
     try { effect(); } catch (error) { reportError(operation, error); }
   };
@@ -51,15 +41,12 @@ export async function openSettingsChangeStream(required: StreamRequired, optiona
   response.on("close", close);
   try {
     const head = await changeFeed.head({});
-    if (closed || required.isDisposed() || response.destroyed || response.writableEnded) { close(); return close; }
-    const resumeFrom = Number(request.headers["last-event-id"]);
-    let cursor = Number.isFinite(resumeFrom) && resumeFrom >= 0 ? Math.min(resumeFrom, head) : head;
+    const gone = () => closed || required.isDisposed() || response.destroyed || response.writableEnded;
+    if (gone()) { close(); return close; }
+    let cursor = resumeCursor({ lastEventId: request.headers["last-event-id"], head });
     let lastEmittedId = cursor;
     const viewer = { workspaceId, principalId };
-    response.writeHead(200, {
-      "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform",
-      ...(request.httpVersionMajor < 2 ? { Connection: "keep-alive" } : {}), "X-Accel-Buffering": "no",
-    });
+    response.writeHead(200, sseHeaders({ httpVersionMajor: request.httpVersionMajor }));
     const tick = async (): Promise<void> => {
       if (closed || ticking) return;
       ticking = true;
@@ -91,13 +78,13 @@ export async function openSettingsChangeStream(required: StreamRequired, optiona
       const cancel = scheduler.every({ intervalMs, callback });
       if (closed) recover("cancel", cancel); else cancellations.push(cancel);
     };
-    schedule(intervals[0]!, () => { void tick(); });
-    schedule(intervals[1]!, () => {
+    schedule(pollIntervalMs, () => { void tick(); });
+    schedule(keepaliveIntervalMs, () => {
       if (closed) return;
       try { response.write(": keepalive\n\n"); }
       catch (error) { reportError("keepalive", error); close(); }
     });
-    schedule(intervals[2]!, () => { void reauthorize(); });
+    schedule(reauthorizeIntervalMs, () => { void reauthorize(); });
     if (!closed) response.write(": connected\n\n");
     return close;
   } catch (error) {
@@ -106,4 +93,45 @@ export async function openSettingsChangeStream(required: StreamRequired, optiona
     else { closed = true; release(); }
     throw error;
   }
+}
+
+/** Fill the documented defaults, then refuse any non-positive page size or interval before an effect. Pure. */
+function readStreamTimings(optional: SettingsHttpOptions): {
+  pageSize: number; pollIntervalMs: number; keepaliveIntervalMs: number; reauthorizeIntervalMs: number;
+} {
+  const timings = {
+    pageSize: optional.revisionPageSize ?? 200,
+    pollIntervalMs: optional.pollIntervalMs ?? 1_000,
+    keepaliveIntervalMs: optional.keepaliveIntervalMs ?? 25_000,
+    reauthorizeIntervalMs: optional.reauthorizeIntervalMs ?? 30_000,
+  };
+  const intervals = [timings.pollIntervalMs, timings.keepaliveIntervalMs, timings.reauthorizeIntervalMs];
+  if (!Number.isSafeInteger(timings.pageSize) || timings.pageSize <= 0 || intervals.some((n) => !Number.isFinite(n) || n <= 0)) {
+    throw new RangeError("settings feed page size and intervals must be positive");
+  }
+  return timings;
+}
+
+function createErrorReporter(optional: SettingsHttpOptions): (operation: string, error: unknown) => void {
+  return (operation, error) => {
+    // Reporting is best-effort: a host hook must never turn recovery into an unhandled rejection.
+    try {
+      if (optional.onError) optional.onError({ operation, error });
+      else console.error(`[settings] change feed ${operation} failed`, error);
+    } catch { /* Diagnostic failures cannot interrupt stream cleanup or retries. */ }
+  };
+}
+
+/** A client's Last-Event-ID resumes at or before the ledger head; a missing or unusable id starts at head. Pure. */
+function resumeCursor(required: { lastEventId: unknown; head: number }): number {
+  const resumeFrom = Number(required.lastEventId);
+  return Number.isFinite(resumeFrom) && resumeFrom >= 0 ? Math.min(resumeFrom, required.head) : required.head;
+}
+
+/** HTTP/2 forbids the Connection header; HTTP/1 needs it to keep the stream open. Pure. */
+function sseHeaders(required: { httpVersionMajor: number }): Record<string, string> {
+  return {
+    "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform",
+    ...(required.httpVersionMajor < 2 ? { Connection: "keep-alive" } : {}), "X-Accel-Buffering": "no",
+  };
 }
