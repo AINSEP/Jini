@@ -1,12 +1,15 @@
 /**
  * @file Typed fake admin-surface host ports for the surface tests: the shared fakes (HTTP that never
  * touches the network, an always-allow limiter, artifacts) plus an acme-style connections port over
- * the real callback inbox, in-memory state and a public-config table. Every call is logged with the
- * scope the port was built for, so tests can assert plugin isolation.
+ * the real callback inbox, in-memory state, a public-config table and a delivery-bindings store.
+ * Every call is logged with the scope the port was built for, so tests can assert plugin isolation.
+ * The bindings store is deliberately sloppy (it lists every binding in the workspace, whatever
+ * adapter owns it, and echoes a connection ref), so tests prove Jini's own filtering and shaping.
  */
 import type { AgentPluginToolCapabilityScope } from '../../lifecycle/tools/capabilities.js';
 import { fakeCapabilities, FAKE_TOKEN, type FakeCapabilityLog } from '../../lifecycle/tools/__tests__/support.js';
 import { createAdminSurfaceCallbackInbox } from '../callback-field-inbox.js';
+import type { AdminSurfaceDeliveryBinding, AdminSurfaceDeliveryBindings } from '../delivery-bindings.js';
 import type { AdminSurfaceAuthorizationStart, AdminSurfaceCapabilities, AdminSurfaceConnectionStatus, AdminSurfaceStateValue } from '../surface-capabilities.js';
 
 /** A host answer carrying more than the port promises (a connection ref): the session must cut it back. */
@@ -17,10 +20,29 @@ export interface FakeSurfaceHostLog extends FakeCapabilityLog {
   calls: string[];
 }
 
-/** One fake host shared by every plugin: state and the inbox are keyed by the port's scope, like a real host. */
-export function createFakeSurfaceHost(optional: { readonly config?: Readonly<Record<string, string>>; readonly status?: Partial<AdminSurfaceConnectionStatus> & OverSharing } = {}) {
+/** An in-memory bindings store for one fake host: ids `binding-<n>`, every binding in the workspace listed. */
+function fakeDeliveryBindings(bindings: Map<string, AdminSurfaceDeliveryBinding & OverSharing>, note: (method: string, args: unknown) => void): AdminSurfaceDeliveryBindings {
+  return {
+    list: async () => { note('bindings.list', {}); return [...bindings.values()].map((binding) => ({ ...binding, connectionRef: 'ref-must-not-leak' })); },
+    save: async (draft) => {
+      note('bindings.save', draft);
+      const saved = { ...draft, bindingId: draft.bindingId ?? `binding-${bindings.size + 1}`, connectionRef: 'ref-must-not-leak' };
+      bindings.set(saved.bindingId, saved);
+      return saved;
+    },
+    remove: async ({ bindingId }) => { note('bindings.remove', { bindingId }); bindings.delete(bindingId); },
+  };
+}
+
+/** One fake host shared by every plugin: state and the inbox are keyed by the port's scope, like a real host.
+ * `bindings` seeds the workspace's delivery bindings; `deliveryBindings: false` models a host without the port. */
+export function createFakeSurfaceHost(optional: {
+  readonly config?: Readonly<Record<string, string>>; readonly status?: Partial<AdminSurfaceConnectionStatus> & OverSharing;
+  readonly bindings?: readonly AdminSurfaceDeliveryBinding[]; readonly deliveryBindings?: false;
+} = {}) {
   const log: FakeSurfaceHostLog = { tokenRequests: [], requests: [], calls: [] };
   const state = new Map<string, AdminSurfaceStateValue>();
+  const bindings = new Map((optional.bindings ?? []).map((binding) => [binding.bindingId, binding]));
   const inbox = createAdminSurfaceCallbackInbox({ now: () => 0 });
   const port = (scope: AgentPluginToolCapabilityScope): AdminSurfaceCapabilities => {
     const note = (method: string, args: unknown) => { log.calls.push(`${scope.pluginId}:${method}:${JSON.stringify(args)}`); };
@@ -50,7 +72,8 @@ export function createFakeSurfaceHost(optional: { readonly config?: Readonly<Rec
         delete: async ({ key }) => { state.delete(stateKey(key)); },
       },
       publicConfig: { get: async ({ name }) => { note('publicConfig.get', { name }); return optional.config?.[name] ?? null; } },
+      ...(optional.deliveryBindings !== false && { deliveryBindings: fakeDeliveryBindings(bindings, note) }),
     };
   };
-  return { log, port, state, inbox };
+  return { log, port, state, inbox, bindings };
 }
