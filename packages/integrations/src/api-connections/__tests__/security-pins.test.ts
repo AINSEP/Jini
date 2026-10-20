@@ -196,6 +196,19 @@ describe('field allowlists and limits', () => {
       authorizationEndpoint: 'https://a.example/auth', tokenEndpoint: 'https://a.example/token',
       authorizationParams: { public: { redirect_uri: 'https://evil.example' } } } })).toThrow(expect.objectContaining({ code: 'descriptor-invalid' }));
   });
+  it.each([
+    ['a name the loopback receiver refuses', { name: '_picked', maxLength: 64 }],
+    ['a size over the loopback receiver\'s field limit', { name: 'picked', maxLength: 4097 }],
+  ])('refuses a descriptor whose callback field has %s', (_label, field) => {
+    expect(() => parseApiConnectionDescriptor({ value: { pluginId: 'p', connectionId: 'c', label: 'L',
+      authorizationEndpoint: 'https://a.example/auth', tokenEndpoint: 'https://a.example/token',
+      callbackFields: [field] } })).toThrow(expect.objectContaining({ code: 'descriptor-invalid' }));
+  });
+  it('still accepts a start parameter up to 8192 characters', () => {
+    expect(parseApiConnectionDescriptor({ value: { pluginId: 'p', connectionId: 'c', label: 'L',
+      authorizationEndpoint: 'https://a.example/auth', tokenEndpoint: 'https://a.example/token',
+      startParams: [{ name: '_mode', maxLength: 8192 }] } }).startParams).toEqual([{ name: '_mode', maxLength: 8192 }]);
+  });
   it('refuses a descriptor that declares a callback field named like an OAuth field', () => {
     expect(() => parseApiConnectionDescriptor({ value: { pluginId: 'p', connectionId: 'c', label: 'L',
       authorizationEndpoint: 'https://a.example/auth', tokenEndpoint: 'https://a.example/token',

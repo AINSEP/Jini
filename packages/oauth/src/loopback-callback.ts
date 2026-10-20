@@ -42,6 +42,15 @@ function invalidConfiguration(message: string): OAuthError {
     return new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message, operatorAction: "Fix the connection's declared callback path or fields." });
 }
 
+/**
+ * The name rule for a provider callback field a plugin may declare: a short identifier that is not
+ * a protocol parameter the receiver reads itself. API-connection descriptors apply this same check
+ * (and admin-surface declarations copy it), so a declaration valid on hosted is valid on desktop.
+ */
+export function isCallbackFieldName(name: string): boolean {
+    return CALLBACK_FIELD_NAME.test(name) && !RESERVED_CALLBACK_PARAMS.has(name);
+}
+
 /** Rejects a callback path or field list a plugin declared wrongly, before any port is opened. */
 export function assertLoopbackConfiguration(requiredArgs: { readonly path: string; readonly callbackFields: readonly string[] }): void {
     if (!CALLBACK_PATH.test(requiredArgs.path))
@@ -49,7 +58,7 @@ export function assertLoopbackConfiguration(requiredArgs: { readonly path: strin
     if (requiredArgs.callbackFields.length > MAX_CALLBACK_FIELDS)
         throw invalidConfiguration(`at most ${MAX_CALLBACK_FIELDS} callback fields may be declared`);
     for (const name of requiredArgs.callbackFields) {
-        if (!CALLBACK_FIELD_NAME.test(name) || RESERVED_CALLBACK_PARAMS.has(name))
+        if (!isCallbackFieldName(name))
             throw invalidConfiguration(`'${name.slice(0, 64)}' cannot be declared as a callback field`);
     }
 }

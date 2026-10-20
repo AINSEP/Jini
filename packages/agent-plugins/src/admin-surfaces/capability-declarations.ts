@@ -29,6 +29,12 @@ type Entry = Readonly<Record<string, unknown>>;
 /** Same shapes the API-connection descriptor accepts for connection ids and parameter names. */
 const CONNECTION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const FIELD_NAME_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
+/**
+ * Copy of the OAuth core's `isCallbackFieldName` pattern (`@jini-ai/oauth` loopback-callback.ts is
+ * the source of truth; agent-plugins does not depend on it). The descriptor applies the full check,
+ * including the reserved protocol names, so a field passing here but reserved there is never declared.
+ */
+const CALLBACK_FIELD_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
 /** Environment-style names, so a host can map them to its own config without translation. */
 const CONFIG_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/;
 /** Name parts that mark a credential. A plugin's public values never need one of them. */
@@ -52,7 +58,7 @@ function parseConnection(entry: unknown, at: string): AdminSurfaceConnectionDecl
   if (typeof entry.id !== 'string' || !CONNECTION_ID_PATTERN.test(entry.id)) return `${at}.id must be a short connection id`;
   const startParams = parseNames(entry.startParams ?? [], { pattern: FIELD_NAME_PATTERN, max: MAX_FIELDS, at: `${at}.startParams` });
   if (typeof startParams === 'string') return startParams;
-  const callbackFields = parseNames(entry.callbackFields ?? [], { pattern: FIELD_NAME_PATTERN, max: MAX_FIELDS, at: `${at}.callbackFields` });
+  const callbackFields = parseNames(entry.callbackFields ?? [], { pattern: CALLBACK_FIELD_NAME_PATTERN, max: MAX_FIELDS, at: `${at}.callbackFields` });
   return typeof callbackFields === 'string' ? callbackFields : { id: entry.id, startParams, callbackFields };
 }
 

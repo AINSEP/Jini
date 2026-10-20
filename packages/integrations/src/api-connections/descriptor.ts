@@ -5,6 +5,7 @@
  * field limit is checked once here so the flow code can trust the shape. Endpoint safety (scheme,
  * private hosts, DNS) is still enforced at use by the injected OAuth URL guard.
  */
+import { isCallbackFieldName, MAX_CALLBACK_FIELD_LENGTH, MAX_CALLBACK_FIELDS } from '@jini-ai/oauth';
 import { ApiConnectionError } from './errors.js';
 import type { ApiConnectionBoundedField, ApiConnectionDescriptor } from './types.js';
 
@@ -14,9 +15,12 @@ const MAX_LABEL_LENGTH = 120;
 const MAX_URL_LENGTH = 2048;
 const MAX_PARAMS = 16;
 const MAX_PARAM_VALUE_LENGTH = 512;
-const MAX_FIELDS = 8;
-/** Callback values ride in a URL; 8 KiB stays within common server request-line limits. */
-export const MAX_FIELD_LENGTH = 8192;
+interface FieldRules { readonly maxFields: number; readonly maxLength: number; readonly acceptsName: (name: string) => boolean }
+/** Start values ride in the authorization URL; 8 KiB stays within common server request-line limits. */
+const START_PARAM_RULES: FieldRules = { maxFields: 8, maxLength: 8192, acceptsName: () => true };
+/** The loopback receiver's own limits and name rule (one source of truth in the OAuth core), so a
+ * declaration accepted here never fails only on desktop. */
+const CALLBACK_FIELD_RULES: FieldRules = { maxFields: MAX_CALLBACK_FIELDS, maxLength: MAX_CALLBACK_FIELD_LENGTH, acceptsName: isCallbackFieldName };
 /** Names the OAuth core sets itself or reads from the callback; a plugin may not shadow them. */
 const RESERVED_NAMES: ReadonlySet<string> = new Set([
   'resource', 'response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'code',
@@ -50,8 +54,8 @@ function readUrl(value: unknown, name: string): string {
   return value;
 }
 
-function readParamName(value: unknown, where: string): string {
-  if (typeof value !== 'string' || !PARAM_NAME_PATTERN.test(value) || RESERVED_NAMES.has(value)) {
+function readParamName(value: unknown, where: string, acceptsName: FieldRules['acceptsName'] = () => true): string {
+  if (typeof value !== 'string' || !PARAM_NAME_PATTERN.test(value) || RESERVED_NAMES.has(value) || !acceptsName(value)) {
     throw invalid(`${where} uses an invalid or reserved name`);
   }
   return value;
@@ -68,16 +72,16 @@ function readParams(value: unknown, where: string): Readonly<Record<string, stri
   return Object.freeze(params);
 }
 
-function readFields(value: unknown, where: string): readonly ApiConnectionBoundedField[] {
+function readFields(value: unknown, where: string, rules: FieldRules): readonly ApiConnectionBoundedField[] {
   if (value === undefined) return Object.freeze([]);
-  if (!Array.isArray(value) || value.length > MAX_FIELDS) throw invalid(where);
+  if (!Array.isArray(value) || value.length > rules.maxFields) throw invalid(where);
   const fields = value.map((entry: unknown) => {
     if (!isRecord(entry)) throw invalid(where);
     const { maxLength } = entry;
-    if (!Number.isSafeInteger(maxLength) || (maxLength as number) < 1 || (maxLength as number) > MAX_FIELD_LENGTH) {
+    if (!Number.isSafeInteger(maxLength) || (maxLength as number) < 1 || (maxLength as number) > rules.maxLength) {
       throw invalid(`${where} maxLength`);
     }
-    return Object.freeze({ name: readParamName(entry.name, where), maxLength: maxLength as number });
+    return Object.freeze({ name: readParamName(entry.name, where, rules.acceptsName), maxLength: maxLength as number });
   });
   if (new Set(fields.map(field => field.name)).size !== fields.length) throw invalid(`${where} repeats a name`);
   return Object.freeze(fields);
@@ -99,7 +103,7 @@ export function parseApiConnectionDescriptor(requiredArgs: { readonly value: unk
       public: readParams(params.public, 'authorizationParams.public'),
       confidential: readParams(params.confidential, 'authorizationParams.confidential'),
     }),
-    startParams: readFields(source.startParams, 'startParams'),
-    callbackFields: readFields(source.callbackFields, 'callbackFields'),
+    startParams: readFields(source.startParams, 'startParams', START_PARAM_RULES),
+    callbackFields: readFields(source.callbackFields, 'callbackFields', CALLBACK_FIELD_RULES),
   });
 }

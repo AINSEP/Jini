@@ -56,7 +56,10 @@ describe('the surfaces file is the allowlist', () => {
     expect(reasonFor({ connections: [{ id: '../account' }] })).toBe('surfaces[0].connections[0].id must be a short connection id');
     expect(reasonFor({ connections: [{ id: 'account' }, { id: 'account' }] })).toBe("surfaces[0].connections[1].id 'account' is declared twice");
     expect(reasonFor({ connections: [{ id: 'account', startParams: ['a b'] }] })).toBe('surfaces[0].connections[0].startParams[0] must be a unique name matching ^[A-Za-z0-9_.-]{1,64}$');
-    expect(reasonFor({ connections: [{ id: 'account', callbackFields: ['x', 'x'] }] })).toBe('surfaces[0].connections[0].callbackFields[1] must be a unique name matching ^[A-Za-z0-9_.-]{1,64}$');
+    expect(reasonFor({ connections: [{ id: 'account', callbackFields: ['x', 'x'] }] })).toBe('surfaces[0].connections[0].callbackFields[1] must be a unique name matching ^[A-Za-z][A-Za-z0-9_.-]{0,63}$');
+  });
+  test('a callback field the loopback receiver would refuse (not starting with a letter) is refused', () => {
+    expect(reasonFor({ connections: [{ id: 'account', callbackFields: ['_picked'] }] })).toBe('surfaces[0].connections[0].callbackFields[0] must be a unique name matching ^[A-Za-z][A-Za-z0-9_.-]{0,63}$');
   });
   test('connections that are not an array of objects are refused', () => {
     expect(reasonFor({ connections: { id: 'account' } })).toBe('surfaces[0].connections must be an array of at most 4');

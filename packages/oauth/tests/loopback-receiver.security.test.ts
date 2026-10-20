@@ -188,6 +188,11 @@ describe('declared callback fields', () => {
     await expect(start({ callbackFields: ['state'] })).rejects.toMatchObject({ code: 'OAUTH_INVALID_REQUEST' });
   });
 
+  test('the exported name rule other seams reuse refuses exactly what start refuses', async () => {
+    const { isCallbackFieldName } = await import('../src/index.js');
+    expect(['picked_ids', '_picked', '9picked', 'state', 'iss'].map(isCallbackFieldName)).toEqual([true, false, false, false, false]);
+    await expect(start({ callbackFields: ['_picked'] })).rejects.toMatchObject({ code: 'OAUTH_INVALID_REQUEST' });
+  });
   test('declaring more than 16 callback fields is refused at start', async () => {
     const many = Array.from({ length: 17 }, (_, index) => `field_${index}`);
     await expect(start({ callbackFields: many })).rejects.toMatchObject({ code: 'OAUTH_INVALID_REQUEST' });
