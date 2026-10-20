@@ -1,7 +1,23 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import path from 'node:path';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext } from '../types.js';
+
+/** Approval, workspace and model argv, in that order. */
+function qoderRunArgs({ options, runtimeContext }: { options: RuntimeBuildOptions; runtimeContext: RuntimeContext }): string[] {
+  const args: string[] = [];
+  // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
+  // behavior) unless a caller explicitly opts into a restricted run.
+  if (options.permissionMode !== 'restricted') args.push('--yolo');
+  if (runtimeContext.cwd) args.push('-w', runtimeContext.cwd);
+  if (options.model && options.model !== 'default') args.push('--model', options.model);
+  return args;
+}
+
+/** Only absolute string paths are forwarded; a nullish list (loosely-typed caller) yields none. */
+function absolutePaths(paths: readonly string[] | null | undefined): string[] {
+  return (paths ?? []).filter((entry) => typeof entry === 'string' && path.isAbsolute(entry));
+}
 
 export const qoderAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
@@ -27,34 +43,14 @@ export const qoderAgentDef = {
     // QODER_PERSONAL_ACCESS_TOKEN for automation. Do not add that token to
     // static adapter env; unlike Gemini's workspace trust flag it is a user
     // secret and already flows through the inherited process environment.
-    buildArgs: ({ prompt: _prompt, imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}
-    ) => {
-      const args = [
-        '-p',
-        '--output-format',
-        'stream-json',
-      ];
-      // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
-      // behavior) unless a caller explicitly opts into a restricted run.
-      if (options.permissionMode !== 'restricted') {
-        args.push('--yolo');
-      }
-      if (runtimeContext.cwd) {
-        args.push('-w', runtimeContext.cwd);
-      }
-      if (options.model && options.model !== 'default') {
-        args.push('--model', options.model);
-      }
-      const dirs = (extraAllowedDirs || []).filter(
-        (d) => typeof d === 'string' && path.isAbsolute(d),
-      );
-      const attachments = (imagePaths || []).filter(
-        (p) => typeof p === 'string' && path.isAbsolute(p),
-      );
-      for (const d of dirs) args.push('--add-dir', d);
-      for (const p of attachments) args.push('--attachment', p);
-      return args;
-    },
+    buildArgs: ({ imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => [
+      '-p',
+      '--output-format',
+      'stream-json',
+      ...qoderRunArgs({ options, runtimeContext }),
+      ...absolutePaths(extraAllowedDirs).flatMap((d) => ['--add-dir', d]),
+      ...absolutePaths(imagePaths).flatMap((p) => ['--attachment', p]),
+    ],
     promptViaStdin: true,
     streamFormat: 'qoder-stream-json',
     // Own dedicated `--attachment <path>` argv flag, built above — a real
