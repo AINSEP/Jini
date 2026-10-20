@@ -204,7 +204,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:properties": "vitest run src/net/__tests__/unit/address.property.unit.test.ts"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
@@ -213,7 +214,8 @@
     "hast-util-to-mdast": "10.1.2",
     "mdast-util-to-markdown": "2.1.2",
     "mdast-util-gfm-table": "2.0.0",
-    "parse5": "7.3.0"
+    "parse5": "7.3.0",
+    "fast-check": "4.3.0"
   },
   "peerDependencies": {
     "undici": "^7.25.0",

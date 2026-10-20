@@ -1,0 +1,908 @@
+{
+  "$schema": "https://unpkg.com/knip@5.61.3/schema.json",
+  "ignore": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/coverage/**",
+    "**/generated/**",
+    "**/.generated/**",
+    "**/*.generated.*"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/*.{ts,mjs}",
+        ".dependency-cruiser.mjs",
+        "development/quality/*.mjs",
+        "scripts/**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/tests/**/*.types.ts"
+      ],
+      "project": [
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "development/quality/**/*.mjs",
+        "*.mjs"
+      ]
+    },
+    "packages/admin": {
+      "entry": [
+        "src/core/index.ts",
+        "src/browser/index.ts",
+        "src/react/index.ts",
+        "src/react/shell/index.ts",
+        "src/react/entities/index.ts",
+        "src/browser/shell-navigation.ts",
+        "src/core/module/index.ts",
+        "src/react/bind-react.ts",
+        "src/react/use-controller.ts",
+        "src/react/overlays.ts",
+        "src/media/index.ts",
+        "src/media/react/index.ts",
+        "src/media/adapters/http.ts",
+        "src/media/adapters/memory.ts",
+        "src/media/conformance/media-api.conformance.ts",
+        "src/contracts/credential-management.ts",
+        "src/contracts/media-picker.ts",
+        "src/contracts/playground-render-target.ts",
+        "src/security/index.ts",
+        "src/security/react/index.ts",
+        "src/security/adapters/http.ts",
+        "src/security/adapters/memory.ts",
+        "src/security/conformance/security-api.conformance.ts",
+        "src/playground/index.ts",
+        "src/playground/react/index.ts",
+        "src/playground/adapters/http.ts",
+        "src/playground/adapters/memory.ts",
+        "src/playground/conformance/playground-api.conformance.ts",
+        "src/source-control/index.ts",
+        "src/source-control/react/index.ts",
+        "src/source-control/adapters/http.ts",
+        "src/source-control/adapters/memory.ts",
+        "src/source-control/conformance/source-control-api.conformance.ts",
+        "src/agent-plugins/index.ts",
+        "src/agent-plugins/react/index.ts",
+        "src/agent-plugins/adapters/http.ts",
+        "src/agent-plugins/adapters/memory.ts",
+        "src/agent-plugins/conformance/agent-plugins-api.conformance.ts",
+        "src/core/react/index.ts",
+        "src/forms/index.ts",
+        "src/forms/react/index.ts",
+        "src/forms/adapters/http.ts",
+        "src/forms/adapters/memory.ts",
+        "src/forms/conformance/forms-api.conformance.ts",
+        "src/comments/index.ts",
+        "src/comments/react/index.ts",
+        "src/comments/adapters/http.ts",
+        "src/comments/adapters/memory.ts",
+        "src/comments/conformance/comments-api.conformance.ts",
+        "src/redirects/index.ts",
+        "src/redirects/react/index.ts",
+        "src/redirects/adapters/http.ts",
+        "src/redirects/adapters/memory.ts",
+        "src/redirects/conformance/redirects-api.conformance.ts",
+        "src/seo/index.ts",
+        "src/seo/react/index.ts",
+        "src/seo/adapters/http.ts",
+        "src/seo/adapters/memory.ts",
+        "src/seo/conformance/seo-api.conformance.ts",
+        "src/widgets/index.ts",
+        "src/widgets/react/index.ts",
+        "src/widgets/adapters/http.ts",
+        "src/widgets/adapters/memory.ts",
+        "src/widgets/conformance/widgets-api.conformance.ts",
+        "src/consent/react/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/agent-plugins": {
+      "entry": [
+        "src/index.ts",
+        "src/lifecycle/index.ts",
+        "src/lifecycle/node.ts",
+        "src/lifecycle/yauzl-archive-reader.ts",
+        "src/lifecycle/tools/index.ts",
+        "src/lifecycle/manifest.ts",
+        "persistent-state.js",
+        "src/folder-zip.ts",
+        "src/folder-zip-node.ts",
+        "src/admin-surfaces/index.ts",
+        "src/admin-surfaces/surface-client.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/agent-runtime": {
+      "entry": [
+        "src/index.ts",
+        "src/providers/tool-turn.ts",
+        "src/model-catalog-cache.ts",
+        "src/providers/sse-decode.ts",
+        "src/model-discovery-shared.ts",
+        "src/model-discovery.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/agentic": {
+      "entry": [
+        "src/index.ts",
+        "src/core/index.ts",
+        "src/core/dom/index.ts",
+        "src/core/a2ui/index.ts",
+        "src/skills/install/index.ts",
+        "src/skills/install/node-filesystem.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/analytics": {
+      "entry": [
+        "src/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/artifacts": {
+      "entry": [
+        "src/index.ts",
+        "src/node/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/capability-providers": {
+      "entry": [
+        "src/index.ts",
+        "src/visitor-auth/index.ts",
+        "src/unsafe-reference/index.ts",
+        "src/adapters/ws/index.ts",
+        "src/adapters/sqlite/index.ts",
+        "src/adapters/blob-storage/index.ts",
+        "src/adapters/jwt-auth/index.ts",
+        "src/adapters/stripe/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/charts-recharts": {
+      "entry": [
+        "src/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/chat": {
+      "entry": [
+        "src/testing/index.ts",
+        "src/core/index.ts",
+        "src/react/index.ts",
+        "src/react/chat-pane.ts",
+        "src/store/index.ts",
+        "src/store/sqlite/index.ts",
+        "src/store/pglite/index.ts",
+        "src/store/postgres/index.ts",
+        "src/store/legacy/index.ts",
+        "src/store/legacy/sqlite/index.ts",
+        "src/core/run-events/entry.ts",
+        "src/core/ag-ui/entry.ts",
+        "src/server/run-finalizer/entry.ts",
+        "src/embed-widget/react/embed.tsx",
+        "src/core/assistant-client/ag-ui-transport.ts",
+        "src/core/assistant-client/entry.ts",
+        "src/embed-widget/transports/fetch-sse.ts",
+        "src/embed-widget/browser/session-store.ts",
+        "src/embed-widget/browser/page-actions.ts",
+        "src/server/durable-runs/entry.ts",
+        "src/store/runtime/entry.ts",
+        "src/embed-widget/vanilla/index.ts",
+        "src/embed-widget/browser/lazy-loader.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/cli": {
+      "entry": [
+        "src/index.ts",
+        "src/introspection.ts",
+        "src/main.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/cms/forms": {
+      "entry": [
+        "src/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/cms": {
+      "entry": [
+        "src/core/index.ts",
+        "src/navigation/index.ts",
+        "src/routing/index.ts",
+        "src/media/index.ts",
+        "src/settings/index.ts",
+        "src/workspace/index.ts",
+        "src/entries/index.ts",
+        "src/content-types/index.ts",
+        "src/taxonomy/index.ts",
+        "src/presentation/index.ts",
+        "src/core/tools/index.ts",
+        "src/media/import/index.ts",
+        "src/trash/index.ts",
+        "src/settings/express/index.ts",
+        "src/media/node.ts",
+        "src/forms/html-render.ts",
+        "src/forms/submission-attempts.ts",
+        "src/widgets/page-embed-types.ts",
+        "src/widgets/html/html-embeds.ts",
+        "src/widgets/html/gallery-render.ts",
+        "src/navigation/types.ts",
+        "src/navigation/dropdown.ts",
+        "src/navigation/node/index.ts",
+        "src/media/slug.ts",
+        "src/forms/index.ts",
+        "src/forms/html/index.ts",
+        "src/forms/sql/index.ts",
+        "src/forms/express/index.ts",
+        "src/comments/index.ts",
+        "src/comments/sql/index.ts",
+        "src/comments/express/index.ts",
+        "src/redirects/index.ts",
+        "src/redirects/sql/index.ts",
+        "src/redirects/express/index.ts",
+        "src/redirects/spa/index.ts",
+        "src/redirects/host-config/index.ts",
+        "src/seo/index.ts",
+        "src/seo/dom/index.ts",
+        "src/widgets/index.ts",
+        "src/widgets/markers/index.ts",
+        "src/widgets/html/index.ts",
+        "src/widgets/resolvers/index.ts",
+        "src/widgets/sql/index.ts",
+        "src/consent/index.ts",
+        "src/consent/html/index.ts",
+        "src/consent/express/index.ts",
+        "src/consent/node/index.ts",
+        "src/listing/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/commerce": {
+      "entry": [
+        "src/index.ts",
+        "src/catalog/repo.ts",
+        "src/payments/index.ts",
+        "src/store/index.ts",
+        "src/http/index.ts",
+        "src/react/index.ts",
+        "src/tools.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/core": {
+      "entry": [
+        "src/index.ts",
+        "src/composition.ts",
+        "src/gated-mutations.ts",
+        "src/model-facing-tool-errors.ts",
+        "src/contribution-registry.ts",
+        "src/naming.ts",
+        "src/records.ts",
+        "src/primitives/index.ts",
+        "src/fetch/index.ts",
+        "src/text/index.ts",
+        "src/settings/index.ts",
+        "src/settings/express/index.ts",
+        "plugin-directory.js",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/daemon": {
+      "entry": [
+        "src/index.ts",
+        "src/store/event-log/sqlite.ts",
+        "src/store/agent-sessions/index.ts",
+        "src/store/agent-sessions/sqlite.ts",
+        "src/store/agent-sessions/pglite.ts",
+        "src/store/agent-sessions/postgres.ts",
+        "src/http/index.ts",
+        "src/read-only-tools.ts",
+        "src/scheduler.ts",
+        "src/tool-audit.ts",
+        "src/surface-exchanges.ts",
+        "src/session-coordination.ts",
+        "src/run-credentials.ts",
+        "src/tool-recovery/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/db": {
+      "entry": [
+        "src/core/index.ts",
+        "src/sqlite/index.ts",
+        "src/pglite/index.ts",
+        "src/postgres/index.ts",
+        "src/kernel/index.ts",
+        "src/kernel/sqlite/index.ts",
+        "src/kernel/pglite/index.ts",
+        "src/kernel/postgres/index.ts",
+        "src/migrate/index.ts",
+        "src/pg-fixture.ts",
+        "src/transfer/index.ts",
+        "src/tools/index.ts",
+        "src/kernel/store-copy.ts",
+        "src/recovery/deep-link.ts",
+        "src/recovery/degraded-banners.ts",
+        "src/recovery/disclosure.ts",
+        "src/recovery/evaluate-boot-migration-policy.ts",
+        "src/recovery/hook-policy.ts",
+        "src/recovery/index.ts",
+        "src/recovery/lookup-adapters.ts",
+        "src/recovery/migrate-forward-execute.ts",
+        "src/recovery/migrate-forward-hooks.ts",
+        "src/recovery/operation-lock.ts",
+        "src/recovery/reconcile-interrupted-migration.ts",
+        "src/recovery/recovery-orchestrator.ts",
+        "src/recovery/restore-hooks.ts",
+        "src/recovery/restore-point-create.ts",
+        "src/secrets-vault/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/desktop-host": {
+      "entry": [
+        "src/render-bridge.ts",
+        "src/index.ts",
+        "src/bridge-testing.ts",
+        "src/electron/index.ts",
+        "src/tauri/index.ts",
+        "src/shutdown/index.ts",
+        "src/electron/navigation-policy/index.ts",
+        "src/electron/updates/index.ts",
+        "src/node-toolchain/index.ts",
+        "src/electron/usability/index.ts",
+        "src/speech/index.ts",
+        "src/speech/macos/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/devops": {
+      "entry": [
+        "src/source-control/entry.ts",
+        "src/static-export/entry.ts",
+        "src/static-export/node-adapters.ts",
+        "src/packaging/electron/entry.ts",
+        "src/packaging/electron/typescript.ts",
+        "src/agent-jobs/entry.ts",
+        "src/index.ts",
+        "src/deploy/index.ts",
+        "src/checks/published-types/index.ts",
+        "src/checks/coverage/index.ts",
+        "src/checks/node.ts",
+        "src/local-dev/index.ts",
+        "src/deploy/node.ts",
+        "src/core/export-failure-summary.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/diagnostics": {
+      "entry": [
+        "src/index.ts",
+        "src/redaction/secrets-only.ts",
+        "src/observability/index.ts",
+        "src/observability/node.ts",
+        "src/web-evidence/index.ts",
+        "src/web-evidence/playwright-browser.ts",
+        "src/domain-dns/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/http-kit": {
+      "entry": [
+        "src/index.ts",
+        "src/rate-limit.ts",
+        "src/middleware.ts",
+        "src/verified-origin.ts",
+        "src/observability.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/infra": {
+      "entry": [
+        "src/events/outbox/index.ts",
+        "src/db/driver/index.ts",
+        "src/db/sqlite/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/integrations": {
+      "entry": [
+        "src/media-providers/index.ts",
+        "src/media-providers/catalog.ts",
+        "src/credentialed-http/index.ts",
+        "src/webhooks/index.ts",
+        "src/api-connections/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/mcp": {
+      "entry": [
+        "src/index.ts",
+        "src/tools/ask-choice/index.ts",
+        "src/federation/index.ts",
+        "src/federation/approvals/index.ts",
+        "src/federation/stdio/index.ts",
+        "src/federation/testing/index.ts",
+        "src/bin/serve.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/memory": {
+      "entry": [
+        "src/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/oauth": {
+      "entry": [
+        "src/index.ts",
+        "src/testing/index.ts",
+        "src/discovery-policy.ts",
+        "src/dns-pinned-transport.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/platform": {
+      "entry": [
+        "src/index.ts",
+        "src/fetch-with-timeout.ts",
+        "src/asset-cache.ts",
+        "src/secrets/index.ts",
+        "src/secrets/credential-sets/index.ts",
+        "src/secrets/credential-sets/contracts.ts",
+        "src/secrets/testing.ts",
+        "src/http/guarded/index.ts",
+        "src/mail/index.ts",
+        "src/mail/smtp.ts",
+        "src/fs/guarded-reader.ts",
+        "src/fs/durable-json.ts",
+        "src/fs/index.ts",
+        "src/net/index.ts",
+        "src/net/endpoint-policy.ts",
+        "src/fs/file-lock.ts",
+        "src/secrets/credential-token.ts",
+        "src/web/index.ts",
+        "src/command.ts",
+        "src/process.ts",
+        "src/toolchain.ts",
+        "src/proxy-env.ts",
+        "src/shell.ts",
+        "src/child-environment.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/plugins": {
+      "entry": [
+        "src/glue/index.ts",
+        "src/host/index.ts",
+        "src/host/node/index.ts",
+        "src/host/worker/index.ts",
+        "src/host/sql/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/protocol": {
+      "entry": [
+        "src/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/registry": {
+      "entry": [
+        "src/index.ts",
+        "src/tool-catalog/index.ts",
+        "src/tool-catalog/sqlite.ts",
+        "src/tool-catalog-builder/index.ts",
+        "src/tool-catalog-builder/sqlite.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/sandbox": {
+      "entry": [
+        "src/core/index.ts",
+        "src/e2b/index.ts",
+        "src/node-worker.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/server": {
+      "entry": [
+        "src/index.ts",
+        "src/storage/index.ts",
+        "src/storage/legacy/sqlite.ts",
+        "src/store/projects/sqlite.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/sidecar": {
+      "entry": [
+        "src/index.ts",
+        "src/respawn-policy.ts",
+        "src/supervisor.ts",
+        "src/supervisor-node.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/sqlite": {
+      "entry": [
+        "src/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/ui-kit": {
+      "entry": [
+        "src/index.ts",
+        "src/react/index.ts",
+        "src/react/native/index.ts",
+        "src/react/testing/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/ui": {
+      "entry": [
+        "src/index.ts",
+        "src/core.ts",
+        "src/features/sketch-editor/index.ts",
+        "src/features/lexical-rich-text-editor/index.ts",
+        "src/features/html-editor/index.ts",
+        "src/react/mcp-ui/index.ts",
+        "src/features/mcp-ui/index.ts",
+        "src/features/mcp-ui/secret-card.ts",
+        "src/features/interactive-ui/index.ts",
+        "src/features/interactive-ui/manifests.ts",
+        "src/features/a2ui/index.ts",
+        "src/renderers/index.ts",
+        "src/renderers/preview-modal-shell/index.ts",
+        "src/features/admin-widgets/index.ts",
+        "src/features/i18n/universal.ts",
+        "src/features/panel-kit/index.ts",
+        "src/features/panel-kit/fetch-query/index.ts",
+        "src/features/panel-kit/fetch-query/tanstack.ts",
+        "src/features/tab-strip/index.ts",
+        "src/theme/index.ts",
+        "src/features/charts/index.ts",
+        "src/features/charts/browser.ts",
+        "src/features/charts/react.tsx",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/user-management": {
+      "entry": [
+        "src/core/index.ts",
+        "src/server/index.ts",
+        "src/react/index.ts",
+        "src/react/testing.ts",
+        "src/admin/index.ts",
+        "src/admin/react/index.ts",
+        "src/admin/adapters/http.ts",
+        "src/admin/adapters/memory.ts",
+        "src/admin/conformance/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "packages/vibecoding": {
+      "entry": [
+        "src/index.ts",
+        "src/core/index.ts",
+        "src/html/index.ts",
+        "src/html/node/index.ts",
+        "src/react/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "examples/reference-web": {
+      "entry": [
+        "index.html",
+        "src/main.tsx",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "examples/reference-desktop": {
+      "entry": [
+        "src/main.ts",
+        "src/preload.cts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "examples/nlweb-demo": {
+      "entry": [
+        "src/server.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    },
+    "examples/minimal-host": {
+      "entry": [
+        "src/index.ts",
+        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
+        "tests/**/*.types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
+        "scripts/**/*.{ts,js,mjs,cjs}",
+        "*.{config,setup}.{ts,js,mjs,cjs}"
+      ]
+    }
+  }
+}

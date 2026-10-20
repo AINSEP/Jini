@@ -200,7 +200,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:postgres": "vitest run --config vitest.postgres.config.ts src/store/__tests__/postgres.postgres.test.ts"
+    "test:postgres": "vitest run --config vitest.postgres.config.ts src/store/__tests__/postgres.postgres.test.ts",
+    "test:properties": "vitest run src/core/__tests__/unit/partial-json.property.unit.test.ts"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"
@@ -315,7 +316,8 @@
     "@jini-ai/protocol": "workspace:^",
     "@jini-ai/ui": "workspace:^",
     "@jini-ai/core": "workspace:^",
-    "@jini-ai/diagnostics": "workspace:^"
+    "@jini-ai/diagnostics": "workspace:^",
+    "fast-check": "4.3.0"
   },
   "typesVersions": {
     "*": {

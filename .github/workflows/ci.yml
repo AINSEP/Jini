@@ -87,9 +87,84 @@ jobs:
       - name: complexity (informational — warn-level, cannot fail; visibility only)
         run: pnpm complexity
 
+      - name: SonarJS (report-only; counts per rule)
+        if: ${{ !cancelled() }}
+        run: pnpm quality:sonar
+        continue-on-error: true
+
+      # Initial quality-tool rollout: observations only, never included in the gate below.
+      - name: knip (report-only)
+        if: ${{ !cancelled() }}
+        run: pnpm quality:knip
+        continue-on-error: true
+
+      - name: dependency-cruiser (report-only)
+        if: ${{ !cancelled() }}
+        run: pnpm quality:depcruise
+        continue-on-error: true
+
+      - name: fast-check properties (report-only)
+        if: ${{ !cancelled() }}
+        run: pnpm quality:properties
+        continue-on-error: true
+
       - name: fail if a blocking gate failed
         if: steps.guard.outcome == 'failure' || steps.typecheck.outcome == 'failure'
         run: |
           echo "guard:    ${{ steps.guard.outcome }}"
           echo "typecheck: ${{ steps.typecheck.outcome }}"
           exit 1
+
+  secrets-report:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Gitleaks event scan (report-only)
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_VERSION: 8.28.0
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+      # The action scopes push/PR scans to event ranges even with fetch-depth: 0.
+      # Explicitly scan every fetched ref and merge history as a separate report.
+      # Docker fallback still scans if the action cannot install (e.g. missing org license).
+      - name: Gitleaks full history (report-only)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          if command -v gitleaks >/dev/null 2>&1; then
+            gitleaks git . --config .gitleaks.toml --log-opts='--all --full-history -m' --redact --exit-code=1
+          else
+            docker run --rm -v "$PWD:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.28.0 git /repo --config /repo/.gitleaks.toml --log-opts='--all --full-history -m' --redact --exit-code=1
+          fi
+
+  # enable when the repo is public (SonarQube Cloud is free for public repos)
+  # Before enabling: replace identifiers and generate fresh LCOV with root-relative SF paths.
+  sonar-cloud:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # v6.0.0: https://github.com/SonarSource/sonarqube-scan-action/releases/tag/v6.0.0
+      - name: SonarQube Cloud scan (dormant, report-only)
+        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+        with:
+          args: >
+            -Dproject.settings=development/sonarqube/sonar-project.properties
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -411,7 +411,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "check:packaging": "node scripts/check-packaging.mjs"
+    "check:packaging": "node scripts/check-packaging.mjs",
+    "test:properties": "vitest run src/forms/__tests__/unit/submission.property.unit.test.ts"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
@@ -429,7 +430,8 @@
     "@jini-ai/http-kit": "workspace:*",
     "@types/jsdom": "^21.1.7",
     "dompurify": "^3.4.12",
-    "jsdom": "^25.0.1"
+    "jsdom": "^25.0.1",
+    "fast-check": "4.3.0"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"

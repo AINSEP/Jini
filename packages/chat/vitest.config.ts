@@ -29,7 +29,7 @@ export default defineConfig({
       // The v8 text table silently drops rows once there are many files —
       // json-summary/json are what a coverage-driven pass should actually
       // read (see ADS-memory/reports/jini-port's Phase 6.5 method).
-      reporter: ['text', 'json-summary', 'json'],
+      reporter: ['text', 'json-summary', 'json', 'lcov'],
       // CR-R4: chat-core (this layer's predecessor) had no committed coverage gate at all (see
       // ADS-memory/reports/code-review/CR-backend-coverage-push-2026-07-20.md, R4).
       // `src/core/events.ts` and `src/core/util/types.ts` are genuinely

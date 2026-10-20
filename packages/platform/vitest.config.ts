@@ -7,7 +7,7 @@ export default defineConfig({
       // The v8 text table silently drops rows once there are many files —
       // json-summary/json are what a coverage-driven pass should actually
       // read (see ADS-memory/reports/jini-port's Phase 6.5 method).
-      reporter: ['text', 'json-summary', 'json'],
+      reporter: ['text', 'json-summary', 'json', 'lcov'],
       // CR-R4: widened to the whole package (matching packages/core and
       // packages/agent-runtime's package-wide convention) — the prior config
       // measured only 4 files, silently excluding command.ts/http.ts/
