@@ -113,6 +113,10 @@ describe('open-link gate', () => {
     const { openLink } = opener();
     expect(await openAdminSurfaceLink({ event: event({}, message(overrides)), mount, openLink })).toEqual({ ok: false, ignored: 'not-an-open-link' });
   });
+  test.each(['open-link', null])('non-object message data %j is not an open-link message', async (data) => {
+    const { openLink } = opener();
+    expect(await openAdminSurfaceLink({ event: event({}, data), mount, openLink })).toEqual({ ok: false, ignored: 'not-an-open-link' });
+  });
   test('an opener failure is answered as retryable without its raw text', async () => {
     const { openLink } = opener({ fails: true });
     expect(await openAdminSurfaceLink({ event: event(), mount, openLink })).toEqual(refusal('link-failed', 'The host could not open the link. Try again.', true));

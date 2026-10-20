@@ -153,6 +153,7 @@ describe('the last sign-in attempt carries host-supplied safe codes only', () =>
     ['a missing next action', { code: 'access-denied' }],
     ['an over-long code', { code: 'a'.repeat(65), nextAction: 'reconnect' }],
     ['a string instead of an object', 'access_denied: denied'],
+    ['no attempt from a host that predates the field', undefined],
   ])('%s becomes null, never passed through', async (_label, attempt) => {
     expect(await statusWith(attempt)).toBeNull();
   });
