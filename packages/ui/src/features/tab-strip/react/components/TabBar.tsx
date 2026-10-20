@@ -69,6 +69,13 @@ function tabDotAccessibleSuffix(tab: TabBarTab) {
   return <span className="visually-hidden">, {tab.dotLabel}</span>;
 }
 
+function tabAccessibleLabel({ tab }: { tab: TabBarTab }, _optional: Record<string, never> = {}) {
+  if (!tab.dot || !tab.dotLabel) return undefined;
+  return [tab.label + ", " + tab.dotLabel, tab.tag, tab.count]
+    .filter((part) => part !== undefined)
+    .join(" ");
+}
+
 /** One tab button. A named top-level component avoids the nesting penalty for branches inside
  * an inline map callback under the cyclomatic/cognitive complexity gate. Derived props live in
  * TabBar.hooks.tsx; tabDotAccessibleSuffix stays here because it renders JSX. */
@@ -89,7 +96,7 @@ function TabBarButton({
       role="tab"
       className="tab-bar-item"
       aria-selected={active}
-      aria-label={tab.dot && tab.dotLabel ? [tab.label + ", " + tab.dotLabel, tab.tag, tab.count].filter((part) => part !== undefined).join(" ") : undefined}
+      aria-label={tabAccessibleLabel({ tab })}
       aria-disabled={tab.disabled || undefined}
       disabled={tab.disabled}
       tabIndex={tabIndex}
