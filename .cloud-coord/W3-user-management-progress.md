@@ -25,7 +25,7 @@ Branch: `cloud/w3-user-management` (from origin/general-work). Brief: `origin/cl
 | L118b | MERGED dd026c27 | cloud/w3-user-management-L118b | yes | fc5def69,9dd1558d |
 | L182a | MERGED cecbc9ef | cloud/w3-user-management-L182a | yes | 6ed390c0,7e0a494f |
 | L182c | MERGED 8b952d6c | cloud/w3-user-management-L182c | yes | 329b2756,7055fa49,78fddb94,de16cc2f |
-| L182b | running (from cecbc9ef) | cloud/w3-user-management-L182b | | |
+| L182b | MERGED e14dc212 | cloud/w3-user-management-L182b | yes | 51aa0b60,4bfead36 |
 | L154-L272 | running | cloud/w3-user-management-L154-L272 | | |
 | L205 | running | cloud/w3-user-management-L205 | | |
 
@@ -74,6 +74,12 @@ Verify = coordinator eslint (cyc/cog 10) on lot files + new helpers, tsc, lot te
 - Removed: `boundT` alias; duplicate list/detail query+loader incl. 2 dead fetch closures; triple own-row lookup → selectCaller; runGrantMutation 7 positional args → object. Checks removed: none (deep-link guard re-expressed via ownProfile, same derivation). Comments: none lost.
 - BUG pinned (reported, not fixed): describeIdentityError looks codes up through Object.prototype ("constructor" → Object fn passed to translate).
 - SEC note: errors.ts surfaces raw Error.message for VALIDATION_ERROR and unmapped codes (could leak server-internal text).
+
+### L182b — Users.tsx coverage (merged e14dc212)
+- Tests only (+36 in Users.coverage.test.tsx, 62 expects); Users.tsx diff empty. Coordinator eslint 0; tsc 0; 7 files / 163 tests; guard no new lines.
+- Coordinator coverage (all react + people suites, 232 tests): Users.tsx 100/100/100/100 (was 80.92/86.11/57.14), UserRowParts.tsx 100.
+- RED: 12 previously-uncovered functions each caught (EyeIcon needed a stricter assertion, added).
+- Security: none seen (show/hide password keeps autocomplete=new-password, pinned).
 
 ## Next steps
 - Wait for lot reports; VERIFY + MERGE each; dispatch queued lots as slots free.
