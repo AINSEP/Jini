@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { RemixIcon, infoTipBubbleStyle, useInfoTip } from '@jini-ai/ui';
 
-import { useRuntimeDropUp } from '../hooks/useRuntimeDropUp.hooks.js';
+import { useRuntimeDropUp, type UseRuntimeDropUpResult } from '../hooks/useRuntimeDropUp.hooks.js';
 
 export interface RuntimeDropUpProps {
   /** Names both the trigger (with the current value appended) and the menu. */
@@ -20,7 +20,66 @@ export interface RuntimeDropUpProps {
   /** Menu width cap in px; the menu is also clamped to the viewport. */
   width: number;
   className?: string;
-  useTip?: typeof useInfoTip | undefined;
+}
+
+type RuntimeDropUpTip = ReturnType<typeof useInfoTip>;
+
+/** The full `valueLabel` in the same white bubble `InfoTip` uses, portalled to `document.body`. */
+function RuntimeDropUpTipBubble({ tip, valueLabel }: { tip: RuntimeDropUpTip; valueLabel: string }): ReactNode {
+  return createPortal(
+    <span
+      ref={tip.bubbleRef}
+      className={tip.placement === 'below' ? 'info-tip-bubble info-tip-bubble-below' : 'info-tip-bubble'}
+      role="presentation"
+      aria-hidden="true"
+      style={infoTipBubbleStyle(tip.coords)}
+    >
+      {valueLabel}
+    </span>,
+    document.body,
+  );
+}
+
+interface RuntimeDropUpMenuProps {
+  dropUp: UseRuntimeDropUpResult;
+  label: string;
+  value: string;
+  options: RuntimeDropUpProps['options'];
+  onSelect: (id: string) => void;
+  note: string | undefined;
+}
+
+function RuntimeDropUpMenu({ dropUp, label, value, options, onSelect, note }: RuntimeDropUpMenuProps): ReactNode {
+  if (!dropUp.open || !dropUp.position) return null;
+  return (
+    <div
+      ref={dropUp.menuRef}
+      id={dropUp.menuId}
+      role="menu"
+      aria-label={label}
+      className="jini-runtime-dropup"
+      style={dropUp.position}
+      onKeyDown={dropUp.handleMenuKeyDown}
+    >
+      {note ? <div className="jini-runtime-dropup__note">{note}</div> : null}
+      {options.map((option) => {
+        const active = option.id === value;
+        return (
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={active}
+            className={`jini-runtime-dropup__item${active ? ' is-active' : ''}`}
+            key={option.id}
+            onClick={() => dropUp.choose(() => onSelect(option.id))}
+          >
+            <span className="jini-runtime-dropup__item-label">{option.label}</span>
+            {active ? <RemixIcon name="check-line" size={16} className="jini-runtime-check" /> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
@@ -39,26 +98,17 @@ export function RuntimeDropUp({
   note,
   width,
   className,
-  useTip = useInfoTip,
 }: RuntimeDropUpProps): ReactNode {
-  const {
-    menuId,
-    open,
-    position,
-    triggerRef,
-    menuRef,
-    toggleOpen,
-    handleTriggerKeyDown,
-    handleMenuKeyDown,
-    choose,
-  } = useRuntimeDropUp({ width });
+  const dropUp = useRuntimeDropUp({ width });
+  const { menuId, open, triggerRef, toggleOpen, handleTriggerKeyDown } = dropUp;
   // The same white bubble as `InfoTip` (its hook places it), rather than the browser's own title
   // tooltip; only when the trigger shows a shortened label, so there is something to reveal.
-  const tip = useTip({}, { placement: 'top' });
+  const tip = useInfoTip({}, { placement: 'top' });
   const shortened = triggerLabel !== undefined && triggerLabel !== valueLabel;
   // No tip over the open menu, which already lists the full name.
+  const tipVisible = shortened && !open;
   const showTip = () => {
-    if (shortened && !open) tip.show();
+    if (tipVisible) tip.show();
   };
 
   return (
@@ -88,49 +138,8 @@ export function RuntimeDropUp({
         <span ref={tip.iconRef} className="jini-runtime-dropup-trigger__label">{triggerLabel ?? valueLabel}</span>
         <RemixIcon name="arrow-down-s-line" size={15} className="jini-runtime-trigger__chevron" />
       </button>
-      {tip.open && shortened && !open
-        ? createPortal(
-            <span
-              ref={tip.bubbleRef}
-              className={tip.placement === 'below' ? 'info-tip-bubble info-tip-bubble-below' : 'info-tip-bubble'}
-              role="presentation"
-              aria-hidden="true"
-              style={infoTipBubbleStyle(tip.coords)}
-            >
-              {valueLabel}
-            </span>,
-            document.body,
-          )
-        : null}
-      {open && position ? (
-        <div
-          ref={menuRef}
-          id={menuId}
-          role="menu"
-          aria-label={label}
-          className="jini-runtime-dropup"
-          style={position}
-          onKeyDown={handleMenuKeyDown}
-        >
-          {note ? <div className="jini-runtime-dropup__note">{note}</div> : null}
-          {options.map((option) => {
-            const active = option.id === value;
-            return (
-              <button
-                type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                className={`jini-runtime-dropup__item${active ? ' is-active' : ''}`}
-                key={option.id}
-                onClick={() => choose(() => onSelect(option.id))}
-              >
-                <span className="jini-runtime-dropup__item-label">{option.label}</span>
-                {active ? <RemixIcon name="check-line" size={16} className="jini-runtime-check" /> : null}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+      {tip.open && tipVisible ? <RuntimeDropUpTipBubble tip={tip} valueLabel={valueLabel} /> : null}
+      <RuntimeDropUpMenu dropUp={dropUp} label={label} value={value} options={options} onSelect={onSelect} note={note} />
     </>
   );
 }
