@@ -31,7 +31,6 @@ import type { NavLocationBindingRepoPort } from "./ports.js";
 import { menuHtmlInputProblem, mergeMenuHtml, type MenuHtmlAuthoring, type MenuHtmlNormalizer } from "./menu-html.js";
 import {
   NAV_DOC_TYPE,
-  type MenuStatus,
   type NavEntryTarget,
   type NavItemNode,
   type NavLocationBindingRow,
@@ -58,22 +57,23 @@ import {
  * call site below still passes a fresh object literal matching one of those
  * two contract shapes exactly (`contracts.ts`), just not nominally typed here.
  */ 
-function buildEvent(required: {
-  idGen: IdGenerator;
-  clock: Clock;
+async function enqueueEvent(required: {
+  deps: { idGen: IdGenerator; clock: Clock; outbox: OutboxPort };
   name: string;
   workspaceId: UUID;
   aggregateId: UUID;
   payload: Record<string, unknown>;
-}): DomainEvent {
-  return {
-    id: required.idGen.newId(),
+}): Promise<void> {
+  const { deps } = required;
+  const event: DomainEvent = {
+    id: deps.idGen.newId(),
     name: required.name,
-    occurredAt: kernelNowIso({ clock: required.clock }),
+    occurredAt: kernelNowIso({ clock: deps.clock }),
     aggregateId: required.aggregateId,
     workspaceId: required.workspaceId,
     payload: required.payload,
   };
+  await deps.outbox.enqueue(event);
 }
 
 // ---------------------------------------------------------------------------
@@ -299,29 +299,68 @@ function validateTarget(target: NavTarget): void {
   if (!target || typeof target !== "object") {
     throw new MenuValidationError({ message: "every menu item requires a target" });
   }
-  const kind = target.kind;
+  assertSupportedTargetKind({ kind: target.kind });
+  if (target.kind === "entryRef") assertAllowedEntryHintHref({ target });
+  if (target.kind === "url") assertAllowedUrlHref({ target });
+}
+
+/** Reserved kinds get their own "not yet" message; anything else outside the four v1 kinds is unknown. */
+function assertSupportedTargetKind({ kind }: { kind: string }): void {
   if (RESERVED_TARGET_KINDS.has(kind)) {
-    throw new MenuValidationError({ message: `target kind '${kind}' is a reserved seam and is not supported yet` }
-    );
+    throw new MenuValidationError({ message: `target kind '${kind}' is a reserved seam and is not supported yet` });
   }
   if (!VALID_TARGET_KINDS.has(kind)) {
     throw new MenuValidationError({ message: `unknown target kind '${kind}'` });
   }
-  if (kind === "entryRef" && target.lastKnownHref !== undefined) {
-    const rawHref = target.lastKnownHref;
-    if (typeof rawHref !== "string" || !rawHref.trim() || !isAllowedHref({ rawHref })) {
-      throw new MenuValidationError({ message: `entryRef lastKnownHref must be ${ALLOWED_HREF_SHAPES_DESCRIPTION}.` });
-    }
+}
+
+/** An untrusted href field must be a string with non-whitespace content before {@link isAllowedHref} may read it. */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+/** `lastKnownHref` is an optional hint, so only a present one is checked — against the same allowlist as a `url` href. */
+function assertAllowedEntryHintHref({ target }: { target: NavEntryTarget }): void {
+  const rawHref: unknown = target.lastKnownHref;
+  if (rawHref === undefined) return;
+  if (!isNonEmptyString(rawHref) || !isAllowedHref({ rawHref })) {
+    throw new MenuValidationError({ message: `entryRef lastKnownHref must be ${ALLOWED_HREF_SHAPES_DESCRIPTION}.` });
   }
-  if (kind === "url") {
-    const rawHref = (target as NavUrlTarget).href;
-    if (typeof rawHref !== "string" || !rawHref.trim()) {
-      throw new MenuValidationError({ message: "url target requires a non-empty href" });
-    }
-    if (!isAllowedHref({ rawHref: rawHref })) {
-      throw new MenuValidationError({ message: `url target href is not allowed: '${rawHref}'. Accepted shapes: ${ALLOWED_HREF_SHAPES_DESCRIPTION}.` }
-      );
-    }
+}
+
+function assertAllowedUrlHref({ target }: { target: NavUrlTarget }): void {
+  const rawHref: unknown = target.href;
+  if (!isNonEmptyString(rawHref)) {
+    throw new MenuValidationError({ message: "url target requires a non-empty href" });
+  }
+  if (!isAllowedHref({ rawHref })) {
+    throw new MenuValidationError({ message: `url target href is not allowed: '${rawHref}'. Accepted shapes: ${ALLOWED_HREF_SHAPES_DESCRIPTION}.` });
+  }
+}
+
+/** Reads a menu the caller named by id; a missing one is the not-found refusal every mutation shares. */
+async function findMenuOrThrow({ repo, workspaceId, id }: { repo: MenuRepoPort; workspaceId: UUID; id: UUID }): Promise<NavMenuEntry> {
+  const menu = await repo.findById({ workspaceId, id });
+  if (!menu) throw new MenuNotFoundError({ message: `menu '${id}' was not found` });
+  return menu;
+}
+
+function assertMenuLive({ menu }: { menu: NavMenuEntry }): void {
+  assertEntityLive({ entityType: "menu", entityId: menu.id, state: menu.status === "trash" ? "trashed" : "live" });
+}
+
+/**
+ * Slugs are unique per workspace. `ownerId` is the menu being saved: its own row is not a conflict,
+ * which matters when a store's slug lookup is looser than an exact match (a NOCASE collation) and
+ * returns the menu itself for a slug that only differs by normalization.
+ */
+async function assertSlugAvailable(
+  { repo, workspaceId, slug }: { repo: MenuRepoPort; workspaceId: UUID; slug: string },
+  { ownerId }: { ownerId?: UUID | undefined } = {}
+): Promise<void> {
+  const duplicate = await repo.findBySlug({ workspaceId, slug });
+  if (duplicate && duplicate.id !== ownerId) {
+    throw new MenuConflictError({ message: `slug '${slug}' already exists` });
   }
 }
 
@@ -399,8 +438,7 @@ export async function createMenu(
   const slug = input.slug.trim().toLowerCase();
   assertValidTitleAndSlug(title, slug);
 
-  const duplicate = await deps.repo.findBySlug({ workspaceId: input.workspaceId, slug });
-  if (duplicate) throw new MenuConflictError({ message: `slug '${slug}' already exists` });
+  await assertSlugAvailable({ repo: deps.repo, workspaceId: input.workspaceId, slug });
 
   const items = validateAndCloneTree({ items: input.items ?? [] }, optional.limits);
   const htmlFields = menuHtmlFields({ input, normalizeHtml: deps.normalizeMenuHtml });
@@ -410,7 +448,7 @@ export async function createMenu(
     workspaceId: input.workspaceId,
     slug,
     title,
-    status: "published" as MenuStatus,
+    status: "published",
     doc: { type: NAV_DOC_TYPE, version: 1, items, ...htmlFields },
     locations: [],
     updatedAt: kernelNowIso({ clock: deps.clock }),
@@ -419,16 +457,13 @@ export async function createMenu(
 
   await deps.repo.save(menu);
 
-  await deps.outbox.enqueue(
-    buildEvent({
-      idGen: deps.idGen,
-      clock: deps.clock,
-      name: "navigation.menu.created",
-      workspaceId: menu.workspaceId,
-      aggregateId: menu.id,
-      payload: { menuId: menu.id, slug: menu.slug },
-    })
-  );
+  await enqueueEvent({
+    deps,
+    name: "navigation.menu.created",
+    workspaceId: menu.workspaceId,
+    aggregateId: menu.id,
+    payload: { menuId: menu.id, slug: menu.slug },
+  });
 
   return { menu };
 }
@@ -540,9 +575,8 @@ export async function updateMenuTree(
   optional: UpdateMenuTreeOptional = {}
 ): Promise<{ menu: NavMenuEntry }> {
   const { deps, input } = required;
-  const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
-  if (!existing) throw new MenuNotFoundError({ message: `menu '${input.id}' was not found` });
-  assertEntityLive({ entityType: "menu", entityId: input.id, state: existing.status === "trash" ? "trashed" : "live" });
+  const existing = await findMenuOrThrow({ repo: deps.repo, workspaceId: input.workspaceId, id: input.id });
+  assertMenuLive({ menu: existing });
   // The new record is built from this read, so a basis that differs from it must not reach the save:
   // it could match a version another writer lands after this read and overwrite that writer.
   if (existing.version !== input.expectedVersion) {
@@ -554,10 +588,7 @@ export async function updateMenuTree(
   assertValidTitleAndSlug(title, slug);
 
   if (slug !== existing.slug) {
-    const duplicate = await deps.repo.findBySlug({ workspaceId: input.workspaceId, slug });
-    if (duplicate && duplicate.id !== existing.id) {
-      throw new MenuConflictError({ message: `slug '${slug}' already exists` });
-    }
+    await assertSlugAvailable({ repo: deps.repo, workspaceId: input.workspaceId, slug }, { ownerId: existing.id });
   }
 
   const items = input.items === undefined ? existing.doc.items : carryForwardEntryHints({
@@ -581,16 +612,13 @@ export async function updateMenuTree(
   // the write alone let two editors that read the same version both land (wm S4).
   await deps.repo.save(menu, { expectedVersion: input.expectedVersion });
 
-  await deps.outbox.enqueue(
-    buildEvent({
-      idGen: deps.idGen,
-      clock: deps.clock,
-      name: "navigation.menu.updated",
-      workspaceId: menu.workspaceId,
-      aggregateId: menu.id,
-      payload: { menuId: menu.id, slug: menu.slug },
-    })
-  );
+  await enqueueEvent({
+    deps,
+    name: "navigation.menu.updated",
+    workspaceId: menu.workspaceId,
+    aggregateId: menu.id,
+    payload: { menuId: menu.id, slug: menu.slug },
+  });
 
   return { menu };
 }
@@ -651,9 +679,8 @@ export async function assignLocation(
   _optional: AssignLocationOptional = {}
 ): Promise<{ menu: NavMenuEntry; binding: NavLocationBindingRow; displacedMenu: NavMenuEntry | null }> {
   const { deps, input } = required;
-  const menu = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.menuId });
-  if (!menu) throw new MenuNotFoundError({ message: `menu '${input.menuId}' was not found` });
-  assertEntityLive({ entityType: "menu", entityId: input.menuId, state: menu.status === "trash" ? "trashed" : "live" });
+  const menu = await findMenuOrThrow({ repo: deps.repo, workspaceId: input.workspaceId, id: input.menuId });
+  assertMenuLive({ menu });
 
   const now = kernelNowIso({ clock: deps.clock });
 
@@ -700,28 +727,22 @@ export async function assignLocation(
     });
 
     if (displacedMenu) {
-      await deps.outbox.enqueue(
-        buildEvent({
-          idGen: deps.idGen,
-          clock: deps.clock,
-          name: "navigation.location.unassigned",
-          workspaceId: input.workspaceId,
-          aggregateId: displacedMenu.id,
-          payload: { locationKey: input.locationKey, menuId: displacedMenu.id },
-        })
-      );
+      await enqueueEvent({
+        deps,
+        name: "navigation.location.unassigned",
+        workspaceId: input.workspaceId,
+        aggregateId: displacedMenu.id,
+        payload: { locationKey: input.locationKey, menuId: displacedMenu.id },
+      });
     }
 
-    await deps.outbox.enqueue(
-      buildEvent({
-        idGen: deps.idGen,
-        clock: deps.clock,
-        name: "navigation.location.assigned",
-        workspaceId: input.workspaceId,
-        aggregateId: input.menuId,
-        payload: { locationKey: input.locationKey, menuId: input.menuId },
-      })
-    );
+    await enqueueEvent({
+      deps,
+      name: "navigation.location.assigned",
+      workspaceId: input.workspaceId,
+      aggregateId: input.menuId,
+      payload: { locationKey: input.locationKey, menuId: input.menuId },
+    });
 
     return { menu: updatedMenu, binding, displacedMenu };
   } });
@@ -777,28 +798,24 @@ export async function deleteMenu(
   _optional: DeleteMenuOptional = {}
 ): Promise<{ menu: NavMenuEntry | null; purged: boolean }> {
   const { deps, input } = required;
-  const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
-  if (!existing) throw new MenuNotFoundError({ message: `menu '${input.id}' was not found` });
+  const existing = await findMenuOrThrow({ repo: deps.repo, workspaceId: input.workspaceId, id: input.id });
 
   if (existing.status !== "trash") {
     const trashed: NavMenuEntry = {
       ...existing,
-      status: "trash" as MenuStatus,
+      status: "trash",
       updatedAt: kernelNowIso({ clock: deps.clock }),
       version: existing.version + 1,
     };
     await deps.repo.save(trashed);
 
-    await deps.outbox.enqueue(
-      buildEvent({
-        idGen: deps.idGen,
-        clock: deps.clock,
-        name: "navigation.menu.updated",
-        workspaceId: trashed.workspaceId,
-        aggregateId: trashed.id,
-        payload: { menuId: trashed.id, slug: trashed.slug },
-      })
-    );
+    await enqueueEvent({
+      deps,
+      name: "navigation.menu.updated",
+      workspaceId: trashed.workspaceId,
+      aggregateId: trashed.id,
+      payload: { menuId: trashed.id, slug: trashed.slug },
+    });
 
     return { menu: trashed, purged: false };
   }
@@ -817,16 +834,13 @@ export async function deleteMenu(
   await deps.repo.remove({ workspaceId: input.workspaceId, id: input.id });
   await deps.bindingRepo.removeByMenu({ workspaceId: input.workspaceId, menuId: input.id });
 
-  await deps.outbox.enqueue(
-    buildEvent({
-      idGen: deps.idGen,
-      clock: deps.clock,
-      name: "navigation.menu.deleted",
-      workspaceId: existing.workspaceId,
-      aggregateId: existing.id,
-      payload: { menuId: existing.id, slug: existing.slug },
-    })
-  );
+  await enqueueEvent({
+    deps,
+    name: "navigation.menu.deleted",
+    workspaceId: existing.workspaceId,
+    aggregateId: existing.id,
+    payload: { menuId: existing.id, slug: existing.slug },
+  });
 
   return { menu: null, purged: true };
 }
