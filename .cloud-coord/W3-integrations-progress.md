@@ -12,14 +12,20 @@ Branch: cloud/w3-integrations (base origin/general-work 6bdca722). Brief: origin
 - Base complexity (cyc/cog >10) over the 22 lot files: 45 eslint errors (/tmp/w3-integrations-coord/base-cx.txt).
 - Worktrees ../wt-<LOT> for L052a, L052b, L048, L129a, L129b; dist copied from main checkout.
 
+## Resume (run 3, coordinator #2) — 2026-10-20 06:17Z
+- Previous coordinator stopped ~05:46Z at the account usage limit; its subagents died. No lot branch (cloud/w3-integrations-*) existed on origin → every lot restarts from scratch.
+- Fresh container: Node v24.22.0 re-installed into ~/.local/node24 (PATH export per command), AI-Dev-Shop re-cloned, coordinator personas re-loaded (software-architect, code-inspection, security). install 21 s, `pnpm --no-bail -r build` 06:18:30→06:20:19 (integrations tsc fails on its tests only; dist emitted).
+- Base complexity re-measured: 45 errors (/tmp/w3-integrations-coord/base-cx-all.txt). eslint temp config: /tmp/w3-integrations-coord/cx.config.mjs (createRequire from repo root).
+- Worktrees recreated for L052a, L052b, L048, L129a, L129b; subagents re-dispatched ~06:25Z. L235 queued.
+
 ## Lot status
 | lot | status | subagent | commits | before→after worst cyc/cog | coverage | verify |
 |---|---|---|---|---|---|---|
-| L052a | dispatched | | | | | |
-| L052b | dispatched | | | | | |
-| L048 | dispatched | | | | | |
-| L129a | dispatched | | | | | |
-| L129b | dispatched | | | | | |
+| L052a | dispatched (run 3) | | | | | |
+| L052b | dispatched (run 3) | | | | | |
+| L048 | dispatched (run 3) | | | | | |
+| L129a | dispatched (run 3) | | | | | |
+| L129b | dispatched (run 3) | | | | | |
 | L235 | queued (starts when a slot frees) | | | | | |
 
 ## Findings (bugs / security) pinned
