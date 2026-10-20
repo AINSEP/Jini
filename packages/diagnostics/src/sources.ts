@@ -3,6 +3,7 @@ import type { DiagnosticsFilesystemPort, DiagnosticsSystemPort } from "./ports.j
 import type { CollectedFile } from "./types.js";
 export type { CollectedFile } from "./types.js";
 import { join } from "node:path";
+import { readDirectorySafe, statSafe } from "./discovery-filesystem.js";
 
 import { redactJsonText, redactText, type RedactionOptions } from "./redaction.js";
 
@@ -69,6 +70,31 @@ export interface CrashReportOptions {
   homeDir?: string;
 }
 
+type CrashReportCandidate = { absolutePath: string; mtimeMs: number; name: string };
+
+async function crashReportsInDirectory(
+  { dir, matches, cutoff, filesystem }: {
+    dir: string;
+    matches: string[];
+    cutoff: number;
+    filesystem: DiagnosticsFilesystemPort;
+  },
+  _options: Record<string, never> = {},
+): Promise<CrashReportCandidate[]> {
+  const entries = await readDirectorySafe({ path: dir, filesystem });
+  const found: CrashReportCandidate[] = [];
+  for (const { name: entry } of entries) {
+    const lower = entry.toLowerCase();
+    if (!matches.some((needle) => lower.includes(needle))) continue;
+    const absolutePath = join(dir, entry);
+    const info = await statSafe({ path: absolutePath, filesystem });
+    if (!info || !info.isFile) continue;
+    if (info.mtimeMs < cutoff) continue;
+    found.push({ absolutePath, mtimeMs: info.mtimeMs, name: entry });
+  }
+  return found;
+}
+
 /** Scans matching reports with an explicit platform, clock and filesystem. */
 export async function findMacOSCrashReports(
   { matchSubstrings, filesystem, clock, system }: CrashReportLookup & { filesystem: DiagnosticsFilesystemPort; clock: Clock; system: DiagnosticsSystemPort },
@@ -84,27 +110,10 @@ export async function findMacOSCrashReports(
   ];
   const matches = matchSubstrings.map((entry) => entry.toLowerCase());
 
-  const found: { absolutePath: string; mtimeMs: number; name: string }[] = [];
+  const found: CrashReportCandidate[] = [];
   for (const dir of dirs) {
-    let entries: Array<{ name: string; isDirectory: boolean }>;
-    try {
-      entries = await filesystem.readDirectory({ absolutePath: dir });
-    } catch {
-      continue;
-    }
-    for (const { name: entry } of entries) {
-      const lower = entry.toLowerCase();
-      if (!matches.some((needle) => lower.includes(needle))) continue;
-      const absolutePath = join(dir, entry);
-      try {
-        const info = await filesystem.stat({ absolutePath });
-        if (!info.isFile) continue;
-        if (info.mtimeMs < cutoff) continue;
-        found.push({ absolutePath, mtimeMs: info.mtimeMs, name: entry });
-      } catch {
-        continue;
-      }
-    }
+    const reports = await crashReportsInDirectory({ dir, matches, cutoff, filesystem });
+    for (const report of reports) found.push(report);
   }
 
   found.sort((a, b) => b.mtimeMs - a.mtimeMs);

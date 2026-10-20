@@ -27,19 +27,26 @@ export interface RedactionOptions {
   username?: string | undefined;
 }
 
+function redactJsonObject(
+  { value }: { value: object },
+  opts: RedactionOptions = {},
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (SENSITIVE_KEY_RE.test(key) && typeof raw === "string" && raw.length > 0) {
+      out[key] = REDACTED;
+    } else {
+      out[key] = redactJsonValue({ value: raw }, opts);
+    }
+  }
+  return out;
+}
+
 /** Returns a redacted copy; the required input value is separate from optional path policy. */
 export function redactJsonValue({ value }: { value: unknown }, opts: RedactionOptions = {}): unknown {
   if (Array.isArray(value)) return value.map((entry) => redactJsonValue({ value: entry }, opts));
   if (value !== null && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-      if (SENSITIVE_KEY_RE.test(key) && typeof raw === "string" && raw.length > 0) {
-        out[key] = REDACTED;
-      } else {
-        out[key] = redactJsonValue({ value: raw }, opts);
-      }
-    }
-    return out;
+    return redactJsonObject({ value }, opts);
   }
   if (typeof value === "string") return redactText({ text: value }, opts);
   return value;

@@ -2,6 +2,7 @@ import type { DiagnosticsFilesystemPort } from "./ports.js";
 import { join } from "node:path";
 
 import type { LogSource } from "./sources.js";
+import { readDirectorySafe, statSafe } from "./discovery-filesystem.js";
 
 const DEFAULT_RUN_EVENT_TAIL_BYTES = 2 * 1024 * 1024;
 const DEFAULT_MAX_RUN_EVENT_LOGS = 20;
@@ -13,15 +14,6 @@ const DEFAULT_AGENT_LOG_TAIL_BYTES = 2 * 1024 * 1024;
 const DEFAULT_MAX_FILES_PER_AGENT = 3;
 
 const SAFE_DIR_ENTRY = /^[A-Za-z0-9._-]+$/u;
-
-async function statSafe(path: string, filesystem: DiagnosticsFilesystemPort): Promise<{ mtimeMs: number; isFile: boolean } | null> {
-  try {
-    const info = await filesystem.stat({ absolutePath: path });
-    return { mtimeMs: info.mtimeMs, isFile: info.isFile };
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Collect the most-recent per-run event logs (`<runsDir>/<runId>/events.jsonl`).
@@ -39,19 +31,14 @@ export async function buildRunEventLogSources(
   const maxRuns = options.maxRuns ?? DEFAULT_MAX_RUN_EVENT_LOGS;
   const tailBytes = options.tailBytes ?? DEFAULT_RUN_EVENT_TAIL_BYTES;
 
-  let entries;
-  try {
-    entries = await filesystem.readDirectory({ absolutePath: runsDir });
-  } catch {
-    return [];
-  }
+  const entries = await readDirectorySafe({ path: runsDir, filesystem });
 
   const candidates: Array<{ runId: string; absolutePath: string; mtimeMs: number }> = [];
   for (const entry of entries) {
     if (!entry.isDirectory) continue;
     if (!SAFE_DIR_ENTRY.test(entry.name)) continue;
     const absolutePath = join(runsDir, entry.name, "events.jsonl");
-    const info = await statSafe(absolutePath, filesystem);
+    const info = await statSafe({ path: absolutePath, filesystem });
     if (!info || !info.isFile) continue;
     candidates.push({ runId: entry.name, absolutePath, mtimeMs: info.mtimeMs });
   }
@@ -70,18 +57,13 @@ async function latestLogFilesIn(
   max: number,
   filesystem: DiagnosticsFilesystemPort,
 ): Promise<Array<{ name: string; absolutePath: string }>> {
-  let names: Array<{ name: string; isDirectory: boolean }>;
-  try {
-    names = await filesystem.readDirectory({ absolutePath: dir });
-  } catch {
-    return [];
-  }
+  const names = await readDirectorySafe({ path: dir, filesystem });
   const candidates: Array<{ name: string; absolutePath: string; mtimeMs: number }> = [];
   for (const { name } of names) {
     if (!name.endsWith(".log")) continue;
     if (!SAFE_DIR_ENTRY.test(name)) continue;
     const absolutePath = join(dir, name);
-    const info = await statSafe(absolutePath, filesystem);
+    const info = await statSafe({ path: absolutePath, filesystem });
     if (!info || !info.isFile) continue;
     candidates.push({ name, absolutePath, mtimeMs: info.mtimeMs });
   }
@@ -117,6 +99,58 @@ export interface AgentCliLogOptions {
   tailBytes?: number;
 }
 
+function standardAgentLogDirectories(
+  { home }: { home: string },
+  options: AgentCliLogOptions = {},
+): Array<{ agent: string; dir: string }> {
+  const xdg = options.xdgDataHome?.trim();
+  const openCodeUserLogDir = xdg
+    ? join(xdg, "opencode", "log")
+    : join(home, ".local", "share", "opencode", "log");
+
+  // Effective CLI homes honor the user's app-config overrides
+  // (`CLAUDE_CONFIG_DIR` / `CODEX_HOME`), falling back to the defaults — the
+  // same fix as the AMR-style runtime's `OPENCODE_TEST_HOME` so relocated
+  // homes are not missed.
+  const claudeDir = options.claudeConfigDir?.trim() || join(home, ".claude");
+  const codexHome = options.codexHome?.trim() || join(home, ".codex");
+
+  // Per-agent log directories. `*.log` only; secret files (auth.json,
+  // config.json) live outside these dirs and are never swept.
+  return [
+    // Claude Code operational logs (bash-commands / cost-tracker / daemon).
+    { agent: "claude", dir: claudeDir },
+    // Codex tracing logs (codex-tui.log can be very large — tail-bounded).
+    { agent: "codex", dir: join(codexHome, "log") },
+    // OpenCode session logs (provider errors live here in headless mode).
+    { agent: "opencode", dir: openCodeUserLogDir },
+  ];
+}
+
+function agentLogDirectories(
+  { home }: { home: string },
+  options: AgentCliLogOptions = {},
+): Array<{ agent: string; dir: string }> {
+  const agentDirs = standardAgentLogDirectories({ home }, options);
+  // An AMR-style runtime drives a private OpenCode under OPENCODE_TEST_HOME;
+  // its session logs land under that home's XDG data dir, where provider
+  // failures are recorded. Prefer the effective home a real run resolves
+  // (honoring a user override) and fall back to the default
+  // `<dataDir>/amr/opencode-home` so the bundle does not silently drop the
+  // very logs this is meant to surface.
+  const amrHome = options.amrOpenCodeHome?.trim();
+  const dataDir = options.dataDir?.trim();
+  const amrOpenCodeHome = amrHome || (dataDir ? join(dataDir, "amr", "opencode-home") : "");
+  if (amrOpenCodeHome) {
+    agentDirs.push({
+      agent: "amr",
+      dir: join(amrOpenCodeHome, ".local", "share", "opencode", "log"),
+    });
+  }
+
+  return agentDirs;
+}
+
 /**
  * Collect the native on-disk logs of the coding-agent CLIs a host application
  * drives: Claude Code, Codex, OpenCode, and an AMR-style OpenCode runtime.
@@ -138,44 +172,7 @@ export async function buildAgentCliLogSources(
   const maxFiles = options.maxFilesPerAgent ?? DEFAULT_MAX_FILES_PER_AGENT;
   const tailBytes = options.tailBytes ?? DEFAULT_AGENT_LOG_TAIL_BYTES;
 
-  const xdg = options.xdgDataHome?.trim();
-  const openCodeUserLogDir = xdg
-    ? join(xdg, "opencode", "log")
-    : join(home, ".local", "share", "opencode", "log");
-
-  // Effective CLI homes honor the user's app-config overrides
-  // (`CLAUDE_CONFIG_DIR` / `CODEX_HOME`), falling back to the defaults — the
-  // same fix as the AMR-style runtime's `OPENCODE_TEST_HOME` so relocated
-  // homes are not missed.
-  const claudeDir = options.claudeConfigDir?.trim() || join(home, ".claude");
-  const codexHome = options.codexHome?.trim() || join(home, ".codex");
-
-  // Per-agent log directories. `*.log` only; secret files (auth.json,
-  // config.json) live outside these dirs and are never swept.
-  const agentDirs: Array<{ agent: string; dir: string }> = [
-    // Claude Code operational logs (bash-commands / cost-tracker / daemon).
-    { agent: "claude", dir: claudeDir },
-    // Codex tracing logs (codex-tui.log can be very large — tail-bounded).
-    { agent: "codex", dir: join(codexHome, "log") },
-    // OpenCode session logs (provider errors live here in headless mode).
-    { agent: "opencode", dir: openCodeUserLogDir },
-  ];
-
-  // An AMR-style runtime drives a private OpenCode under OPENCODE_TEST_HOME;
-  // its session logs land under that home's XDG data dir, where provider
-  // failures are recorded. Prefer the effective home a real run resolves
-  // (honoring a user override) and fall back to the default
-  // `<dataDir>/amr/opencode-home` so the bundle does not silently drop the
-  // very logs this is meant to surface.
-  const amrHome = options.amrOpenCodeHome?.trim();
-  const dataDir = options.dataDir?.trim();
-  const amrOpenCodeHome = amrHome || (dataDir ? join(dataDir, "amr", "opencode-home") : "");
-  if (amrOpenCodeHome) {
-    agentDirs.push({
-      agent: "amr",
-      dir: join(amrOpenCodeHome, ".local", "share", "opencode", "log"),
-    });
-  }
+  const agentDirs = agentLogDirectories({ home }, options);
 
   const sources: LogSource[] = [];
   for (const { agent, dir } of agentDirs) {
