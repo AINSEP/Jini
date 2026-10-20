@@ -297,6 +297,16 @@ describe("post-content media context", () => {
     expect(Object.keys(props.mediaAssetMetadata as object)).toEqual(["a1"]);
   });
 
+  it("omits metadata for an asset id with no media record", async () => {
+    const props = await resolveBody({ type: "doc", content: [{ type: "media", attrs: { assetId: "a1" } }, { type: "media", attrs: { assetId: "nope" } }] });
+    expect(Object.keys(props.mediaAssetMetadata as object)).toEqual(["a1"]);
+  });
+
+  it("resolves no transform versions when the public transform is not registered", async () => {
+    const props = await resolveBody({ type: "doc", content: [{ type: "media", attrs: { assetId: "a1" } }] }, { transformRepo: new InMemoryTransformDefinitionRepo({}) });
+    expect(props.mediaTransformVersions).toEqual({});
+  });
+
   it("records the stored content type of each found asset", async () => {
     const props = await resolveBody({ type: "doc", content: [{ type: "media", attrs: { assetId: "a1" } }] }, { mediaContentTypeStore: contentTypes({ "sha-a1": "video/mp4" }) });
     expect((props.mediaAssetMetadata as Record<string, JsonObject>).a1!.contentType).toBe("video/mp4");
@@ -607,5 +617,55 @@ describe("inline media content embeds", () => {
   it("returns ordinary and inline media results together", async () => {
     const resolved = await media([ref({ id: "a1" }), ref({ id: "m1", config: { content: items } })], deps());
     expect([...resolved.keys()]).toEqual(["a1", "m1"]);
+  });
+});
+
+describe("post embed resolution", () => {
+  const postEmbed = (refs: PageHtmlEmbedRef[], d: ResolveHtmlPageEmbedsDeps) => HTML_EMBED_RESOLVERS.post!(refs, d, CTX);
+  const emptyContext = { mediaTransformVersions: {}, mediaAssetMetadata: {}, inlineWidgets: {} };
+
+  it("renders a published post found by id as post-content", async () => {
+    const resolved = await postEmbed([ref({ type: "post", id: "post-1" })], deps({ postRepo, host: hostPorts([post({ publishAt: "2026-02-02T00:00:00.000Z" })]) }));
+    expect(resolved.get("post-1")).toEqual({
+      componentId: "post-content",
+      props: { title: "Hello", slug: "hello", updatedAt: "2026-02-01T00:00:00.000Z", publishAt: "2026-02-02T00:00:00.000Z", bodyJson: { type: "doc", content: [] }, ...emptyContext },
+    });
+  });
+
+  it("finds a slug-only reference by slug and defaults an absent publishAt to null", async () => {
+    const resolved = await postEmbed([ref({ type: "post", slug: "hello" })], deps({ postRepo, host: hostPorts([post()]) }));
+    expect(resolved.get("hello")!.props).toMatchObject({ title: "Hello", publishAt: null });
+  });
+
+  it("resolves the post body's own media and inline widgets", async () => {
+    const entryRepo = await entryRepoWith([widgetRow("w1", { body: "one" })]);
+    const bodyJson = { type: "doc", content: [{ type: "media", attrs: { assetId: "a1" } }, embedNode("p1", "w1")] };
+    const resolved = await postEmbed([ref({ type: "post", id: "post-1" })], deps({ entryRepo, postRepo, host: hostPorts([post({ bodyJson })]) }));
+    const props = resolved.get("post-1")!.props;
+    expect(props.mediaTransformVersions).toEqual({ public: 3 });
+    expect(props.inlineWidgets).toEqual({ p1: { componentId: "text", props: { body: "one" } } });
+  });
+
+  it("refuses a reference with neither id nor slug", async () => {
+    expect((await postEmbed([ref({ type: "post" })], deps({ postRepo }))).size).toBe(0);
+    expect(warnedWith('[widgets] resolveHtmlPageEmbeds: unresolved "post" reference — missing or invalid "id"/"slug" in data-embed-config')).toBe(true);
+  });
+
+  it("degrades an unpublished or missing post", async () => {
+    expect((await postEmbed([ref({ type: "post", id: "missing" })], deps({ postRepo }))).size).toBe(0);
+    expect(warn).toHaveBeenCalledWith('[widgets] resolveHtmlPageEmbeds: unresolved "post" reference — no such published post', { workspaceId: WS, postId: "missing" });
+  });
+
+  it("degrades every reference when no post repository is supplied", async () => {
+    expect((await postEmbed([ref({ type: "post", id: "post-1" })], deps())).size).toBe(0);
+    expect(warn).toHaveBeenCalledWith(
+      '[widgets] resolveHtmlPageEmbeds: "post" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder',
+      { workspaceId: WS, occurrences: 1 },
+    );
+  });
+
+  it("stays silent without a post repository when there are no references", async () => {
+    expect((await postEmbed([], deps())).size).toBe(0);
+    expect(warn).not.toHaveBeenCalled();
   });
 });
