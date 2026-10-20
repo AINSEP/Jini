@@ -1,6 +1,20 @@
-import type { AdminFormsPort, AdminFormDefinition, AdminFormSubmission } from '../../core/ports/forms.js';
+import type { AdminFormsPort, AdminFormDefinition, AdminFormSubmission, AdminFormUpdatePatch } from '../../core/ports/forms.js';
 import { AdminApiError } from '../../core/transport/errors.js';
 import type { FormsTrashPort } from '../ports.js';
+// The contract excludes slug; runtime callers cannot smuggle it through a cast either.
+const PATCHABLE_KEYS = ['name', 'fields', 'notify', 'status', 'mode', 'html'] as const;
+/** The allowlisted patch keys the caller actually supplied (an explicit `undefined` is not a value). */
+function suppliedPatch(patch: AdminFormUpdatePatch): AdminFormUpdatePatch {
+  return Object.fromEntries(PATCHABLE_KEYS.filter(key => patch[key] !== undefined).map(key => [key, patch[key]]));
+}
+/** The core contract's add/edit-only invariant: a fields replacement must keep every current id. */
+function assertNoFieldRemoved({ current, patch }: { current: AdminFormDefinition; patch: AdminFormUpdatePatch }): void {
+  if (!patch.fields) return;
+  const incomingIds = new Set(patch.fields.map(field => field.id));
+  if (current.fields.some(field => !incomingIds.has(field.id))) {
+    throw new AdminApiError({ message: 'existing form fields cannot be removed', status: 400 }, { code: 'FORMS_FIELD_VALIDATION_ERROR' });
+  }
+}
 /** A scoped, deterministic in-memory API with the core contract's add/edit-only invariant. */
 export function createMemoryFormsApi(
   _required: Record<string, never> = {},
@@ -12,17 +26,19 @@ export function createMemoryFormsApi(
   const definitions = structuredClone([...forms]);
   const answers = structuredClone([...submissions]);
   let sequence = definitions.length;
-  const missing = (id: string): never => { throw new AdminApiError({ message: `form definition '${id}' was not found`, status: 404 }); };
+  const missing = (id: string, { kind = 'form definition' }: { kind?: 'form definition' | 'form submission' } = {}): never => {
+    throw new AdminApiError({ message: `${kind} '${id}' was not found`, status: 404 });
+  };
   const find = (id: string) => definitions.find(form => form.slug === id) ?? definitions.find(form => form.id === id) ?? missing(id);
   const definitionId = (id: string) => definitions.find(form => form.slug === id)?.id ?? id;
   const findSubmission = (formId: string, id: string) => {
     const resolvedId = definitionId(formId);
-    return answers.find(item => item.id === id && item.formDefinitionId === resolvedId && item.status !== 'trash') ?? missing(id);
+    return answers.find(item => item.id === id && item.formDefinitionId === resolvedId && item.status !== 'trash') ?? missing(id, { kind: 'form submission' });
   };
   const remove = (type: 'form' | 'form_submission', id: string) => {
     const rows = type === 'form' ? definitions : answers;
     const index = rows.findIndex(row => row.id === id);
-    if (index < 0) missing(id);
+    if (index < 0) missing(id, { kind: type === 'form' ? 'form definition' : 'form submission' });
     // The fixture retains submission payloads just as the generic Trash owner does. Definitions
     // keep their existing separate fixture projection; the core has no definition-delete method.
     if (type === 'form_submission') answers[index] = { ...answers[index]!, status: 'trash' };
@@ -43,14 +59,8 @@ export function createMemoryFormsApi(
     },
     async updateFormDefinition({ id }, patch = {}) {
       const current = definitions.find(form => form.id === id) ?? missing(id);
-      const incomingIds = patch.fields ? new Set(patch.fields.map(field => field.id)) : null;
-      if (incomingIds && current.fields.some(field => !incomingIds.has(field.id))) {
-        throw new AdminApiError({ message: 'existing form fields cannot be removed', status: 400 }, { code: 'FORMS_FIELD_VALIDATION_ERROR' });
-      }
-      // The contract excludes slug; runtime callers cannot smuggle it through a cast either.
-      const { name, fields, notify, status, mode, html } = patch;
-      const applied = { ...(name !== undefined ? { name } : {}), ...(fields !== undefined ? { fields } : {}), ...(notify !== undefined ? { notify } : {}), ...(status !== undefined ? { status } : {}), ...(mode !== undefined ? { mode } : {}), ...(html !== undefined ? { html } : {}) };
-      const updated = { ...current, ...structuredClone(applied), updatedAt: now() };
+      assertNoFieldRemoved({ current, patch });
+      const updated = { ...current, ...structuredClone(suppliedPatch(patch)), updatedAt: now() };
       definitions[definitions.indexOf(current)] = updated;
       return structuredClone(updated);
     },
