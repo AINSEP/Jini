@@ -39,6 +39,49 @@ export function createRolesController({ api }: {
     const roleGate = (r: RoleRecord | undefined) => gate() && !!r && (mutableRole({ role: r }) || (set({ rowError: m.immutable }), false));
     const policyGate = (p: PolicyRecord | undefined) => gate() && !!p && (mutablePolicy({ policy: p }) || (set({ rowError: m.immutable }), false));
     const rows = <T extends object>(items: T[]): readonly T[] => Object.freeze(items.map(r => Object.freeze({ ...r })));
+    /** Shared settle path for the two create forms: each owns its own busy flag and error slot. */
+    async function formWrite({ saving, error: errorKey, fallback, run }: {
+        saving: 'roleSaving' | 'policySaving';
+        error: 'roleError' | 'policyError';
+        fallback: string;
+        run: () => Promise<void>;
+    }) {
+        set({ [saving]: true, [errorKey]: null });
+        let saved = false;
+        try {
+            await run();
+            await load({});
+            saved = !disposed;
+        }
+        catch (error) {
+            set({ [errorKey]: report(error, fallback) });
+        }
+        finally {
+            set({ [saving]: false });
+        }
+        return saved;
+    }
+    /** Shared settle path for row writes (rename, policy edit, permission grant). */
+    async function rowWrite({ id, fallback, run }: {
+        id: string;
+        fallback: string;
+        run: () => Promise<void>;
+    }) {
+        set({ rowSavingId: id, rowError: null });
+        let saved = false;
+        try {
+            await run();
+            saved = !disposed;
+        }
+        catch (error) {
+            set({ rowError: report(error, fallback) });
+        }
+        finally {
+            if (state.rowSavingId === id)
+                set({ rowSavingId: null });
+        }
+        return saved;
+    }
     async function load(_required: Record<string, never>, _optional: Record<string, never> = {}) {
         if (disposed)
             return;
@@ -93,41 +136,21 @@ export function createRolesController({ api }: {
         if (!gate() || state.roleSaving)
             return false;
         const name = state.roleName;
-        set({ roleSaving: true, roleError: null });
-        try {
-            await api.createRole({ name }, call);
-            if (state.roleName === name)
-                set({ roleName: '' });
-            await load({});
-            return !disposed;
-        }
-        catch (error) {
-            set({ roleError: report(error, 'Failed to create role.') });
-            return false;
-        }
-        finally {
-            set({ roleSaving: false });
-        }
+        return formWrite({ saving: 'roleSaving', error: 'roleError', fallback: 'Failed to create role.', run: async () => {
+                await api.createRole({ name }, call);
+                if (state.roleName === name)
+                    set({ roleName: '' });
+            } });
     }
     async function createPolicy(_required: Record<string, never>, _optional: Record<string, never> = {}) {
         if (!gate() || state.policySaving)
             return false;
         const name = state.policyName, description = state.policyDescription;
-        set({ policySaving: true, policyError: null });
-        try {
-            await api.createPolicy({ name }, { ...call, ...(description ? { description } : {}) });
-            if (state.policyName === name && state.policyDescription === description)
-                set({ policyName: '', policyDescription: '' });
-            await load({});
-            return !disposed;
-        }
-        catch (error) {
-            set({ policyError: report(error, 'Failed to create policy.') });
-            return false;
-        }
-        finally {
-            set({ policySaving: false });
-        }
+        return formWrite({ saving: 'policySaving', error: 'policyError', fallback: 'Failed to create policy.', run: async () => {
+                await api.createPolicy({ name }, { ...call, ...(description ? { description } : {}) });
+                if (state.policyName === name && state.policyDescription === description)
+                    set({ policyName: '', policyDescription: '' });
+            } });
     }
     function editRole({ role: r }: {
         role: RoleRecord;
@@ -141,74 +164,51 @@ export function createRolesController({ api }: {
         const id = state.editingRoleId, name = state.editingRoleName;
         if (!id || !roleGate(role(id)) || state.rowSavingId)
             return false;
-        set({ rowSavingId: id, rowError: null });
-        try {
-            await api.updateRole({ roleId: id, name }, call);
-            // A late save must not close another row's newer edit.
-            if (state.editingRoleId === id && state.editingRoleName === name)
-                set({ editingRoleId: null });
-            await load({});
-            return !disposed;
-        }
-        catch (error) {
-            set({ rowError: report(error, 'Failed to rename role.') });
-            return false;
-        }
-        finally {
-            if (state.rowSavingId === id)
-                set({ rowSavingId: null });
-        }
+        return rowWrite({ id, fallback: 'Failed to rename role.', run: async () => {
+                await api.updateRole({ roleId: id, name }, call);
+                // A late save must not close another row's newer edit.
+                if (state.editingRoleId === id && state.editingRoleName === name)
+                    set({ editingRoleId: null });
+                await load({});
+            } });
     }
     async function savePolicy(_required: Record<string, never>, _optional: Record<string, never> = {}) {
         const id = state.editingPolicyId, name = state.editingPolicyName, description = state.editingPolicyDescription;
         if (!id || !policyGate(policy(id)) || state.rowSavingId)
             return false;
-        set({ rowSavingId: id, rowError: null });
-        try {
-            await api.updatePolicy({ policyId: id }, { ...call, name, description });
-            if (state.editingPolicyId === id && state.editingPolicyName === name && state.editingPolicyDescription === description)
-                set({ editingPolicyId: null });
-            await load({});
-            return !disposed;
-        }
-        catch (error) {
-            set({ rowError: report(error, 'Failed to update policy.') });
-            return false;
-        }
-        finally {
-            if (state.rowSavingId === id)
-                set({ rowSavingId: null });
-        }
+        return rowWrite({ id, fallback: 'Failed to update policy.', run: async () => {
+                await api.updatePolicy({ policyId: id }, { ...call, name, description });
+                if (state.editingPolicyId === id && state.editingPolicyName === name && state.editingPolicyDescription === description)
+                    set({ editingPolicyId: null });
+                await load({});
+            } });
     }
     async function writePermission(_required: Record<string, never>, _optional: Record<string, never> = {}) {
         const id = state.permissionPolicyId, permission = state.permissionInput, resourceType = state.resourceTypeInput;
         if (!id || !permission || !policyGate(policy(id)) || state.rowSavingId)
             return false;
         const generation = panelGeneration;
-        set({ rowSavingId: id, rowError: null });
-        try {
-            await api.writePolicyPermission({ policyId: id, permission }, { ...call, ...(resourceType ? { resourceType } : {}) });
-            // Ordering alone cannot protect a trailing refresh: it always mints the newest generation.
-            // Check the CURRENT panel identity, and preserve a newer draft even on the same panel.
-            if (generation === panelGeneration && state.permissionInput === permission && state.resourceTypeInput === resourceType)
-                set({ permissionInput: '', resourceTypeInput: '' });
-            if (state.permissionPolicyId === id)
-                await loadPermissions({ policyId: id });
-            return !disposed;
-        }
-        catch (error) {
-            set({ rowError: report(error, 'Failed to add permission.') });
-            return false;
-        }
-        finally {
-            if (state.rowSavingId === id)
-                set({ rowSavingId: null });
-        }
+        return rowWrite({ id, fallback: 'Failed to add permission.', run: async () => {
+                await api.writePolicyPermission({ policyId: id, permission }, { ...call, ...(resourceType ? { resourceType } : {}) });
+                // Ordering alone cannot protect a trailing refresh: it always mints the newest generation.
+                // Check the CURRENT panel identity, and preserve a newer draft even on the same panel.
+                if (generation === panelGeneration && state.permissionInput === permission && state.resourceTypeInput === resourceType)
+                    set({ permissionInput: '', resourceTypeInput: '' });
+                if (state.permissionPolicyId === id)
+                    await loadPermissions({ policyId: id });
+            } });
     }
     function targetGate(target: DestructiveTarget): boolean {
         if (target.kind === 'role')
             return roleGate(role(target.role.id));
         return policyGate(policy(target.kind === 'policy' ? target.policy.id : target.policyId));
+    }
+    function capture(target: DestructiveTarget): DestructiveTarget {
+        if (target.kind === 'role')
+            return Object.freeze({ kind: 'role', role: Object.freeze({ ...target.role }) });
+        if (target.kind === 'policy')
+            return Object.freeze({ kind: 'policy', policy: Object.freeze({ ...target.policy }) });
+        return Object.freeze({ kind: 'permission', policyId: target.policyId, row: Object.freeze({ ...target.row }) });
     }
     function requestDestructive({ target }: {
         target: DestructiveTarget;
@@ -219,36 +219,38 @@ export function createRolesController({ api }: {
             return;
         // The menu closes after one click; shell confirmation survives that closure. Revoke also
         // needs confirmation: removing from an attached policy immediately changes live authority.
-        const captured: DestructiveTarget = target.kind === 'role' ? Object.freeze({ kind: 'role', role: Object.freeze({ ...target.role }) }) : target.kind === 'policy' ? Object.freeze({ kind: 'policy', policy: Object.freeze({ ...target.policy }) }) : Object.freeze({ kind: 'permission', policyId: target.policyId, row: Object.freeze({ ...target.row }) });
-        set({ pending: captured, rowError: null });
+        set({ pending: capture(target), rowError: null });
     }
     function cancelDestructive(_required: Record<string, never>, _optional: Record<string, never> = {}) { if (!state.confirming)
         set({ pending: null }); }
+    async function destroy(target: DestructiveTarget) {
+        if (target.kind === 'role') {
+            await api.deleteRole({ roleId: target.role.id }, call);
+            await load({});
+        }
+        else if (target.kind === 'policy') {
+            await api.deletePolicy({ policyId: target.policy.id }, call);
+            if (state.permissionPolicyId === target.policy.id) {
+                ++permissionGeneration;
+                ++panelGeneration;
+                set({ permissionPolicyId: null, permissionRows: [], permissionsLoading: false });
+            }
+            await load({});
+        }
+        else {
+            set({ removingPermissionId: target.row.id });
+            await api.removePolicyPermission({ policyId: target.policyId, policyPermissionId: target.row.id }, call);
+            if (state.permissionPolicyId === target.policyId)
+                await loadPermissions({ policyId: target.policyId });
+        }
+    }
     async function confirmDestructive(_required: Record<string, never>, _optional: Record<string, never> = {}) {
         const target = state.pending;
         if (!target || state.confirming || state.rowSavingId || !targetGate(target))
             return false;
         set({ confirming: true, rowError: null });
         try {
-            if (target.kind === 'role') {
-                await api.deleteRole({ roleId: target.role.id }, call);
-                await load({});
-            }
-            else if (target.kind === 'policy') {
-                await api.deletePolicy({ policyId: target.policy.id }, call);
-                if (state.permissionPolicyId === target.policy.id) {
-                    ++permissionGeneration;
-                    ++panelGeneration;
-                    set({ permissionPolicyId: null, permissionRows: [], permissionsLoading: false });
-                }
-                await load({});
-            }
-            else {
-                set({ removingPermissionId: target.row.id });
-                await api.removePolicyPermission({ policyId: target.policyId, policyPermissionId: target.row.id }, call);
-                if (state.permissionPolicyId === target.policyId)
-                    await loadPermissions({ policyId: target.policyId });
-            }
+            await destroy(target);
             return !disposed;
         }
         catch (error) {

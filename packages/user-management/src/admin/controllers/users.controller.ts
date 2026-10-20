@@ -75,12 +75,14 @@ export function createUsersController({ api, safety }: { api: UsersApiPort; safe
   async function createUser(_required: Record<string, never>, _optional: Record<string, never> = {}) {
     const s = read({}); if (!store.active({}) || s.saving || s.confirming || !hasAdminGrant({ permissions: grants, permission: 'user.manage' })) return false;
     const draft = draftGeneration; set({ saving: true, formError: null });
+    let created = false;
     try {
       await api.createUser({ username: s.username, password: s.password }, { ...call, ...(s.email ? { email: s.email } : {}) });
       if (draft === draftGeneration) set({ username: '', email: '', password: '', formOpen: false });
-      await load({}); return store.active({});
-    } catch (error) { set({ formError: report(error, 'failed to create user') }); return false; }
+      await load({}); created = store.active({});
+    } catch (error) { set({ formError: report(error, 'failed to create user') }); }
     finally { set({ saving: false }); }
+    return created;
   }
   function toggleExpanded({ principalId }: { principalId: string }, _optional: Record<string, never> = {}) {
     if (!store.active({}) || !row(principalId)) return;
@@ -88,20 +90,37 @@ export function createUsersController({ api, safety }: { api: UsersApiPort; safe
     // A stale grant cannot clear a newer panel's selection or busy flag. Reset on switching.
     set({ expandedId: read({}).expandedId === principalId ? null : principalId, editEmail: row(principalId)!.email ?? '', pendingRoleId: '', pendingPolicyId: '', grantError: null, grantSaving: false });
   }
+  /** Per-kind panel writes: the authority checked, the selection that must be present, the call,
+   * and the selection cleared on success (email keeps its field, but still notifies). */
+  const panelWrites: Readonly<Record<'email' | 'role' | 'policy', {
+    action: UserAction; fallback: string; cleared: Partial<UsersState>;
+    missing: (s: Readonly<UsersState>) => boolean; write: (principalId: string, s: Readonly<UsersState>) => Promise<unknown>;
+  }>> = {
+    email: { action: 'email', fallback: 'failed to update email', cleared: {}, missing: () => false,
+      write: (principalId, s) => api.updateUser({ principalId }, { ...call, email: s.editEmail }) },
+    role: { action: 'grants', fallback: 'failed to assign role', cleared: { pendingRoleId: '' }, missing: s => !s.pendingRoleId,
+      write: (principalId, s) => api.assignRole({ principalId, roleId: s.pendingRoleId }, call) },
+    policy: { action: 'grants', fallback: 'failed to attach policy', cleared: { pendingPolicyId: '' }, missing: s => !s.pendingPolicyId,
+      write: (principalId, s) => api.attachPolicy({ principalId, policyId: s.pendingPolicyId }, call) },
+  };
+  type PanelWrite = (typeof panelWrites)[keyof typeof panelWrites];
+  /** Busy, expanded-row and authority checks run before the selection check, so only a refusal of authority reports. */
+  function panelSavable(s: Readonly<UsersState>, principalId: string, panel: PanelWrite) {
+    return !s.grantSaving && s.expandedId === principalId && gate(principalId, panel.action) && !panel.missing(s);
+  }
   async function savePanel({ principalId, kind }: { principalId: string; kind: 'email' | 'role' | 'policy' }, _optional: Record<string, never> = {}) {
-    const s = read({}), action = kind === 'email' ? 'email' : 'grants';
-    if (s.grantSaving || s.expandedId !== principalId || !gate(principalId, action)) return false;
-    if ((kind === 'role' && !s.pendingRoleId) || (kind === 'policy' && !s.pendingPolicyId)) return false;
+    const s = read({}), panel = panelWrites[kind];
+    if (!panelSavable(s, principalId, panel)) return false;
     const generation = panelGeneration, draft = draftGeneration;
     set({ grantSaving: true, grantError: null });
+    let saved = false;
     try {
-      if (kind === 'email') await api.updateUser({ principalId }, { ...call, email: s.editEmail });
-      else if (kind === 'role') await api.assignRole({ principalId, roleId: s.pendingRoleId }, call);
-      else await api.attachPolicy({ principalId, policyId: s.pendingPolicyId }, call);
-      if (generation === panelGeneration && draft === draftGeneration) set(kind === 'role' ? { pendingRoleId: '' } : kind === 'policy' ? { pendingPolicyId: '' } : {});
-      await load({}); return store.active({});
-    } catch (error) { if (generation === panelGeneration) set({ grantError: report(error, `failed to ${kind === 'email' ? 'update email' : kind === 'role' ? 'assign role' : 'attach policy'}`) }); return false; }
+      await panel.write(principalId, s);
+      if (generation === panelGeneration && draft === draftGeneration) set(panel.cleared);
+      await load({}); saved = store.active({});
+    } catch (error) { if (generation === panelGeneration) set({ grantError: report(error, panel.fallback) }); }
     finally { if (generation === panelGeneration) set({ grantSaving: false }); }
+    return saved;
   }
   async function enableUser({ principalId }: { principalId: string }, _optional: Record<string, never> = {}) {
     if (read({}).rowSavingId || !gate(principalId, 'enable')) return false;
@@ -110,28 +129,40 @@ export function createUsersController({ api, safety }: { api: UsersApiPort; safe
     catch (error) { set({ rowError: report(error, 'failed to change status') }); return false; }
     finally { if (read({}).rowSavingId === principalId) set({ rowSavingId: null }); }
   }
+  type Pending = NonNullable<UsersState['pending']>;
+  /** The pending target when it may be confirmed now; a reset also needs a matching, non-empty pair. */
+  function confirmable(s: Readonly<UsersState>): Pending | null {
+    const target = s.pending;
+    if (!target || s.confirming || s.rowSavingId || !gate(target.user.principalId, target.kind)) return null;
+    if (target.kind === 'reset' && (!s.newPassword || s.newPassword !== s.confirmPassword)) return null;
+    return target;
+  }
+  async function destroy(target: Pending, s: Readonly<UsersState>) {
+    const principalId = target.user.principalId;
+    if (target.kind === 'reset') {
+      await api.resetUserPassword({ principalId, password: s.newPassword }, call);
+      set({ notice: principalId === s.caller?.user.id ? 'Password changed. Sign in again with your new password.' : `Password reset for "${target.user.username}" — every active session for this user was revoked.` });
+      return;
+    }
+    if (target.kind === 'disable') await api.disableUser({ principalId }, call); else await api.deleteUser({ principalId }, call);
+    await load({});
+  }
   async function confirmDestructive(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-    const s = read({}), target = s.pending;
-    if (!target || s.confirming || s.rowSavingId || !gate(target.user.principalId, target.kind)) return false;
-    if (target.kind === 'reset' && (!s.newPassword || s.newPassword !== s.confirmPassword)) return false;
-    set({ confirming: true, rowError: null, passwordError: null }); let success = false;
+    const s = read({}), target = confirmable(s);
+    if (!target) return false;
+    set({ confirming: true, rowError: null, passwordError: null }); let success = false, live = false;
     try {
-      const principalId = target.user.principalId;
-      if (target.kind === 'reset') {
-        await api.resetUserPassword({ principalId, password: s.newPassword }, call);
-        set({ notice: principalId === s.caller?.user.id ? 'Password changed. Sign in again with your new password.' : `Password reset for "${target.user.username}" — every active session for this user was revoked.` });
-      } else {
-        if (target.kind === 'disable') await api.disableUser({ principalId }, call); else await api.deleteUser({ principalId }, call);
-        await load({});
-      }
-      success = true; return store.active({});
+      await destroy(target, s);
+      // Read liveness before the close below: its host callback may dispose this controller.
+      success = true; live = store.active({});
     } catch (error) {
-      set(target.kind === 'reset' ? { passwordError: report(error, 'failed to reset password') } : { rowError: report(error, `failed to ${target.kind} user`) }); return false;
+      set(target.kind === 'reset' ? { passwordError: report(error, 'failed to reset password') } : { rowError: report(error, `failed to ${target.kind} user`) });
     } finally {
       // Reset stays open on failure so the operator can retry the exact typed credential.
       if (store.active({}) && read({}).pending === target && (success || target.kind !== 'reset')) close();
       set({ confirming: false });
     }
+    return live;
   }
   return {
     getSnapshot: store.getSnapshot, subscribe: store.subscribe, allowed,
