@@ -4,6 +4,7 @@ import type {
   ConnectionRosterReader, ConnectionRosterSnapshot, FederatedConnectionRefusal, FederatedRevocationDiagnostic,
   FederatedRevocationErrorFactoryPort, FederatedRevocationWebhookPort,
 } from "../approvals/index.js";
+import { revocationReasonForToolRefusal } from "../approvals/revocation-reason.js";
 import type { FederatedCallTarget } from "../ports.js";
 
 // Characterization pins for every branch of approvals/revocation.ts (SEC: the connection gate).
@@ -81,6 +82,15 @@ describe("createFederatedConnectionRevocationGate", () => {
     await expect(gate({ connectionId: "service", call })).rejects.toMatchObject({ message: "refused:unverifiable", refusal: { label: null } });
   });
 
+  test("a row the check cannot judge refuses as unverifiable and keeps the row label", async () => {
+    // Malformed-input fixture: a host projection missing its grants, so the pure check throws.
+    const malformed = { ...row, grants: undefined } as unknown as ConnectionRosterSnapshot;
+    const diagnostics: FederatedRevocationDiagnostic[] = [];
+    const gate = createFederatedConnectionRevocationGate({ roster: roster(malformed), errorFactory }, { onDiagnostic: event => { diagnostics.push(event); } });
+    await expect(gate({ connectionId: "service", call })).rejects.toMatchObject({ refusal: { label: "Service", reason: "unverifiable" } });
+    expect(diagnostics).toEqual([{ connectionId: "service", stage: "store", error: expect.any(TypeError) }]);
+  });
+
   test("a store failure reports the store stage with the driver error to diagnostics", async () => {
     const driverError = new Error("private/db/path");
     const diagnostics: FederatedRevocationDiagnostic[] = [];
@@ -126,5 +136,19 @@ describe("createFederatedConnectionRevocationGate", () => {
     const gate = createFederatedConnectionRevocationGate({ roster: roster(row), errorFactory }, { webhooks: { connectionRefused: async () => { sent++; } } });
     await expect(gate({ connectionId: "service", call })).resolves.toBeUndefined();
     expect(sent).toBe(0);
+  });
+});
+
+describe("revocationReasonForToolRefusal", () => {
+  test("no tool refusal is no revocation", () => {
+    expect(revocationReasonForToolRefusal(null)).toBeNull();
+  });
+
+  test("a pre-G3 write refusal maps to write-not-allowed", () => {
+    expect(revocationReasonForToolRefusal("remote-declares-not-read-only")).toBe("write-not-allowed");
+  });
+
+  test("an allowlist refusal maps to tool-not-allowed", () => {
+    expect(revocationReasonForToolRefusal("not-in-operator-allowlist")).toBe("tool-not-allowed");
   });
 });
