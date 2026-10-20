@@ -78,3 +78,34 @@ test("file: any safe type supports PDF while image-only fields refuse it; missin
   assert.equal(validateSubmissionPayload({ definition: definition(), body: { attachment: file } }).valid, false);
   for (const patch of [{ maxFileSize: 0 }, { maxFileSize: 10485761 }, { accept: ["application/x-msdownload"] }, { default: "asset" }]) assert.equal(validateFieldDescriptors({ fields: [{ ...field, ...patch }] }).valid, false);
 });
+
+test("file: a host without transactional storage refuses file submissions before storing anything", async () => {
+  const f = fixture(); await f.deps.definitionRepo.create(definition());
+  const { transaction: _transaction, ...deps } = f.deps;
+  await assert.rejects(submitForm({ deps, input: f.input }), (error: unknown) => {
+    assert.ok(error instanceof FormSubmissionValidationError);
+    assert.equal(error.message, "file submissions require transactional storage");
+    assert.deepEqual(error.fieldErrors, [{ field: "attachment", reason: "file_storage_unavailable" }]);
+    return true;
+  });
+  assert.equal(f.stored.length, 0); assert.equal(f.events(), 0);
+});
+
+function failingCleanup(warn: SubmitFormDeps["logger"]["warn"]) {
+  const f = fixture();
+  const deps: SubmitFormDeps = { ...f.deps, logger: { warn }, outbox: { enqueue: async () => { throw new Error("outbox failed"); } },
+    files: { ...f.deps.files!, discard: async () => { throw new Error("media store unavailable"); } } };
+  return { f, deps };
+}
+test("file: a failed media cleanup is logged and the original submission failure still propagates", async () => {
+  const warnings: Array<{ message: string; error: unknown }> = [];
+  const { f, deps } = failingCleanup((entry, optional) => { warnings.push({ message: entry.message, error: optional?.error }); });
+  await f.deps.definitionRepo.create(definition());
+  await assert.rejects(submitForm({ deps, input: f.input }), /outbox failed/);
+  assert.deepEqual(warnings.map((w) => [w.message, (w.error as Error).message]), [["form upload cleanup failed", "media store unavailable"]]);
+});
+test("file: a throwing logger during cleanup cannot replace the original submission failure", async () => {
+  const { f, deps } = failingCleanup(() => { throw new Error("logger down"); });
+  await f.deps.definitionRepo.create(definition());
+  await assert.rejects(submitForm({ deps, input: f.input }), /outbox failed/);
+});
