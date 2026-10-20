@@ -162,6 +162,15 @@ describe('MediaProvidersTab', () => {
     expect(screen.queryByText('Uses https://alpha.example.com by default.')).not.toBeInTheDocument();
   });
 
+  it('a typed base URL is never echoed back as the "by default" hint', async () => {
+    const port = createFakeMediaProvidersPort();
+    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    await screen.findByText('No media providers configured yet.');
+
+    await userEvent.type(screen.getByLabelText('Alpha Images Base URL'), 'https://typed.example.com');
+    expect(screen.queryByText(/by default\./)).not.toBeInTheDocument();
+  });
+
   it('typing a model updates that provider and marks it unsaved', async () => {
     const port = createFakeMediaProvidersPort();
     render(<MediaProvidersTab port={port} catalog={CATALOG} />);
@@ -257,6 +266,22 @@ describe('MediaProvidersTab', () => {
 
     await userEvent.type(screen.getByLabelText('Bravo Video Custom API key'), 'sk-1');
     expect(await screen.findByText('Custom unsaved')).toBeInTheDocument();
+  });
+
+  it('publishes one distinct agent sub-handle per provider card when agentHandle is given', async () => {
+    const port = createFakeMediaProvidersPort();
+    render(<MediaProvidersTab port={port} catalog={CATALOG} agentHandle="media" />);
+    const alphaKey = await screen.findByLabelText('Alpha Images API key');
+    expect(alphaKey.getAttribute('data-agent-element')).toBe('media-alpha-api-key');
+    expect(screen.getByLabelText('Bravo Video Clear').getAttribute('data-agent-element')).toBe('media-bravo-clear');
+    expect(screen.getByRole('button', { name: 'Reload' }).getAttribute('data-agent-element')).toBe('media-reload');
+  });
+
+  it('publishes no agent handles when agentHandle is omitted', async () => {
+    const port = createFakeMediaProvidersPort();
+    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    const alphaKey = await screen.findByLabelText('Alpha Images API key');
+    expect(alphaKey.getAttribute('data-agent-element')).toBeNull();
   });
 
   it('the API-key input renders autocomplete="new-password", NOT "off"', async () => {
