@@ -15,7 +15,7 @@ Started 2026-10-19 23:59 UTC. Setup 23:59:40→00:02:28 (2m48s); integrations bu
 | L107 | agent-plugins | 23/13 | merged | ≤10/≤10 (eslint 0) | 100/100/100 | 547ac8b5,5e34c243,81177989,127da791,756e92e2,f284135d,983ea821 | eslint 0, tsc 0, 8 files/116 tests green; removed post-await disposed checks verified (dispose bumps generation; store.set no-ops after dispose); MESSAGES CHANGED: AgentPluginsPage confirm throw now names plugin id + next step (tests updated, UI shows errorLabel); files-controller internal error names both ids; 17m/146k tok |
 | L144 | comments | 22/≤10 | pending | | | | |
 | L157 | widgets | 15/≤10 | pending | | | | |
-| L192 | forms/conformance | 20/15 | pending | | | | |
+| L192 | forms/conformance | 20/15 | merged | 8/4 (eslint 0) | 100/100/100 | e8c0d8f8 | eslint 0, tsc 0, 16/16 green; 20 check names/order/API sequence unchanged; original test assertions intact (fixture extracted); BUG PINNED: cross-form trash accepted by host → harness crashes ('form definition s1 was not found') instead of reporting a failure; 3m/79k tok |
 | L207 | forms/react | 14/12 | pending | | | | |
 
 ## Problems / notes
