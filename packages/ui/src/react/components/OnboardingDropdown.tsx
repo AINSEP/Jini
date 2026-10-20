@@ -375,6 +375,124 @@ export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboar
 // Dumb component
 // ---------------------------------------------------------------------------
 
+function OnboardingDropdownSearch({ query, setQuery, placeholder, label }: {
+  query: string;
+  setQuery: (value: string) => void;
+  placeholder: string;
+  label: string;
+}) {
+  return (
+    <label
+      className="onboarding-view__select-search"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <Icon name="search" size={14} />
+      <input
+        type="search"
+        value={query}
+        placeholder={placeholder}
+        aria-label={label}
+        autoFocus
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') {
+            event.stopPropagation();
+          }
+        }}
+      />
+    </label>
+  );
+}
+
+function OnboardingDropdownOptionButton({ option, selected, selectOption }: {
+  option: OnboardingDropdownOption;
+  selected: boolean;
+  selectOption: UseOnboardingDropdownResult['selectOption'];
+}) {
+  return (
+    <button
+      type="button"
+      className={`onboarding-view__select-option${selected ? ' is-selected' : ''}`}
+      role="option"
+      aria-selected={selected}
+      onClick={() => selectOption(option, selected)}
+    >
+      <span>{option.label}</span>
+      {selected ? <Icon name="check" size={15} /> : null}
+    </button>
+  );
+}
+
+function OnboardingDropdownOptions({ label, multiple, visibleOptions, selectedValues, emptyMessage, selectOption }: {
+  label: string;
+  multiple: boolean;
+} & Pick<UseOnboardingDropdownResult, 'visibleOptions' | 'selectedValues' | 'emptyMessage' | 'selectOption'>) {
+  return (
+    <div
+      className="onboarding-view__select-options"
+      role="listbox"
+      aria-label={label}
+      aria-multiselectable={multiple || undefined}
+    >
+      {visibleOptions.map((option) => (
+        <OnboardingDropdownOptionButton
+          key={option.value}
+          option={option}
+          selected={selectedValues.includes(option.value)}
+          selectOption={selectOption}
+        />
+      ))}
+      {visibleOptions.length === 0 ? (
+        <div className="onboarding-view__select-empty">{emptyMessage}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function OnboardingDropdownTrigger({ open, hasValue, triggerLabel, toggleOpen }: Pick<UseOnboardingDropdownResult, 'open' | 'hasValue' | 'triggerLabel' | 'toggleOpen'>) {
+  return (
+    <button
+      type="button"
+      className={`onboarding-view__select-trigger${open ? ' is-open' : ''}${
+        hasValue ? ' has-value' : ''
+      }`}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      title={triggerLabel}
+      onClick={toggleOpen}
+    >
+      <span>{triggerLabel}</span>
+      <Icon name="chevron-down" size={16} />
+    </button>
+  );
+}
+
+function OnboardingDropdownMenu({ label, placeholder, multiple, searchable, searchPlaceholder, query, setQuery, menuMaxHeight, ...listProps }: {
+  label: string;
+  placeholder: string;
+  multiple: boolean;
+  searchable: boolean;
+  searchPlaceholder: string | undefined;
+} & Pick<UseOnboardingDropdownResult, 'query' | 'setQuery' | 'menuMaxHeight' | 'visibleOptions' | 'selectedValues' | 'emptyMessage' | 'selectOption'>) {
+  return (
+    <div
+      className="onboarding-view__select-menu"
+      data-searchable={searchable || undefined}
+      style={{ '--onboarding-select-menu-max-height': `${menuMaxHeight}px` } as CSSProperties}
+    >
+      {searchable ? (
+        <OnboardingDropdownSearch
+          query={query}
+          setQuery={setQuery}
+          placeholder={searchPlaceholder || placeholder}
+          label={searchPlaceholder || label}
+        />
+      ) : null}
+      <OnboardingDropdownOptions label={label} multiple={multiple} {...listProps} />
+    </div>
+  );
+}
+
 /**
  * Searchable/multi-select onboarding dropdown. All behavior lives in
  * {@link useOnboardingDropdown}; this component only renders the field,
@@ -421,73 +539,22 @@ export function OnboardingDropdown(props: OnboardingDropdownProps) {
       >
         {label}
       </span>
-      <button
-        type="button"
-        className={`onboarding-view__select-trigger${open ? ' is-open' : ''}${
-          hasValue ? ' has-value' : ''
-        }`}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        title={triggerLabel}
-        onClick={toggleOpen}
-      >
-        <span>{triggerLabel}</span>
-        <Icon name="chevron-down" size={16} />
-      </button>
+      <OnboardingDropdownTrigger open={open} hasValue={hasValue} triggerLabel={triggerLabel} toggleOpen={toggleOpen} />
       {open ? (
-        <div
-          className="onboarding-view__select-menu"
-          data-searchable={searchable || undefined}
-          style={{ '--onboarding-select-menu-max-height': `${menuMaxHeight}px` } as CSSProperties}
-        >
-          {searchable ? (
-            <label
-              className="onboarding-view__select-search"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <Icon name="search" size={14} />
-              <input
-                type="search"
-                value={query}
-                placeholder={searchPlaceholder || placeholder}
-                aria-label={searchPlaceholder || label}
-                autoFocus
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Escape') {
-                    event.stopPropagation();
-                  }
-                }}
-              />
-            </label>
-          ) : null}
-          <div
-            className="onboarding-view__select-options"
-            role="listbox"
-            aria-label={label}
-            aria-multiselectable={multiple || undefined}
-          >
-            {visibleOptions.map((option) => {
-              const selected = selectedValues.includes(option.value);
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={`onboarding-view__select-option${selected ? ' is-selected' : ''}`}
-                  role="option"
-                  aria-selected={selected}
-                  onClick={() => selectOption(option, selected)}
-                >
-                  <span>{option.label}</span>
-                  {selected ? <Icon name="check" size={15} /> : null}
-                </button>
-              );
-            })}
-            {visibleOptions.length === 0 ? (
-              <div className="onboarding-view__select-empty">{emptyMessage}</div>
-            ) : null}
-          </div>
-        </div>
+        <OnboardingDropdownMenu
+          label={label}
+          placeholder={placeholder}
+          multiple={multiple}
+          searchable={searchable}
+          searchPlaceholder={searchPlaceholder}
+          query={query}
+          setQuery={setQuery}
+          menuMaxHeight={menuMaxHeight}
+          visibleOptions={visibleOptions}
+          selectedValues={selectedValues}
+          emptyMessage={emptyMessage}
+          selectOption={selectOption}
+        />
       ) : null}
     </div>
   );

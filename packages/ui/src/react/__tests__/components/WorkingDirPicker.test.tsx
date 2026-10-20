@@ -485,6 +485,89 @@ describe('WorkingDirPicker', () => {
     });
   });
 
+  describe('panel keyboard handling', () => {
+    async function openPicker(props: { workingDir?: string | null; recentDirs?: string[]; onClear?: () => void } = {}) {
+      const user = userEvent.setup();
+      render(
+        <WorkingDirPicker
+          workingDir={props.workingDir ?? null}
+          recentDirs={props.recentDirs ?? ['/a/one', '/b/two']}
+          onPickDirectory={vi.fn()}
+          onSelectRecent={vi.fn()}
+          {...(props.onClear ? { onClear: props.onClear } : {})}
+        />,
+      );
+      await user.click(screen.getByTestId('working-dir-trigger'));
+    }
+
+    it('wraps ArrowDown from the last menu item to the first', async () => {
+      await openPicker();
+      screen.getByTestId('working-dir-recent').focus();
+      fireEvent.keyDown(screen.getByTestId('working-dir-recent'), { key: 'ArrowDown' });
+      expect(screen.getByTestId('working-dir-pick')).toHaveFocus();
+    });
+
+    it('prevents the default action of navigation keys only', async () => {
+      await openPicker();
+      expect(fireEvent.keyDown(screen.getByTestId('working-dir-pick'), { key: 'ArrowDown' })).toBe(false);
+      expect(fireEvent.keyDown(screen.getByTestId('working-dir-recent'), { key: 'a' })).toBe(true);
+      expect(screen.getByTestId('working-dir-recent')).toHaveFocus();
+    });
+
+    it('ArrowUp with focus outside the menu items lands on the second-to-last item, not the last (reported, not fixed)', async () => {
+      await openPicker({ workingDir: '/x/current', onClear: vi.fn() });
+      (document.activeElement as HTMLElement).blur();
+      fireEvent.keyDown(screen.getByTestId('working-dir-panel'), { key: 'ArrowUp' });
+      expect(screen.getByTestId('working-dir-recent')).toHaveFocus();
+    });
+
+    it('ArrowRight on the Recent item opens the flyout and focuses its first folder', async () => {
+      await openPicker();
+      screen.getByTestId('working-dir-recent').focus();
+      expect(fireEvent.keyDown(screen.getByTestId('working-dir-recent'), { key: 'ArrowRight' })).toBe(false);
+      expect(screen.getByTestId('working-dir-recent-list')).toBeTruthy();
+      await waitFor(() => expect(screen.getByTitle('/a/one')).toHaveFocus());
+    });
+
+    it('ArrowRight on the Recent item with no recent folders opens the empty flyout and keeps focus', async () => {
+      await openPicker({ recentDirs: [] });
+      screen.getByTestId('working-dir-recent').focus();
+      fireEvent.keyDown(screen.getByTestId('working-dir-recent'), { key: 'ArrowRight' });
+      expect(screen.getByText(DEFAULT_WORKING_DIR_LABELS.recentEmpty)).toBeTruthy();
+      await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 0)); });
+      expect(screen.getByTestId('working-dir-recent')).toHaveFocus();
+    });
+
+    it('ArrowRight on any other item does nothing', async () => {
+      await openPicker();
+      expect(fireEvent.keyDown(screen.getByTestId('working-dir-pick'), { key: 'ArrowRight' })).toBe(true);
+      expect(screen.queryByTestId('working-dir-recent-list')).toBeNull();
+    });
+
+    it('ArrowLeft inside the flyout closes it and returns focus to the Recent item', async () => {
+      await openPicker();
+      fireEvent.keyDown(screen.getByTestId('working-dir-recent'), { key: 'ArrowRight' });
+      await waitFor(() => expect(screen.getByTitle('/a/one')).toHaveFocus());
+      expect(fireEvent.keyDown(screen.getByTitle('/a/one'), { key: 'ArrowLeft' })).toBe(false);
+      expect(screen.queryByTestId('working-dir-recent-list')).toBeNull();
+      expect(screen.getByTestId('working-dir-recent')).toHaveFocus();
+    });
+
+    it('ArrowLeft outside the flyout does nothing', async () => {
+      await openPicker();
+      fireEvent.keyDown(screen.getByTestId('working-dir-recent'), { key: 'ArrowRight' });
+      expect(fireEvent.keyDown(screen.getByTestId('working-dir-pick'), { key: 'ArrowLeft' })).toBe(true);
+      expect(screen.getByTestId('working-dir-recent-list')).toBeTruthy();
+    });
+
+    it('ArrowLeft dispatched on the panel itself does nothing', async () => {
+      await openPicker();
+      fireEvent.keyDown(screen.getByTestId('working-dir-recent'), { key: 'ArrowRight' });
+      expect(fireEvent.keyDown(screen.getByTestId('working-dir-panel'), { key: 'ArrowLeft' })).toBe(true);
+      expect(screen.getByTestId('working-dir-recent-list')).toBeTruthy();
+    });
+  });
+
   it('accepts label overrides', () => {
     render(
       <WorkingDirPicker

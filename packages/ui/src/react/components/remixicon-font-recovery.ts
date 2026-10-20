@@ -88,6 +88,34 @@ interface StylesheetRecoveryInput {
   createFontFace(input: { family: string; source: string; descriptors: FontFaceDescriptors }): FontFace;
 }
 
+/** The sheet's rules, or `undefined` when it has none yet or they are cross-origin inaccessible. */
+function readStylesheetRules({ stylesheet }: { stylesheet: HTMLStyleElement | HTMLLinkElement }): CSSRuleList | undefined {
+  try { return stylesheet.sheet?.cssRules; } catch { return undefined; }
+}
+
+function isRemixIconFaceRule(rule: CSSRule): rule is CSSFontFaceRule {
+  if (rule.type !== 5) return false; // CSSRule.FONT_FACE_RULE (no global constructor in SSR/fakes).
+  const family = (rule as CSSFontFaceRule).style.getPropertyValue('font-family').replace(/["']/g, '').trim();
+  return family === 'remixicon';
+}
+
+/** The first RemixIcon face's url(...) source, or `undefined` when there is no such face or it has no url(). */
+function findRemixIconFontSource({ rules }: { rules: CSSRuleList }): string | undefined {
+  const face = Array.from(rules).find(isRemixIconFaceRule);
+  // This package owns one url(...) WOFF2 source, not a general CSS font-source parser.
+  return face?.style.getPropertyValue('src').match(/url\(\s*["']?([^"')]+)["']?\s*\)/)?.[1];
+}
+
+/** The source URL tagged with the attempt number; only http(s) URLs accept a query parameter. */
+function retryFontUrl({ url, attempt }: { url: URL; attempt: number }): URL {
+  // A distinct URL also bypasses the browser's cached failed font resource after a restart.
+  const freshUrl = new URL(url.href);
+  if (freshUrl.protocol === 'http:' || freshUrl.protocol === 'https:') {
+    freshUrl.searchParams.set('jini-font-retry', String(attempt));
+  }
+  return freshUrl;
+}
+
 /**
  * Recover this package's single WOFF2 face using the owning stylesheet's resolved URL.
  * CSSOM, rather than a bundled-module URL, preserves host asset rewriting and linked CSS bases.
@@ -100,26 +128,12 @@ export function startRemixIconStylesheetRecovery(
   { stylesheet, fonts, timers, baseUrl, createFontFace }: StylesheetRecoveryInput,
   options: { retryDelays?: readonly number[] } = {},
 ): () => void {
-  let rules: CSSRuleList | undefined;
-  try { rules = stylesheet.sheet?.cssRules; } catch { return () => {}; }
-  if (!rules) return () => {};
-  for (const rule of Array.from(rules)) {
-    if (rule.type !== 5) continue; // CSSRule.FONT_FACE_RULE (no global constructor in SSR/fakes).
-    const style = (rule as CSSFontFaceRule).style;
-    const family = style.getPropertyValue('font-family').replace(/["']/g, '').trim();
-    if (family !== 'remixicon') continue;
-    // This package owns one url(...) WOFF2 source, not a general CSS font-source parser.
-    const source = style.getPropertyValue('src').match(/url\(\s*["']?([^"')]+)["']?\s*\)/)?.[1];
-    if (!source) return () => {};
-    const url = new URL(source.trim(), stylesheet.sheet?.href ?? baseUrl);
-    return startRemixIconFontRecovery({ fonts, timers, createFace({ attempt }) {
-      // A distinct URL also bypasses the browser's cached failed font resource after a restart.
-      const freshUrl = new URL(url.href);
-      if (freshUrl.protocol === 'http:' || freshUrl.protocol === 'https:') {
-        freshUrl.searchParams.set('jini-font-retry', String(attempt));
-      }
-      return createFontFace({ family: 'remixicon', source: `url("${freshUrl.href}") format("woff2")`, descriptors: { display: 'swap' } });
-    } }, options);
-  }
-  return () => {};
+  const rules = readStylesheetRules({ stylesheet });
+  const source = rules && findRemixIconFontSource({ rules });
+  if (!source) return () => {};
+  const url = new URL(source.trim(), stylesheet.sheet?.href ?? baseUrl);
+  return startRemixIconFontRecovery({ fonts, timers, createFace({ attempt }) {
+    const freshUrl = retryFontUrl({ url, attempt });
+    return createFontFace({ family: 'remixicon', source: `url("${freshUrl.href}") format("woff2")`, descriptors: { display: 'swap' } });
+  } }, options);
 }
