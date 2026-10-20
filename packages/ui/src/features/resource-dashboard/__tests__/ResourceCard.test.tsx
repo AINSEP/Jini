@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { ResourceCard } from './ResourceCard.js';
-import type { ResourceBoardItem } from '../../types.js';
+import { ResourceCard } from '../react/components/ResourceCard.js';
+import type { ResourceBoardItem } from '../types.js';
 
 function baseProps(overrides: Partial<React.ComponentProps<typeof ResourceCard>> = {}) {
   const item: ResourceBoardItem = { id: 'p1', title: 'Marketing site', subtitle: 'Freeform', status: 'running' };
@@ -180,5 +180,46 @@ describe('ResourceCard', () => {
   it('renders host-supplied body content via renderBody', () => {
     render(<ResourceCard {...baseProps({ renderBody: (item) => <span>body-for-{item.id}</span> })} />);
     expect(screen.getByText('body-for-p1')).toBeInTheDocument();
+  });
+
+  it('applies toneMap to the status pill', () => {
+    render(<ResourceCard {...baseProps({ statusLabel: 'Running', toneMap: { running: 'success' } })} />);
+    expect(screen.getByTestId('resource-status-pill')).toHaveClass('tone-success');
+  });
+
+  it('renders no kebab menu button for an empty menuActions list', () => {
+    const item: ResourceBoardItem = { id: 'p1', title: 'X', menuActions: [] };
+    render(<ResourceCard {...baseProps({ item })} />);
+    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument();
+  });
+
+  it('attaches menuContainerRef to the menu anchor only while the menu is open', () => {
+    const item: ResourceBoardItem = { id: 'p1', title: 'X', menuActions: [{ kind: 'rename', label: 'Rename' }] };
+    const menuContainerRef: React.RefObject<HTMLDivElement | null> = { current: null };
+    const { rerender } = render(<ResourceCard {...baseProps({ item, menuContainerRef })} />);
+    expect(menuContainerRef.current).toBeNull();
+    rerender(<ResourceCard {...baseProps({ item, menuContainerRef, menuOpen: true })} />);
+    expect(menuContainerRef.current).toHaveClass('resource-board-card-menu-anchor');
+  });
+
+  it('leaves a non-danger menu item without a class attribute', () => {
+    const item: ResourceBoardItem = { id: 'p1', title: 'X', menuActions: [{ kind: 'rename', label: 'Rename' }] };
+    render(<ResourceCard {...baseProps({ item, menuOpen: true })} />);
+    expect(screen.getByRole('menuitem', { name: 'Rename' })).not.toHaveAttribute('class');
+  });
+
+  it('marks the card is-selected and select-mode via its class list', () => {
+    render(<ResourceCard {...baseProps({ selectMode: true, selected: true })} />);
+    expect(screen.getByTestId('resource-board-card')).toHaveClass('resource-board-card', 'is-selected', 'select-mode');
+  });
+
+  it('toggles selection on Space keydown in select mode', async () => {
+    const onToggleSelected = vi.fn();
+    const onOpen = vi.fn();
+    render(<ResourceCard {...baseProps({ selectMode: true, onToggleSelected, onOpen })} />);
+    screen.getByTestId('resource-board-card').focus();
+    await userEvent.keyboard(' ');
+    expect(onToggleSelected).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });

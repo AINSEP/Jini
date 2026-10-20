@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { ResourceRowListView, type ResourceRowListViewProps } from './ResourceRowListView.js';
-import type { ResourceRowItem } from '../../types.js';
+import { ResourceRowListView, type ResourceRowListViewProps } from '../react/components/ResourceRowListView.js';
+import type { ResourceRowItem } from '../types.js';
 
 const ROW_A: ResourceRowItem = { id: 'a', title: 'Nightly digest', actions: [{ kind: 'run', label: 'Run' }] };
 const ROW_B: ResourceRowItem = { id: 'b', title: 'Weekly report', actions: [] };
@@ -160,5 +160,19 @@ describe('ResourceRowListView', () => {
   it('renders nothing in the list section when rows is empty but loading is true', () => {
     render(<ResourceRowListView {...baseProps({ rows: [], loading: true })} />);
     expect(screen.queryByTestId('resource-row-list-item')).not.toBeInTheDocument();
+  });
+
+  it('calls onToggleExpand with the clicked row id when a history toggle is clicked', async () => {
+    const onToggleExpand = vi.fn();
+    render(<ResourceRowListView {...baseProps({ onToggleExpand })} />);
+    await userEvent.click(screen.getAllByRole('button', { name: 'History' })[1]!);
+    expect(onToggleExpand).toHaveBeenCalledWith('b');
+  });
+
+  it('marks only the historyLoadingRowId row as loading its history', () => {
+    render(<ResourceRowListView {...baseProps({ expandedRowId: 'a', historyLoadingRowId: 'a', historyLoadingLabel: 'Fetching runs' })} />);
+    const items = screen.getAllByTestId('resource-row-list-item');
+    expect(items[0]).toHaveTextContent('Fetching runs');
+    expect(items[1]).not.toHaveTextContent('Fetching runs');
   });
 });

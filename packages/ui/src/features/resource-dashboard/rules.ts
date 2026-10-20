@@ -61,13 +61,8 @@ export function groupItemsByStatus<TItem extends { status?: string }>(
   const unmatched: TItem[] = [];
   for (const item of items) {
     const raw = item.status ?? fallback;
-    const normalized = raw === undefined ? undefined : normalize(raw);
-    const bucket = normalized !== undefined && columns.has(normalized) ? columns.get(normalized) : undefined;
-    if (bucket) {
-      bucket.push(item);
-    } else {
-      unmatched.push(item);
-    }
+    const bucket = raw === undefined ? undefined : columns.get(normalize(raw));
+    (bucket ?? unmatched).push(item);
   }
   if (unmatched.length > 0) columns.set(UNMATCHED_STATUS_BUCKET, unmatched);
   return columns;

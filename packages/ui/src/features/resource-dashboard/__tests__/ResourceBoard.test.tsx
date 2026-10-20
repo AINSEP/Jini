@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ResourceBoard } from './ResourceBoard.js';
-import { createFakeResourceBoardDependencies } from '../../dependencies.js';
-import { I18nProvider } from '../../../i18n/index.js';
-import type { ResourceBoardItem, ResourceStatusOption } from '../../types.js';
+import { ResourceBoard } from '../react/components/ResourceBoard.js';
+import { createFakeResourceBoardDependencies } from '../dependencies.js';
+import { I18nProvider } from '../../i18n/index.js';
+import type { ResourceBoardItem, ResourceStatusOption } from '../types.js';
 
 // None of `createFakeResourceBoardDependencies`'s results below set a
 // `viewModeStorage`, so `ResourceBoard` falls back to its real
@@ -396,5 +396,75 @@ describe('ResourceBoard 4-pattern hook override test suite', () => {
 
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.queryByText('Beta')).toBeNull();
+  });
+
+  it('renders no create button when only createLabel is given without onCreate', async () => {
+    const dependencies = createFakeResourceBoardDependencies({ items: [] });
+    render(<ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} createLabel="Add project" />);
+    await waitFor(() => expect(screen.getByText('No items yet.')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Add project' })).not.toBeInTheDocument();
+  });
+
+  it('closes the menu on rename even when no onRenameRequest is supplied', async () => {
+    const dependencies = createFakeResourceBoardDependencies({ items: seedItems() });
+    render(<ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />);
+    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
+    await userEvent.click(screen.getAllByRole('button', { name: 'More' })[0]!);
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('closes the menu on an unrecognized action kind even when no onCustomItemAction is supplied', async () => {
+    const items: ResourceBoardItem[] = [{ id: 'a', title: 'Alpha', menuActions: [{ kind: 'archive', label: 'Archive' }] }];
+    const dependencies = createFakeResourceBoardDependencies({ items });
+    render(<ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />);
+    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('translates kanban column labels and the trailing "Other" column label', async () => {
+    const items: ResourceBoardItem[] = [{ id: 'a', title: 'Alpha', status: 'archived' }];
+    const dependencies = createFakeResourceBoardDependencies({ items });
+    render(
+      <I18nProvider dictionaries={{ en: { Running: 'En cours', Other: 'Autre' } }} initialLocale="en">
+        <ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} defaultViewMode="kanban" />
+      </I18nProvider>,
+    );
+    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
+    expect(screen.getByText('En cours')).toBeInTheDocument();
+    expect(screen.getByText('Autre')).toBeInTheDocument();
+  });
+
+  it('translates the load-failure message through the I18nProvider dictionary', async () => {
+    const dependencies = createFakeResourceBoardDependencies({ items: [] });
+    vi.spyOn(dependencies.port, 'fetchItems').mockRejectedValue(new Error('network down'));
+    render(
+      <I18nProvider dictionaries={{ en: { 'Failed to load items.': 'Echec du chargement.' } }} initialLocale="en">
+        <ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />
+      </I18nProvider>,
+    );
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Echec du chargement.'));
+  });
+
+  it('translates the action-failure message through the I18nProvider dictionary', async () => {
+    const dependencies = createFakeResourceBoardDependencies({ items: seedItems() });
+    vi.spyOn(dependencies.port, 'deleteItem').mockRejectedValue(new Error('network down'));
+    render(
+      <I18nProvider dictionaries={{ en: { 'Failed to delete item.': 'Echec de la suppression.' } }} initialLocale="en">
+        <ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />
+      </I18nProvider>,
+    );
+    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
+    await userEvent.click(screen.getAllByRole('button', { name: 'More' })[0]!);
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Echec de la suppression.'));
+  });
+
+  it('falls back to the raw status value as the label key for a status not in statusOptions', async () => {
+    const items: ResourceBoardItem[] = [{ id: 'a', title: 'Alpha', status: 'mystery' }];
+    render(<ResourceBoard dependencies={createFakeResourceBoardDependencies({ items })} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId('resource-status-pill')).toHaveTextContent('mystery'));
   });
 });

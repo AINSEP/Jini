@@ -10,9 +10,9 @@ import {
   toggleSelectedId,
   withoutPendingAction,
   withPendingAction,
-} from './rules.js';
-import { UNMATCHED_STATUS_BUCKET } from './constants.js';
-import type { ResourceBoardItem } from './types.js';
+} from '../rules.js';
+import { UNMATCHED_STATUS_BUCKET } from '../constants.js';
+import type { ResourceBoardItem } from '../types.js';
 
 function makeItem(overrides: Partial<ResourceBoardItem> = {}): ResourceBoardItem {
   return { id: 'i1', title: 'Item one', ...overrides };
@@ -101,6 +101,33 @@ describe('groupItemsByStatus', () => {
     const items = [makeItem({ id: 'a', status: 'running' })];
     const columns = groupItemsByStatus(items, order);
     expect(columns.has(UNMATCHED_STATUS_BUCKET)).toBe(false);
+  });
+
+  it('runs defaultStatus through normalizeStatus too', () => {
+    const items = [makeItem({ id: 'a' })];
+    const columns = groupItemsByStatus(items, order, {
+      defaultStatus: 'queued',
+      normalizeStatus: (status) => (status === 'queued' ? 'running' : status),
+    });
+    expect(columns.get('running')?.map((i) => i.id)).toEqual(['a']);
+  });
+
+  it('never calls normalizeStatus for an item with no status and no defaultStatus', () => {
+    const seen: string[] = [];
+    groupItemsByStatus([makeItem({ id: 'a' })], order, {
+      normalizeStatus: (status) => {
+        seen.push(status);
+        return status;
+      },
+    });
+    expect(seen).toEqual([]);
+  });
+
+  it('buckets an item whose normalized status is outside statusOrder as unmatched', () => {
+    const items = [makeItem({ id: 'a', status: 'running' })];
+    const columns = groupItemsByStatus(items, order, { normalizeStatus: () => 'archived' });
+    expect(columns.get('running')).toEqual([]);
+    expect(columns.get(UNMATCHED_STATUS_BUCKET)?.map((i) => i.id)).toEqual(['a']);
   });
 });
 
