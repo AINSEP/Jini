@@ -70,6 +70,35 @@ function ToggleRow({ label, hint, checked, onChange, agentHandle }: ToggleRowPro
   );
 }
 
+function resolveConsentLabels(
+  { labels }: { labels: PrivacyTabLabels },
+  { t }: { t: ReturnType<typeof useT> },
+) {
+  return {
+    consentKicker: labels.consentKicker ?? t('Help improve this product'),
+    consentLead: labels.consentLead ?? t('Choose what you share. You can change this anytime.'),
+    consentFooter: labels.consentFooter ?? t('Nothing is shared unless you opt in.'),
+    declineLabel: labels.declineLabel ?? t("Don't share"),
+    shareLabel: labels.shareLabel ?? t('Share usage'),
+    metricsLabel: labels.metricsLabel ?? t('Anonymous metrics'),
+    metricsHint: labels.metricsHint ?? t('Feature usage and performance data, with no personal content.'),
+    contentLabel: labels.contentLabel ?? t('Conversation and tool content'),
+    contentHint: labels.contentHint ?? t('Helps improve model quality. Off by default.'),
+  };
+}
+
+function resolveInstallationLabels(
+  { labels }: { labels: PrivacyTabLabels },
+  { t }: { t: ReturnType<typeof useT> },
+) {
+  return {
+    installationIdLabel: labels.installationIdLabel ?? t('Installation ID'),
+    installationIdHint: labels.installationIdHint ?? t('An anonymous id used to group your shared data.'),
+    optedOutLabel: labels.optedOutLabel ?? t('Not sharing'),
+    deleteMyDataLabel: labels.deleteMyDataLabel ?? t('Delete my data'),
+  };
+}
+
 /**
  * Telemetry consent card (share/decline + two per-category toggles) over a
  * generic `{ metrics, content }` shape, plus an installation-id
@@ -84,19 +113,14 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
   const decided = hasMadeConsentDecision(state);
   const sharing = decided ? isSharingEnabled(state.telemetry) : undefined;
 
-  const consentKicker = labels?.consentKicker ?? t('Help improve this product');
-  const consentLead = labels?.consentLead ?? t('Choose what you share. You can change this anytime.');
-  const consentFooter = labels?.consentFooter ?? t('Nothing is shared unless you opt in.');
-  const declineLabel = labels?.declineLabel ?? t("Don't share");
-  const shareLabel = labels?.shareLabel ?? t('Share usage');
-  const metricsLabel = labels?.metricsLabel ?? t('Anonymous metrics');
-  const metricsHint = labels?.metricsHint ?? t('Feature usage and performance data, with no personal content.');
-  const contentLabel = labels?.contentLabel ?? t('Conversation and tool content');
-  const contentHint = labels?.contentHint ?? t('Helps improve model quality. Off by default.');
-  const installationIdLabel = labels?.installationIdLabel ?? t('Installation ID');
-  const installationIdHint = labels?.installationIdHint ?? t('An anonymous id used to group your shared data.');
-  const optedOutLabel = labels?.optedOutLabel ?? t('Not sharing');
-  const deleteMyDataLabel = labels?.deleteMyDataLabel ?? t('Delete my data');
+  const labelOverrides = labels ?? {};
+  const {
+    consentKicker, consentLead, consentFooter, declineLabel, shareLabel,
+    metricsLabel, metricsHint, contentLabel, contentHint,
+  } = resolveConsentLabels({ labels: labelOverrides }, { t });
+  const {
+    installationIdLabel, installationIdHint, optedOutLabel, deleteMyDataLabel,
+  } = resolveInstallationLabels({ labels: labelOverrides }, { t });
 
   return (
     <section className="jini-settings-section jini-settings-privacy">
