@@ -1,4 +1,4 @@
-import type { OutboxWorkerOptions } from './ports.js';
+import type { OutboxRetryPolicyResolver, OutboxWorkerOptions } from './ports.js';
 
 export const MAX_OUTBOX_ATTEMPTS = 6;
 export const DEFAULT_OUTBOX_CLAIM_LEASE_MS = 30 * 60 * 1000;
@@ -14,7 +14,7 @@ export function computeOutboxBackoffMs(required: { attempts: number; random: () 
   return Math.round(half + random * half);
 }
 
-export interface ResolvedPolicy { batchSize: number; deliveryTimeoutMs: number; claimLeaseMs: number }
+export interface ResolvedPolicy { batchSize: number; deliveryTimeoutMs: number; claimLeaseMs: number; retryPolicyForEvent?: OutboxRetryPolicyResolver }
 export function resolvePolicy(required: { options: OutboxWorkerOptions }): ResolvedPolicy {
   const policy = {
     batchSize: required.options.batchSize ?? 20,
@@ -27,5 +27,7 @@ export function resolvePolicy(required: { options: OutboxWorkerOptions }): Resol
   if (policy.claimLeaseMs <= policy.batchSize * policy.deliveryTimeoutMs) {
     throw new RangeError('outbox claim lease must outlast a full batch of delivery timeouts');
   }
-  return policy;
+  // The drainer passes this resolved policy back in as processOutbox options, so the resolver must survive it.
+  const resolver = required.options.retryPolicyForEvent;
+  return resolver === undefined ? policy : { ...policy, retryPolicyForEvent: resolver };
 }
