@@ -233,8 +233,10 @@ Callback fields: when a sign-in started by `begin` completes successfully, the h
 deposits the provider's extra fields into `createAdminSurfaceCallbackInbox({ now })` (in-process,
 consume-once, 10-minute expiry, 256 entries) under `{ workspaceId, pluginId, connectionId, attemptId }`,
 and backs `takeCallbackFields` with its `take` for the scope's workspace and plugin. The `attemptId`
-must be unguessable and known at both ends (for example a digest of the authorization `state`, never
-the state itself). The plugin must still verify the fields through the provider's API before saving.
+is the API-connection service's own: `begin` returns `start(...).attemptId` and the callback route
+deposits under `complete(...).attemptId`. Never hand the authorization `state` to the frame or the
+plugin (it is the callback's CSRF binding; `start(...).state` is for the host's own routing only).
+The plugin must still verify the fields through the provider's API before saving.
 
 ## Extension points
 

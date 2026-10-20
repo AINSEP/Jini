@@ -20,6 +20,8 @@ const MAX_IDENTITY_LENGTH = 256;
 
 export interface CompletedAuthorization {
   readonly connectionRef: string;
+  /** The `attemptId` `start` returned for this sign-in. */
+  readonly attemptId: string;
   /** `staged` means a switch-account result awaits `confirmSwitchAccount`. */
   readonly outcome: 'connected' | 'staged';
   readonly account: ApiConnectionAccount;
@@ -118,6 +120,6 @@ export async function finishAuthorization(
   const staged = attempt.intent === 'switch-account';
   await (staged ? stageSwitch(deps, record, attempt, tokens, account, grantedScopes)
     : commitConnect(deps, record, tokens, account, grantedScopes));
-  return { connectionRef: attempt.key, outcome: staged ? 'staged' : 'connected', account, grantedScopes,
+  return { connectionRef: attempt.key, attemptId: attempt.attemptId, outcome: staged ? 'staged' : 'connected', account, grantedScopes,
     callbackFields: requiredArgs.callbackFields };
 }

@@ -104,10 +104,11 @@ const service = createApiConnectionService({
   descriptor, client, clientKind: runtime === 'desktop' ? 'public' : 'confidential', appOptions: { clientDisplayName, softwareId, redirectUris },
   hooks: plugin.connectionHooks, records, tokens, fetchFn, guard, clock, randomBytesFn, sleep,
 });
-const { authorizationUrl, connectionRef } = await service.start(
+// `state` is host-only (e.g. arming a loopback receiver); `attemptId` is what plugin code may hold.
+const { authorizationUrl, connectionRef, state, attemptId } = await service.start(
   { workspaceId, actorId, intent: 'connect', scopeSetIds: enabledModules, redirectUri });
 // ...the browser returns to redirectUri...
-const done = await service.complete({ workspaceId, actorId, redirectUri, callbackParams });
+const done = await service.complete({ workspaceId, actorId, redirectUri, callbackParams }); // done.attemptId === attemptId
 const accessToken = await service.getAccessToken({ connectionRef });
 ```
 

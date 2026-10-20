@@ -21,7 +21,7 @@ it('connects, serves and refreshes an access token, then disconnects with confir
   const callback = provider.approve({ authorizationUrl: started.authorizationUrl, account: 'alice' });
   const completed = await h.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK,
     callbackParams: { ...callback, picked: 'file-7', undeclared: 'dropped' } });
-  expect(completed).toEqual({ connectionRef: started.connectionRef, outcome: 'connected',
+  expect(completed).toEqual({ connectionRef: started.connectionRef, attemptId: started.attemptId, outcome: 'connected',
     account: { accountId: 'alice', displayName: 'alice at acme' }, grantedScopes: ['acme.files'], callbackFields: { picked: 'file-7' } });
   expect(await h.service.getStatus({ connectionRef: started.connectionRef })).toEqual({ connectionRef: started.connectionRef,
     status: 'connected', account: completed.account, grantedScopes: ['acme.files'], pendingSwitch: null });

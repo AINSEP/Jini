@@ -61,6 +61,22 @@ describe('attempt binding and lifetime', () => {
   });
 });
 
+describe('attempt ids (host-only state vs the id plugin code may hold)', () => {
+  it('returns the authorization URL\'s state to the host and a separate random attempt id', async () => {
+    const { started } = await signIn(h, provider);
+    const urlState = new URL(started.authorizationUrl).searchParams.get('state');
+    expect([started.state === urlState, started.attemptId === urlState, /^[A-Za-z0-9_-]{22}$/.test(started.attemptId)]).toEqual([true, false, true]);
+  });
+  it('completes with the attempt id start returned', async () => {
+    const { started, callbackParams } = await signIn(h, provider);
+    expect((await complete(callbackParams)).attemptId).toBe(started.attemptId);
+  });
+  it('gives every attempt its own id', async () => {
+    const [first, second] = [await signIn(h, provider), await signIn(h, provider)];
+    expect(first.started.attemptId).not.toBe(second.started.attemptId);
+  });
+});
+
 describe('PKCE', () => {
   it('sends an S256 challenge and redeems with the matching verifier', async () => {
     const { started, callbackParams } = await signIn(h, provider);

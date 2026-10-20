@@ -40,7 +40,8 @@ export interface AdminSurfaceConnectionStatus {
 /** A sign-in the person opens (a button on hosted, the system browser on desktop). */
 export interface AdminSurfaceAuthorizationStart {
   readonly authorizationUrl: string;
-  /** Opaque id for `takeCallbackFields` once the sign-in completed. */
+  /** Opaque id for `takeCallbackFields` once the sign-in completed: the connection service's attempt
+   *  id, never the authorization `state`. */
   readonly attemptId: string;
   readonly expiresAt: string;
 }
