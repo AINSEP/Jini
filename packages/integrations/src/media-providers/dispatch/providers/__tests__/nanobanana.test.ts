@@ -132,6 +132,35 @@ describe('renderNanoBananaImage', () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'no image here' }] } }] }), { status: 200 })));
         await expect(renderNanoBananaImage({ ctx: baseCtx(), credentials: { apiKey: 'g-key' } })).rejects.toThrow(/missing candidates/);
     });
+    it('throws the exact missing-inlineData message for a JSON null body', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('null', { status: 200 })));
+        await expect(renderNanoBananaImage({ ctx: baseCtx(), credentials: { apiKey: 'g-key' } })).rejects.toThrow(/^nano-banana image response missing candidates\[\]\.content\.parts\[\]\.inlineData\.data$/);
+    });
+    it('skips null candidates/parts, empty and non-string data, and takes the first later inline image', async () => {
+        const later = Buffer.from('later').toString('base64');
+        const body = { candidates: [null, { content: null }, { content: { parts: [null, { inlineData: { data: '' } }, { inlineData: { data: 7 } }] } }, { content: { parts: [{ inlineData: { data: later } }, { inlineData: { data: Buffer.from('last').toString('base64') } }] } }] };
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
+        const result = await renderNanoBananaImage({ ctx: baseCtx(), credentials: { apiKey: 'g-key' } });
+        expect(result.bytes.toString('utf8')).toBe('later');
+    });
+    it('does not accept the snake_case inline_data field', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ inline_data: { data: Buffer.from('s').toString('base64') } }] } }] }), { status: 200 })));
+        await expect(renderNanoBananaImage({ ctx: baseCtx(), credentials: { apiKey: 'g-key' } })).rejects.toThrow(/missing candidates/);
+    });
+    it('treats an inherited object key as an unrecognized aspect (1:1)', async () => {
+        const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+            expect(JSON.parse(init.body as string).generationConfig.imageConfig.aspectRatio).toBe('1:1');
+            return contentResponse(Buffer.from('x').toString('base64'));
+        });
+        vi.stubGlobal('fetch', fetchMock);
+        await renderNanoBananaImage({ ctx: baseCtx({ aspect: 'constructor' }), credentials: { apiKey: 'g-key' } });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    it('reports the providerNote with the wire model, aspect and fixed 1K size', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => contentResponse(Buffer.from('abc').toString('base64'))));
+        const result = await renderNanoBananaImage({ ctx: baseCtx({ aspect: '16:9' }), credentials: { apiKey: 'g-key' } });
+        expect(result.providerNote).toBe('nano-banana/gemini-3.1-flash-image-preview · 16:9 · 1K · 3 bytes');
+    });
 });
 
 vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
