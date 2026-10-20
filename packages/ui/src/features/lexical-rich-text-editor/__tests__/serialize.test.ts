@@ -4,13 +4,14 @@ import {
   $createTextNode,
   $getRoot,
   createEditor,
+  DecoratorNode,
   ElementNode,
   type LexicalEditor,
   type SerializedElementNode,
 } from 'lexical';
 import { describe, expect, it } from 'vitest';
-import { $createMentionNode, MentionNode } from './mention-node.js';
-import { serializeRichText } from './serialize.js';
+import { $createMentionNode, MentionNode } from '../mention-node.js';
+import { serializeRichText } from '../serialize.js';
 
 /** A minimal non-paragraph, non-mention ElementNode used only to exercise
  *  `serializeRichText`'s two defensive fallback branches: a stray
@@ -49,7 +50,40 @@ function $createFakeBlockNode(): FakeBlockNode {
   return new FakeBlockNode();
 }
 
-function makeEditor(extraNodes: ReadonlyArray<typeof MentionNode | typeof FakeBlockNode> = []): LexicalEditor {
+/** A non-mention inline DecoratorNode: serializeRichText has no branch for it. */
+class FakeDecoratorNode extends DecoratorNode<null> {
+  static getType(): string {
+    return 'fake-decorator';
+  }
+
+  static clone(node: FakeDecoratorNode): FakeDecoratorNode {
+    return new FakeDecoratorNode(node.__key);
+  }
+
+  createDOM(): HTMLElement {
+    return document.createElement('span');
+  }
+
+  updateDOM(): boolean {
+    return false;
+  }
+
+  isInline(): boolean {
+    return true;
+  }
+
+  getTextContent(): string {
+    return 'DECORATOR';
+  }
+
+  decorate(): null {
+    return null;
+  }
+}
+
+function makeEditor(
+  extraNodes: ReadonlyArray<typeof MentionNode | typeof FakeBlockNode | typeof FakeDecoratorNode> = [],
+): LexicalEditor {
   return createEditor({
     namespace: 'serialize-test',
     nodes: [MentionNode, ...extraNodes],
@@ -197,5 +231,64 @@ describe('serializeRichText', () => {
       { discrete: true },
     );
     expect(serializeRichText(editor.getEditorState()).text).toBe('before nested');
+  });
+
+  it('skips a non-mention decorator child inside a paragraph', () => {
+    const editor = makeEditor([FakeDecoratorNode]);
+    editor.update(
+      () => {
+        const p = $createParagraphNode();
+        p.append($createTextNode('a'), new FakeDecoratorNode(), $createTextNode('b'));
+        $getRoot().append(p);
+      },
+      { discrete: true },
+    );
+    expect(serializeRichText(editor.getEditorState()).text).toBe('ab');
+  });
+
+  it('reads a mention nested in a generic element as text but omits its entity (reported, not fixed)', () => {
+    const editor = makeEditor([FakeBlockNode]);
+    editor.update(
+      () => {
+        const p = $createParagraphNode();
+        const nested = $createFakeBlockNode();
+        nested.append(
+          $createMentionNode({
+            mentionId: 'slack',
+            mentionKind: 'connector',
+            token: '@Slack',
+            label: 'Slack',
+          }),
+        );
+        p.append(nested);
+        $getRoot().append(p);
+      },
+      { discrete: true },
+    );
+    expect(serializeRichText(editor.getEditorState())).toEqual({ text: '@Slack', mentions: [] });
+  });
+
+  it('collects mentions from every paragraph in document order', () => {
+    const editor = makeEditor();
+    editor.update(
+      () => {
+        const make = (id: string, label: string) =>
+          $createMentionNode({ mentionId: id, mentionKind: 'connector', token: `@${label}`, label });
+        const p1 = $createParagraphNode();
+        p1.append(make('slack', 'Slack'));
+        const p2 = $createParagraphNode();
+        p2.append(make('notion', 'Notion'));
+        $getRoot().append(p1, p2);
+      },
+      { discrete: true },
+    );
+    const result = serializeRichText(editor.getEditorState());
+    expect(result).toEqual({
+      text: '@Slack\n@Notion',
+      mentions: [
+        { id: 'slack', kind: 'connector', label: 'Slack', token: '@Slack' },
+        { id: 'notion', kind: 'connector', label: 'Notion', token: '@Notion' },
+      ],
+    });
   });
 });

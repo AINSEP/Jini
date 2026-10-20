@@ -30,8 +30,8 @@ export function parseMentionParts(
   let start = text.indexOf('@');
 
   while (start !== -1) {
-    const match = findMentionAt(text, { ...scan, start });
-    if (match) copiedUntil = appendMatch(parts, { text, copiedUntil, match });
+    const match = findMentionAt({ ...scan, text, start });
+    if (match) copiedUntil = appendMatch({ parts, text, copiedUntil, match });
     start = text.indexOf('@', match ? copiedUntil : start + 1);
   }
 
@@ -58,11 +58,13 @@ export function parseMentionParts(
  * Pushes the plain text between `copiedUntil` and the match (when non-empty)
  * followed by the mention part; returns the new `copiedUntil`.
  */
-function appendMatch(
-  parts: MentionPart[],
-  at: { text: string; copiedUntil: number; match: MentionMatch },
-): number {
-  const { text, copiedUntil, match } = at;
+function appendMatch(at: {
+  parts: MentionPart[];
+  text: string;
+  copiedUntil: number;
+  match: MentionMatch;
+}): number {
+  const { parts, text, copiedUntil, match } = at;
   if (match.start > copiedUntil) {
     parts.push({ kind: 'text', text: text.slice(copiedUntil, match.start) });
   }
@@ -74,10 +76,13 @@ function appendMatch(
  * The mention starting at `scan.start`, or null. A known (trie) match wins
  * unless the unknown-mention run at the same position is strictly longer.
  */
-function findMentionAt(
-  text: string,
-  scan: { known: MentionTrieNode; highlightUnknown: boolean; start: number },
-): MentionMatch | null {
+function findMentionAt(scan: {
+  text: string;
+  known: MentionTrieNode;
+  highlightUnknown: boolean;
+  start: number;
+}): MentionMatch | null {
+  const { text } = scan;
   if (!isMentionBoundary(text, scan.start)) return null;
   const knownMatch = findKnownMentionAt(text, scan.known, scan.start);
   const unknownMatch = scan.highlightUnknown ? findUnknownMentionAt(text, scan.start) : null;
