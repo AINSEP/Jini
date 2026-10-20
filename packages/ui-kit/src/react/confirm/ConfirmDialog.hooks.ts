@@ -19,12 +19,15 @@ export function useConfirmController(required: ConfirmDialogProps, optional: { a
     onCancel: () => latest.current.onCancel({}), onConfirm: () => latest.current.onConfirm({}) }), []);
   const pending = !!required.pending || executing;
   const plan = planConfirm({ ...required, cancelLabel: required.cancelLabel ?? context.cancelLabel, pending });
-  function actionAttrs(part: string, spec: AgentSpec | undefined, label: string): KitAttrs {
+  const actionState = pending ? 'pending' : 'ready';
+  function actionAttrs(input: { part: string; spec: AgentSpec | undefined; label: string | undefined; fallbackLabel: string }, _optional: Record<string, never> = {}): KitAttrs {
+    const { part, spec } = input;
+    const label = input.label ?? spec?.label ?? input.fallbackLabel;
     const agent = optional.agent ?? context.agent;
     const attrs = spec && agent ? agent({ handle: spec.handle }, { role: spec.role, label: spec.label }) : {};
     return Object.freeze({ ...attrs, 'data-jini-part': part, 'aria-label': label,
       ...(required.actionAccessibleNames && plan.consequence ? { 'aria-describedby': consequenceId } : {}),
-      'aria-busy': pending, 'data-jini-state': pending ? 'pending' : 'ready' });
+      'aria-busy': pending, 'data-jini-state': actionState });
   }
   async function onPress() {
     if (model.isExecuting({}) || !latest.current.open || latest.current.pending) return;
@@ -39,10 +42,10 @@ export function useConfirmController(required: ConfirmDialogProps, optional: { a
       'aria-labelledby': titleId, 'aria-modal': true, 'aria-busy': pending }),
     titleAttrs: { id: titleId, 'data-jini-part': 'confirm.title' } as ConfirmController['titleAttrs'],
     consequenceAttrs: { id: consequenceId, 'data-jini-part': 'confirm.consequence' } as NonNullable<ConfirmController['consequenceAttrs']>,
-    cancel: Object.freeze({ attrs: actionAttrs('confirm.cancel', plan.cancel, required.actionAccessibleNames?.cancel ?? plan.cancel?.label ?? `${plan.cancelLabel} — no action taken`),
+    cancel: Object.freeze({ attrs: actionAttrs({ part: 'confirm.cancel', spec: plan.cancel, label: required.actionAccessibleNames?.cancel, fallbackLabel: `${plan.cancelLabel} — no action taken` }),
       ref: cancelRef, disabled: pending, variant: 'secondary' as const, children: plan.cancelLabel,
       onPress: () => { model.requestDismiss({ reason: 'cancel-button' }); } }),
-    confirm: Object.freeze({ attrs: actionAttrs('confirm.confirm', plan.confirm, required.actionAccessibleNames?.confirm ?? plan.confirmLabel), disabled: pending, pending,
+    confirm: Object.freeze({ attrs: actionAttrs({ part: 'confirm.confirm', spec: plan.confirm, label: required.actionAccessibleNames?.confirm, fallbackLabel: plan.confirmLabel }), disabled: pending, pending,
       variant: plan.confirmVariant, children: required.confirmLabel, onPress }),
     boundaryRef, overlayContainer: useOverlayContainer({}), agentMayConfirm: required.agentMayConfirm !== false,
     requestDismiss: model.requestDismiss,

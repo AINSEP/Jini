@@ -6,9 +6,12 @@ export interface ConfirmInput {
   readonly cancelLabel?: string; readonly tone?: ConfirmTone; readonly pending?: boolean;
   readonly consequence?: string; readonly agentHandle?: string; readonly agentMayConfirm?: boolean;
 }
+const defaultConsequences: ReadonlyMap<ConfirmTone, string> = new Map<ConfirmTone, string>([
+  ['warning', 'changes access, but is reversible'], ['danger', 'cannot be undone'],
+]);
 export function planConfirm(required: ConfirmInput, _optional: Record<string, never> = {}) {
   const pending = required.pending === true, tone = required.tone ?? 'default';
-  const consequence = required.consequence?.trim() || (tone === 'danger' ? 'cannot be undone' : tone === 'warning' ? 'changes access, but is reversible' : undefined);
+  const consequence = required.consequence?.trim() || defaultConsequences.get(tone);
   const confirmLabel = `${required.confirmLabel} — ${required.title}${consequence ? `; ${consequence}` : ''}`;
   const cancelLabel = required.cancelLabel ?? 'Cancel';
   const agent = (action: string, label: string): AgentSpec | undefined => required.agentHandle === undefined ? undefined :

@@ -2,14 +2,22 @@ import { createElement, useId, useRef, useState, useEffect, useLayoutEffect } fr
 import { createPortal } from 'react-dom';
 import type { KeyboardEvent } from 'react';
 import type { TabsProps, MenuProps, TooltipProps } from '../types.js';
+function navigationIndex(required: { key: string; current: number; count: number; forward: string; backward: string }, _optional: Record<string, never> = {}): number | undefined {
+  switch (required.key) {
+    case 'Home': return 0;
+    case 'End': return required.count - 1;
+    case required.forward: return (required.current + 1) % required.count;
+    case required.backward: return (required.current - 1 + required.count) % required.count;
+    default: return undefined;
+  }
+}
 export function useNativeTabs(required: TabsProps, _optional: Record<string, never> = {}) {
   const prefix = useId(), root = useRef<HTMLDivElement>(null);
   const enabled = required.items.filter(item => !item.disabled);
   const active = enabled.find(item => item.id === required.value) ?? enabled[0];
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     const index = enabled.findIndex(item => item.id === event.currentTarget.dataset.tabId);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? enabled.length - 1 :
-      event.key === 'ArrowRight' ? (index + 1) % enabled.length : event.key === 'ArrowLeft' ? (index - 1 + enabled.length) % enabled.length : undefined;
+    const next = navigationIndex({ key: event.key, current: index, count: enabled.length, forward: 'ArrowRight', backward: 'ArrowLeft' });
     if (next === undefined || !enabled[next]) return;
     event.preventDefault(); required.onValueChange({ value: enabled[next].id });
     root.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[required.items.findIndex(item => item.id === enabled[next]!.id)]?.focus();
@@ -56,8 +64,7 @@ export function useNativeMenu(required: MenuProps, _optional: Record<string, nev
   function onKeyDown(event: KeyboardEvent<HTMLElement>, current: number) {
     if (event.key === 'Escape') { event.preventDefault(); close(); return; }
     if (event.key === 'Tab') { setOpen(false); return; }
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? enabled.length - 1 :
-      event.key === 'ArrowDown' ? (current + 1) % enabled.length : event.key === 'ArrowUp' ? (current - 1 + enabled.length) % enabled.length : undefined;
+    const next = navigationIndex({ key: event.key, current, count: enabled.length, forward: 'ArrowDown', backward: 'ArrowUp' });
     if (next !== undefined) { event.preventDefault(); focus(next); }
   }
   const items = required.items.map(item => createElement('button', { key: item.id, role: 'menuitem', type: 'button', tabIndex: -1,

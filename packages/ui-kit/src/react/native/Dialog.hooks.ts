@@ -16,7 +16,7 @@ export function useNativeDialog(required: DialogProps, optional: {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (!required.open) {
-      if (opener.current instanceof HTMLElement && opener.current.isConnected) opener.current.focus({ preventScroll: true });
+      restoreDialogFocus({ opener: opener.current });
       return;
     }
     opener.current = (optional.document ?? document).activeElement;
@@ -28,7 +28,7 @@ export function useNativeDialog(required: DialogProps, optional: {
     return () => {
       if (typeof dialog.close === 'function') { if (dialog.open) dialog.close(); }
       else dialog.removeAttribute('open');
-      if (opener.current instanceof HTMLElement && opener.current.isConnected) opener.current.focus({ preventScroll: true });
+      restoreDialogFocus({ opener: opener.current });
     };
     // Open is the transition boundary: editing content must not recapture the original trigger.
   }, [required.open]);
@@ -42,6 +42,9 @@ export function useNativeDialog(required: DialogProps, optional: {
       // popup inside it (seen live: closing a datetime picker closed the whole modal). Only a point
       // outside the dialog's box is a backdrop click.
       onClick: (event: MouseEvent<HTMLDialogElement>) => { if (event.target === event.currentTarget && !required.pending && isOutsideBox(event)) required.onClose({}); } } };
+}
+function restoreDialogFocus({ opener }: { opener: Element | null }, _optional: Record<string, never> = {}) {
+  if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true });
 }
 /** True when the pointer is outside the dialog's own rectangle, i.e. on the ::backdrop. A click with no
  *  coordinates (keyboard activation, synthetic test clicks) keeps the old target-only behaviour. */
