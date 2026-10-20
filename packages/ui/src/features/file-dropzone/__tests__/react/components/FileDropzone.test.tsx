@@ -183,6 +183,20 @@ describe('FileDropzone', () => {
       render(<FileDropzone onFiles={vi.fn()} names={[]} onRemoveName={vi.fn()} prompt="Choose a folder" />);
       expect(screen.getByText('Choose a folder')).toBeInTheDocument();
     });
+    it('renders no chip list for an empty names array even when onRemoveName is supplied', () => {
+      const { container } = render(<FileDropzone onFiles={vi.fn()} names={[]} onRemoveName={vi.fn()} />);
+      expect(container.querySelector('.jini-file-dropzone__name-list')).toBeNull();
+    });
+
+    it('renders no chip list when onRemoveName is supplied without names', () => {
+      const { container } = render(<FileDropzone onFiles={vi.fn()} onRemoveName={vi.fn()} />);
+      expect(container.querySelector('.jini-file-dropzone__name-list')).toBeNull();
+    });
+
+    it('shows the custom prompt (not the names) when onRemoveName is omitted but names is empty', () => {
+      render(<FileDropzone onFiles={vi.fn()} names={[]} prompt="Choose a folder" />);
+      expect(screen.getByTestId('file-dropzone-zone')).toHaveTextContent('Choose a folder');
+    });
   });
 
   describe('the rich/thumbnail-grid variant', () => {
