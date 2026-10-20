@@ -1,6 +1,6 @@
 /** Pure field/submission validation and honeypot decisions. Error order and stored value normalization are stable. */
 import type { FieldDescriptor, FormDefinitionRecord, FormAnswer, FormFileInput, FormFileStoragePort } from "./types.js";
-import { FIELD_TYPE_REGISTRY, resolveFormField } from "./field-registry.js";
+import { FIELD_TYPE_REGISTRY, resolveFormField, type FieldResolution } from "./field-registry.js";
 import { commonDescriptorErrors } from "./descriptor-rules.js";
 
 // Domain validation stays independent of feature manifests, and returns decisions without I/O
@@ -142,33 +142,35 @@ function attributeErrors(descriptor: FieldDescriptor, label: string): FieldError
  */
 export function validateFieldDescriptors({ fields }: { fields: FieldDescriptor[] }, _optional = {}): FieldValidationResult {
   if (!Array.isArray(fields)) return { valid: false, fieldErrors: [{ field: "fields", reason: "must be an array" }] };
-  const fieldErrors: FieldError[] = [];
-
-  if (fields.length < MIN_FIELDS) {
-    fieldErrors.push({ field: "fields", reason: `at least ${MIN_FIELDS} field is required` });
-  }
-  if (fields.length > MAX_FIELDS) {
-    fieldErrors.push({ field: "fields", reason: `at most ${MAX_FIELDS} fields are allowed` });
-  }
+  const fieldErrors: FieldError[] = arityErrors(fields);
 
   const claimedIds = new Set<string>();
-  for (const descriptor of fields) {
-    if (!descriptor || typeof descriptor !== "object" || Array.isArray(descriptor)) { fieldErrors.push({ field: "fields", reason: "each field must be an object" }); continue; }
-    const label = descriptor.id || "(unknown)";
-    fieldErrors.push(
-      ...fieldIdErrors(descriptor, label, claimedIds),
-      ...fieldTypeErrors(descriptor, label),
-      ...labelLengthErrors(descriptor, label),
-      ...maxLengthErrors(descriptor, label),
-      ...checkboxValueErrors(descriptor, label),
-      ...classNameErrors(descriptor, label),
-      ...attributeErrors(descriptor, label),
-      ...commonDescriptorErrors({ field: descriptor }),
-    );
-  }
+  for (const descriptor of fields) fieldErrors.push(...descriptorErrors(descriptor, claimedIds));
 
   if (fieldErrors.length > 0) return { valid: false, fieldErrors };
   return { valid: true };
+}
+
+function arityErrors(fields: FieldDescriptor[]): FieldError[] {
+  if (fields.length < MIN_FIELDS) return [{ field: "fields", reason: `at least ${MIN_FIELDS} field is required` }];
+  if (fields.length > MAX_FIELDS) return [{ field: "fields", reason: `at most ${MAX_FIELDS} fields are allowed` }];
+  return [];
+}
+
+// One descriptor's violations, each rule in the fixed order validateFieldDescriptors documents.
+function descriptorErrors(descriptor: FieldDescriptor, claimedIds: Set<string>): FieldError[] {
+  if (!descriptor || typeof descriptor !== "object" || Array.isArray(descriptor)) return [{ field: "fields", reason: "each field must be an object" }];
+  const label = descriptor.id || "(unknown)";
+  return [
+    ...fieldIdErrors(descriptor, label, claimedIds),
+    ...fieldTypeErrors(descriptor, label),
+    ...labelLengthErrors(descriptor, label),
+    ...maxLengthErrors(descriptor, label),
+    ...checkboxValueErrors(descriptor, label),
+    ...classNameErrors(descriptor, label),
+    ...attributeErrors(descriptor, label),
+    ...commonDescriptorErrors({ field: descriptor }),
+  ];
 }
 
 export interface ValidateSubmissionPayloadInput {
@@ -210,17 +212,24 @@ export function validateSubmissionPayload(input: ValidateSubmissionPayloadInput,
 
   for (const field of definition.fields) {
     const resolved = resolveFormField({ field, value: Object.hasOwn(body, field.id) ? body[field.id] : undefined }, optional);
-    if (resolved.kind === "rejected") {
-      fieldErrors.push({ field: field.id, reason: resolved.reason });
-    } else if (resolved.kind === "accepted") {
-      data[field.id] = resolved.value;
-    } else if (resolved.kind === "upload") {
-      files[field.id] = resolved.file;
-    }
+    recordResolvedField({ fieldId: field.id, resolved, fieldErrors, data, files });
   }
 
   if (fieldErrors.length > 0) return { valid: false, fieldErrors };
   return Object.keys(files).length ? { valid: true, data, files } : { valid: true, data };
+}
+
+// Absent fields land nowhere: neither an error, nor a stored answer, nor an upload.
+function recordResolvedField({ fieldId, resolved, fieldErrors, data, files }: {
+  fieldId: string;
+  resolved: FieldResolution;
+  fieldErrors: FieldError[];
+  data: Record<string, FormAnswer>;
+  files: Record<string, FormFileInput>;
+}): void {
+  if (resolved.kind === "rejected") fieldErrors.push({ field: fieldId, reason: resolved.reason });
+  else if (resolved.kind === "accepted") data[fieldId] = resolved.value;
+  else if (resolved.kind === "upload") files[fieldId] = resolved.file;
 }
 
 // Only a non-empty trimmed string trips the trap; absent, non-string or whitespace-only values

@@ -97,6 +97,32 @@ export function createSubmissionAttempts(
     while (attempts.size >= maxEntries) attempts.delete(attempts.keys().next().value!);
   };
 
+  // Drops a claim only while it is still this attempt's own: an evicted claim may have been
+  // replaced by a newer copy, which must not be released on the evicted copy's behalf.
+  const release = ({ key, mine }: { key: string; mine: Attempt }): void => {
+    if (attempts.get(key) === mine) attempts.delete(key);
+  };
+
+  // Synchronous up to the claim: callers invoke it right after their last check, with no await
+  // in between, so one process cannot interleave two claims on the same key.
+  const claimAndSubmit = async <T>({ key, nowMs, submit }: { key: string; nowMs: () => number; submit: () => Promise<T> }): Promise<T> => {
+    prune(nowMs());
+    let settle!: (accepted: boolean) => void;
+    const mine: Attempt = { kind: "pending", accepted: new Promise<boolean>((resolve) => { settle = resolve; }) };
+    attempts.set(key, mine);
+    try {
+      const result = await submit();
+      release({ key, mine });
+      attempts.set(key, { kind: "accepted", atMs: nowMs() });
+      settle(true);
+      return result;
+    } catch (error) {
+      release({ key, mine });
+      settle(false);
+      throw error;
+    }
+  };
+
   return {
     key: (required, optional = {}) => submissionAttemptKey({ ...required, hash }, optional),
     async once({ key, nowMs, submit }, _optional = {}) {
@@ -107,21 +133,7 @@ export function createSubmissionAttempts(
         if (await seen.accepted) return DUPLICATE_ATTEMPT;
       }
       // No await between the check above and this claim: one process cannot interleave them.
-      prune(nowMs());
-      let settle!: (accepted: boolean) => void;
-      const mine: Attempt = { kind: "pending", accepted: new Promise<boolean>((resolve) => { settle = resolve; }) };
-      attempts.set(key, mine);
-      try {
-        const result = await submit();
-        if (attempts.get(key) === mine) attempts.delete(key);
-        attempts.set(key, { kind: "accepted", atMs: nowMs() });
-        settle(true);
-        return result;
-      } catch (error) {
-        if (attempts.get(key) === mine) attempts.delete(key);
-        settle(false);
-        throw error;
-      }
+      return claimAndSubmit({ key, nowMs, submit });
     },
   };
 }
