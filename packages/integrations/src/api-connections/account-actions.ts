@@ -32,14 +32,12 @@ export interface ApiConnectionDisconnectResult extends ApiConnectionStatusView {
   readonly remoteRevocation: ApiConnectionRemoteRevocation;
 }
 
-export interface ApiConnectionSwitchResult extends ApiConnectionStatusView {
-  /**
-   * The previous account's grant is left at the provider: revoking it could cut off the same
-   * account connected elsewhere through the same client. Hosts say so and link the provider's
-   * account-access page; the local copy of its tokens is gone.
-   */
-  readonly previousAccountRevocation: 'not-attempted';
-}
+/**
+ * A confirmed switch never revokes the previous account's grant at the provider: revoking it could
+ * cut off the same account connected elsewhere through the same client. Hosts say so and link the
+ * provider's account-access page; the local copy of its tokens is gone.
+ */
+export type ApiConnectionSwitchResult = ApiConnectionStatusView;
 
 function switchNotStaged(): ApiConnectionError {
   return new ApiConnectionError({ code: 'switch-not-staged',
@@ -97,7 +95,7 @@ export async function confirmSwitchAccount(
   const staged = record.staged!;
   const updated = await installCredential(deps, { current: record, tokens, account: staged.account, grantedScopes: staged.grantedScopes });
   await deps.tokens.delete({ key: stagedKey });
-  return { ...toStatusView(updated), previousAccountRevocation: 'not-attempted' };
+  return toStatusView(updated);
 }
 
 /**

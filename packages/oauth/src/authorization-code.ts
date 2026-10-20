@@ -14,7 +14,8 @@ import { assertValidCodeVerifier, createPkcePair } from "./pkce.js";
 import type { OAuthClient, OAuthProviderDescriptor, OAuthRandomBytes, OAuthTokenSet, OAuthUrlGuard, OAuthAppOptions, OAuthResource } from "./ports.js";
 import { requestOAuthToken, type TokenRequestDeps } from "./token-endpoint.js";
 import { MAX_AUTHORIZATION_STATE_LENGTH, type SealedAuthorizationState } from './sealed-state.js';
-const MAX_CODE_LENGTH = 2048;
+/** Bound on an authorization code; the loopback receiver applies the same one at the edge. */
+export const MAX_CODE_LENGTH = 2048;
 const PROVIDER_ERROR_PATTERN = /^[a-z_]{1,64}$/;
 export interface BeginAuthorizationCodeDeps {
     readonly provider: OAuthProviderDescriptor;

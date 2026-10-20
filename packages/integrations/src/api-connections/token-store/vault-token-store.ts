@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import type { Clock } from "@jini-ai/core/primitives";
 import type { OAuthTokenSet, OAuthTokenStore } from "@jini-ai/oauth";
 import { VaultError, type SecretsVaultService, type VaultContext, type VaultIdentity, type VaultMeta } from "@jini-ai/platform/secrets/credential-sets";
+import type { ApiConnectionTokenStore } from "../ports.js";
 import { OAuthTokenStoreError } from "./errors.js";
 import { buildRecordMeta, buildTokenPayload, parseTokenPayload, parseTokenSet, readRecordMeta, readReplaceableGeneration,
   type OAuthConnectionOwner, type OAuthConnectionStatus, type OAuthTokenPayload, type OAuthTokenRecordMeta } from "./record.js";
@@ -38,12 +39,7 @@ export interface VaultOAuthTokenStoreDeps {
 }
 /** `OAuthTokenStore` plus install and disconnect. Refresh writes (`persist`, `markNeedsReauth`)
  * require the lease; `install` is fenced by its generation instead. */
-export type VaultOAuthTokenStore = Required<OAuthTokenStore> & {
-  install(requiredArgs: { readonly key: string; readonly tokens: OAuthTokenSet; readonly generation: number }): Promise<void>;
-  /** Tokens of any generation, owner-checked; only for a revocation call (see `ApiConnectionTokenStore`). */
-  loadForRevocation(requiredArgs: { readonly key: string }): Promise<OAuthTokenSet | null>;
-  delete(requiredArgs: { readonly key: string }): Promise<void>;
-};
+export type VaultOAuthTokenStore = Required<OAuthTokenStore> & Pick<ApiConnectionTokenStore, "install" | "loadForRevocation" | "delete">;
 
 interface OpenedRecord { readonly revision: number; readonly meta: OAuthTokenRecordMeta; readonly payload: OAuthTokenPayload }
 interface InstallTarget { readonly revision: number | null; readonly generation: number | null; readonly meta: OAuthTokenRecordMeta }

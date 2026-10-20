@@ -8,7 +8,6 @@ import { createApiConnectionAccessTokens } from './access-token.js';
 import { cancelSwitchAccount, confirmSwitchAccount, disconnectApiConnection } from './account-actions.js';
 import { completeApiConnectionAuthorization, startApiConnectionAuthorization } from './authorization.js';
 import { assertClientWiring, type ApiConnectionServiceDeps } from './deps.js';
-import { createApiConnectionGenerationReader, deriveApiConnectionKey } from './keys.js';
 import { getApiConnectionStatus } from './status.js';
 
 type Bound<F> = F extends (deps: ApiConnectionServiceDeps, ...rest: infer A) => infer R ? (...rest: A) => R : never;
@@ -21,17 +20,12 @@ export interface ApiConnectionService {
   readonly disconnect: Bound<typeof disconnectApiConnection>;
   readonly getStatus: Bound<typeof getApiConnectionStatus>;
   readonly getAccessToken: ReturnType<typeof createApiConnectionAccessTokens>['getAccessToken'];
-  /** The connectionRef for a workspace, before or after it has ever connected. */
-  connectionRefFor(requiredArgs: { readonly workspaceId: string }): string;
-  /** Fence reader to inject into a generation-aware token store. */
-  readonly readGeneration: ReturnType<typeof createApiConnectionGenerationReader>;
 }
 
 /** @throws ApiConnectionError `configuration-invalid` when the client kind contradicts the client. */
 export function createApiConnectionService(deps: ApiConnectionServiceDeps): ApiConnectionService {
   assertClientWiring(deps);
   const accessTokens = createApiConnectionAccessTokens(deps);
-  const { pluginId, connectionId } = deps.descriptor;
   return {
     start: (...args) => startApiConnectionAuthorization(deps, ...args),
     complete: (...args) => completeApiConnectionAuthorization(deps, ...args),
@@ -40,7 +34,5 @@ export function createApiConnectionService(deps: ApiConnectionServiceDeps): ApiC
     disconnect: (...args) => disconnectApiConnection(deps, ...args),
     getStatus: (...args) => getApiConnectionStatus(deps, ...args),
     getAccessToken: (...args) => accessTokens.getAccessToken(...args),
-    connectionRefFor: ({ workspaceId }) => deriveApiConnectionKey({ workspaceId, pluginId, connectionId }),
-    readGeneration: createApiConnectionGenerationReader({ records: deps.records }),
   };
 }

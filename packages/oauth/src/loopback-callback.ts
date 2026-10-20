@@ -5,12 +5,11 @@
  * allowlist, size bounds) is a plain function of its inputs.
  */
 import { OAuthError } from './errors.js';
-import { toCallbackError } from './authorization-code.js';
+import { MAX_CODE_LENGTH, toCallbackError } from './authorization-code.js';
 import { invalidState, secureEquals } from './pending-authorizations.js';
 import { MAX_AUTHORIZATION_STATE_LENGTH } from './sealed-state.js';
 
-/** Matches `completeAuthorizationCode`'s code bound so an oversized code fails at the edge. */
-const MAX_CODE_LENGTH = 2048;
+// `completeAuthorizationCode`'s code bound (MAX_CODE_LENGTH), applied here so an oversized code fails at the edge.
 export const MAX_CALLBACK_FIELD_LENGTH = 4096;
 export const MAX_CALLBACK_FIELDS = 16;
 const CALLBACK_FIELD_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;

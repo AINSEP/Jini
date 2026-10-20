@@ -17,7 +17,7 @@ error mapping, code exchange), `createTokenRefresher` and `refreshAccessToken`.
 | Export | What it is |
 |---|---|
 | `parseApiConnectionDescriptor({ value })` | Validates and freezes a plugin's untrusted declaration (ids, endpoints, bounded extra params, allowlisted start params and callback fields; OAuth parameter names are reserved). |
-| `createApiConnectionService(deps)` | One service per declared connection. Returns `start`, `complete`, `confirmSwitchAccount`, `cancelSwitchAccount`, `disconnect`, `getStatus`, `getAccessToken`, `connectionRefFor`, `readGeneration`. |
+| `createApiConnectionService(deps)` | One service per declared connection. Returns `start`, `complete`, `confirmSwitchAccount`, `cancelSwitchAccount`, `disconnect`, `getStatus`, `getAccessToken`. The connectionRef for a workspace is `deriveApiConnectionKey({ workspaceId, pluginId, connectionId })`, before or after it ever connected. |
 | `deriveApiConnectionKey({ workspaceId, pluginId, connectionId })` | The opaque key. It is also the public `connectionRef` and the token-store key. |
 | `createApiConnectionGenerationReader({ records })` | `readGeneration({ key })` for a generation-fenced token store (main and staged keys). |
 | `ApiConnectionError` | Every refusal; branch on `code`, show `message` (it says what to do next and never carries tokens). |
@@ -79,8 +79,8 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
   unrevoked; the record claims the staged slot before its tokens are written. Signing in as the
   account already connected is refused (`account-unchanged`, "use reconnect"): the staged copy
   would share the live grant, so cancelling it would revoke the live credential.
-- **Confirmed switch** returns `previousAccountRevocation: 'not-attempted'`: the previous account's
-  grant is left at the provider (revoking it could cut off the same account connected elsewhere
+- **Confirmed switch** returns the new status view and never revokes the previous account's
+  grant at the provider (revoking it could cut off the same account connected elsewhere
   through the same client) and its local tokens are replaced. Hosts say so and link the provider's
   account-access page. A same-account reconnect never revokes either: the new tokens share the grant.
 - **Cancel switch** revokes the staged credential; when the provider does not confirm, the switch

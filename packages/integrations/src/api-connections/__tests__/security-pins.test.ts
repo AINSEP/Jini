@@ -483,11 +483,11 @@ describe('paths that would discard a consented credential', () => {
     expect([result.remoteRevocation, provider.revoked]).toEqual(['not-needed', []]);
     expect(await h.service.getAccessToken({ connectionRef: ref, workspaceId: 'ws-1' }, { expectedAccountId: 'bob' })).toBe('acme-at-2');
   });
-  it('says the previous account was not revoked at the provider when a switch is confirmed', async () => {
+  it('a confirmed switch answers with the new account\'s status view only (the previous grant is never revoked)', async () => {
     const ref = await connect('alice');
     await complete((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
     const confirmed = await h.service.confirmSwitchAccount({ connectionRef: ref, workspaceId: 'ws-1', actorId: 'actor-1' });
-    expect(confirmed.previousAccountRevocation).toBe('not-attempted');
+    expect([confirmed, provider.revoked]).toEqual([await h.service.getStatus({ connectionRef: ref, workspaceId: 'ws-1' }), []]);
   });
 });
 
