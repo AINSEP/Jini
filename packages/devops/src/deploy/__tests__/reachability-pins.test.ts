@@ -274,6 +274,15 @@ describe('polling loop (waitForReachableDeploymentUrl)', () => {
     expect(calls[0]!.url).toBe('https://a.example/');
   });
 
+  it('probes each distinct normalized candidate once per sweep', async () => {
+    const clock = scriptedClock([0, 0, 0, 0, 0, 100]);
+    const { fetch, calls } = scriptedFetch([status(404)]);
+    await waitForReachableDeploymentUrl({ urls: ['a.example', 'https://a.example', 'b.example', 'a.example'], fetch, guard, now: clock.now, sleep: noSleep }, { timeoutMs: 100 });
+    expect(calls.map((c) => `${c.init.method} ${c.url}`)).toEqual([
+      'HEAD https://a.example/', 'GET https://a.example/', 'HEAD https://b.example/', 'GET https://b.example/',
+    ]);
+  });
+
   it('reports reachableAt from the clock read after the ready probe', async () => {
     const clock = scriptedClock([0, 1, 2, 77]);
     const { fetch } = scriptedFetch([status(200)]);
