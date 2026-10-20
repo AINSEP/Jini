@@ -14,7 +14,7 @@ import { createFakeSurfaceHost } from './surface-support.js';
 
 const DECLARED: AdminSurfaceCapabilityDeclarations = { connections: [{ id: 'account', startParams: [], callbackFields: [] }], deliveryAdapters: ['acme-rows', 'acme-notes'] };
 const OURS: AdminSurfaceDeliveryBinding = { bindingId: 'ours-1', adapterId: 'acme-rows', connectionId: 'account', enabled: false, formIds: ['contact'], config: { tab: 7 } };
-const DRAFT: AdminSurfaceDeliveryBindingDraft = { adapterId: 'acme-rows', connectionId: 'account', enabled: true, config: { tab: 1 } };
+const DRAFT: AdminSurfaceDeliveryBindingDraft = { adapterId: 'acme-rows', connectionId: 'account', enabled: true, formIds: ['contact'], config: { tab: 1 } };
 
 function open() {
   const fake = createFakeSurfaceHost({ bindings: [OURS] });
@@ -30,7 +30,7 @@ describe('save', () => {
     const session = open();
     // Malformed on purpose: a draft carrying a host field must not pass it on.
     await session.port.save({ ...DRAFT, connectionRef: 'ref-from-plugin' } as AdminSurfaceDeliveryBindingDraft);
-    expect(session.log.calls).toEqual(['acme-office:bindings.save:{"adapterId":"acme-rows","connectionId":"account","enabled":true,"config":{"tab":1}}']);
+    expect(session.log.calls).toEqual(['acme-office:bindings.save:{"adapterId":"acme-rows","connectionId":"account","enabled":true,"formIds":["contact"],"config":{"tab":1}}']);
   });
   test('the saved binding comes back in the port shape, without the host\'s connection ref', async () => {
     await expect(open().port.save({ ...DRAFT, formIds: [] })).resolves.toStrictEqual({ bindingId: 'binding-2', adapterId: 'acme-rows', connectionId: 'account', enabled: true, formIds: [], config: { tab: 1 } });
@@ -90,11 +90,17 @@ describe('save', () => {
 });
 
 describe('list and remove', () => {
-  test('a binding the host stores without form ids lists without a formIds key', async () => {
+  test('a binding the host lists for every form comes back as allForms: true, without a formIds key', async () => {
     const session = open();
-    const { formIds: _formIds, ...everyForm } = OURS;
+    const { formIds: _formIds, ...rest } = OURS as AdminSurfaceDeliveryBinding & { formIds: readonly string[] };
+    const everyForm: AdminSurfaceDeliveryBinding = { ...rest, allForms: true };
     session.bindings.set('ours-1', everyForm);
     await expect(session.port.list()).resolves.toStrictEqual([everyForm]);
+  });
+  test('a listed binding with form ids comes back with a copy of them', async () => {
+    const session = open();
+    const [listed] = await session.port.list();
+    expect([listed, listed?.formIds === session.bindings.get('ours-1')?.formIds]).toStrictEqual([OURS, false]);
   });
   test('the surface\'s own binding is removed through its id', async () => {
     const session = open();
