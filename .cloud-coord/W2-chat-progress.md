@@ -19,7 +19,7 @@
 ## Lot status
 | lot | status | subagent | commits | before→after | coverage | verify |
 |---|---|---|---|---|---|---|
-| L187 | running (dispatched 01:33Z) | | | | | |
+| L187 | MERGED | 1 | 485464e5 044e2a16 | decodeCursor cyc 23→≤10; toMessage 12/11→≤10; read 11→≤10 | 100/100/100 both (store branch 96.31→100) | eslint 0, tsc 0, store suite 20 files/223 tests green; cursor diff equivalent. NOTE: removed `?? fallback` defaults on schema-NOT-NULL cols (title_source, message_count, msg created_at) — out-of-contract null now yields createdAt:0 / undefined titleSource; flagged, accepted (DDL + ChatDatabase types forbid null) |
 | L208 | running | | | | | |
 | L222 | MERGED | 1 | 0ba4ede2 dbd21a0c e4830aa0 899b9854 | readAgentPluginChatState cyc 13→7 (commit msg says 13→3, wrong; file worst captureAgentPluginUsage 8/2); dedupeToolUsesById cog 13→6 (cyc 10, at limit); assistantContentFromEvents cog 11→9; mergeRunEvents cog 11→8 | 100/100/100 ×4 | eslint 0, tsc 0, 107 tests green; diff read branch-by-branch: equivalent. Tests 20→86 |
 | L226 | MERGED | 1 | 52cd96d6 | listener cyc 17→8 (worst now serveLocally 8/6) | 100/100/100 (branch 97.14→100) | eslint 0, tsc 0, 51 tests green; removed unreachable caller-signal merge in internal default send (verified only caller passes no signal) |
