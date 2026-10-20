@@ -19,7 +19,7 @@ Cloud-proof commit 396b8ed0.
 ## Lots
 | Lot | Status | Branch tip | Before→after worst cyc/cog | Coverage | Verify |
 |---|---|---|---|---|---|
-| L043a | dispatched | | 40/59 → | | |
+| L043a | MERGED | 4c524dbe | tool-input-normalization 40/59→9/10; approval 14/13→8/7; registration-kit 13/14→7/6 | 100/100/100/100 all 3 (coord re-run, 26 files / 475 tests) | eslint 0, tsc ok, no Errors line, guard 31 (none new) |
 | L043b | MERGED fdc8fd95 | 982eb8a6 | origin-validation 13/9→10/6; redact 14/14→7/6 | 100/100/100/100 both (coord re-run, 24 files / 482 tests) | eslint 0, tsc ok, no Errors line, guard 31 (none new) |
 | L078a | dispatched | | 20/16 → | | |
 | L078b | dispatched | | 19/22 → | | |
@@ -40,5 +40,14 @@ Cloud-proof commit 396b8ed0.
 - Removed: duplicated URL+protocol parse, duplicated dotted-quad parse, the repeated loopback list, a host decision computed but unused on the Origin path, the single-use redactApiKeyHeaderValue, and the per-call PII filter (now once at load).
 - Sub-conditions dropped with proof (commit afd025dc): `Number.isInteger(n) && n >= 0` in the dotted-quad parse. `/^\d+$/` already admits only non-negative ASCII-digit integers, and an overflow to Infinity still fails `n <= 255`. The truth table pins it. Coordinator agrees.
 - Security (pinned): a malformed ORIGIN allow-list entry is echoed in full into the warn log and the boot error, so `user:pass@host` would leak its credential (origin-validation configuredAllowedOrigins / assertValidAllowedOrigins).
+
+### L043a (subagent: ~181k tokens, 62 tool calls)
+- Pin files: tool-input-normalization / approval / registration-kit.gates `.characterization.test.ts`. Differential old-vs-new, temp tests deleted: 30k normalization cases; 5,760 exhaustive approval scenarios, aborting at every port with the full port-call log compared; 12,096 registration builds.
+- RED: done for every extracted function. One mutation survived: deleting askFresh's post-grant abort check. The run step's own abort check gives the same observable result, and the check was kept.
+- Removed: seven positional walk params (now one context object), a dead string fall-through, the twice-written grant condition and confirmer, a local answer type duplicating HumanConfirmationAnswer, and the field-error block copied three times (now requiredFieldError). Checks removed: none.
+- Not removed (out of scope): `applyApprovalPolicy` has no callers, and its `remembered` option can never fire. `registration-kit.characterization.test.ts` largely duplicates `registration-kit.test.ts`.
+- Bugs pinned, reported not fixed: catalog ids naming Object.prototype members (e.g. `toString`) (a) skip the wired-or-declared tripwire (`id in spec.handlers`, fail-open) and (b) get `Object.prototype.toString` as their input normalizer (`spec.inputNormalizers?.[id]`).
+- Security: that tripwire fail-open. Also normalizeToolInput rewraps ToolInputError without `cause`, losing the stack.
+- Coordinator note: the moved readOnly comment still says assertToolIsWirable ran "two lines above". It is now about 10 lines above, in registrationFor. The comment was kept verbatim, and it is a cosmetic follow-up.
 
 ## Next
