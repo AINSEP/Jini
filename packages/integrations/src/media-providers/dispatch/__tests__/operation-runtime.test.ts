@@ -343,3 +343,238 @@ describe('crash recovery', () => {
         expect((await store.get({ id: 'orphan' }))?.status).toBe('submitted');
     });
 });
+
+describe('pollDueOperations — per-row verdicts and bookkeeping', () => {
+    const resolveContext = () => CTX;
+    const T0 = 1_000_000;
+    const KEYS = ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] as const;
+    async function seed(store: AsyncOperationStore, over: Record<string, unknown> = {}) {
+        const id = (over.id as string | undefined) ?? 'op-1';
+        await store.create(...partitionArgs({
+            id,
+            providerId: 'imagerouter',
+            routeKey: 'video',
+            ownerRef: 'run-1',
+            maxAttempts: 3,
+            deadlineAt: T0 + 60_000,
+            nextPollAt: 0,
+            state: { jobId: 'job-77' },
+            ...over,
+        }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.update({ id, patch: { status: 'polling' } });
+    }
+    function poll(store: AsyncOperationStore, fetchImpl: ReturnType<typeof vi.fn>, over: { adapters?: () => PollingVendorAdapter | undefined; limit?: number; clock?: () => number } = {}) {
+        return pollDueOperations(...partitionArgs({
+            store,
+            signer,
+            httpClient: testHttpClient(fetchImpl),
+            adapters: over.adapters ?? (() => fastAdapter()),
+            resolveContext,
+            leaseOwner: 'w1',
+            leaseMs: 1000,
+            clock: over.clock ?? (() => T0),
+            ...(over.limit !== undefined ? { limit: over.limit } : {}),
+        }, [...KEYS]));
+    }
+
+    it('fails a row with no registered adapter (NO_ADAPTER) without calling the vendor, and releases its lease', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store);
+        const fetchImpl = vi.fn(async () => json({ status: 'pending' }));
+        const stats = await poll(store, fetchImpl, { adapters: () => undefined });
+        const row = await store.get({ id: 'op-1' });
+        expect(stats).toEqual({ claimed: 1, completed: 0, failed: 1, pending: 0, unknown: 0 });
+        expect(row?.status).toBe('failed');
+        expect(row?.error).toEqual({ message: 'no polling adapter registered for "imagerouter" / "video"', code: 'NO_ADAPTER' });
+        expect(row?.attempts).toBe(0);
+        expect(row?.leaseOwner).toBeNull();
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('records a vendor "failed" verdict with its code and bumps attempts', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store);
+        const fetchImpl = vi.fn(async () => json({ status: 'x' }));
+        const adapter = fastAdapter({ parsePollResponse: async () => ({ kind: 'failed', message: 'content policy', code: 'POLICY' }) });
+        const stats = await poll(store, fetchImpl, { adapters: () => adapter });
+        const row = await store.get({ id: 'op-1' });
+        expect(stats).toEqual({ claimed: 1, completed: 0, failed: 1, pending: 0, unknown: 0 });
+        expect(row?.status).toBe('failed');
+        expect(row?.attempts).toBe(1);
+        expect(row?.error).toEqual({ message: 'content policy', code: 'POLICY' });
+    });
+
+    it('records a vendor "failed" verdict without a code key when the adapter gives none', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store);
+        const fetchImpl = vi.fn(async () => json({ status: 'failed', message: 'boom' }));
+        await poll(store, fetchImpl);
+        const row = await store.get({ id: 'op-1' });
+        expect(row?.error).toEqual({ message: 'boom' });
+    });
+
+    it('schedules a pending row at the adapter retryAfterMs from the tick time', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store);
+        const fetchImpl = vi.fn(async () => json({ status: 'pending' }));
+        const adapter = fastAdapter({ parsePollResponse: async () => ({ kind: 'pending', retryAfterMs: 750 }) });
+        const stats = await poll(store, fetchImpl, { adapters: () => adapter });
+        const row = await store.get({ id: 'op-1' });
+        expect(stats).toEqual({ claimed: 1, completed: 0, failed: 0, pending: 1, unknown: 0 });
+        expect(row?.status).toBe('polling');
+        expect(row?.attempts).toBe(1);
+        expect(row?.nextPollAt).toBe(T0 + 750);
+    });
+
+    it('schedules a pending row at the default poll interval when the adapter gives no retryAfterMs', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store);
+        await poll(store, vi.fn(async () => json({ status: 'pending' })));
+        expect((await store.get({ id: 'op-1' }))?.nextPollAt).toBe(T0 + 5_000);
+    });
+
+    it('keeps a row pollable on a transport failure, recording the error and re-reading the clock', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store);
+        const fetchImpl = vi.fn(async () => {
+            throw new Error('socket hang up');
+        });
+        const times = [T0, T0, T0 + 42];
+        const stats = await poll(store, fetchImpl, { clock: () => times.shift() ?? T0 + 42 });
+        const row = await store.get({ id: 'op-1' });
+        expect(stats).toEqual({ claimed: 1, completed: 0, failed: 0, pending: 1, unknown: 0 });
+        expect(row?.status).toBe('polling');
+        expect(row?.attempts).toBe(1);
+        expect(row?.nextPollAt).toBe(T0 + 42 + 5_000);
+        expect(row?.error?.message).toContain('socket hang up');
+        expect(row?.leaseOwner).toBeNull();
+    });
+
+    it('records a non-Error throw from the adapter as its string form', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store);
+        const adapter = fastAdapter({
+            parsePollResponse: async () => {
+                // Deliberately a non-Error throw value — the shape toOperationError must stringify.
+                throw 'plain string failure';
+            },
+        });
+        await poll(store, vi.fn(async () => json({ status: 'pending' })), { adapters: () => adapter });
+        expect((await store.get({ id: 'op-1' }))?.error).toEqual({ message: 'plain string failure' });
+    });
+
+    it('treats deadlineAt equal to the tick time as expired', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store, { deadlineAt: T0 });
+        const fetchImpl = vi.fn(async () => json({ status: 'pending' }));
+        const stats = await poll(store, fetchImpl);
+        const row = await store.get({ id: 'op-1' });
+        expect(stats.unknown).toBe(1);
+        expect(row?.error).toEqual({ message: 'async operation passed its absolute deadline — vendor-side effect is undetermined', code: 'DEADLINE_EXPIRED' });
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('checks the deadline before the attempt cap', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store, { deadlineAt: T0 - 1, maxAttempts: 1 });
+        await store.update({ id: 'op-1', patch: { attempts: 1 } });
+        const stats = await poll(store, vi.fn(async () => json({ status: 'pending' })));
+        expect(stats).toEqual({ claimed: 1, completed: 0, failed: 0, pending: 0, unknown: 1 });
+    });
+
+    it('fails a row whose attempts already equal its cap, without calling the vendor or the adapter lookup', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store, { maxAttempts: 2 });
+        await store.update({ id: 'op-1', patch: { attempts: 2 } });
+        const fetchImpl = vi.fn(async () => json({ status: 'pending' }));
+        const adapters = vi.fn(() => fastAdapter());
+        const stats = await poll(store, fetchImpl, { adapters });
+        const row = await store.get({ id: 'op-1' });
+        expect(stats).toEqual({ claimed: 1, completed: 0, failed: 1, pending: 0, unknown: 0 });
+        expect(row?.error).toEqual({ message: 'async operation exhausted its 2 poll attempts without a terminal answer', code: 'ATTEMPTS_EXHAUSTED' });
+        expect(row?.attempts).toBe(2);
+        expect(fetchImpl).not.toHaveBeenCalled();
+        expect(adapters).not.toHaveBeenCalled();
+    });
+
+    it('still polls a row one attempt below its cap', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store, { maxAttempts: 2 });
+        await store.update({ id: 'op-1', patch: { attempts: 1 } });
+        const fetchImpl = vi.fn(async () => json({ status: 'pending' }));
+        const stats = await poll(store, fetchImpl);
+        expect(stats.pending).toBe(1);
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes an empty state to the adapter when the row has none', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store, { state: null });
+        const states: unknown[] = [];
+        const adapter = fastAdapter({
+            buildPollRequest: ({ state }) => {
+                states.push(state);
+                return { url: 'https://vendor.test/jobs/none', init: {}, meta: undefined };
+            },
+            parsePollResponse: async ({ state }) => {
+                states.push(state);
+                return { kind: 'pending' };
+            },
+        });
+        await poll(store, vi.fn(async () => json({ status: 'pending' })), { adapters: () => adapter });
+        expect(states).toEqual([{}, {}]);
+    });
+
+    it('forwards an explicit limit to claimDue, and omits the key when none is given', async () => {
+        const base = createInMemoryAsyncOperationStore();
+        const claims: Array<Record<string, unknown>> = [];
+        const store: AsyncOperationStore = {
+            ...base,
+            claimDue: async (required, optional = {}) => {
+                claims.push({ ...required, ...optional });
+                return base.claimDue(required, optional);
+            },
+        };
+        const fetchImpl = vi.fn(async () => json({ status: 'pending' }));
+        await poll(store, fetchImpl, { limit: 7 });
+        await poll(store, fetchImpl);
+        expect(claims[0]).toEqual({ now: T0, leaseOwner: 'w1', leaseMs: 1000, limit: 7 });
+        expect(claims[1]).toEqual({ now: T0, leaseOwner: 'w1', leaseMs: 1000 });
+    });
+
+    it('tallies each claimed row into exactly one bucket', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store, { id: 'op-done' });
+        await seed(store, { id: 'op-late', deadlineAt: T0 - 1 });
+        await seed(store, { id: 'op-orphan', routeKey: 'nope' });
+        const fetchImpl = vi.fn(async () => json({ status: 'completed', b64: Buffer.from('OK').toString('base64') }));
+        const stats = await poll(store, fetchImpl, { adapters: () => undefined });
+        expect(stats.claimed).toBe(3);
+        expect(stats.completed + stats.failed + stats.pending + stats.unknown).toBe(3);
+        expect(stats.unknown).toBe(1);
+        expect(stats.failed).toBe(2);
+    });
+
+    it('rewrites a row as "polling" (counted pending) when the deadline write itself throws', async () => {
+        const store = createInMemoryAsyncOperationStore();
+        await seed(store, { deadlineAt: T0 - 1 });
+        const flaky = withFlakyUpdate(store, 1);
+        const stats = await poll(flaky, vi.fn(async () => json({ status: 'pending' })));
+        const row = await store.get({ id: 'op-1' });
+        expect(stats).toEqual({ claimed: 1, completed: 0, failed: 0, pending: 1, unknown: 0 });
+        expect(row?.status).toBe('polling');
+        expect(row?.error).toEqual({ message: 'transient store outage' });
+    });
+
+    it('propagates a releaseLease failure out of the tick', async () => {
+        const base = createInMemoryAsyncOperationStore();
+        await seed(base);
+        const store: AsyncOperationStore = {
+            ...base,
+            releaseLease: async () => {
+                throw new Error('release failed');
+            },
+        };
+        await expect(poll(store, vi.fn(async () => json({ status: 'pending' })))).rejects.toThrow('release failed');
+    });
+});
