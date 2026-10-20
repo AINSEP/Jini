@@ -13,6 +13,8 @@ import type { PageHtmlEmbedRef } from "../../html/html-embeds.js";
 import type { MediaContentTypeStorePort, PostRecord, PostRepoPort, WidgetHostPorts } from "../../host-ports.js";
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
 import { HTML_EMBED_RESOLVERS, resolvePageWidgets, type ResolveHtmlPageEmbedsDeps } from "../../resolver-service.js";
+import { createContactFormResolver, registerCoreResolver } from "../../resolvers/index.js";
+import type { FormDefinitionReadPort, FormDefinitionView } from "../../resolvers/ports.js";
 import type { WidgetResolveContext } from "../../types.js";
 
 /**
@@ -78,10 +80,10 @@ function deps(overrides: Partial<ResolveHtmlPageEmbedsDeps> = {}): ResolveHtmlPa
   };
 }
 
-function widgetRow(id: string, config: Record<string, unknown>): EntryRecord {
+function widgetRow(id: string, config: Record<string, unknown>, payload: { status?: "active" | "trash" | "purged"; fieldsJson?: unknown } = {}): EntryRecord {
   return {
-    id, workspaceId: WS, type: "widget", slug: id, status: "draft", title: id, bodyJson: null,
-    fieldsJson: buildWidgetInstanceFieldsJson({ payload: { widgetType: "text", config, status: "active" } }),
+    id, workspaceId: WS, type: "widget", slug: `${id}-slug`, status: "draft", title: id, bodyJson: null,
+    fieldsJson: payload.fieldsJson ?? buildWidgetInstanceFieldsJson({ payload: { widgetType: "text", config, status: payload.status ?? "active" } }),
     publishedAt: null, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", version: 1,
   };
 }
@@ -91,6 +93,8 @@ function embedNode(placementId: unknown, widgetEntryId: unknown, content?: unkno
 }
 
 const media = (refs: PageHtmlEmbedRef[], d: ResolveHtmlPageEmbedsDeps) => HTML_EMBED_RESOLVERS.media!(refs, d, CTX);
+const widget = (refs: PageHtmlEmbedRef[], d: ResolveHtmlPageEmbedsDeps) => HTML_EMBED_RESOLVERS.widget!(refs, d, CTX);
+const form = (refs: PageHtmlEmbedRef[], d: ResolveHtmlPageEmbedsDeps) => HTML_EMBED_RESOLVERS.form!(refs, d, CTX);
 const content = (refs: PageHtmlEmbedRef[], d: ResolveHtmlPageEmbedsDeps) => HTML_EMBED_RESOLVERS.content!(refs, d, CTX);
 
 let warn: MockInstance<typeof console.warn>;
@@ -346,5 +350,133 @@ describe("inline widgetEmbed collection", () => {
     await entryRepo.save(widgetRow("w1", { body: "one" }));
     const resolved = await content([ref({ type: "content", id: "post-1" })], deps({ entryRepo, postRepo, host: hostPorts([post({ bodyJson: { type: "doc", content: [embedNode("p1", "w1")] } })]) }));
     expect(Object.keys(resolved.get("post-1")!.props.inlineWidgets as object)).toEqual(["p1"]);
+  });
+});
+
+async function entryRepoWith(rows: EntryRecord[]): Promise<InMemoryEntryRepo> {
+  const entryRepo = new InMemoryEntryRepo();
+  for (const row of rows) await entryRepo.save(row);
+  return entryRepo;
+}
+
+describe("widget embed resolution", () => {
+  const textIr = (body: string) => ({ componentId: "text", props: { body } });
+
+  it("resolves an id reference to its widget's IR, keyed by the id", async () => {
+    const resolved = await widget([ref({ type: "widget", id: "w1" })], deps({ entryRepo: await entryRepoWith([widgetRow("w1", { body: "one" })]) }));
+    expect(resolved.get("w1")).toEqual(textIr("one"));
+  });
+
+  it("resolves a slug-only reference to its widget's IR, keyed by the slug", async () => {
+    const resolved = await widget([ref({ type: "widget", slug: "w1-slug" })], deps({ entryRepo: await entryRepoWith([widgetRow("w1", { body: "one" })]) }));
+    expect([...resolved]).toEqual([["w1-slug", textIr("one")]]);
+  });
+
+  it("ignores the slug when the reference also carries an id", async () => {
+    const entryRepo = await entryRepoWith([widgetRow("w1", { body: "one" }), widgetRow("w2", { body: "two" })]);
+    const resolved = await widget([ref({ type: "widget", id: "w1", slug: "w2-slug" })], deps({ entryRepo }));
+    expect([...resolved]).toEqual([["w1", textIr("one")]]);
+  });
+
+  it("looks each distinct slug up once", async () => {
+    const entryRepo = await entryRepoWith([widgetRow("w1", { body: "one" })]);
+    const findBySlug = vi.spyOn(entryRepo, "findBySlug");
+    await widget([ref({ type: "widget", slug: "w1-slug" }), ref({ type: "widget", slug: "w1-slug" })], deps({ entryRepo }));
+    expect(findBySlug).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves an unknown slug absent and warns", async () => {
+    const resolved = await widget([ref({ type: "widget", slug: "nope" })], deps());
+    expect(resolved.size).toBe(0);
+    expect(warnedWith('[widgets] resolveHtmlPageEmbeds: unresolved "widget" reference — no widget with that slug')).toBe(true);
+  });
+
+  it("warns for a reference with neither id nor slug", async () => {
+    const resolved = await widget([ref({ type: "widget" })], deps());
+    expect(resolved.size).toBe(0);
+    expect(warnedWith('[widgets] resolveHtmlPageEmbeds: unresolved "widget" reference — missing or invalid "id"/"slug" in data-embed-config')).toBe(true);
+  });
+
+  it("leaves a nonexistent id absent rather than present-with-placeholder", async () => {
+    expect((await widget([ref({ type: "widget", id: "missing" })], deps())).size).toBe(0);
+  });
+
+  it.each(["trash", "purged"] as const)("leaves a %s widget instance absent", async (status) => {
+    const entryRepo = await entryRepoWith([widgetRow("w1", { body: "one" }, { status })]);
+    expect((await widget([ref({ type: "widget", id: "w1" })], deps({ entryRepo }))).size).toBe(0);
+  });
+
+  it("skips a widget row whose payload is malformed", async () => {
+    const entryRepo = await entryRepoWith([widgetRow("w1", {}, { fieldsJson: { ext: {} } })]);
+    expect((await widget([ref({ type: "widget", id: "w1" })], deps({ entryRepo }))).size).toBe(0);
+  });
+
+  it("merges a placement's content over the saved config under the placement key only", async () => {
+    const entryRepo = await entryRepoWith([widgetRow("w1", { body: "saved", title: "T" })]);
+    const resolved = await widget([ref({ type: "widget", id: "w1", placementKey: "k1", config: { content: { body: "override" } } })], deps({ entryRepo }));
+    expect([...resolved]).toEqual([["k1", { componentId: "text", props: { body: "override", title: "T" } }]]);
+  });
+
+  it("resolves a slug-addressed placement's content override", async () => {
+    const entryRepo = await entryRepoWith([widgetRow("w1", { body: "saved" })]);
+    const resolved = await widget([ref({ type: "widget", slug: "w1-slug", placementKey: "k1", config: { content: { body: "override" } } })], deps({ entryRepo }));
+    expect(resolved.get("k1")).toEqual(textIr("override"));
+  });
+
+  it("keeps the saved IR for an un-keyed occurrence of a widget another occurrence overrides", async () => {
+    const entryRepo = await entryRepoWith([widgetRow("w1", { body: "saved" })]);
+    const resolved = await widget([
+      ref({ type: "widget", id: "w1" }),
+      ref({ type: "widget", id: "w1", placementKey: "k1", config: { content: { body: "override" } } }),
+    ], deps({ entryRepo }));
+    expect(resolved.get("w1")).toEqual(textIr("saved"));
+    expect(resolved.get("k1")).toEqual(textIr("override"));
+  });
+
+  it("ignores a placement content value that is not an object", async () => {
+    const entryRepo = await entryRepoWith([widgetRow("w1", { body: "saved" })]);
+    const resolved = await widget([ref({ type: "widget", id: "w1", placementKey: "k1", config: { content: "nope" } })], deps({ entryRepo }));
+    expect(resolved.size).toBe(0);
+  });
+
+  it("drops a placement override whose widget does not exist", async () => {
+    const resolved = await widget([ref({ type: "widget", id: "missing", placementKey: "k1", config: { content: { body: "x" } } })], deps());
+    expect(resolved.size).toBe(0);
+  });
+
+  it("drops a placement override whose widget is trashed", async () => {
+    const entryRepo = await entryRepoWith([widgetRow("w1", {}, { status: "trash" })]);
+    const resolved = await widget([ref({ type: "widget", id: "w1", placementKey: "k1", config: { content: { body: "x" } } })], deps({ entryRepo }));
+    expect(resolved.size).toBe(0);
+  });
+
+  it("drops a placement override for an unknown slug", async () => {
+    const resolved = await widget([ref({ type: "widget", slug: "nope", placementKey: "k1", config: { content: { body: "x" } } })], deps());
+    expect(resolved.size).toBe(0);
+  });
+});
+
+describe("form embed resolution", () => {
+  const definitions: FormDefinitionView[] = [{ id: "form-1", slug: "contact", status: "active", fields: [] }];
+  const formRepo: FormDefinitionReadPort = {
+    findById: async ({ id }) => definitions.find((d) => d.id === id) ?? null,
+    findBySlug: async ({ slug }) => definitions.find((d) => d.slug === slug) ?? null,
+  };
+  const formIr = { componentId: "contact-form", props: { formDefinitionId: "form-1", slug: "contact", fields: [], successMessage: null } };
+  beforeEach(() => { registerCoreResolver({ typeKey: "contact-form", resolver: createContactFormResolver({ formDefinitionRepo: formRepo }) }); });
+
+  it("resolves an id and a slug reference to the same contact form, keyed as authored", async () => {
+    const resolved = await form([ref({ type: "form", id: "form-1" }), ref({ type: "form", slug: "contact" })], deps());
+    expect([...resolved]).toEqual([["form-1", formIr], ["contact", formIr]]);
+  });
+
+  it("degrades an unknown form to the placeholder IR", async () => {
+    const resolved = await form([ref({ type: "form", slug: "nope" })], deps());
+    expect([...resolved]).toEqual([["nope", { componentId: "widget-placeholder", props: {} }]]);
+  });
+
+  it("deduplicates repeated keys and skips a reference with neither id nor slug", async () => {
+    const resolved = await form([ref({ type: "form", id: "form-1" }), ref({ type: "form", id: "form-1" }), ref({ type: "form" })], deps());
+    expect([...resolved.keys()]).toEqual(["form-1"]);
   });
 });
