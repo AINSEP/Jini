@@ -38,8 +38,8 @@ export function renderChartTable(
   for (const row of spec.data) {
     const tr = body.insertRow();
     for (const { key } of columns) {
-      const cell = tr.insertCell(); const value = row[key];
-      cell.textContent = value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+      const cell = tr.insertCell(); const value = row[key] ?? '';
+      cell.textContent = typeof value === 'object' ? JSON.stringify(value) : String(value);
       cell.dataset.numeric = String(numeric.has(key));
     }
   }

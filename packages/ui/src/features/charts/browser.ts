@@ -38,7 +38,8 @@ export function mountChart(
   const renderer = element.ownerDocument.createElement('div'); renderer.dataset.chartRenderer = '';
   element.append(fallback, renderer);
   let input: ChartRenderInput = { spec, theme: options.theme ?? DEFAULT_CHART_THEME };
-  let active: { entry: RegisteredChartProvider; instance: ChartInstance } | undefined;
+  type ActiveChart = { entry: RegisteredChartProvider; instance: ChartInstance };
+  let active: ActiveChart | undefined;
   let generation = 0;
   let revision = 0;
   let destroyed = false;
@@ -64,6 +65,15 @@ export function mountChart(
   function candidates(): readonly RegisteredChartProvider[] {
     return selectChartProviders({ registry, spec: input.spec }, { siteProvider: options.siteProvider }).filter(({ id }) => !failed.has(id));
   }
+  function isStaleMount({ token }: { token: number }, _options: Record<string, never> = {}): boolean {
+    return destroyed || token !== generation;
+  }
+  function isCurrentUpdate(
+    { current, updateRevision }: { current: ActiveChart; updateRevision: number },
+    _options: Record<string, never> = {},
+  ): boolean {
+    return !destroyed && active === current && updateRevision === revision;
+  }
   /** Async renderer errors arrive after mount; defer teardown outside the provider's commit. */
   function renderError(entry: RegisteredChartProvider, error: unknown, token: number): void {
     queueMicrotask(() => {
@@ -77,16 +87,16 @@ export function mountChart(
       let renderRevision = revision;
       try {
         const provider = await entry.load({});
-        if (destroyed || token !== generation) return;
+        if (isStaleMount({ token })) return;
         const frame = element.ownerDocument.createElement('div'); renderer.replaceChildren(frame);
         renderRevision = revision;
         const instance = provider.mount({ element: frame, ...input }, { onError: (error) => renderError(entry, error, token) });
         active = { entry, instance };
         await instance.ready;
-        if (destroyed || token !== generation || renderRevision !== revision) return;
+        if (isStaleMount({ token }) || renderRevision !== revision) return;
         fallback.hidden = true; return;
       } catch (error) {
-        if (destroyed || token !== generation || renderRevision !== revision) return;
+        if (isStaleMount({ token }) || renderRevision !== revision) return;
         failed.add(entry.id); report(entry, error); dispose();
       }
     }
@@ -104,10 +114,10 @@ export function mountChart(
         const current = active;
         try {
           await current.instance.update(input);
-          if (!destroyed && active === current && updateRevision === revision) fallback.hidden = true;
+          if (isCurrentUpdate({ current, updateRevision })) fallback.hidden = true;
           return;
         } catch (error) {
-          if (destroyed || active !== current || updateRevision !== revision) return;
+          if (!isCurrentUpdate({ current, updateRevision })) return;
           failed.add(current.entry.id); report(current.entry, error);
         }
       }
