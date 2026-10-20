@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { qoderAgentDef } from '../qoder.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
+import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 const BASE_ARGS = ['-p', '--output-format', 'stream-json', '--yolo'];
 
@@ -94,5 +95,13 @@ describe('qoderAgentDef shape', () => {
     expect(qoderAgentDef.fallbackModels.length).toBeGreaterThan(1);
     expect(qoderAgentDef.promptViaStdin).toBe(true);
     expect(qoderAgentDef.streamFormat).toBe('qoder-stream-json');
+  });
+});
+
+describe('qoderAgentDef.discoverModels', () => {
+  it('falls back to the def\'s own fallbackModels (minus the synthetic default) when every probe is offline', async () => {
+    const catalog = await qoderAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toEqual(['lite', 'efficient', 'auto', 'performance', 'ultimate']);
   });
 });

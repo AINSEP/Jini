@@ -52,9 +52,12 @@ function stringifyContent(value: unknown): string {
 }
 
 function textFromContentBlock(block: unknown): string {
-  if (!isRecord(block)) return '';
-  if (block.type === 'text' && typeof block.text === 'string') return block.text;
-  if (typeof block.text === 'string') return block.text;
+  if (isRecord(block) && typeof block.text === 'string') return block.text;
+  return '';
+}
+
+function thinkingFromContentBlock(block: unknown): string {
+  if (isRecord(block) && block.type === 'thinking' && typeof block.thinking === 'string') return block.thinking;
   return '';
 }
 
@@ -66,106 +69,112 @@ function messageFromError(error: unknown): string {
   return 'Unknown Qoder error';
 }
 
+/** First non-empty string among the candidates, or undefined. */
+function firstNonEmpty(candidates: unknown[]): string | undefined {
+  return candidates.find((value): value is string => typeof value === 'string' && value.length > 0);
+}
+
 function messageFromResult(obj: JsonRecord): string {
-  if (typeof obj.error === 'string' && obj.error.length > 0) return obj.error;
-  if (
-    isRecord(obj.error) &&
-    typeof obj.error.message === 'string' &&
-    obj.error.message.length > 0
-  ) {
-    return obj.error.message;
-  }
-  if (typeof obj.message === 'string' && obj.message.length > 0) {
-    return obj.message;
-  }
+  const errorMessage = isRecord(obj.error) ? obj.error.message : undefined;
+  const message = firstNonEmpty([obj.error, errorMessage, obj.message]);
+  if (message !== undefined) return message;
   if (typeof obj.stop_reason === 'string' && obj.stop_reason.length > 0) {
     return `Qoder run failed: ${obj.stop_reason}`;
   }
   return 'Qoder run failed';
 }
 
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function initStatusEvent(obj: JsonRecord): QoderEvent {
+  return {
+    type: 'status',
+    label: 'initializing',
+    model: optionalString(obj.model),
+    sessionId: optionalString(obj.session_id),
+    qodercliVersion: optionalString(obj.qodercli_version),
+  };
+}
+
+function usageEvent(obj: JsonRecord): QoderEvent {
+  return {
+    type: 'usage',
+    usage: obj.usage ?? null,
+    modelUsage: obj.modelUsage ?? undefined,
+    costUsd: obj.total_cost_usd ?? null,
+    durationMs: typeof obj.duration_ms === 'number' ? obj.duration_ms : null,
+    stopReason: obj.stop_reason ?? null,
+    isError: Boolean(obj.is_error),
+  };
+}
+
 export function createQoderStreamHandler({ onEvent }: { onEvent: QoderEventSink }) {
   let buffer = '';
   let emittedThinkingStart = false;
 
+  function emitThinking(thinking: string) {
+    if (!emittedThinkingStart) {
+      emittedThinkingStart = true;
+      onEvent({ type: 'thinking_start' });
+    }
+    onEvent({ type: 'thinking_delta', delta: thinking });
+  }
+
+  /** Emit one content block's text or thinking; returns whether text was emitted. */
+  function emitContentBlock(block: unknown): boolean {
+    const text = textFromContentBlock(block);
+    if (text.length > 0) {
+      onEvent({ type: 'text_delta', delta: text });
+      return true;
+    }
+    const thinking = thinkingFromContentBlock(block);
+    if (thinking.length > 0) emitThinking(thinking);
+    return false;
+  }
+
+  function handleAssistant(obj: JsonRecord, message: JsonRecord, rawLine: string) {
+    const content = Array.isArray(message.content) ? message.content : [];
+    let emittedText = false;
+    for (const block of content) {
+      if (emitContentBlock(block)) emittedText = true;
+    }
+    if (!emittedText && typeof message.content === 'string') {
+      onEvent({ type: 'text_delta', delta: message.content });
+      emittedText = true;
+    }
+    if (obj.error && !emittedText) {
+      onEvent({
+        type: 'error',
+        message: messageFromError(obj.error),
+        raw: rawLine,
+      });
+    }
+  }
+
+  function handleResult(obj: JsonRecord, rawLine: string) {
+    onEvent(usageEvent(obj));
+    if (obj.is_error) {
+      onEvent({
+        type: 'error',
+        message: messageFromResult(obj),
+        raw: rawLine,
+      });
+    }
+  }
+
   function handleObject(obj: unknown, rawLine: string) {
     if (!isRecord(obj)) return;
-
     if (obj.type === 'system' && obj.subtype === 'init') {
-      onEvent({
-        type: 'status',
-        label: 'initializing',
-        model: typeof obj.model === 'string' ? obj.model : undefined,
-        sessionId: typeof obj.session_id === 'string' ? obj.session_id : undefined,
-        qodercliVersion:
-          typeof obj.qodercli_version === 'string'
-            ? obj.qodercli_version
-            : undefined,
-      });
-      return;
+      onEvent(initStatusEvent(obj));
+    } else if (obj.type === 'assistant' && isRecord(obj.message)) {
+      handleAssistant(obj, obj.message, rawLine);
+    } else if (obj.type === 'result') {
+      handleResult(obj, rawLine);
+    } else {
+      onEvent({ type: 'raw', line: rawLine });
     }
-
-    if (obj.type === 'assistant' && isRecord(obj.message)) {
-      const content = Array.isArray(obj.message.content)
-        ? obj.message.content
-        : [];
-      let emittedText = false;
-      for (const block of content) {
-        const text = textFromContentBlock(block);
-        if (text.length > 0) {
-          emittedText = true;
-          onEvent({ type: 'text_delta', delta: text });
-          continue;
-        }
-        if (
-          isRecord(block) &&
-          block.type === 'thinking' &&
-          typeof block.thinking === 'string' &&
-          block.thinking.length > 0
-        ) {
-          if (!emittedThinkingStart) {
-            emittedThinkingStart = true;
-            onEvent({ type: 'thinking_start' });
-          }
-          onEvent({ type: 'thinking_delta', delta: block.thinking });
-        }
-      }
-      if (!emittedText && typeof obj.message.content === 'string') {
-        onEvent({ type: 'text_delta', delta: obj.message.content });
-        emittedText = true;
-      }
-      if (obj.error && !emittedText) {
-        onEvent({
-          type: 'error',
-          message: messageFromError(obj.error),
-          raw: rawLine,
-        });
-      }
-      return;
-    }
-
-    if (obj.type === 'result') {
-      const isError = Boolean(obj.is_error);
-      onEvent({
-        type: 'usage',
-        usage: obj.usage ?? null,
-        modelUsage: obj.modelUsage ?? undefined,
-        costUsd: obj.total_cost_usd ?? null,
-        durationMs: typeof obj.duration_ms === 'number' ? obj.duration_ms : null,
-        stopReason: obj.stop_reason ?? null,
-        isError,
-      });
-      if (isError) {
-        onEvent({
-          type: 'error',
-          message: messageFromResult(obj),
-          raw: rawLine,
-        });
-      }
-      return;
-    }
-
-    onEvent({ type: 'raw', line: rawLine });
   }
 
   function handleLine(line: string) {

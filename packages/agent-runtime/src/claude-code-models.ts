@@ -203,7 +203,7 @@ function runInitializeProbe(bin: string, env: RuntimeEnv): Promise<string | null
           windowsVerbatimArguments: invocation.windowsVerbatimArguments,
         },
         // A timeout or non-zero exit still hands back what was captured; the parser decides.
-        (_err, stdout) => resolve(typeof stdout === 'string' ? stdout : String(stdout ?? '')),
+        (_err, stdout) => resolve(stdout),
       );
       child.stdin?.on('error', () => {});
       child.stdin?.end(CLAUDE_CODE_INITIALIZE_REQUEST);
@@ -220,12 +220,10 @@ const defaultIo: ClaudeCodeModelIo = {
 
 let activeIo: ClaudeCodeModelIo = defaultIo;
 
-const cache = defaultRuntimeState.claudeModels;
-
 /** Test-only: install fake I/O (or `null` to restore the real one) and clear the process cache. */
 export function setClaudeCodeModelIoForTesting(io: ClaudeCodeModelIo | null): void {
   activeIo = io ?? defaultIo;
-  cache.clear();
+  defaultRuntimeState.claudeModels.clear();
 }
 
 /** One cache slot per binary + config location + auth-affecting env, fingerprinted so no secret is
@@ -255,6 +253,37 @@ async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv, io: Claude
   }
 }
 
+/** Options for the object call form of {@link loadClaudeCodeModels}. */
+export interface ClaudeCodeModelsOptions { state?: AgentRuntimeState; io?: ClaudeCodeModelIo; now?: () => number }
+
+type LoadClaudeCodeModelsRequired = { bin: string; env: RuntimeEnv; fallbackModels?: readonly RuntimeModelOption[] };
+
+/** Normalizes the object and the published positional call forms to one shape. */
+function normalizeLoadArgs(
+  required: string | LoadClaudeCodeModelsRequired,
+  optional: RuntimeEnv | ClaudeCodeModelsOptions,
+): { bin: string; env: RuntimeEnv; options: ClaudeCodeModelsOptions } {
+  if (typeof required === 'string') return { bin: required, env: optional as RuntimeEnv, options: {} };
+  return { bin: required.bin, env: required.env, options: optional as ClaudeCodeModelsOptions };
+}
+
+/** One in-flight-or-settled discovery per cache key and TTL window; a miss starts (and caches) a new one. */
+function cachedDiscovery(required: {
+  bin: string;
+  env: RuntimeEnv;
+  cache: AgentRuntimeState['claudeModels'];
+  io: ClaudeCodeModelIo;
+  now: () => number;
+}): Promise<readonly RuntimeModelOption[] | null> {
+  const { bin, env, cache, io, now } = required;
+  const key = cacheKeyFor(bin, env);
+  const cached = cache.get(key);
+  const pending = cached && cached.expiresAt > now() ? cached.value : null;
+  const value = pending ?? discoverClaudeCodeModels(bin, env, io);
+  if (!pending) cache.set(key, { expiresAt: now() + CLAUDE_CODE_MODEL_CACHE_TTL_MS, value });
+  return value;
+}
+
 /**
  * Returns the `claude` model list from the CLI's own picker catalog, or `null` when discovery fails. Needs no API key.
  *
@@ -265,7 +294,6 @@ async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv, io: Claude
  * @complexity O(f + l) plus, at most once per {@link CLAUDE_CODE_MODEL_CACHE_TTL_MS} per cache key,
  * one CLI spawn bounded by {@link CLAUDE_CODE_INIT_TIMEOUT_MS} and one file read.
  */
-export interface ClaudeCodeModelsOptions { state?: AgentRuntimeState; io?: ClaudeCodeModelIo; now?: () => number }
 export function loadClaudeCodeModels(required: { bin: string; env: RuntimeEnv; fallbackModels?: readonly RuntimeModelOption[] }, optional?: ClaudeCodeModelsOptions): Promise<RuntimeModelOption[] | null>;
 /** Published positional form remains additive compatibility. */
 export function loadClaudeCodeModels(bin: string, env: RuntimeEnv, fallbackModels: readonly RuntimeModelOption[], now?: () => number): Promise<RuntimeModelOption[] | null>;
@@ -275,18 +303,10 @@ export async function loadClaudeCodeModels(
   _fallbackModels: readonly RuntimeModelOption[] = [],
   clock: () => number = Date.now,
 ): Promise<RuntimeModelOption[] | null> {
-  const bin = typeof required === 'string' ? required : required.bin;
-  const env = typeof required === 'string' ? optional as RuntimeEnv : required.env;
-  const options = typeof required === 'string' ? {} : optional as ClaudeCodeModelsOptions;
+  const { bin, env, options } = normalizeLoadArgs(required, optional);
   const state = options.state ?? defaultRuntimeState;
-  const cache = state.claudeModels;
+  // The test-installed I/O only applies to the shared default state; an injected state gets real I/O.
   const io = options.io ?? (state === defaultRuntimeState ? activeIo : defaultIo);
-  const now = options.now ?? clock;
-  const key = cacheKeyFor(bin, env);
-  const cached = cache.get(key);
-  const pending = cached && cached.expiresAt > now() ? cached.value : null;
-  const value = pending ?? discoverClaudeCodeModels(bin, env, io);
-  if (!pending) cache.set(key, { expiresAt: now() + CLAUDE_CODE_MODEL_CACHE_TTL_MS, value });
-  const live = await value;
+  const live = await cachedDiscovery({ bin, env, cache: state.claudeModels, io, now: options.now ?? clock });
   return live && live.length > 0 ? [...live] : null;
 }

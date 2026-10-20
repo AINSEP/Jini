@@ -7,6 +7,7 @@ import { agentCapabilities } from '../../capabilities.js';
 import { setClaudeCodeModelIoForTesting, type ClaudeCodeModelIo } from '../../claude-code-models.js';
 import { claudeAgentDef } from '../claude.js';
 import { sanitizeCustomModel } from '../../models.js';
+import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 // Live discovery uses the real SSRF guard with an explicit, offline DNS answer.
 vi.mock('node:dns', () => ({
@@ -280,6 +281,34 @@ describe('claudeAgentDef.buildArgs', () => {
     expect(args).not.toContain('--disallowedTools');
   });
 
+  it('denies the native edit/shell tools and locks MCP when nativeToolAccess is false', () => {
+    expect(claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { nativeToolAccess: false } })).toEqual([
+      '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'bypassPermissions',
+      '--strict-mcp-config', '--disallowedTools', 'Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'BashOutput', 'KillShell',
+    ]);
+  });
+
+  it('denies only the shell tools when nativeCapabilities.shell is false', () => {
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { nativeCapabilities: { shell: false } } });
+    expect(args.slice(args.indexOf('--disallowedTools'))).toEqual(['--disallowedTools', 'Bash', 'BashOutput', 'KillShell']);
+  });
+
+  it('omits --allowedTools for an empty array', () => {
+    expect(claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { allowedTools: [] } })).not.toContain('--allowedTools');
+  });
+
+  it('locks user settings with an empty --setting-sources and --disable-slash-commands, ignoring a requested list', () => {
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { nativeCapabilities: { userSettings: false }, settingSources: ['user'], capabilities: { settingSources: true } } });
+    expect(args.slice(args.indexOf('--setting-sources'))).toEqual(['--setting-sources', '', '--disable-slash-commands']);
+  });
+
+  it('honors host-scoped options.capabilities over the cached probe', () => {
+    agentCapabilities.set('claude', { partialMessages: true });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { capabilities: { effort: true }, reasoning: 'high' } });
+    expect(args).not.toContain('--include-partial-messages');
+    expect(args).toContain('--effort');
+  });
+
   it('can emit both --disallowedTools and --allowedTools in the same call', () => {
     const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { disallowedTools: ['Bash'], allowedTools: ['Read'] } });
     expect(args).toContain('--disallowedTools');
@@ -435,5 +464,13 @@ describe('claudeAgentDef.fallbackModels — the list the picker actually renders
     for (const model of claudeAgentDef.fallbackModels) {
       expect(sanitizeCustomModel({ id: model.id })).toBe(model.id);
     }
+  });
+});
+
+describe('claudeAgentDef.discoverModels', () => {
+  it('falls back to the def\'s fallbackModels when every probe is offline', async () => {
+    const catalog = await claudeAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toContain('claude-opus-5-5');
   });
 });

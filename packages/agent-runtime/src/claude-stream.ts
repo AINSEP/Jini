@@ -765,7 +765,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
     if (typeof message.model === 'string') onEvent({ type: 'status', label: 'model', model: message.model });
     const { textMsgId, thinkingMsgId, textAlreadyStreamed, thinkingAlreadyStreamed } =
       resolveAssistantMessageIds(message);
-    segmentUsage.observe({ messageId: currentMessageId ?? `anon${anonymousMessageEpoch}`, usage: message.usage });
+    segmentUsage.observe({ messageId: usageMessageKey(), usage: message.usage });
     // Per-turn `stop_reason` is emitted as `turn_end` AFTER the content
     // blocks have been processed (see below). When `--include-partial-
     // messages` is unsupported, tool_use events surface only from the
@@ -844,7 +844,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
     currentMessageId = isRecord(ev.message) && typeof ev.message.id === 'string' ? ev.message.id : null;
     // New message boundary — see `anonymousMessageEpoch`'s declaration.
     if (currentMessageId === null) anonymousMessageEpoch += 1;
-    segmentUsage.observe({ messageId: currentMessageId ?? `anon${anonymousMessageEpoch}`, usage: isRecord(ev.message) ? ev.message.usage : undefined });
+    segmentUsage.observe({ messageId: usageMessageKey(), usage: isRecord(ev.message) ? ev.message.usage : undefined });
     currentMessageStreamedText = false;
     currentMessageStreamedThinking = false;
     if (typeof ev.ttft_ms === 'number') {
@@ -909,6 +909,16 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
     blocks.delete(key);
   }
 
+  // Usage is keyed per message; an id-less message is keyed by its epoch.
+  function usageMessageKey(): string {
+    return currentMessageId ?? `anon${anonymousMessageEpoch}`;
+  }
+
+  function handleMessageDeltaStreamEvent(ev: Record<string, unknown>): void {
+    segmentUsage.observe({ messageId: usageMessageKey(), usage: ev.usage ?? (isRecord(ev.delta) ? ev.delta.usage : undefined) });
+    if (isRecord(ev.delta)) handleMessageDeltaEvent(ev.delta);
+  }
+
   function handleMessageDeltaEvent(delta: Record<string, unknown>): void {
     const stopReason = typeof delta.stop_reason === 'string' ? delta.stop_reason : null;
     if (stopReason) emitTurnEnd(stopReason);
@@ -929,8 +939,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
         handleContentBlockStop(ev);
         return;
       case 'message_delta':
-        segmentUsage.observe({ messageId: currentMessageId ?? `anon${anonymousMessageEpoch}`, usage: ev.usage ?? (isRecord(ev.delta) ? ev.delta.usage : undefined) });
-        if (isRecord(ev.delta)) handleMessageDeltaEvent(ev.delta);
+        handleMessageDeltaStreamEvent(ev);
         return;
     }
   }

@@ -48,23 +48,27 @@ export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
  */
 export function buildClaudeMcpConfigArgs(runtimeContext: RuntimeContext, options: { cliParity?: boolean; permissionMode?: string; nativeToolAccess?: boolean; nativeCapabilities?: { userMcp?: boolean } } = {}): string[] {
   const mcpJsonPath = runtimeContext.mcpJsonPath;
-  if (typeof mcpJsonPath !== 'string' || mcpJsonPath.length === 0) return options.nativeToolAccess === false || options.nativeCapabilities?.userMcp === false ? ['--strict-mcp-config'] : [];
+  const userMcpLocked = options.nativeToolAccess === false || options.nativeCapabilities?.userMcp === false;
+  if (typeof mcpJsonPath !== 'string' || mcpJsonPath.length === 0) return userMcpLocked ? ['--strict-mcp-config'] : [];
   // Explicit config still avoids headless trust prompts. Only a trusted bypass run inherits MCP.
-  return [...(options.cliParity && options.permissionMode === 'bypass' && options.nativeToolAccess !== false && options.nativeCapabilities?.userMcp !== false ? [] : ['--strict-mcp-config']), '--mcp-config', mcpJsonPath];
+  const trustedBypass = Boolean(options.cliParity) && options.permissionMode === 'bypass' && !userMcpLocked;
+  return [...(trustedBypass ? [] : ['--strict-mcp-config']), '--mcp-config', mcpJsonPath];
+}
+
+/** Model-id prefixes of the late gpt-5.x family, which rejects `minimal` effort. */
+const GPT5_LATE_FAMILY_PREFIXES = ['gpt-5.2', 'gpt-5.3', 'gpt-5.4', 'gpt-5.5'];
+
+/** True for the empty/`default` id (the CLI's own default model) or a late gpt-5.x id. */
+function isGpt5LateFamily(id: string): boolean {
+  return id === '' || id === 'default' || GPT5_LATE_FAMILY_PREFIXES.some((prefix) => id.startsWith(prefix));
 }
 
 export function clampCodexReasoning(modelId: string | null | undefined, effort: string | null | undefined) {
   if (!effort) return effort;
   const raw = String(modelId ?? '').trim();
-  const id = raw.includes('/') ? raw.split('/').pop() : raw;
-  const isGpt5LateFamily =
-    !id ||
-    id === 'default' ||
-    id.startsWith('gpt-5.2') ||
-    id.startsWith('gpt-5.3') ||
-    id.startsWith('gpt-5.4') ||
-    id.startsWith('gpt-5.5');
-  if (isGpt5LateFamily && effort === 'minimal') return 'low';
+  // Strip any provider prefix ("openai/gpt-5.2" -> "gpt-5.2"); a trailing "/" leaves "".
+  const id = raw.slice(raw.lastIndexOf('/') + 1);
+  if (isGpt5LateFamily(id) && effort === 'minimal') return 'low';
   if (id === 'gpt-5.1' && effort === 'xhigh') return 'high';
   if (id === 'gpt-5.1-codex-mini') {
     return effort === 'high' || effort === 'xhigh' ? 'high' : 'medium';

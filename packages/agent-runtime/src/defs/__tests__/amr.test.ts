@@ -19,6 +19,7 @@ import {
   parseVelaModels,
 } from '../amr.js';
 import type { RuntimeAgentDef } from '../../types.js';
+import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 afterEach(() => {
   mockState.execAgentFile.mockReset();
@@ -330,6 +331,54 @@ describe('fetchVelaRemoteModelsWithRetry', () => {
     // eslint-disable-next-line prefer-promise-reject-errors
     mockState.execAgentFile.mockRejectedValueOnce(undefined);
     await expect(fetchVelaRemoteModelsWithRetry({ resolvedBin: '/bin/vela', env: {} })).rejects.toThrow('undefined');
+  });
+});
+
+describe('fetchVelaRemoteModelsWithRetry — retry schedule', () => {
+  it('waits 250ms before the second attempt and 750ms before the third', async () => {
+    vi.useFakeTimers();
+    mockState.execAgentFile
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ source: 'remote', data: [{ id: 'glm-5.1' }] }), stderr: '' });
+    const promise = fetchVelaRemoteModelsWithRetry({ resolvedBin: '/bin/vela', env: {} });
+    await vi.advanceTimersByTimeAsync(249);
+    expect(mockState.execAgentFile).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mockState.execAgentFile).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(749);
+    expect(mockState.execAgentFile).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(promise).resolves.toEqual([{ id: 'glm-5.1', label: 'glm-5.1' }]);
+    expect(mockState.execAgentFile).toHaveBeenCalledTimes(3);
+  });
+
+  it('stops retrying once a later attempt fails with a non-retriable error', async () => {
+    mockState.execAgentFile
+      .mockRejectedValueOnce(new Error('ECONNRESET'))
+      .mockRejectedValueOnce(new Error('permission denied'));
+    await expect(fetchVelaRemoteModelsWithRetry({ resolvedBin: '/bin/vela', env: {} })).rejects.toThrow('permission denied');
+    expect(mockState.execAgentFile).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a malformed catalog response', async () => {
+    mockState.execAgentFile.mockResolvedValueOnce({ stdout: JSON.stringify({ source: 'preset', data: [] }), stderr: '' });
+    await expect(fetchVelaRemoteModelsWithRetry({ resolvedBin: '/bin/vela', env: {} })).rejects.toThrow('Invalid vela model JSON source: expected remote, got preset');
+    expect(mockState.execAgentFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('amrAgentDef.discoverModels', () => {
+  it('fails closed to an empty catalog when every probe is offline (no static fallback)', async () => {
+    const catalog = await amrAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models).toEqual([]);
+  });
+
+  it('parses the CLI listing as a remote-sourced vela model JSON document', async () => {
+    const catalog = await amrAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps(JSON.stringify({ source: 'remote', data: [{ id: 'glm-5.1' }] })) });
+    expect(catalog.freshness).toBe('fresh');
+    expect(catalog.models.map((model) => model.id)).toEqual(['glm-5.1']);
   });
 });
 

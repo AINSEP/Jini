@@ -14,9 +14,34 @@ export function normalizeDiscoveredModels(models: readonly RuntimeModelOption[])
     if (!row.id || row.id === 'default' || seen.has(row.id)) return [];
     seen.add(row.id);
     const model = row as Partial<DiscoveredModel>;
-    return [{ ...row, identityKind: model.identityKind ?? modelIdentityKind(row.id), ...(model.resolvedId ? { resolvedId: model.resolvedId } : {}) }];
+    return [{ ...row, identityKind: model.identityKind ?? modelIdentityKind(row.id) }];
   });
 }
+type DefaultResolutionLike = { status: string; id?: string };
+
+/** The concrete launch id a catalog row contributes, or undefined when it contributes none. */
+function concreteRowId({ row }: { row: RuntimeModelOption }): string | undefined {
+  const id = row.resolvedId || (row.identityKind === 'routing-mode' || row.identityKind === 'alias' ? undefined : row.id);
+  return id && modelIdentityKind(id) === 'concrete' ? id : undefined;
+}
+
+/** Add one row's concrete choice; first position wins, a raw-id label is upgraded later. */
+function addConcreteChoice({ choices, row }: { choices: Map<string, RuntimeModelOption>; row: RuntimeModelOption }): void {
+  const id = concreteRowId({ row });
+  if (!id) return;
+  // Older cached inventories can attach a default-policy label to a resolved concrete ID.
+  const label = row.id === 'default' || /^default\b/i.test(row.label) ? id : row.label;
+  const existing = choices.get(id);
+  if (!existing) choices.set(id, { ...row, id, label, identityKind: 'concrete' });
+  else if (existing.label === id && label !== id) choices.set(id, { ...existing, label });
+}
+
+/** The resolved concrete default id when it is missing from `choices`, else undefined. */
+function missingResolvedDefaultId({ choices }: { choices: Map<string, RuntimeModelOption> }, { resolution }: { resolution?: DefaultResolutionLike | undefined } = {}): string | undefined {
+  if (resolution?.status !== 'resolved' || !resolution.id) return undefined;
+  return modelIdentityKind(resolution.id) === 'concrete' && !choices.has(resolution.id) ? resolution.id : undefined;
+}
+
 /** Concrete picker choices, shared with server-side selection validation.
  * Aliases contribute their resolved ID; routing modes never become launch IDs.
  * Preserves first position and upgrades raw labels. Pure; O(rows) time and space.
@@ -24,23 +49,15 @@ export function normalizeDiscoveredModels(models: readonly RuntimeModelOption[])
 export function concreteModelOptions({ models = [], supportsConcreteModelSelection, defaultModelResolution }: {
   models?: readonly RuntimeModelOption[];
   supportsConcreteModelSelection?: boolean;
-  defaultModelResolution?: { status: string; id?: string };
+  defaultModelResolution?: DefaultResolutionLike;
 }, _options = {}): RuntimeModelOption[] {
   if (supportsConcreteModelSelection === false) return [];
   const choices = new Map<string, RuntimeModelOption>();
-  for (const row of models) {
-    const id = row.resolvedId || (row.identityKind === 'routing-mode' || row.identityKind === 'alias' ? undefined : row.id);
-    if (!id || modelIdentityKind(id) !== 'concrete') continue;
-    // Older cached inventories can attach a default-policy label to a resolved concrete ID.
-    const label = row.id === 'default' || /^default\b/i.test(row.label) ? id : row.label;
-    const existing = choices.get(id);
-    if (!existing) choices.set(id, { ...row, id, label, identityKind: 'concrete' });
-    else if (existing.label === id && label !== id) choices.set(id, { ...existing, label });
-  }
+  for (const row of models) addConcreteChoice({ choices, row });
   const options: RuntimeModelOption[] = [...choices.values()];
-  const resolution = defaultModelResolution;
   // A host may publish a resolved default outside its visible catalog. Preserve its concrete ID.
-  if (resolution?.status === 'resolved' && resolution.id && modelIdentityKind(resolution.id) === 'concrete' && !choices.has(resolution.id)) options.unshift({ id: resolution.id, label: resolution.id, identityKind: 'concrete' });
+  const hiddenDefaultId = missingResolvedDefaultId({ choices }, { resolution: defaultModelResolution });
+  if (hiddenDefaultId) options.unshift({ id: hiddenDefaultId, label: hiddenDefaultId, identityKind: 'concrete' });
   return options;
 }
 export class ProbeTimeout extends Error {}
@@ -48,16 +65,14 @@ export class ProbeTimeout extends Error {}
 export async function withModelProbeTimeout<T>(work: (signal: AbortSignal) => Promise<T>, timeoutMs: number, parent?: AbortSignal): Promise<T> {
   if (parent?.aborted) throw new ProbeTimeout('Probe cancelled');
   const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let abortListener: (() => void) | undefined;
-  const stopped = new Promise<never>((_resolve, reject) => {
-    abortListener = () => { controller.abort(); reject(new ProbeTimeout('Probe cancelled')); };
-    if (parent?.aborted) abortListener();
-    else parent?.addEventListener('abort', abortListener, { once: true });
-    timer = setTimeout(() => { controller.abort(); reject(new ProbeTimeout('Probe timed out')); }, timeoutMs);
-  });
+  let rejectStopped!: (reason: ProbeTimeout) => void;
+  const stopped = new Promise<never>((_resolve, reject) => { rejectStopped = reject; });
+  // `parent` was not aborted above and nothing has awaited since, so listening is enough.
+  const abortListener = () => { controller.abort(); rejectStopped(new ProbeTimeout('Probe cancelled')); };
+  parent?.addEventListener('abort', abortListener, { once: true });
+  const timer = setTimeout(() => { controller.abort(); rejectStopped(new ProbeTimeout('Probe timed out')); }, timeoutMs);
   try { return await Promise.race([work(controller.signal), stopped]); }
-  finally { if (timer) clearTimeout(timer); if (abortListener) parent?.removeEventListener('abort', abortListener); }
+  finally { clearTimeout(timer); parent?.removeEventListener('abort', abortListener); }
 }
 export class ModelProbeError extends Error {
   constructor(readonly code: ModelCatalogSnapshot['diagnostics'][number]['code']) { super(code); }

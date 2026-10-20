@@ -39,24 +39,25 @@ const PREFERRED_AMR_CHAT_MODEL_RANK: ReadonlyMap<string, number> = new Map(
 //      normalizes those public ids at the spawn boundary until Vela exposes
 //      canonical ACP ids directly.
 export function normalizeVelaModelId({ rawId }: { rawId: string }): string | null {
-  const trimmed = rawId.trim();
-  if (!trimmed) return null;
-  const withoutProvider = trimmed.startsWith('vela/')
-    ? trimmed.slice('vela/'.length)
-    : trimmed;
-  const withoutPrefix = withoutProvider.startsWith('public_model_')
-    ? withoutProvider.slice('public_model_'.length)
-    : withoutProvider;
+  const withoutPrefix = stripPrefix({ value: stripPrefix({ value: rawId.trim(), prefix: 'vela/' }), prefix: 'public_model_' });
   if (!withoutPrefix) return null;
-  if (/^deepseek_v3_2$/i.test(withoutPrefix)) return 'deepseek-v3.2';
-  if (/^deepseek-v3-2$/i.test(withoutPrefix)) return 'deepseek-v3.2';
-  if (/^kimi_k2_6$/i.test(withoutPrefix)) return 'kimi-k2.6';
-  if (/^kimi_k2_7_code$/i.test(withoutPrefix)) return 'kimi-k2.7-code';
-  if (/^glm_5_1$/i.test(withoutPrefix)) return 'glm-5.1';
-  if (/^glm_5$/i.test(withoutPrefix)) return 'glm-5';
-  const versioned = normalizeKnownVelaVersionId(withoutPrefix);
-  if (versioned) return versioned;
-  return withoutPrefix.replace(/_/g, '-');
+  const alias = VELA_MODEL_ID_ALIASES.find(([pattern]) => pattern.test(withoutPrefix));
+  if (alias) return alias[1];
+  return normalizeKnownVelaVersionId(withoutPrefix) ?? withoutPrefix.replace(/_/g, '-');
+}
+
+/** Compact Vela public ids whose link-facing slug is not a plain underscore-to-dash rewrite. */
+const VELA_MODEL_ID_ALIASES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^deepseek_v3_2$/i, 'deepseek-v3.2'],
+  [/^deepseek-v3-2$/i, 'deepseek-v3.2'],
+  [/^kimi_k2_6$/i, 'kimi-k2.6'],
+  [/^kimi_k2_7_code$/i, 'kimi-k2.7-code'],
+  [/^glm_5_1$/i, 'glm-5.1'],
+  [/^glm_5$/i, 'glm-5'],
+];
+
+function stripPrefix({ value, prefix }: { value: string; prefix: string }): string {
+  return value.startsWith(prefix) ? value.slice(prefix.length) : value;
 }
 
 // Every capture group below is a mandatory (non-optional) part of its
@@ -110,29 +111,36 @@ function isVelaChatModelId(modelId: string): boolean {
 }
 
 export function parseVelaModels({ stdout }: { stdout: string }): RuntimeModelOption[] {
-  const seen = new Set<string>();
-  const models: RuntimeModelOption[] = [];
+  const ids: Array<string | null> = [];
   for (const line of String(stdout || '').split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
     // `trimmed` is already non-empty and has no leading whitespace (checked
     // above), so its first whitespace-split token is always non-empty too.
     const rawId = trimmed.split(/\s+/)[0]!;
-    const id = normalizeVelaModelId({ rawId: rawId });
-    if (!id || seen.has(id) || !isVelaChatModelId(id)) continue;
-    seen.add(id);
-    models.push({ id, label: id });
+    ids.push(normalizeVelaModelId({ rawId: rawId }));
   }
-  return orderAmrChatModels(models);
+  return collectChatModels(ids);
 }
 
 export function parseVelaModelJson({ stdout, expectedSource }: { stdout: string; expectedSource: VelaModelJsonSource }
 ): RuntimeModelOption[] {
+  const data = parseVelaModelJsonData({ stdout, expectedSource });
+  return collectChatModels(data.map((item) => {
+    const rawId = item && typeof item === 'object'
+      ? (item as { id?: unknown }).id
+      : null;
+    return typeof rawId === 'string' ? rawId.trim() : '';
+  }));
+}
+
+/** Validates the `{ source, data: [...] }` envelope and returns its `data` array. */
+function parseVelaModelJsonData({ stdout, expectedSource }: { stdout: string; expectedSource: VelaModelJsonSource }): unknown[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stdout);
   } catch (error) {
-    throw new Error(`Invalid vela model JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Invalid vela model JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Invalid vela model JSON: expected object');
@@ -145,13 +153,14 @@ export function parseVelaModelJson({ stdout, expectedSource }: { stdout: string;
   if (!Array.isArray(data)) {
     throw new Error('Invalid vela model JSON: expected data array');
   }
+  return data;
+}
+
+/** First occurrence of each non-empty chat model id, in preferred AMR chat order. */
+function collectChatModels(ids: ReadonlyArray<string | null>): RuntimeModelOption[] {
   const seen = new Set<string>();
   const models: RuntimeModelOption[] = [];
-  for (const item of data) {
-    const rawId = item && typeof item === 'object'
-      ? (item as { id?: unknown }).id
-      : null;
-    const id = typeof rawId === 'string' ? rawId.trim() : '';
+  for (const id of ids) {
     if (!id || seen.has(id) || !isVelaChatModelId(id)) continue;
     seen.add(id);
     models.push({ id, label: id });
@@ -212,35 +221,28 @@ export async function fetchVelaPresetModels({ resolvedBin, env }: { resolvedBin:
 
 export async function fetchVelaRemoteModelsWithRetry({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
 ): Promise<RuntimeModelOption[]> {
-  // The internal exhaustion check below (`attempt === AMR_MODELS_RETRY_DELAYS_MS.length`)
-  // always throws on the last allowed attempt — strictly before the `for`
-  // condition itself would ever end the loop — so there's no way to fall
-  // through normally; no trailing fallback throw is needed. That same check
-  // also means `attempt` is always a valid in-bounds index into
-  // `AMR_MODELS_RETRY_DELAYS_MS` whenever we reach the `sleep()` call below
-  // (the assertion just satisfies `noUncheckedIndexedAccess`).
-  //
-  // The empty loop condition and absence of break make the closing statement unreachable:
-  // success returns, and exhaustion throws after at most three attempts. Coverage instrumentation
-  // cannot prove that; document the invariant instead of forcing a test or adding v8 ignore.
-  for (let attempt = 0; ; attempt += 1) {
+  // One attempt per retry delay, each followed by that delay when it fails with a retriable
+  // error; a non-retriable error (including a malformed catalog) is thrown at once. The final
+  // attempt after the last delay is not retried, so whatever it throws propagates as-is.
+  for (const delayMs of AMR_MODELS_RETRY_DELAYS_MS) {
     try {
-      const { stdout } = await execAgentFile({ command: resolvedBin, args: ['model', 'list', '--format', 'json'] }, { options: {
-        env,
-        timeout: AMR_MODELS_TIMEOUT_MS,
-        maxBuffer: 1024 * 1024,
-      } });
-      return parseVelaModelJson({ stdout: String(stdout), expectedSource: 'remote' });
+      return await fetchVelaRemoteModelsOnce({ resolvedBin, env });
     } catch (error) {
-      if (
-        attempt === AMR_MODELS_RETRY_DELAYS_MS.length ||
-        !isRetriableVelaModelsError(error)
-      ) {
-        throw error;
-      }
-      await sleep(AMR_MODELS_RETRY_DELAYS_MS[attempt]!);
+      if (!isRetriableVelaModelsError(error)) throw error;
     }
+    await sleep(delayMs);
   }
+  return fetchVelaRemoteModelsOnce({ resolvedBin, env });
+}
+
+async function fetchVelaRemoteModelsOnce({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
+): Promise<RuntimeModelOption[]> {
+  const { stdout } = await execAgentFile({ command: resolvedBin, args: ['model', 'list', '--format', 'json'] }, { options: {
+    env,
+    timeout: AMR_MODELS_TIMEOUT_MS,
+    maxBuffer: 1024 * 1024,
+  } });
+  return parseVelaModelJson({ stdout: String(stdout), expectedSource: 'remote' });
 }
 
 /** Live account fields parsed from `vela billing summary --format json`. */

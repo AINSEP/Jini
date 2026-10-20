@@ -9,6 +9,7 @@ import {
   modelSelectionErrorIsRecoverable,
   currentModelFromSessionResult,
   detectAcpModels,
+  detectAcpModelMetadata,
 } from '../models.js';
 
 describe('normalizeConfigOptionToken', () => {
@@ -481,5 +482,126 @@ describe('detectAcpModels', () => {
       `${JSON.stringify({ jsonrpc: '2.0', id: 2, result: { models: {} } })}\n`,
     );
     await expect(promise).resolves.toEqual([{ id: 'default', label: 'Default (CLI config)' }]);
+  });
+});
+
+// Drives a FakeChild through initialize -> session/new, answering session/new with `sessionResult`.
+async function answerHandshake(child: FakeChild, sessionResult: unknown) {
+  child.stdout.emit('data', `${JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} })}\n`);
+  await Promise.resolve();
+  child.stdout.emit('data', `${JSON.stringify({ jsonrpc: '2.0', id: 2, result: sessionResult })}\n`);
+}
+
+function spawnReturns(child: FakeChild) {
+  (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(child);
+}
+
+describe('detectAcpModels abort and limits', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects without writing initialize when the signal is already aborted', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      detectAcpModels({ bin: 'bin', args: [] }, { signal: controller.signal }),
+    ).rejects.toThrow('ACP model detection aborted');
+    expect(child.stdin.writes).toEqual([]);
+  });
+
+  it('rejects when the signal aborts mid-handshake', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const controller = new AbortController();
+    const promise = detectAcpModels({ bin: 'bin', args: [] }, { signal: controller.signal });
+    controller.abort();
+    await expect(promise).rejects.toThrow('ACP model detection aborted');
+  });
+
+  it('rejects once stdout exceeds the 8 MiB metadata limit', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = detectAcpModels({ bin: 'bin', args: [] });
+    child.stdout.emit('data', 'x'.repeat(8 * 1024 * 1024 + 1));
+    await expect(promise).rejects.toThrow('ACP metadata output exceeded its limit');
+  });
+
+  it('passes the session/new result to onSessionResult', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const onSessionResult = vi.fn();
+    const promise = detectAcpModels({ bin: 'bin', args: [] }, { onSessionResult });
+    await answerHandshake(child, { models: { currentModelId: 'a' } });
+    await promise;
+    expect(onSessionResult).toHaveBeenCalledWith({ models: { currentModelId: 'a' } });
+  });
+});
+
+describe('detectAcpModelMetadata', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('drops the default entry and reports the native current model id', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = detectAcpModelMetadata({ bin: 'bin', args: [] });
+    await answerHandshake(child, {
+      models: { currentModelId: 'b', availableModels: [{ modelId: 'a' }, { modelId: 'b' }] },
+    });
+    await expect(promise).resolves.toEqual({
+      models: [
+        { id: 'a', label: 'a' },
+        { id: 'b', label: 'b' },
+      ],
+      currentModelId: 'b',
+    });
+  });
+
+  it('strips the " • current" marker and the " (id)" annotation from labels', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = detectAcpModelMetadata({ bin: 'bin', args: [] });
+    await answerHandshake(child, {
+      models: { currentModelId: 'm1', availableModels: [{ modelId: 'm1', name: 'Model One' }] },
+    });
+    expect((await promise).models).toEqual([{ id: 'm1', label: 'Model One' }]);
+  });
+
+  it('keeps a native display-name suffix that is not our id annotation', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = detectAcpModelMetadata({ bin: 'bin', args: [] });
+    await answerHandshake(child, {
+      configOptions: [
+        {
+          id: 'model',
+          category: 'model',
+          options: [{ value: 'fast', name: 'Fast (beta)' }],
+        },
+      ],
+    });
+    expect((await promise).models).toEqual([{ id: 'fast', label: 'Fast (beta)' }]);
+  });
+
+  it('reports a null current model id when the session result has none', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = detectAcpModelMetadata({ bin: 'bin', args: [] });
+    await answerHandshake(child, { models: {} });
+    await expect(promise).resolves.toEqual({ models: [], currentModelId: null });
+  });
+
+  it('still forwards the session result to a caller-supplied onSessionResult', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const onSessionResult = vi.fn();
+    const promise = detectAcpModelMetadata({ bin: 'bin', args: [] }, { onSessionResult });
+    await answerHandshake(child, { models: {} });
+    await promise;
+    expect(onSessionResult).toHaveBeenCalledWith({ models: {} });
   });
 });
