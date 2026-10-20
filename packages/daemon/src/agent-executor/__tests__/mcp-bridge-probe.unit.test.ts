@@ -193,6 +193,15 @@ describe('probeMcpBridge (characterization)', () => {
     expect(await pending).toEqual({ ok: false, exitCode: null, signal: null, stderrTail: 'read EIO', elapsedMs: 0 });
   });
 
+  it('closes its line reader so the bridge stdout is left without probe listeners', async () => {
+    const fake = fakeBridge();
+    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    expect(fake.child.stdout.listenerCount('data')).toBeGreaterThan(0);
+    fake.child.emit('exit', 1, null);
+    await pending;
+    expect(fake.child.stdout.listenerCount('data')).toBe(0);
+  });
+
   it('keeps the first outcome when the bridge exits after replying', async () => {
     const fake = fakeBridge();
     const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
