@@ -238,4 +238,86 @@ describe('useCommentReorder', () => {
     });
     expect(onReorder).toHaveBeenCalledWith(['b', 'c', 'a']);
   });
+  it('onDrop reuses the cached edge when the drop lands on the hovered target', () => {
+    const onReorder = vi.fn();
+    const { result } = renderHook(() => useCommentReorder(['a', 'b', 'c'], onReorder));
+    const dataTransfer = makeDataTransfer();
+    act(() => {
+      result.current.onDragStart(makeDragEvent({ dataTransfer }), 'c');
+    });
+    act(() => {
+      result.current.onDragOver(makeDragEvent({ dataTransfer, clientY: 10 }), 'b');
+    });
+    act(() => {
+      // Pointer says 'after', but the cached hover edge ('before') wins.
+      result.current.onDrop(makeDragEvent({ dataTransfer, clientY: 90 }), 'b');
+    });
+    expect(onReorder).toHaveBeenCalledWith(['a', 'c', 'b']);
+  });
+
+  it('onDrop skips onReorder when the resulting order is unchanged, but still clears drag state', () => {
+    const onReorder = vi.fn();
+    const { result } = renderHook(() => useCommentReorder(['a', 'b', 'c'], onReorder));
+    const dataTransfer = makeDataTransfer();
+    act(() => {
+      result.current.onDragStart(makeDragEvent({ dataTransfer }), 'a');
+    });
+    act(() => {
+      result.current.onDrop(makeDragEvent({ dataTransfer, clientY: 10 }), 'b');
+    });
+    expect(onReorder).not.toHaveBeenCalled();
+    expect(result.current.dragState).toBeNull();
+  });
+
+  it('onDrop with no dragging id anywhere clears drag state without reordering', () => {
+    const onReorder = vi.fn();
+    const { result } = renderHook(() => useCommentReorder(['a', 'b'], onReorder));
+    const event = makeDragEvent({ dataTransfer: makeDataTransfer() });
+    act(() => {
+      result.current.onDrop(event, 'a');
+    });
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
+    expect(onReorder).not.toHaveBeenCalled();
+    expect(result.current.dragState).toBeNull();
+  });
+
+  it('onDragOver recovers the dragging id from the mime type and marks the drop as a move', () => {
+    const onReorder = vi.fn();
+    const { result } = renderHook(() => useCommentReorder(['a', 'b'], onReorder));
+    const dataTransfer = makeDataTransfer({ [COMMENT_SIDE_DRAG_MIME]: 'a', 'text/plain': 'b' });
+    const event = makeDragEvent({ dataTransfer, clientY: 90 });
+    act(() => {
+      result.current.onDragOver(event, 'b');
+    });
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
+    expect(dataTransfer.dropEffect).toBe('move');
+    expect(result.current.dragState).toEqual({ draggingId: 'a', overId: 'b', edge: 'after' });
+  });
+
+  it('onDragOver ignores a text/plain-only payload (only the mime type identifies a comment drag)', () => {
+    const onReorder = vi.fn();
+    const { result } = renderHook(() => useCommentReorder(['a', 'b'], onReorder));
+    const event = makeDragEvent({ dataTransfer: makeDataTransfer({ 'text/plain': 'a' }) });
+    act(() => {
+      result.current.onDragOver(event, 'b');
+    });
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(result.current.dragState).toBeNull();
+  });
+
+  it('onDragOver updates the edge when the pointer crosses the midpoint of the same target', () => {
+    const onReorder = vi.fn();
+    const { result } = renderHook(() => useCommentReorder(['a', 'b'], onReorder));
+    const dataTransfer = makeDataTransfer();
+    act(() => {
+      result.current.onDragStart(makeDragEvent({ dataTransfer }), 'a');
+    });
+    act(() => {
+      result.current.onDragOver(makeDragEvent({ dataTransfer, clientY: 10 }), 'b');
+    });
+    act(() => {
+      result.current.onDragOver(makeDragEvent({ dataTransfer, clientY: 90 }), 'b');
+    });
+    expect(result.current.dragState).toEqual({ draggingId: 'a', overId: 'b', edge: 'after' });
+  });
 });
