@@ -12,7 +12,7 @@ Setup: 140 s (pnpm install + build; integrations build fails as expected). Wave 
 | L246 | media/controllers/library.controller.ts | merged | 12/13 | ≤10/≤10 (eslint 0) | 100/100/100 | d1985d3b | PASS: 26 new + 88 related tests; libraryView dedup (3 sites); write() single exit; verified store.set no-ops after dispose so dropped aborted-guard is equivalent |
 | L247 | source-control conformance/controller/ProvidersTab hook | pending | 12/≤10 | | | | |
 | L256 | media/html-attributes.ts, media/rules.ts | merged | 13/≤10 | 9/7 | 100/100/100 (with all importer tests) | 1a086535, 1e1237fc | PASS: eslint 0, tsc 0, 60 lot tests; 2 bugs pinned (unsafe-url hint always says javascript:; "HTTP 5000" read as 500). 1a086535 msg says 11→7, real 11→8 |
-| L281 | forms/adapters/memory.ts | pending | 12/≤10 | | | | |
+| L281 | forms/adapters/memory.ts | merged | 12/9 | 9/6 | 100/100/100 | b81fa68b | PASS: 29 new tests + 395 related; six conditional spreads → suppliedPatch; ERROR MSG CHANGED: missing submission now "form submission 'X' was not found" (was "form definition") |
 | L282 | media/adapters/memory.ts | pending | 12/≤10 | | | | |
 
 ## Problems / notes
