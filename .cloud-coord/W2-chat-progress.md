@@ -19,7 +19,7 @@
 ## Lot status
 | lot | status | subagent | commits | before→after | coverage | verify |
 |---|---|---|---|---|---|---|
-| L187 | running | | | | | |
+| L187 | running (dispatched 01:33Z) | | | | | |
 | L208 | running | | | | | |
 | L222 | running | | | | | |
 | L226 | running | | | | | |
@@ -29,3 +29,4 @@
 ## Problems / notes
 
 ## Next
+- 01:33Z: 5 subagents dispatched (L187,L208,L222,L226,L250); L257 worktree prepped, queued. Briefs at /tmp/claude-0/brief-<LOT>.md (not tracked).
