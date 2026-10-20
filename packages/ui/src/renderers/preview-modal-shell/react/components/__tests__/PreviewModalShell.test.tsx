@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../react/i18n.js';
-import { PreviewModalShell, type PreviewModalView } from './PreviewModalShell.js';
+import { I18nProvider } from '../../../../react/i18n.js';
+import { PreviewModalShell, type PreviewModalView } from '../PreviewModalShell.js';
 
 /** Swaps in a fake global for the duration of `run()`, restoring the previous value afterward — used for `ResizeObserver`, which jsdom doesn't define by default. Same helper shape as `annotation-canvas`'s test suite. */
 function withGlobal<T>(key: 'ResizeObserver', value: T, run: () => void): void {
