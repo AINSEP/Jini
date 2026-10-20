@@ -57,7 +57,7 @@ function validListenRange(required: { port: number; attempts: number }): boolean
 }
 
 /** One bind attempt; both one-shot handlers are removed however it ends, including a synchronous throw. */
-function bindOnce(required: { server: ServerListenerPort; port: number }, optional: { host?: string }): Promise<void> {
+function bindOnce(required: { server: ServerListenerPort; port: number }, optional: { host?: string | undefined }): Promise<void> {
   const { server, port } = required;
   return new Promise<void>((resolve, reject) => {
     const cleanup = () => { server.off('error', onError); server.off('listening', onListening); };
@@ -75,7 +75,7 @@ function addressInUse(error: unknown): boolean {
 }
 
 /** Bind once at `port`; the listener's reported port wins over the requested one (port 0, retries). */
-async function bindAndReport(required: { server: ServerListenerPort; port: number }, optional: { host?: string }): Promise<number> {
+async function bindAndReport(required: { server: ServerListenerPort; port: number }, optional: { host?: string | undefined }): Promise<number> {
   await bindOnce(required, optional);
   const address = required.server.address();
   return typeof address === 'object' && address !== null ? address.port : required.port;
