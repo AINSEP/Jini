@@ -32,3 +32,5 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 - L073 flagged: `collectWidgetConfigStrings` has no callers but is publicly re-exported via widgets/index.ts.
 - L176 flagged: `SubmitFormOptional.validateEmails` appears inert (field-registry already rejects bad emails as invalid_email; flipping it fails no test). Public option — left as is.
 ## Next
+- Whole-suite after L010–L176 merges (head 59371458, after `pnpm --filter @jini-ai/cms build` = 0): 3000/3001 pass (240 files, 48 s, maxWorkers=4). Only failure = the pre-existing `media/video-frames.ffmpeg.test.ts` one, which also fails on unmodified origin/general-work.
+- Remaining: L073b (resolver-service.ts coverage to 100, tests only) — then re-run whole suite + tsc once more.
