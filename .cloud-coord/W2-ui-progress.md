@@ -33,7 +33,7 @@ Lots are file-disjoint; no lot changes a public export, so lots are independent 
 | L103 | MERGED (14d15f11) | 1 agent, 47 calls, 137k tok, 13.4 min | 87e6e4e8 6e1d21b1 aad8a988 55e7405f 80ec22fc | CommentSidePanel 23/20→10/6; MarkdownSplitPane 16→9/5; useCommentReorder 13→9/4; rules 11/17→5/7 | 100/100/100 on 4 files; +25 tests | eslint 0, tsc 0, 208 tests green; comment-line counts only grew |
 | L111 | MERGED (057659f7) | 1 agent, 45 calls, 130k tok, 11.3 min | 47de0d8c 83cb4cdb a7a0bdb7 bc25286e 49d139bb | FileDropzone 28/21→10/5; Lightbox 17/16→3/1; Grid 12/13→3/1 | 100/100/100 (4 files incl. new FileDropzoneZone.tsx); 66→81 tests | eslint 0, tsc 0, 163 tests green, why-comment moved to FileDropzoneZone |
 | L117 | MERGED (a6a5bc52) | 1 agent, 34 calls, 125k tok, 9 min | f8b3b81a e90842b1 | dom.ts 15/22→8/10; SketchEditor 15/11→9/2 | 100/100/100 both; +28 tests | eslint 0, tsc 0, 196 tests green; comment lines 57→68 / 30→33 |
-| L122 | dispatched | | | | | |
+| L122 | MERGED (32307e21) | 1 agent, 23 calls, 104k tok, 6 min | 38edb604 | recordNavigation 24/15, mergeHistoryEntry 22/13, normalizeBrowserAddress 13/13 → file worst 9/9 | 100/100/100 (was 98.65% branch); 58→95 tests | eslint 0, tsc 0, 140 tests green; coordinator re-derived equivalence of removed labelFromUrl fallback |
 | L127 | dispatched | | | | | |
 | L132 | MERGED (259f28e9) | 1 agent, 10 calls, 76k tok, 3 min | 2c2ea6e4 | validateAdminTheme 29/26→6/5 | 100/100/100; new __tests__/theme/validation.test.ts (78 tests, exact messages) | eslint 0, tsc 0, 84 tests green; 400+ input differential (deleted) |
 | L133 | dispatched | | | | | |
