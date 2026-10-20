@@ -9,7 +9,7 @@ import { createApiError, type ApiError } from '@jini-ai/protocol';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson, statusForError } from './response.js';
 import { guardSameOrigin, type OriginContext } from './origin.js';
-import type { JsonRouteAuthorize, JsonRouteSpec } from './types.js';
+import type { JsonRouteAuthorize, JsonRouteSpec, Result } from './types.js';
 
 export interface AdapterInternalErrorContext {
   /** HTTP method of the route whose handler threw. */
@@ -80,8 +80,7 @@ export class ClientFacingError extends Error {
  */
 export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requiredArgs: Omit<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports'>, optionalArgs: Pick<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports'> = {}
 ): JsonRouteSpec<Input, Output, Deps, Context> {
-  const spec = { ...requiredArgs, ...optionalArgs };
-  return spec;
+  return { ...requiredArgs, ...optionalArgs };
 }
 
 /**
@@ -116,14 +115,7 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
     try {
       const raw = rawInput({ req });
       if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
-      if (spec.requireSameOrigin) {
-        if (!adapter) throw new Error('same-origin adapter context is required');
-        const origin = guardSameOrigin({ req, origin: adapter });
-        if (!origin.ok) {
-          sendApiError({ res, status: statusForError({ error: origin.error }), error: origin.error });
-          return;
-        }
-      }
+      if (!allowRouteOrigin({ req, res, spec, adapter })) return;
       let context: Context | undefined;
       if (spec.ports?.authenticate) context = await spec.ports.authenticate({ raw, res, deps });
       const parsed = spec.parse(raw);
@@ -138,44 +130,76 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
         await spec.ports.authorize({ context, deps, permission, entityType });
       };
       const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: abortController.signal });
-      // `abortController.signal` can only have been aborted by `onResponseClose` firing while the
-      // `await` above was pending — nothing here runs concurrently with it — so this unambiguously
-      // means the client was already gone before any response was sent. Writing one now would be
-      // wasted work at best and, worse, would route a benign disconnect into the SEC-005 catch
-      // below as a false internal error if the socket rejects the write.
-      if (abortController.signal.aborted) return;
-      if (!result.ok) {
-        sendApiError({ res, status: statusForError({ error: result.error }), error: result.error });
-        return;
-      }
-      sendJson({ res, status: spec.successStatus ?? 200, body: result.value });
+      sendRouteResult({ res, result, spec, signal: abortController.signal });
     } catch (e) {
-      // An explicit host error port owns exception classification and serialization, including
-      // its guard rejections. Hosts without it retain the SEC-005 policy below unchanged.
-      if (spec.ports?.onError) {
-        spec.ports.onError({ res, error: e });
-        return;
-      }
-      // A route (or something it called) already classified this failure as safe to disclose —
-      // see `ClientFacingError`'s own doc. Sent verbatim, at its own status; never routed to the
-      // SEC-005 sink below, because nothing unanticipated happened.
-      if (e instanceof ClientFacingError) {
-        sendApiError({ res, status: statusForError({ error: e.apiError }), error: e.apiError });
-        return;
-      }
-      // SEC-005. This catch exists for exceptions no route anticipated, which makes it precisely
-      // the path most likely to be holding something private: a driver error naming a database
-      // file, a connection string, a credential a provider echoed back. Serializing `e.message`
-      // into the response handed all of that to the caller — and because `health.ts`'s probes are
-      // mounted ahead of the security middleware and exempted from the bearer gate, an unauthorized
-      // caller could read it too, simply by getting a readiness dependency to fail. The real error
-      // still reaches the operator through the sink, correlated to what the caller was told.
-      const correlationId = randomUUID();
-      const sink = adapter?.onInternalError ?? defaultInternalErrorSink;
-      sink({ method: spec.method, path: spec.path, correlationId, error: e });
-      sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+      sendRouteException({ res, spec, adapter, error: e });
     } finally {
       res.off?.('close', onResponseClose);
     }
   });
+}
+
+function allowRouteOrigin({ req, res, spec, adapter }: {
+  readonly req: Request;
+  readonly res: Response;
+  readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'requireSameOrigin'>;
+  readonly adapter: AdapterContext | undefined;
+}, _optional: Record<string, never> = {}): boolean {
+  if (!spec.requireSameOrigin) return true;
+  if (!adapter) throw new Error('same-origin adapter context is required');
+  const origin = guardSameOrigin({ req, origin: adapter });
+  if (origin.ok) return true;
+  sendApiError({ res, status: statusForError({ error: origin.error }), error: origin.error });
+  return false;
+}
+
+function sendRouteResult<Output>({ res, result, spec, signal }: {
+  readonly res: Response;
+  readonly result: Result<Output>;
+  readonly spec: Pick<JsonRouteSpec<unknown, Output, unknown>, 'successStatus'>;
+  readonly signal: AbortSignal;
+}, _optional: Record<string, never> = {}): void {
+  // `signal` can only have been aborted by `onResponseClose` firing while the
+  // `await spec.handle` in the request handler was pending — nothing here runs concurrently
+  // with it — so this unambiguously means the client was already gone before any response was
+  // sent. Writing one now would be wasted work at best and, worse, would route a benign
+  // disconnect into the SEC-005 catch as a false internal error if the socket rejects the write.
+  if (signal.aborted) return;
+  if (!result.ok) {
+    sendApiError({ res, status: statusForError({ error: result.error }), error: result.error });
+    return;
+  }
+  sendJson({ res, status: spec.successStatus ?? 200, body: result.value });
+}
+
+function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
+  readonly res: Response;
+  readonly spec: Pick<JsonRouteSpec<unknown, unknown, Deps, Context>, 'method' | 'path' | 'ports'>;
+  readonly adapter: AdapterContext | undefined;
+  readonly error: unknown;
+}, _optional: Record<string, never> = {}): void {
+  // An explicit host error port owns exception classification and serialization, including
+  // its guard rejections. Hosts without it retain the SEC-005 policy below unchanged.
+  if (spec.ports?.onError) {
+    spec.ports.onError({ res, error: e });
+    return;
+  }
+  // A route (or something it called) already classified this failure as safe to disclose —
+  // see `ClientFacingError`'s own doc. Sent verbatim, at its own status; never routed to the
+  // SEC-005 sink below, because nothing unanticipated happened.
+  if (e instanceof ClientFacingError) {
+    sendApiError({ res, status: statusForError({ error: e.apiError }), error: e.apiError });
+    return;
+  }
+  // SEC-005. This catch exists for exceptions no route anticipated, which makes it precisely
+  // the path most likely to be holding something private: a driver error naming a database
+  // file, a connection string, a credential a provider echoed back. Serializing `e.message`
+  // into the response handed all of that to the caller — and because `health.ts`'s probes are
+  // mounted ahead of the security middleware and exempted from the bearer gate, an unauthorized
+  // caller could read it too, simply by getting a readiness dependency to fail. The real error
+  // still reaches the operator through the sink, correlated to what the caller was told.
+  const correlationId = randomUUID();
+  const sink = adapter?.onInternalError ?? defaultInternalErrorSink;
+  sink({ method: spec.method, path: spec.path, correlationId, error: e });
+  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
 }

@@ -65,6 +65,12 @@ export function isLoopbackPeerAddress({ address }: { readonly address: unknown }
   return false;
 }
 
+function isBareHttpOrigin({ parsed }: { readonly parsed: URL }, _optional: Record<string, never> = {}): boolean {
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  if (parsed.pathname !== '/' || parsed.search || parsed.hash || parsed.username || parsed.password) return false;
+  return true;
+}
+
 /** Parses an `Origin` header value into its origin string, requiring a bare `scheme://loopback-host[:port]` with no path/query/userinfo. */
 export function localOriginFromHeader({ value }: { readonly value: unknown }, _optional: Record<string, never> = {}): string | null {
   if (typeof value !== 'string') return null;
@@ -73,8 +79,7 @@ export function localOriginFromHeader({ value }: { readonly value: unknown }, _o
 
   try {
     const parsed = new URL(trimmed);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
-    if (parsed.pathname !== '/' || parsed.search || parsed.hash || parsed.username || parsed.password) return null;
+    if (!isBareHttpOrigin({ parsed })) return null;
     if (!isLoopbackHostname({ hostname: parsed.hostname })) return null;
     return parsed.origin;
   } catch {
@@ -111,7 +116,8 @@ export function validateLocalDaemonRequest({ req }: { readonly req: Request }, _
   }
 
   const originHeader = req.get('origin');
-  if (originHeader !== undefined && !localOriginFromHeader({ value: originHeader })) {
+  const origin = localOriginFromHeader({ value: originHeader });
+  if (originHeader !== undefined && !origin) {
     return {
       ok: false,
       message: 'request origin must be a loopback daemon origin',
@@ -119,7 +125,7 @@ export function validateLocalDaemonRequest({ req }: { readonly req: Request }, _
     };
   }
 
-  return { ok: true, origin: localOriginFromHeader({ value: originHeader }) };
+  return { ok: true, origin };
 }
 
 /**
