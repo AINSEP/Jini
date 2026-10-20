@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { agentHandle, buildAgentListHandles, type AgentElementRole } from '@jini-ai/agentic';
 import { resolveTone, toneClassName, type ConfirmTone } from '../../types.js';
@@ -98,6 +99,25 @@ function rowMenuAgentProps(handle: string | undefined, options: { role: AgentEle
   return handle === undefined ? {} : agentHandle({ handle }, options);
 }
 
+type RowMenuPosition = ReturnType<typeof useRowMenu>['position'];
+
+function rowMenuPopupClassName(position: RowMenuPosition): string {
+  return `row-menu-popup${position?.placement === 'above' ? ' row-menu-popup-above' : ''}`;
+}
+
+function rowMenuPopupStyle(position: RowMenuPosition): CSSProperties {
+  return {
+    position: 'fixed',
+    top: position ? position.top : -9999,
+    left: position ? position.left : -9999,
+    // Laid out but invisible until the first `reposition()` measurement lands (see
+    // `RowMenu.hooks.tsx`) — keeps `offsetHeight`/`offsetWidth` measurable without a
+    // visible flash at the wrong coordinates.
+    visibility: position ? 'visible' : 'hidden',
+    transform: position?.placement === 'above' ? 'translateY(-100%)' : undefined,
+  };
+}
+
 export function RowMenu({
   useRowMenu: useRowMenuState = useRowMenu,
   agentHandle: baseHandle,
@@ -154,17 +174,8 @@ export function RowMenu({
               ref={menuRef}
               role="menu"
               aria-label={props.triggerLabel}
-              className={`row-menu-popup${position?.placement === 'above' ? ' row-menu-popup-above' : ''}`}
-              style={{
-                position: 'fixed',
-                top: position ? position.top : -9999,
-                left: position ? position.left : -9999,
-                // Laid out but invisible until the first `reposition()` measurement lands (see
-                // `RowMenu.hooks.tsx`) — keeps `offsetHeight`/`offsetWidth` measurable without a
-                // visible flash at the wrong coordinates.
-                visibility: position ? 'visible' : 'hidden',
-                transform: position?.placement === 'above' ? 'translateY(-100%)' : undefined,
-              }}
+              className={rowMenuPopupClassName(position)}
+              style={rowMenuPopupStyle(position)}
               onKeyDown={onMenuKeyDown}
             >
               {props.items.map((item, index) => {

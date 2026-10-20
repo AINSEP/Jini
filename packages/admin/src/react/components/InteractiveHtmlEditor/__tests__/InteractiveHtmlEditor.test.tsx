@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeEmbedPlaceholder, isProtectedEmbedElement } from '../../components/InteractiveHtmlEditor/InteractiveHtmlEditor.js';
+import { describeEmbedPlaceholder, isProtectedEmbedElement } from '../InteractiveHtmlEditor.js';
 
 it.each(['data-embed-type', 'data-widget-embed', 'data-form-embed'])('protects the existing %s marker through the object API', (attribute) => {
   const el = document.createElement('div');

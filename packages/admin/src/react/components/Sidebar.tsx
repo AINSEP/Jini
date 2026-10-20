@@ -442,97 +442,97 @@ function SidebarNav(props: SidebarNavProps) {
          */
         const collapsible = Boolean(group.label) && !collapsed && (props.collapsibleGroups ?? []).includes(group.label as string);
         const open = !collapsible || sections.isOpen({ groupLabel: group.label as string });
-        const panelId = `cms-section-${(group.label ?? `top-${gi}`).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+        const sectionKey = group.label ?? `top-${gi}`;
+        const panelId = `cms-section-${sectionKey.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
         return (
-        <div className="cms-section" key={group.label ?? `top-${gi}`}>
+        <div className="cms-section" key={sectionKey}>
           {/* Expected to become a plain divider rule in rail mode rather than vanishing — two
               dozen items across five groups with zero separation once the labels are gone is a
               scanning problem of its own. The label text stays in the DOM either way. */}
-          {group.label && collapsible ? (
-            // A real `<button>`, not a click-handled `<div>`: keyboard focus, Enter/Space
-            // activation, and the button role all come free, and `aria-expanded` only carries its
-            // meaning on an element that is actually a control.
-            <button
-              type="button"
-              className={`cms-group cms-group-toggle${open ? '' : ' is-closed'}`}
-              aria-expanded={open}
-              aria-controls={panelId}
-              onClick={() => sections.toggle({ groupLabel: group.label as string })}
-            >
-              <span>{group.label}</span>
-              <svg className="cms-group-chevron" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-                <path d="M5 7l4 4 4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          ) : group.label ? (
-            <div className="cms-group">{group.label}</div>
-          ) : null}
+          <NavGroupHeading label={group.label} collapsible={collapsible} open={open} panelId={panelId}
+            onToggle={() => sections.toggle({ groupLabel: group.label as string })} />
           {/* `hidden` rather than unmounting the items: it removes them from the accessibility tree
               and tab order exactly as unmounting would, but leaves `aria-controls` pointing at an
               element that actually exists, which is what makes the relationship announceable. */}
           <div className="cms-section-items" id={panelId} hidden={!open}>
-          {group.items.map((item) => {
-            const active = item.id === activeId;
-            const href = adminHref({ routePath: item.href }, { base });
-            if (props.renderItem) {
-              return <Fragment key={item.id}>{props.renderItem(item, { active, href, collapsed })}</Fragment>;
-            }
-            if (item.soon && !item.soonPreviewable) {
-              return (
-                <div className="cms-item is-soon" aria-disabled="true" key={item.id}>
-                  <Icon markup={item.icon ?? ''} />
-                  <span>{item.label}</span>
-                  {/* Expected to be hidden outright in rail mode rather than shrunk — there is
-                      nowhere for a badge to sit beside a centered icon, and `is-soon`'s own faint
-                      color is what keeps the item reading as disabled once the badge is gone. */}
-                  <span className="soon">{props.soonLabel ?? 'Soon'}</span>
-                </div>
-              );
-            }
-            if (item.soon) {
-              // `soonPreviewable`: same real `<a>` as a shipped row (active state, aria-current,
-              // rail tooltip, cmd-click/copy-link all work identically) with the `soon` badge kept
-              // alongside the label — the announcement stays honest, but the row is no longer inert.
-              return (
-                <a
-                  key={item.id}
-                  className={`cms-item is-soon${active ? ' active' : ''}`}
-                  href={href}
-                  aria-current={active ? 'page' : undefined}
-                  {...railTooltipProps(item.label)}
-                >
-                  <Icon markup={item.icon ?? ''} />
-                  <span>{item.label}</span>
-                  <span className="soon">{props.soonLabel ?? 'Soon'}</span>
-                </a>
-              );
-            }
-            return (
-              <a
-                key={item.id}
-                className={`cms-item${active ? ' active' : ''}`}
-                // `AdminNavItem.href` is a route path; the base is applied here so the panel
-                // manifest never has to know it. A real URL, so cmd-click and "copy link address"
-                // behave normally.
-                href={href}
-                aria-current={active ? 'page' : undefined}
-                {...railTooltipProps(item.label)}
-              >
-                <Icon markup={item.icon ?? ''} />
-                {/* The real accessible name — kept in the DOM and merely clipped visually in rail
-                    mode, not removed, so the rail stays a set of named links rather than a column
-                    of unlabelled icons. The portaled tooltip is a *sighted-only* supplement to
-                    this, never a replacement — a screen reader sees this label, not the portal. */}
-                <span>{item.label}</span>
-              </a>
-            );
-          })}
+          {group.items.map((item) => (
+            <NavItemRow key={item.id} item={item} nav={props} active={item.id === activeId}
+              href={adminHref({ routePath: item.href }, { base })} collapsed={collapsed} railTooltipProps={railTooltipProps} />
+          ))}
           </div>
         </div>
         );
       })}
     </>
+  );
+}
+
+function NavGroupHeading({ label, collapsible, open, panelId, onToggle }: {
+  readonly label: string | undefined; readonly collapsible: boolean; readonly open: boolean; readonly panelId: string; readonly onToggle: () => void;
+}) {
+  if (!label) return null;
+  if (!collapsible) return <div className="cms-group">{label}</div>;
+  return (
+    // A real `<button>`, not a click-handled `<div>`: keyboard focus, Enter/Space
+    // activation, and the button role all come free, and `aria-expanded` only carries its
+    // meaning on an element that is actually a control.
+    <button
+      type="button"
+      className={`cms-group cms-group-toggle${open ? '' : ' is-closed'}`}
+      aria-expanded={open}
+      aria-controls={panelId}
+      onClick={onToggle}
+    >
+      <span>{label}</span>
+      <svg className="cms-group-chevron" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+        <path d="M5 7l4 4 4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
+function DisabledSoonItem({ item, soonLabel }: { readonly item: AdminNavItem; readonly soonLabel: ReactNode }) {
+  return (
+    <div className="cms-item is-soon" aria-disabled="true">
+      <Icon markup={item.icon ?? ''} />
+      <span>{item.label}</span>
+      {/* Expected to be hidden outright in rail mode rather than shrunk — there is
+          nowhere for a badge to sit beside a centered icon, and `is-soon`'s own faint
+          color is what keeps the item reading as disabled once the badge is gone. */}
+      <span className="soon">{soonLabel}</span>
+    </div>
+  );
+}
+
+function NavItemRow({ item, nav, active, href, collapsed, railTooltipProps }: {
+  readonly item: AdminNavItem; readonly nav: SidebarNavProps; readonly active: boolean; readonly href: string;
+  readonly collapsed: boolean; readonly railTooltipProps: (label: string) => RailTooltipHandlers;
+}) {
+  if (nav.renderItem) return <>{nav.renderItem(item, { active, href, collapsed })}</>;
+  const soonLabel = nav.soonLabel ?? 'Soon';
+  if (item.soon && !item.soonPreviewable) return <DisabledSoonItem item={item} soonLabel={soonLabel} />;
+  // `soonPreviewable`: same real `<a>` as a shipped row (active state, aria-current,
+  // rail tooltip, cmd-click/copy-link all work identically) with the `soon` badge kept
+  // alongside the label — the announcement stays honest, but the row is no longer inert.
+  return (
+    <a
+      className={`cms-item${item.soon ? ' is-soon' : ''}${active ? ' active' : ''}`}
+      // `AdminNavItem.href` is a route path; the base is applied here so the panel
+      // manifest never has to know it. A real URL, so cmd-click and "copy link address"
+      // behave normally.
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      {...railTooltipProps(item.label)}
+    >
+      <Icon markup={item.icon ?? ''} />
+      {/* The real accessible name — kept in the DOM and merely clipped visually in rail
+          mode, not removed, so the rail stays a set of named links rather than a column
+          of unlabelled icons. The portaled tooltip is a *sighted-only* supplement to
+          this, never a replacement — a screen reader sees this label, not the portal. */}
+      <span>{item.label}</span>
+      {item.soon ? <span className="soon">{soonLabel}</span> : null}
+    </a>
   );
 }
 

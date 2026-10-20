@@ -135,7 +135,16 @@ function identityLabel(config: Readonly<Record<string, unknown>>): string {
  * @complexity O(1) — one attribute read, one `JSON.parse` of a small config object, one table lookup.
  */
 export function describeEmbedPlaceholder({ el }: { readonly el: Element }): CanvasEmbedPlaceholderDescriptor | undefined {
-  const raw = el.getAttribute('data-embed-config');
+  const marker = parseEmbedConfig(el.getAttribute('data-embed-config'));
+  if (!marker) return undefined;
+  const { config } = marker;
+  const type = marker.type.toLowerCase();
+  if (type === 'gallery') return { kindLabel: EMBED_KIND_LABELS.gallery!, identityLabel: galleryIdentityLabel(config) };
+  return { kindLabel: EMBED_KIND_LABELS[type] ?? titleCase(type), identityLabel: identityLabel(config) };
+}
+
+/** A marker's config object and its non-empty string `type`, or `undefined` for anything else. */
+function parseEmbedConfig(raw: string | null): { readonly config: Record<string, unknown>; readonly type: string } | undefined {
   if (!raw) return undefined;
   let parsed: unknown;
   try {
@@ -146,13 +155,12 @@ export function describeEmbedPlaceholder({ el }: { readonly el: Element }): Canv
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
   const config = parsed as Record<string, unknown>;
   if (typeof config.type !== 'string' || config.type === '') return undefined;
+  return { config, type: config.type };
+}
 
-  const type = config.type.toLowerCase();
-  if (type === 'gallery') {
-    const count = Array.isArray(config.images) ? config.images.length : 0;
-    return { kindLabel: EMBED_KIND_LABELS.gallery!, identityLabel: count === 0 ? 'no images set' : `${count} ${count === 1 ? 'image' : 'images'}` };
-  }
-  return { kindLabel: EMBED_KIND_LABELS[type] ?? titleCase(type), identityLabel: identityLabel(config) };
+function galleryIdentityLabel(config: Readonly<Record<string, unknown>>): string {
+  const count = Array.isArray(config.images) ? config.images.length : 0;
+  return count === 0 ? 'no images set' : `${count} ${count === 1 ? 'image' : 'images'}`;
 }
 
 export type InteractiveHtmlEditorProps = Omit<HtmlEditorProps, 'isProtectedElement' | 'describeEmbedPlaceholder'>;

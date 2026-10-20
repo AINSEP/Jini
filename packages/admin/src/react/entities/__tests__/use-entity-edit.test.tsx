@@ -123,4 +123,32 @@ describe('useEntityEdit', () => {
     expect(f.routes.navigate).not.toHaveBeenCalled();
     expect(result.current.failed).toBe(false);
   });
+
+  it('an edit route whose row does not exist never builds a form', async () => {
+    const f = fixture();
+    const { result } = f.mount('missing');
+    await waitFor(() => expect(result.current.read.loading).toBe(false));
+    expect(result.current.form).toBeNull();
+    expect(result.current.canSave).toBe(false);
+  });
+
+  it('cannot save again while a save is pending', async () => {
+    const f = fixture();
+    const { result } = f.mount('a');
+    await waitFor(() => expect(result.current.canSave).toBe(true));
+    act(() => { void result.current.save(); });
+    expect(result.current.canSave).toBe(false);
+    await f.release();
+  });
+
+  it('a create sends only the filled-in values and opens the created row', async () => {
+    const f = fixture();
+    const { result } = f.mount(null);
+    await waitFor(() => expect(result.current.form).not.toBeNull());
+    act(() => result.current.setField({ name: 'title', value: 'New' }));
+    await act(async () => { await result.current.save(); });
+    expect(f.port.create).toHaveBeenCalledWith({ title: 'New' });
+    expect(Object.keys(vi.mocked(f.port.create).mock.calls[0]![0])).toEqual(['title']);
+    expect(f.routes.navigate).toHaveBeenCalledWith({ entity: 'items', id: 'created' });
+  });
 });

@@ -2,8 +2,9 @@ import { useCallback, useMemo, useState } from 'react';
 import type { AdminEntityRowData } from '../../core/ports/entities.js';
 import { DataTable } from '../components/DataTable.js';
 import { EntityCell } from './EntityCell.js';
+import { RelationTruncationNotice } from './RelationTruncationNotice.js';
 import { entityText, type EntityListProps } from './types.js';
-import { loadRelationIndex, resolveEntityPageSize, RELATION_OPTION_LIMIT } from './rules.js';
+import { loadRelationIndex, resolveEntityPageSize } from './rules.js';
 import { useEntityRead } from './use-entity-read.js';
 
 /** Cursor history records actual returned page lengths; never sort a server-paginated page locally.
@@ -16,8 +17,9 @@ export function EntityList(props: EntityListProps) {
   const limit = resolveEntityPageSize({ raw: props.limitParam });
   const token = JSON.stringify([entityName, limit]);
   const [walk, setWalk] = useState({ token, port, entries: [{ cursor: null as string | null, offset: 0 }] });
-  if (walk.token !== token || walk.port !== port) setWalk({ token, port, entries: [{ cursor: null, offset: 0 }] });
-  const entries = walk.token === token && walk.port === port ? walk.entries : [{ cursor: null, offset: 0 }];
+  const walkIsCurrent = walk.token === token && walk.port === port;
+  if (!walkIsCurrent) setWalk({ token, port, entries: [{ cursor: null, offset: 0 }] });
+  const entries = walkIsCurrent ? walk.entries : [{ cursor: null, offset: 0 }];
   const position = entries[entries.length - 1]!;
   const load = useCallback(async () => {
     if (port === null) return null;
@@ -33,7 +35,6 @@ export function EntityList(props: EntityListProps) {
   if (result.loading || !result.data) return <p role="status">{translate({ key: 'Loading' })}</p>;
   const { page, relations } = result.data;
   const descriptor = port.descriptor;
-  const truncated = Object.entries(relations).filter(([, options]) => options.truncated).map(([name]) => name);
   return <div className="page">
     <a href={routes.href({})}>{translate({ key: 'Data' })}</a>
     <h1>{translate({ key: descriptor.labelPlural })}</h1>
@@ -51,6 +52,6 @@ export function EntityList(props: EntityListProps) {
     <button type="button" disabled={page.nextCursor === null} onClick={() => {
       if (page.nextCursor !== null) setWalk((current) => ({ ...current, entries: [...current.entries, { cursor: page.nextCursor, offset: position.offset + page.items.length }] }));
     }}>{translate({ key: 'Next' })}</button>
-    {truncated.length > 0 ? <p>{entityText({ translate, key: 'Related names limited to {limit} rows: {targets}', values: { limit: RELATION_OPTION_LIMIT, targets: truncated.join(', ') } })}</p> : null}
+    <RelationTruncationNotice relations={relations} translate={translate} />
   </div>;
 }

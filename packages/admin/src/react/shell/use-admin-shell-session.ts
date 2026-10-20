@@ -4,6 +4,26 @@ import type { AdminShellContext, AdminShellSessionController, AdminShellSessionP
 interface Owner { readonly context: AdminShellContext; readonly port: AdminShellSessionPort }
 interface OwnedState extends Owner { readonly state: AdminShellSessionState }
 
+/** Run one port operation and map its outcome, including adapter failures, to the next gate state. */
+async function settleOperation({ operation, port, context }: Owner & { readonly operation: 'read' | 'logout' }): Promise<AdminShellSessionState> {
+  try {
+    if (operation === 'logout') {
+      await port.logout(context);
+      return { status: 'anonymous' };
+    }
+    const session = await port.read(context);
+    return session === null
+      ? { status: 'anonymous' }
+      : { status: 'authenticated', session };
+  } catch (error: unknown) {
+    // Local sign-out must complete even when the server cannot revoke its cookie. A read
+    // retry here would quietly restore that still-valid session instead of showing login.
+    return operation === 'logout'
+      ? { status: 'anonymous' }
+      : { status: 'error', error };
+  }
+}
+
 /**
  * Own session reads and invalidation without any host API imports.
  * @param args Stable context and session port. Changing either starts a new session check.
@@ -25,27 +45,10 @@ export function useAdminShellSession(args: Owner): AdminShellSessionController {
     const request = ++generation.current;
     const isCurrent = () => active.current === owner && generation.current === request;
     setOwned({ context, port, state: { status: 'checking' } });
-    try {
-      if (operation === 'logout') {
-        await port.logout(context);
-        if (isCurrent()) setOwned({ context, port, state: { status: 'anonymous' } });
-        return;
-      }
-      const session = await port.read(context);
-      if (!isCurrent()) return;
-      const state: AdminShellSessionState = session === null
-        ? { status: 'anonymous' }
-        : { status: 'authenticated', session };
-      setOwned({ context, port, state });
-    } catch (error: unknown) {
-      // Local sign-out must complete even when the server cannot revoke its cookie. A read
-      // retry here would quietly restore that still-valid session instead of showing login.
-      if (isCurrent()) setOwned({ context, port, state: operation === 'logout'
-        ? { status: 'anonymous' }
-        : { status: 'error', error } });
-    } finally {
-      if (operation === 'logout' && loggingOut.current === owner) loggingOut.current = null;
-    }
+    // settleOperation never rejects, so the logout latch below always clears.
+    const state = await settleOperation({ operation, port, context });
+    if (isCurrent()) setOwned({ context, port, state });
+    if (operation === 'logout' && loggingOut.current === owner) loggingOut.current = null;
   }, [context, port]);
 
   const refresh = useCallback(() => run('read'), [run]);
