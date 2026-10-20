@@ -13,9 +13,9 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 | L108 | widgets/html gallery-render, html-embeds, legacy-widget-markers, server-fragment | merged | done (46 tool calls) | 2f92117a, 0ef5b201, c94e6ba3, 232e610d | 20/22 → ≤10/≤10 | 100/100/100 | eslint 0, tsc 0, widgets 379 ✓ |
 | L109 | widgets/markers gallery, html-attributes | merged | done (23 tool calls) | bcd89622, fbd539cd | 26/20 → ≤10/≤10 | 100/100/100 (was 78.7/77.9) | eslint 0, tsc 0, widgets 336 ✓ |
 | L123 | redirects host-config, redirects | running | | | 18/29 → | | |
-| L151 | content-types index-provisioning, write-service | running | | | 19/20 → | | |
+| L151 | content-types index-provisioning, write-service | merged | done (22 tool calls) | e39b6c22, d07e78b9 | 19/20 → 8/8 | 100/100/100 (was 93.96/92.04) | eslint 0, tsc 0, 168 ✓ |
 | L164 | entries field-validation, write-service | running | | | 17/16 → | | |
-| L169 | taxonomy write-service | queued | | | 16/20 → | | |
+| L169 | taxonomy write-service | running | | | 16/20 → | | |
 | L176 | forms forms, submission-attempts, submit-service | queued | | | 18/16 → | | |
 
 ## Problems
