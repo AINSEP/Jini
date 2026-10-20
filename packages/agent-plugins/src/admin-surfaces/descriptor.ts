@@ -111,10 +111,15 @@ function parseSurface(entry: unknown, at: string): Parsed<AdminSurfaceDescriptor
   if (typeof files === 'string') return files;
   const actions = parseActions(entry.actions ?? [], at);
   if (typeof actions === 'string') return actions;
+  return parseSurfaceExtras(entry, { ...identity, files, actions }, at);
+}
+
+/** The CSP extensions and the optional handler fields, after the core fields parsed. */
+function parseSurfaceExtras(entry: Entry, surface: Omit<AdminSurfaceDescriptor, 'csp'>, at: string): Parsed<AdminSurfaceDescriptor> {
   const csp = parseCsp(entry.csp ?? {}, at);
   if (typeof csp === 'string') return csp;
-  const handler = parseHandler(entry, { files, actions }, at);
-  return typeof handler === 'string' ? handler : { ...identity, files, actions, csp, ...handler };
+  const handler = parseHandler(entry, surface, at);
+  return typeof handler === 'string' ? handler : { ...surface, csp, ...handler };
 }
 
 /**
