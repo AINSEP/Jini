@@ -6,8 +6,8 @@ import {
   isMentionRightBoundary,
   mentionTokenPresent,
   parseMentionParts,
-} from './mention-parser.js';
-import type { MentionEntity } from './types.js';
+} from '../mention-parser.js';
+import type { MentionEntity } from '../types.js';
 
 const slack: MentionEntity = { id: 'slack', kind: 'connector', label: 'Slack' };
 const slackBot: MentionEntity = { id: 'slack-bot', kind: 'connector', label: 'SlackBot' };
@@ -195,6 +195,63 @@ describe('parseMentionParts', () => {
     expect(parts).toEqual([
       { kind: 'mention', entity: expect.objectContaining({ id: 'x' }), text: '@README' },
     ]);
+  });
+});
+
+describe('parseMentionParts boundaries', () => {
+  it('keeps the known entity when a known and an unknown match tie in length', () => {
+    const parts = parseMentionParts('@Slack', [slack], { highlightUnknown: true });
+    expect(parts).toEqual([
+      { kind: 'mention', entity: expect.objectContaining({ id: 'slack', kind: 'connector' }), text: '@Slack' },
+    ]);
+  });
+
+  it('keeps the first entity when two entities of different kinds share a token', () => {
+    const asFile: MentionEntity = { id: 'slack-file', kind: 'file', label: 'Slack' };
+    const parts = parseMentionParts('@Slack', [slack, asFile]);
+    expect(parts).toEqual([
+      { kind: 'mention', entity: expect.objectContaining({ id: 'slack' }), text: '@Slack' },
+    ]);
+  });
+
+  it('falls back to a shorter known token when a longer one fails its right boundary', () => {
+    const parts = parseMentionParts('@SlackBotx', [slack, slackBot], { highlightUnknown: false });
+    expect(parts).toBeNull();
+  });
+
+  it('matches a known token right after an opening bracket', () => {
+    const parts = parseMentionParts('(@Slack )', [slack], { highlightUnknown: false });
+    expect(parts).toEqual([
+      { kind: 'text', text: '(' },
+      { kind: 'mention', entity: expect.objectContaining({ id: 'slack' }), text: '@Slack' },
+      { kind: 'text', text: ' )' },
+    ]);
+  });
+
+  it('rejects a known token followed directly by a closing bracket (strict right boundary)', () => {
+    expect(parseMentionParts('(@Slack)', [slack], { highlightUnknown: false })).toBeNull();
+  });
+
+  it('stops an unknown token at the next @', () => {
+    const parts = parseMentionParts('@ab@cd', [], { highlightUnknown: true });
+    expect(parts).toEqual([
+      { kind: 'mention', entity: expect.objectContaining({ id: 'unknown:@ab', label: 'ab', title: '@ab' }), text: '@ab' },
+      { kind: 'text', text: '@cd' },
+    ]);
+  });
+
+  it('highlights unknown mentions by default when no options are passed', () => {
+    const parts = parseMentionParts('@Ghost', []);
+    expect(parts).toEqual([
+      { kind: 'mention', entity: expect.objectContaining({ kind: 'unknown', token: '@Ghost' }), text: '@Ghost' },
+    ]);
+  });
+});
+
+describe('foldPresentMentions boundaries', () => {
+  it('folds each distinct known entity once even when typed twice', () => {
+    const result = foldPresentMentions('@Slack and @Slack and @Notion', [], [slack, notion]);
+    expect(result.map((e) => e.id)).toEqual(['slack', 'notion']);
   });
 });
 
