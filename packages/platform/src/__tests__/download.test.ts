@@ -2638,6 +2638,46 @@ describe("managed download engine — refactor pins", () => {
     expect(inspection.manifest).toBe("unreadable");
   });
 
+  it("inspect treats a JSON null manifest as \"unreadable\"", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-manifest-null");
+    writeFileSync(manifestPathFor(basePath, bucket, fileName), "null");
+    const inspection = await inspectManagedDownload({ basePath, bucket, fileName });
+    expect(inspection.manifest).toBe("unreadable");
+  });
+
+  it("treats a JSON null lock file as an invalid lock and refuses to clear it", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-lock-null");
+    writeFileSync(lockPath(basePath, bucket, fileName), "null");
+    await expect(
+      managedDownload({ basePath, bucket, fileName, payload: { checksum: { algorithm: "sha256", value: sha256("x") }, url } }),
+    ).rejects.toMatchObject({ code: MANAGED_DOWNLOAD_ERROR_CODES.TARGET_LOCKED, message: `download target is locked: ${bucket}/${fileName}` });
+    expect(readFileSync(lockPath(basePath, bucket, fileName), "utf8")).toBe("null");
+  });
+
+  it("refuses to reset a base whose sentinel reads back as JSON null at reset time", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-sentinel-null");
+    writeFileSync(manifestPathFor(basePath, bucket, fileName), "{not valid json");
+    const sentinelPath = join(basePath, ".jini-download-root.json");
+    const fsPromises = await import("node:fs/promises");
+    const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    let sentinelReads = 0;
+    vi.mocked(fsPromises.readFile).mockImplementation(async (p, options) => {
+      if (p === sentinelPath) {
+        sentinelReads += 1;
+        // Reads 1-2: ensureManagedBase + prune's; read 3: resetOwnedBase's re-check.
+        if (sentinelReads === 3) return "null";
+      }
+      return actual.readFile(p as string, options as never);
+    });
+    try {
+      await expect(
+        managedDownload({ basePath, bucket, fileName, payload: { checksum: { algorithm: "sha256", value: sha256("x") }, url } }),
+      ).rejects.toMatchObject({ code: MANAGED_DOWNLOAD_ERROR_CODES.STORE_NOT_OWNED, message: `download base is not owned: ${basePath}` });
+    } finally {
+      vi.mocked(fsPromises.readFile).mockImplementation(actual.readFile);
+    }
+  });
+
   it("sends Range, If-Range and caller headers on resume, and accepts a case-insensitive padded content-range", async () => {
     const { basePath, bucket, fileName } = await seededBase("pin-resume-headers");
     const body = Buffer.from("0123456789abcdef");
@@ -2692,6 +2732,23 @@ describe("managed download engine — refactor pins", () => {
     const fetchImpl: typeof fetch = async (_input, init) => {
       seen.push(init?.headers as Record<string, string> | undefined);
       if (seen.length === 1) return new Response(body.subarray(5), { headers: { "content-range": "bytes 5-15/16" }, status: 206 });
+      return new Response(body, { status: 200 });
+    };
+    const result = await managedDownload({ basePath, bucket, fileName, fetch: fetchImpl, payload: { checksum, url } });
+    expect(seen).toEqual([{ Range: "bytes=4-" }, undefined]);
+    expect(result.resumed).toBe(false);
+  });
+
+  it("restarts from zero when the resume response is 200 even if it carries a matching content-range", async () => {
+    const { basePath, bucket, fileName } = await seededBase("pin-resume-200");
+    const body = Buffer.from("0123456789abcdef");
+    const checksum = { algorithm: "sha256" as const, value: sha256(body) };
+    writeFileSync(partialPathFor(basePath, bucket, fileName), body.subarray(0, 4));
+    writeManifestFile(basePath, bucket, fileName, { checksum, state: "partial", url });
+    const seen: Array<Record<string, string> | undefined> = [];
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      seen.push(init?.headers as Record<string, string> | undefined);
+      if (seen.length === 1) return new Response(body.subarray(4), { headers: { "content-range": "bytes 4-15/16" }, status: 200 });
       return new Response(body, { status: 200 });
     };
     const result = await managedDownload({ basePath, bucket, fileName, fetch: fetchImpl, payload: { checksum, url } });
