@@ -62,6 +62,25 @@ describe('applyToolCallDisplay', () => {
   });
 });
 
+describe('applyToolCallDisplay boundaries', () => {
+  const ext: MessageBlock<ToolDisplayRow> = { kind: 'ext', name: 'form', slot: 'form', key: 'ext-form' };
+
+  it('collapsed folds across non-tool blocks of the same turn and passes them through in place', () => {
+    const blocks = [tools('tools-0', row('t1')), ext, text('a'), tools('tools-3', row('t2'))];
+    expect(shape(applyToolCallDisplay({ blocks, mode: 'collapsed' }))).toEqual(['tools-0:[t1,t2]', 'ext-form', 'a']);
+  });
+
+  it('collapsed handles a reply-end before any tools, then opens a fresh group', () => {
+    const blocks = [replyEnd(0), tools('tools-1', row('t1')), replyEnd(1), tools('tools-3', row('t2')), tools('tools-4', row('t3'))];
+    expect(shape(applyToolCallDisplay({ blocks, mode: 'collapsed' }))).toEqual(['|', 'tools-1:[t1]', '|', 'tools-3:[t2,t3]']);
+  });
+
+  it('hidden keeps a fully failed block under its own key', () => {
+    const blocks = [ext, tools('tools-1', row('t1', 'error'), row('t2', 'error'))];
+    expect(shape(applyToolCallDisplay({ blocks, mode: 'hidden' }))).toEqual(['ext-form', 'tools-1:[t1,t2]']);
+  });
+});
+
 describe('toolRowsForDisplay', () => {
   const rows = [row('t1'), row('t2', 'error'), row('t3', 'executing')];
 

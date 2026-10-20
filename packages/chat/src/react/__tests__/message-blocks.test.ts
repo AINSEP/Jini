@@ -242,4 +242,36 @@ describe('interleaveMessageBlocks', () => {
     expect(blocks[0]).toMatchObject({ text: 'a' });
     expect(blocks[2]).toMatchObject({ text: 'b' });
   });
+  it('returns null for undefined or empty events even when rows exist', () => {
+    expect(interleaveMessageBlocks({ events: undefined, content: '', rows: [{ id: 't1' }] })).toBeNull();
+    expect(interleaveMessageBlocks({ events: [], content: '', rows: [{ id: 't1' }] })).toBeNull();
+  });
+
+  it('skips a repeated tool_use id after its row was placed, keeping the later text in its own block', () => {
+    const events = [toolUse('t1'), text('x'), toolUse('t1'), text('y')];
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows: [{ id: 't1' }] })!;
+    expect(blocks).toEqual([
+      { kind: 'tools', rows: [{ id: 't1' }], key: 'tools-0' },
+      { kind: 'text', text: 'xy', key: 'text-1' },
+    ]);
+  });
+
+  it('keys every block by its position at creation, and a coalesced group keeps its first key', () => {
+    const events = [text('a'), toolUse('t1'), toolUse('t2'), ext('form'), ext('user_message'), text('b')];
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows: [{ id: 't1' }, { id: 't2' }] })!;
+    expect(blocks).toEqual([
+      { kind: 'text', text: 'a', key: 'text-0' },
+      { kind: 'tools', rows: [{ id: 't1' }, { id: 't2' }], key: 'tools-1' },
+      { kind: 'ext', name: 'form', slot: 'form', key: 'ext-form' },
+      { kind: 'reply-end', index: 0, key: 'reply-end-0' },
+      { kind: 'ext', name: 'user_message', slot: 'user_message', key: 'ext-user_message' },
+      { kind: 'text', text: 'b', key: 'text-5' },
+    ]);
+  });
+
+  it('flushes pending text before a reply-end even when that boundary slot was already emitted', () => {
+    const events = [ext('user_message'), text('a'), ext('user_message'), toolUse('t1')];
+    const blocks = interleaveMessageBlocks({ events, content: contentOf(events), rows: [{ id: 't1' }] })!;
+    expect(blocks.map((b) => b.key)).toEqual(['reply-end-0', 'ext-user_message', 'text-2', 'reply-end-1', 'tools-4']);
+  });
 });

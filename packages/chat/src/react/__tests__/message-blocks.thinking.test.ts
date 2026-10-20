@@ -40,4 +40,20 @@ describe('interleaveMessageBlocks includeThinking', () => {
     const blank = [thinking('  '), text('Answer.')];
     expect(interleaveMessageBlocks({ events: blank, content: contentOf(blank), rows: [] }, { includeThinking: true })).toBeNull();
   });
+  it('does not join thinking across a tool group, and starts a new tools group after thinking', () => {
+    const evs = [toolUse('t1'), thinking('a'), toolUse('t2'), thinking('b')];
+    const blocks = interleaveMessageBlocks({ events: evs, content: '', rows: [{ id: 't1' }, { id: 't2' }] }, { includeThinking: true });
+    expect(blocks).toEqual([
+      { kind: 'tools', rows: [{ id: 't1' }], key: 'tools-0' },
+      { kind: 'thinking', text: 'a', key: 'thinking-1' },
+      { kind: 'tools', rows: [{ id: 't2' }], key: 'tools-2' },
+      { kind: 'thinking', text: 'b', key: 'thinking-3' },
+    ]);
+  });
+
+  it('emits blank thinking as a block once something else makes the message interleavable', () => {
+    const evs = [thinking('  '), toolUse('t1')];
+    const blocks = interleaveMessageBlocks({ events: evs, content: '', rows: [{ id: 't1' }] }, { includeThinking: true });
+    expect(blocks?.map((b) => b.kind)).toEqual(['thinking', 'tools']);
+  });
 });
