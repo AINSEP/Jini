@@ -1,10 +1,12 @@
 import type { RoleRecord, PolicyRecord, DestructiveTarget } from './models.js';
 import { rolesMessagesEn as m } from './messages.en.js';
+import { hasAdminGrant } from './people.rules.js';
+import { errorCode, errorMessageOr } from './error-copy.js';
 /** All writes share the actual server vocabulary. A missing grant is a denial. */
 export function canManageRoles({ permissions }: {
     permissions: readonly string[];
 }, _optional: Record<string, never> = {}): boolean {
-    return permissions.includes('role.manage') || permissions.includes('*');
+    return hasAdminGrant({ permissions, permission: 'role.manage' });
 }
 export function mutableRole({ role }: {
     role: RoleRecord;
@@ -12,22 +14,22 @@ export function mutableRole({ role }: {
 export function mutablePolicy({ policy }: {
     policy: PolicyRecord;
 }, _optional: Record<string, never> = {}): boolean { return !policy.isBuiltin && !policy.isFrozen; }
+const ROLES_ERROR_COPY: Readonly<Record<string, string>> = Object.freeze({
+    FORBIDDEN: m.forbidden, RESOURCE_CONFLICT: m.conflict, PERMISSION_UNKNOWN: m.unknownPermission,
+    GRANT_EXCEEDS_ISSUER: m.exceedsIssuer,
+});
 /** Conflict copy is feature-specific: references, rather than duplicate workspace slugs. */
 export function describeRolesError({ error, fallback }: {
     error: unknown;
     fallback: string;
 }, _optional: Record<string, never> = {}): string {
-    const messages: Readonly<Record<string, string>> = {
-        FORBIDDEN: m.forbidden, RESOURCE_CONFLICT: m.conflict, PERMISSION_UNKNOWN: m.unknownPermission,
-        GRANT_EXCEEDS_ISSUER: m.exceedsIssuer,
-    };
-    if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
-        if (error.code === 'VALIDATION_ERROR')
-            return error instanceof Error && error.message ? error.message : m.validation;
-        if (messages[error.code])
-            return messages[error.code]!;
-    }
-    return error instanceof Error && error.message ? error.message : fallback;
+    const code = errorCode({ error });
+    if (code === 'VALIDATION_ERROR')
+        return errorMessageOr({ error, fallback: m.validation });
+    // Inherited keys resolve here (see the "reported, not fixed" pin in rules.pins.test.ts).
+    if (code !== undefined && ROLES_ERROR_COPY[code])
+        return ROLES_ERROR_COPY[code]!;
+    return errorMessageOr({ error, fallback });
 }
 export function destructiveCopy({ target }: {
     target: DestructiveTarget | null;
