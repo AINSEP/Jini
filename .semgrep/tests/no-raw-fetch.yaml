@@ -1,0 +1,53 @@
+rules:
+  - id: no-raw-fetch
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: Raw HTTP bypasses the guarded egress boundary (DR-002). Use platform/http/guarded or the OAuth guarded transport.
+    paths:
+      exclude:
+        # Exact effect owners only; never exempt whole feature or test directories.
+        - /packages/platform/src/http/guarded/transport.fetch.ts
+        - /packages/oauth/src/guarded-transport.ts
+    pattern-either:
+      - pattern: fetch(...)
+      - pattern: globalThis.fetch(...)
+      - pattern: window.fetch(...)
+      - pattern: undici.request(...)
+      - pattern: http.request(...)
+      - pattern: https.request(...)
+      - patterns:
+          - pattern-inside: |
+              import { request as $REQUEST } from "$MODULE";
+              ...
+          - metavariable-regex:
+              metavariable: $MODULE
+              regex: ^['"]?(?:(?:node:)?https?|undici)['"]?$
+          - pattern: $REQUEST(...)
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import * as $HTTP from "$MODULE";
+                  ...
+              - pattern-inside: |
+                  import $HTTP from "$MODULE";
+                  ...
+              - pattern-inside: |
+                  const $HTTP = require($MODULE);
+                  ...
+          - metavariable-regex:
+              metavariable: $MODULE
+              regex: ^['"]?(?:(?:node:)?https?|undici)['"]?$
+          - pattern: $HTTP.request(...)
+      - patterns:
+          - pattern-inside: |
+              const { request: $REQUEST } = require($MODULE);
+              ...
+          - metavariable-regex:
+              metavariable: $MODULE
+              regex: ^['"]?(?:(?:node:)?https?|undici)['"]?$
+          - pattern: $REQUEST(...)
+      - patterns:
+          - pattern: require($MODULE).request(...)
+          - metavariable-regex:
+              metavariable: $MODULE
+              regex: ^['"]?(?:(?:node:)?https?|undici)['"]?$

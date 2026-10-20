@@ -21,6 +21,8 @@
     "quality:knip": "knip --config knip.json --no-exit-code",
     "quality:depcruise": "bash scripts/quality-depcruise.sh",
     "quality:secrets": "bash scripts/quality-secrets.sh",
+    "quality:semgrep": "python3 scripts/quality-semgrep.py",
+    "quality:semgrep:test": "python3 scripts/quality-semgrep.py --test",
     "quality:properties": "pnpm -r --no-bail --filter @jini-ai/platform --filter @jini-ai/chat --filter @jini-ai/oauth --filter @jini-ai/cms run test:properties",
     "quality:sonar": "eslint --config development/quality/eslint.sonar.config.mjs --format ./development/quality/sonar-formatter.mjs --no-error-on-unmatched-pattern packages"
   },

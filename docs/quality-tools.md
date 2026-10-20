@@ -1,7 +1,8 @@
 # Quality tools: report first
 
-These tools start as observations. New CI steps use `continue-on-error: true` and
-are absent from the final blocking-gate expression. Existing guard/typecheck policy
+These tools start as observations. Application scan steps use `continue-on-error: true`
+and are absent from the final blocking-gate expression. Semgrep's custom-rule regression
+tests are blocking because they test scanner rules, not application findings. Existing guard/typecheck policy
 is unchanged. SonarJS runs locally without Docker or a server; SonarQube Cloud stays disabled. No findings have been measured for this rollout;
 the dispatch prohibited installing, building or running tests in the scratch clone.
 
@@ -12,6 +13,7 @@ the dispatch prohibited installing, building or running tests in the scratch clo
 | Gitleaks 8.28.0 | Default secret rules over every fetched git ref and merge history | `pnpm quality:secrets` | Redacted findings name the rule, file and commit. A skipped scan is not a clean result. |
 | fast-check 4.3.0 | Generated parser/validator invariants via package-local Vitest | `pnpm quality:properties` | A failure includes a minimized counterexample and replay path; each suite prints its seed. |
 | SonarJS 4.2.0 | Bug, security-hotspot, reliability and maintainability rules on production package source | `pnpm quality:sonar` | Compact totals and counts per rule; review parser/configuration errors separately. |
+| Semgrep CE (CI: 1.175.0) | Five public registry packs plus six review-derived JS/TS rules | `pnpm quality:semgrep` | Counts per rule and analysis-error counts; `pnpm quality:semgrep:test` checks annotated positive/negative examples. |
 
 The Coordinator must update `pnpm-lock.yaml` after these exact manifest versions land,
 then install and build the workspace before first runs. CI uses a frozen lockfile;
@@ -73,6 +75,103 @@ A clean summary is not a security audit. A separately scoped, measured rollout o
 type-aware linting is needed before claiming that coverage; it is not silently
 introduced across packages with different tsconfig include boundaries here.
 No repo lint, tests, installs, builds or scanner were run for this change.
+
+## Semgrep: review findings become rules
+
+Use the free [Community CLI](https://semgrep.dev/docs/semgrep-ce/overview), with no
+Semgrep account, token, npm dependency, or server. Install it yourself with
+`brew install semgrep` or `pipx install semgrep`; the launcher also needs Python 3.
+Both commands print an explicit SKIPPED message and install hint, then exit 127 if
+the binary is absent. Missing tooling is never reported as a passing scan/test.
+
+```sh
+pnpm quality:semgrep           # full working-tree scan, summary by rule
+pnpm quality:semgrep:test      # local rules only; no registry downloads
+semgrep --test .semgrep       # equivalent direct rule-test command
+```
+
+`.semgrep.yml` is a **launcher manifest**, written in the JSON subset of YAML so
+Python's standard library can read it. Semgrep does not support native pack imports
+inside rule YAML. `scripts/quality-semgrep.py` expands its `configs` list into repeated
+`--config` arguments: `p/typescript`, `p/javascript`, `p/nodejs`, `p/secrets`,
+`p/owasp-top-ten`, and `.semgrep`. Do not pass the manifest directly to
+`semgrep --config`; individual YAML files under `.semgrep/tests` are native rule configs.
+The [CLI reference](https://semgrep.dev/docs/cli-reference) documents multiple configs
+and `--baseline-commit`. Registry packs are fetched at scan time and can change;
+the container pin fixes the engine, not the registry contents. A registry/network
+failure is an incomplete scan, not a clean result. The launcher requests only the
+OSS engine, disables metrics/version checks, never logs in, and uploads no findings.
+
+`.semgrepignore` explicitly excludes build output, dependencies, fixture directories,
+generated code, ADS-memory, AI-Dev-Shop, knowledge indexes, and intentional rule targets.
+Ordinary application tests remain included: the default Semgrep ignore policy can
+exclude tests, so this project supplies its own policy. No blanket test exclusion
+may bypass the credential-fixture rule. Full scans return zero for findings alone;
+configuration, parse, timeout, or runtime errors remain nonzero (`--strict`). The
+summary prints counts only; temporary JSON can contain source/secrets, is private,
+is removed on exit, and is never uploaded as an artifact. For local finding locations
+use `semgrep scan --config .semgrep --metrics=off --disable-version-check .` and
+handle its source-bearing output accordingly.
+
+| Custom rule | Severity | Finding and intended repair |
+| --- | --- | --- |
+| `react-component-options-param` | error | PascalCase function/assigned arrow/function expression with a second parameter and a direct JSX return. Move options into props; anonymous `forwardRef` callbacks keep their ref ABI. |
+| `no-raw-fetch` | warn | Bare/global/window fetch and Undici/Node HTTP requests, including named import aliases and common require forms, bypass guarded egress. Call the guarded owner. |
+| `no-provider-error-echo` | warn | Caught `.message`, body/bodyText/response body/data, or `String(error)` flows into thrown/returned/logged text. Prefer fixed messages plus safe status/code. |
+| `no-as-any` | warn | TypeScript `as any` discards checking. Narrow unknown or use the actual boundary contract. |
+| `no-secret-literals-in-tests` | error | Test string literals containing credential prefixes with suffixes, even short dummy values. Construct fixtures from a bare prefix plus a runtime-generated suffix. |
+| `log-raw-error` | warn | Caught `.message`/`String(error)` reaches common logger methods without a known redaction helper. Redact or emit a fixed diagnostic. |
+
+Discovery used the stale understand-anything graph followed by current source;
+Codebase Memory CLI/index and Graphify were absent here. CAPABILITIES and
+`packages/platform/docs/decisions/DR-002-guarded-egress.md` identify the HTTP owner.
+The raw-request exemptions are **exactly** platform's
+`src/http/guarded/transport.fetch.ts` and OAuth's `src/guarded-transport.ts`; no whole
+package/directory is exempt. OAuth's DNS-pinned adapter delegates through injected
+ports. The reviewed Tovu redaction wrapper delegates to Jini diagnostics, so no
+second scanner or redaction implementation was needed. Known taint sanitizers name
+the existing `redactSecrets`, `redactText`, and `redactSecretShapes` owners; arbitrary
+functions containing "redact" in their names do not count.
+
+Limits: CE taint tracking is local to a function. The error rules conservatively
+cover **all catches** (including promise rejection callbacks), since arbitrary
+provider/importer provenance cannot be proved across calls in CE. Some local errors
+will need triage. Imported redactor aliases, arbitrary wrapper loggers, deeper nested
+causes, indirect network call aliases, and components returning JSX through helpers
+or complex conditional expressions are not exhaustively modeled. Recognizing a
+redaction call by name does not prove its binding or that all sensitive prose was
+removed. Provider responses should still use fixed messages. These are review aids,
+not proofs of SSRF safety or secret removal. The two error rules can report the same
+log sink for different review concerns. Rule tests do not establish production path
+exemptions; inspect the first application scan to verify those scopes too.
+
+The “factory learns” loop is: identify a concrete review regression, minimize the
+unsafe example, name its existing behavior owner, then add a rule and adjacent
+same-stem `.ts`/`.tsx` target under `.semgrep/tests/`. Add `// ruleid: rule-name`
+immediately above each expected finding and `// ok: rule-name` above the closest
+valid variant. Include aliases, redaction boundaries, and unrelated safe code where
+relevant. The rules live beside targets so **`semgrep --test .semgrep` discovers
+every pair**; no separate custom test runner is needed. Do not use `todoruleid` or
+`todook` to hide a known mismatch. Follow Semgrep's
+[annotated rule-test format](https://semgrep.dev/docs/writing-rules/testing-rules).
+
+CI uses the official `semgrep/semgrep:1.175.0` image pinned by its
+[multi-platform digest](https://hub.docker.com/layers/semgrep/semgrep/1.175.0/images/sha256-1623685c0f6388b0bc8d577a712bf92b88252aaa09d6d7e38943dafa10ed978c).
+It checks out full history and the PR head, runs blocking custom rule tests, then
+runs the same launcher with the PR base SHA as `--baseline-commit`. Only findings
+absent from that baseline report on PRs; pushes run full scans. The application scan
+has `continue-on-error: true`; the job itself does not, preserving the rule-test gate.
+It has read-only contents permission, no persisted checkout credential, and no
+Semgrep service token. No application install/build is needed for this job.
+
+Before making application findings blocking, run/triage the full backlog, fix rule
+false positives with negative examples, assign owners, and agree the rule/severity
+scope with the Coordinator. Then add `--error` (and any reviewed `--severity`
+filters) to the scan invocation and remove **that step's** `continue-on-error` in
+one reviewed policy change. Retain PR-baseline scanning and surface analysis failures;
+do not hide legacy debt with blanket ignores or suppressions. No Semgrep scan,
+rule test, install, or build was run in this dispatch; the first actual results
+remain pending.
 
 ## Knip entry points and source resolution
 
@@ -138,20 +237,24 @@ credential-prefix exemption. New exceptions require a demonstrated false positiv
 the smallest path-plus-pattern match. Tovu's prefix-anchored secret patterns informed
 the review; they do not replace Gitleaks' maintained defaults.
 
-The `secrets-report` job checks out full history (`fetch-depth: 0`). The action is pinned
-to v2.3.9's immutable commit, with comments disabled and read-only repository permissions.
-Its own push/PR scan covers event ranges; a second step explicitly runs
-`gitleaks git --log-opts='--all --full-history -m'`. The latter uses the installed binary
-or a disposable pinned-version Docker image if the action could not install it.
-No Sonar or secret-scan service is left running. Findings appear redacted in CI logs;
-automatic artifact uploads and PR comments are disabled.
+The `secrets-report` job checks out full history (`fetch-depth: 0`) and downloads the
+**free CLI** directly from the official v8.28.0 release. It verifies the Linux x64
+archive against a SHA-256 pinned in CI before extracting/executing it; the checksum
+comes from the [official release assets](https://github.com/gitleaks/gitleaks/releases/expanded_assets/v8.28.0).
+Review version, archive name, architecture, and checksum together on upgrade. No
+licensed Gitleaks Action, `GITLEAKS_LICENSE`, service, Docker fallback, or scanner npm
+dependency is required. Installation failures remain visible at job level; report-only
+job policy prevents them from blocking the existing gates.
 
-Organization-owned repositories need a `GITLEAKS_LICENSE` Actions secret for the
-[Gitleaks action](https://github.com/gitleaks/gitleaks-action); forks may not receive that
-secret. Its failure remains visible and report-only, and the independent Docker scan
-does not depend on that license. Verify both steps on the first run. The local script
-prints an install hint and explicit SKIPPED result when Gitleaks is absent. It never
-downloads tools. Use v8.28.0 (or a reviewed newer release) for the configured AND allowlist.
+The first CLI scan covers the PR base-to-head or push before-to-after range; a new
+branch with no prior SHA scans head history. The second reuses `quality-secrets.sh`
+to scan `--all --full-history -m`, including merge history, even if event findings
+failed the first scan. Both scans and the job remain report-only. Findings are
+redacted in CI logs, with read-only permissions, no persisted checkout credentials,
+no artifact uploads and no PR comments. Verify both steps on the first actual run.
+The local script prints an install hint and explicit SKIPPED result when Gitleaks is
+absent; it never downloads tools. Use v8.28.0 (or a reviewed newer release) for the
+configured AND allowlist.
 
 Local scans include all locally available refs, not refs you have never fetched, and
 exclude uncommitted files. To inspect current files separately, use

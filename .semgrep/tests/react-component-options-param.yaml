@@ -1,0 +1,35 @@
+rules:
+  - id: react-component-options-param
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: React passes props to components; a second options parameter can receive React internals. Put options in props.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              function $COMPONENT($PROPS, $OPTIONS, ...) {
+                ...
+                return $JSX;
+                ...
+              }
+          - pattern: |
+              const $COMPONENT = ($PROPS, $OPTIONS, ...) => {
+                ...
+                return $JSX;
+                ...
+              };
+          - pattern: const $COMPONENT = ($PROPS, $OPTIONS, ...) => $JSX;
+          - pattern: |
+              const $COMPONENT = function($PROPS, $OPTIONS, ...) {
+                ...
+                return $JSX;
+                ...
+              };
+      - metavariable-regex:
+          metavariable: $COMPONENT
+          regex: ^[A-Z][A-Za-z0-9]*$
+      - metavariable-pattern:
+          metavariable: $JSX
+          pattern-either:
+            - pattern: <$TAG ... />
+            - pattern: <$TAG ...>...</$TAG>
+            - pattern: <>...</>

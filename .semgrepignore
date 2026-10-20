@@ -1,0 +1,18 @@
+# Explicit project policy: retain ordinary tests in scans (including secret literals).
+# A custom ignore file replaces Semgrep's default ignores, which can exclude tests.
+.git/
+node_modules/
+dist/
+dist-*/
+build/
+coverage/
+fixtures/
+__fixtures__/
+generated/
+*.generated.*
+*.gen.*
+ADS-memory/
+AI-Dev-Shop/
+.understand-anything/
+# Deliberately bad rule targets are scanned by --test, not the application scan.
+.semgrep/
