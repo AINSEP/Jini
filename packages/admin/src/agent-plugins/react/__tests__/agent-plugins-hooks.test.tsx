@@ -123,6 +123,10 @@ describe('useAgentPluginPanel', () => {
     expect(mount(scope({ plugins: [] }).value).result.current).toMatchObject({ loading: false, empty: true });
   });
 
+  it('is neither loading nor empty once rows are listed', () => {
+    expect(mount(scope({ plugins: [off] }).value).result.current).toMatchObject({ loading: false, empty: false });
+  });
+
   it('describes rows with busy and expanded state', () => {
     const { result } = mount(scope({ plugins: [off, on], busyIds: ['second'], expandedIds: ['ui-ux-design'] }).value);
     expect(result.current.rows[0]).toMatchObject({ id: 'ui-ux-design', name: 'UI UX Design', enabled: false, stateLabel: 'Disabled', busy: false, expanded: true, canWrite: true,
