@@ -114,12 +114,59 @@ describe('PKCE', () => {
   });
 });
 
+const HOSTED_CLIENT: OAuthClient = { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' };
+const forcedConsent = (started: { authorizationUrl: string }) => new URL(started.authorizationUrl).searchParams.get('force_consent');
+
 describe('client kind', () => {
   it('sends the hosted extra parameters, not the installed-app ones, for a hosted client', async () => {
-    h = buildHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' }, clientKind: 'confidential' });
+    h = buildHarness(provider, { client: HOSTED_CLIENT, clientKind: 'confidential' });
     const { started } = await signIn(h, provider);
     const params = new URL(started.authorizationUrl).searchParams;
     expect([params.get('include_granted'), params.get('prompt')]).toEqual(['true', null]);
+  });
+});
+
+describe('hosted sign-ins always end renewable (a repeat consent may omit the refresh token)', () => {
+  beforeEach(() => { h = buildHarness(provider, { client: HOSTED_CLIENT, clientKind: 'confidential' }); });
+
+  it('refuses a hosted first connect that grants no refresh token and writes nothing', async () => {
+    const { started, callbackParams } = await signIn(h, provider, { omitRefreshToken: true });
+    await expect(complete(callbackParams)).rejects.toMatchObject({ code: 'offline-access-required' });
+    expect([h.tokens.entries.size, (await h.service.getStatus({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).status])
+      .toEqual([0, 'disconnected']);
+  });
+  it('refuses to stage a hosted switch whose new account granted no refresh token', async () => {
+    const ref = await connect('alice');
+    const { callbackParams } = await signIn(h, provider, { account: 'bob', intent: 'switch-account', omitRefreshToken: true });
+    await expect(complete(callbackParams)).rejects.toMatchObject({ code: 'offline-access-required' });
+    expect(h.tokens.entries.has(`${ref}#staged`)).toBe(false);
+  });
+  it('forces consent on a hosted first connect, when nothing renewable is stored', async () => {
+    expect(forcedConsent((await signIn(h, provider)).started)).toBe('true');
+  });
+  it('does not force consent on a hosted reconnect while a renewable credential is stored', async () => {
+    await connect('alice');
+    expect(forcedConsent((await signIn(h, provider)).started)).toBeNull();
+  });
+  it('forces consent on a hosted reconnect once the connection needs reconnecting', async () => {
+    const ref = await connect('alice');
+    const record = (await h.records.read({ key: ref }))!;
+    await h.records.compareAndSet({ key: ref, expectedRevision: record.revision,
+      record: { ...record, status: 'reconnect-required', revision: record.revision + 1 } });
+    expect(forcedConsent((await signIn(h, provider)).started)).toBe('true');
+  });
+  it('forces consent on a hosted reconnect when the stored credential has no refresh token', async () => {
+    const ref = await connect('alice');
+    h.tokens.entries.set(ref, { ...h.tokens.entries.get(ref)!, refreshToken: null });
+    expect(forcedConsent((await signIn(h, provider)).started)).toBe('true');
+  });
+  it('forces consent on a hosted switch: the new account holds nothing renewable here', async () => {
+    await connect('alice');
+    expect(forcedConsent((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).started)).toBe('true');
+  });
+  it('never adds the force-consent parameters for an installed app (its own parameters re-consent every time)', async () => {
+    h = buildHarness(provider);
+    expect(forcedConsent((await signIn(h, provider)).started)).toBeNull();
   });
 });
 
@@ -437,14 +484,6 @@ describe('revocation honesty against the real vault token store', () => {
     const result = await v.service.disconnect({ connectionRef: ref, workspaceId: 'ws-1' });
     expect([result.remoteRevocation, [...provider.revoked].sort()]).toEqual(['confirmed', ['acme-rt-1', 'acme-rt-2']]);
   });
-  it('revokes with the access token when the stored credential has no refresh token', async () => {
-    // Hosted: an installed app is refused without a refresh token (offline-access-required).
-    v = buildVaultHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' }, clientKind: 'confidential' });
-    const { started, callbackParams } = await signIn(v, provider, { omitRefreshToken: true });
-    await finish(callbackParams);
-    const result = await v.service.disconnect({ connectionRef: started.connectionRef, workspaceId: 'ws-1' });
-    expect([result.remoteRevocation, provider.revoked]).toEqual(['confirmed', ['acme-at-1']]);
-  });
   it('refuses a new sign-in while a revocation is pending, so the kept credential is not orphaned', async () => {
     const ref = await vaultConnect();
     provider.failRevocation = true;
@@ -539,10 +578,13 @@ describe('a changed OAuth client or an unreadable stored credential never locks 
     expect(await after.service.getAccessToken({ connectionRef: ref, workspaceId: 'ws-1' })).toBe('acme-at-2');
   });
   it('a hosted same-account reconnect under the new client installs instead of failing on the old row', async () => {
-    const hosted = buildVaultHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' },
-      clientKind: 'confidential', records: before.records }, before.vault);
-    await finishOn(hosted, (await signIn(hosted, provider, { account: 'alice', omitRefreshToken: true })).callbackParams);
+    const hosted = buildVaultHarness(provider, { client: HOSTED_CLIENT, clientKind: 'confidential', records: before.records }, before.vault);
+    await finishOn(hosted, (await signIn(hosted, provider, { account: 'alice' })).callbackParams);
     expect((await hosted.service.getStatus({ connectionRef: ref, workspaceId: 'ws-1' })).status).toBe('connected');
+  });
+  it('a hosted reconnect under the new client forces consent: the old row cannot renew', async () => {
+    const hosted = buildVaultHarness(provider, { client: HOSTED_CLIENT, clientKind: 'confidential', records: before.records }, before.vault);
+    expect(forcedConsent((await signIn(hosted, provider, { account: 'alice' })).started)).toBe('true');
   });
   it('disconnect removes the unreadable credential locally and reports pending, never confirmed', async () => {
     const result = await after.service.disconnect({ connectionRef: ref, workspaceId: 'ws-1' });

@@ -36,6 +36,12 @@ export interface ApiConnectionDescriptor {
     readonly public: Readonly<Record<string, string>>;
     readonly confidential: Readonly<Record<string, string>>;
   };
+  /**
+   * Extra authorization parameters a hosted (`confidential`) start adds only when nothing renewable
+   * is stored for the account it signs in (first connect, switch, reconnect after a lost or rejected
+   * refresh token), so the provider issues a refresh token again, e.g. a forced consent prompt.
+   */
+  readonly forceConsentParams: Readonly<Record<string, string>>;
   /** Parameters a caller may set per start, e.g. a one-off selection flow. */
   readonly startParams: readonly ApiConnectionBoundedField[];
   /** Extra provider callback fields passed back to the plugin after the exchange succeeds. */

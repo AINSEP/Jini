@@ -98,11 +98,11 @@ describe('fencing', () => {
 });
 
 describe('keeping the stored refresh token on a same-account re-consent', () => {
-  it('connects without a refresh token on a hosted client when the stored row is unreadable', async () => {
+  it('refuses a hosted re-consent without a refresh token when the stored row is unreadable', async () => {
     const deps = unitDeps({ clientKind: 'confidential', client: { clientId: 'acme-web', clientSecret: 'web-secret', authMethod: 'client_secret_post' },
       tokens: { ...memoryTokenStore(), load: async () => { throw new OAuthTokenStoreError({ code: 'owner-mismatch' }); } } });
     await seedRecord(deps, connectedRecord());
-    expect((await finish(deps, { generation: 1 }, tokens('new', { refreshToken: null }))).outcome).toBe('connected');
+    expect((await refusal(finish(deps, { generation: 1 }, tokens('new', { refreshToken: null })))).code).toBe('offline-access-required');
   });
 
   it('refuses an installed-app re-consent when the stored row is unreadable and the exchange omitted a refresh token', async () => {
@@ -128,8 +128,8 @@ describe('keeping the stored refresh token on a same-account re-consent', () => 
     const deps = unitDeps({ clientKind: 'confidential', tokens: store, hooks: fixedHooks({ accountId: 'bob', displayName: 'Bob' }).hooks,
       client: { clientId: 'acme-web', clientSecret: 'web-secret', authMethod: 'client_secret_post' } });
     await seedRecord(deps, connectedRecord({ status: 'reconnect-required', account: null }));
-    await finish(deps, { generation: 1 }, tokens('bob', { refreshToken: null }));
-    expect(store.entries.get(KEY)).toEqual(tokens('bob', { refreshToken: null }));
+    const error = await refusal(finish(deps, { generation: 1 }, tokens('bob', { refreshToken: null })));
+    expect([error.code, store.entries.get(KEY)]).toEqual(['offline-access-required', tokens('alice')]);
   });
 
   it('does not borrow the stored refresh token for a different account', async () => {

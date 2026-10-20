@@ -12,7 +12,7 @@ import { beginAuthorizationCode, completeAuthorizationCode, generateOAuthState, 
 import type { ApiConnectionServiceDeps } from './deps.js';
 import { ApiConnectionError, invalidAttempt } from './errors.js';
 import { attemptOpener, attemptSealer, BROWSER_BINDING_BYTES, hashBrowserBinding } from './attempt-state.js';
-import { finishAuthorization, type CompletedAuthorization } from './finish-authorization.js';
+import { finishAuthorization, loadReadableTokens, type CompletedAuthorization } from './finish-authorization.js';
 import { deriveApiConnectionKey } from './keys.js';
 import { assertId, checkCallbackParams, checkScopes, checkStartParams, pickBoundedFields, requestInvalid } from './request-checks.js';
 import type { ApiConnectionAttempt, ApiConnectionIntent, ApiConnectionRecord } from './types.js';
@@ -70,6 +70,26 @@ function assertStartAllowed(record: ApiConnectionRecord | null, intent: ApiConne
   }
 }
 
+/** A connected record whose stored tokens this host can read and that hold a refresh token. */
+async function holdsRenewableCredential(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord | null): Promise<boolean> {
+  if (record?.status !== 'connected') return false;
+  return (await loadReadableTokens(deps, { key: record.key }))?.refreshToken != null;
+}
+
+/**
+ * The client kind's fixed parameters, plus the descriptor's force-consent ones on a hosted start
+ * with nothing renewable stored for the account: a provider may issue a refresh token only on the
+ * first consent per account and client (e.g. the same account in a second workspace). A switch
+ * signs in another account, so the stored credential never counts for it.
+ */
+async function clientKindParams(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord | null,
+  intent: ApiConnectionIntent): Promise<Readonly<Record<string, string>>> {
+  const fixed = deps.descriptor.authorizationParams[deps.clientKind];
+  if (deps.clientKind === 'public') return fixed;
+  const renewable = intent === 'connect' && await holdsRenewableCredential(deps, record);
+  return renewable ? fixed : { ...fixed, ...deps.descriptor.forceConsentParams };
+}
+
 /** Map OAuth core failures to connection codes; the core's messages are already token-free. */
 function toConnectionError(error: unknown): unknown {
   if (!(error instanceof OAuthError)) return error;
@@ -95,6 +115,7 @@ export async function startApiConnectionAuthorization(
   const record = await deps.records.read({ key });
   assertStartAllowed(record, intent);
   const requestedScopes = checkScopes(await deps.hooks.resolveScopes({ scopeSetIds: [...requiredArgs.scopeSetIds] }));
+  const kindParams = await clientKindParams(deps, record, intent);
   const ownerKey = ownerKeyFor(deps, { workspaceId, actorId });
   const attemptId = generateOAuthState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: ATTEMPT_ID_BYTES });
   const browserBinding = generateOAuthState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: BROWSER_BINDING_BYTES });
@@ -103,7 +124,7 @@ export async function startApiConnectionAuthorization(
   const begun = await beginAuthorizationCode({
     provider: providerFor(deps), stateless: attemptSealer(deps, { draft }), randomBytesFn: deps.randomBytesFn, guard: deps.guard,
     options: deps.appOptions, ownerKey, client: deps.client, redirectUri: requiredArgs.redirectUri,
-  }, { scopes: requestedScopes, extraAuthorizationParams: { ...deps.descriptor.authorizationParams[deps.clientKind], ...startParams } })
+  }, { scopes: requestedScopes, extraAuthorizationParams: { ...kindParams, ...startParams } })
     .catch((error: unknown) => { throw toConnectionError(error); });
   return { connectionRef: key, authorizationUrl: begun.authorizationUrl, state: begun.state, attemptId, browserBinding,
     expiresAt: begun.expiresAt };

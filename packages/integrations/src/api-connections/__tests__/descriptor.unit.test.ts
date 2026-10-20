@@ -24,8 +24,13 @@ function refusal(value: unknown): string {
 describe('accepted declarations', () => {
   it('fills empty parameters and field lists when the plugin declares none', () => {
     expect(parseApiConnectionDescriptor({ value: VALID })).toEqual({
-      ...VALID, authorizationParams: { public: {}, confidential: {} }, startParams: [], callbackFields: [],
+      ...VALID, authorizationParams: { public: {}, confidential: {} }, forceConsentParams: {}, startParams: [], callbackFields: [],
     });
+  });
+
+  it('keeps the declared force-consent parameters, frozen', () => {
+    const descriptor = parseApiConnectionDescriptor({ value: { ...VALID, forceConsentParams: { prompt: 'consent' } } });
+    expect([descriptor.forceConsentParams, Object.isFrozen(descriptor.forceConsentParams)]).toEqual([{ prompt: 'consent' }, true]);
   });
 
   it('freezes the descriptor and every nested part', () => {
@@ -90,6 +95,10 @@ describe('refused declarations', () => {
 
   it('refuses a fixed parameter name with characters outside the allowed set', () => {
     expect(refusal({ ...VALID, authorizationParams: { public: { 'bad name': 'v' } } })).toContain('uses an invalid or reserved name');
+  });
+
+  it('refuses a reserved force-consent parameter name', () => {
+    expect(refusal({ ...VALID, forceConsentParams: { state: 'x' } })).toContain('forceConsentParams uses an invalid or reserved name');
   });
 
   it('refuses a field list that is not an array', () => {

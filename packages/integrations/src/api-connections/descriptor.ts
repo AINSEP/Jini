@@ -103,6 +103,7 @@ export function parseApiConnectionDescriptor(requiredArgs: { readonly value: unk
       public: readParams(params.public, 'authorizationParams.public'),
       confidential: readParams(params.confidential, 'authorizationParams.confidential'),
     }),
+    forceConsentParams: readParams(source.forceConsentParams, 'forceConsentParams'),
     startParams: readFields(source.startParams, 'startParams', START_PARAM_RULES),
     callbackFields: readFields(source.callbackFields, 'callbackFields', CALLBACK_FIELD_RULES),
   });

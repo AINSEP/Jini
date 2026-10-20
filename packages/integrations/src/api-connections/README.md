@@ -69,9 +69,16 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
   between leaves "reconnect required", never a record that disagrees with its token.
 - **Reconnect** (`intent: 'connect'`) keeps the same `connectionRef` and must sign in as the same
   account (`account-mismatch` otherwise). A same-account exchange that omits a refresh token keeps
-  the stored one; every other part of the set is replaced. A `public` (installed) client that would
-  end up with no refresh token (first connect, switch, or nothing valid stored) is refused with
-  `offline-access-required`: it could not renew access once the access token expires.
+  the stored one; every other part of the set is replaced. A sign-in of either client kind that
+  would end up with no refresh token (first connect, switch, or nothing valid stored) is refused
+  with `offline-access-required` before anything is written: it could not renew access once the
+  access token expires.
+- **Forced consent (hosted)**: some providers issue a refresh token only on the first consent per
+  account and client, so the same account connected in a second workspace, or reconnected after a
+  lost grant, would get none. A `confidential` start therefore adds the descriptor's
+  `forceConsentParams` whenever nothing renewable is stored for the account it signs in: a first
+  connect, any switch, or a reconnect whose record is not `connected` or whose stored tokens are
+  unreadable or hold no refresh token. A reconnect with a renewable credential stored does not.
 - **Switch account** (`intent: 'switch-account'`) stages the new tokens and identity; nothing
   changes until the same actor calls `confirmSwitchAccount`. Bindings that froze an account pass
   `getAccessToken({ connectionRef }, { expectedAccountId })` and get `account-changed` instead of
@@ -118,7 +125,8 @@ const accessToken = await service.getAccessToken({ connectionRef, workspaceId })
 
 Descriptor extension points: `authorizationParams.public` / `.confidential` (fixed extra
 parameters per client kind, e.g. a forced consent prompt for installed apps or incremental-grant
-flags for hosted ones), `startParams` (names a caller may set for one sign-in, e.g. a selection
+flags for hosted ones), `forceConsentParams` (added to a hosted start only when nothing renewable
+is stored, e.g. a forced consent prompt), `startParams` (names a caller may set for one sign-in, e.g. a selection
 mode) and `callbackFields` (extra fields a provider returns after consent; returned in
 `complete(...).callbackFields` only after the exchange succeeded, and still to be verified by the
 plugin through the provider's API before being trusted).

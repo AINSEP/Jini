@@ -88,6 +88,7 @@ function buildWith<Tokens extends ApiConnectionTokenStore>(provider: AcmeProvide
     pluginId, connectionId: 'account', label: 'Acme account',
     authorizationEndpoint: `${provider.origin}/authorize`, tokenEndpoint: `${provider.origin}/token`,
     authorizationParams: { public: { prompt: 'consent' }, confidential: { include_granted: 'true' } },
+    forceConsentParams: { force_consent: 'true' },
     startParams: [{ name: 'pick_mode', maxLength: 8 }],
     callbackFields: [{ name: 'picked', maxLength: 64 }],
   } });

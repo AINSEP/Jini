@@ -70,24 +70,31 @@ async function currentRecord(deps: ApiConnectionServiceDeps, attempt: ApiConnect
   return record;
 }
 
+/** The stored live tokens, or null when none are stored or they are unreadable to this host. */
+export async function loadReadableTokens(deps: ApiConnectionServiceDeps, requiredArgs: { readonly key: string }): Promise<OAuthTokenSet | null> {
+  // A row sealed for another client (the host changed its OAuth client) has no usable refresh token.
+  return deps.tokens.load({ key: requiredArgs.key }).catch((error: unknown) => {
+    if (isUnreadableTokenRecord(error)) return null;
+    throw error;
+  });
+}
+
 /** Re-consent for the same account may omit a refresh token; the stored one stays valid. */
 async function keepRefreshToken(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, tokens: OAuthTokenSet,
   account: ApiConnectionAccount): Promise<OAuthTokenSet> {
   if (tokens.refreshToken !== null || record.account?.accountId !== account.accountId) return tokens;
-  // A row sealed for another client (the host changed its OAuth client) has no usable refresh token.
-  const existing = await deps.tokens.load({ key: record.key }).catch((error: unknown) => {
-    if (isUnreadableTokenRecord(error)) return null;
-    throw error;
-  });
+  const existing = await loadReadableTokens(deps, { key: record.key });
   return existing?.refreshToken ? { ...tokens, refreshToken: existing.refreshToken } : tokens;
 }
 
 /**
- * An installed app has no other way to renew access: without a refresh token the credential would
- * stop working, silently, when its access token expires. Refuse before anything is written.
+ * Without a refresh token the credential would stop working, silently, when its access token
+ * expires: an installed app has no other way to renew, and a hosted client gets "reconnect
+ * required" within the hour, in a loop when the provider again omits one on the next consent.
+ * Refuse before anything is written.
  */
-function assertRenewable(deps: ApiConnectionServiceDeps, tokens: OAuthTokenSet): void {
-  if (deps.clientKind === 'public' && tokens.refreshToken === null) {
+function assertRenewable(tokens: OAuthTokenSet): void {
+  if (tokens.refreshToken === null) {
     throw new ApiConnectionError({ code: 'offline-access-required',
       message: 'The account did not grant offline access, so this connection would stop working within the hour. Connect again and allow offline access.' });
   }
@@ -100,7 +107,7 @@ async function commitConnect(deps: ApiConnectionServiceDeps, record: ApiConnecti
       message: 'A different account signed in than the one connected. Use "switch account" to change accounts.' });
   }
   const kept = await keepRefreshToken(deps, record, tokens, account);
-  assertRenewable(deps, kept);
+  assertRenewable(kept);
   await installCredential(deps, { current: record, tokens: kept, account, grantedScopes });
 }
 
@@ -112,7 +119,7 @@ async function stageSwitch(deps: ApiConnectionServiceDeps, record: ApiConnection
     throw new ApiConnectionError({ code: 'account-unchanged',
       message: 'This is the account already connected. Use reconnect instead of switching accounts.' });
   }
-  assertRenewable(deps, tokens);
+  assertRenewable(tokens);
   const expiresAt = new Date(Date.parse(nowIso({ clock: deps.clock })) + ATTEMPT_TTL_MS).toISOString();
   // Claim the staged slot on the record first: of two concurrent switches only the compare-and-set
   // winner writes tokens, so the slot can never hold one account while the record names another.

@@ -96,6 +96,16 @@ describe('disconnectApiConnection', () => {
     expect([result.status, result.account, result.grantedScopes, result.remoteRevocation]).toEqual(['disconnected', null, [], 'not-needed']);
   });
 
+  it('revokes with the access token when the stored credential has no refresh token', async () => {
+    const store = memoryTokenStore();
+    store.entries.set(KEY, tokens('alice', { refreshToken: null }));
+    const { hooks, revoked } = fixedHooks();
+    const deps = unitDeps({ tokens: store, hooks });
+    await seedRecord(deps, connectedRecord());
+    const result = await disconnectApiConnection(deps, owned);
+    expect([result.remoteRevocation, revoked]).toEqual(['confirmed', ['access-alice']]);
+  });
+
   it('moves the credential generation before revoking, so no token is served during the network call', async () => {
     const generations: number[] = [];
     const deps = unitDeps({ tokens: { ...memoryTokenStore(), loadForRevocation: async () => {
