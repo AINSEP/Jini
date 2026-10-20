@@ -55,4 +55,6 @@ toolchain.ts 2 cyc@62:26 cog@62:37
 - L093 bugs pinned (reported, not fixed): isPrivateAddress treats ::ffff:0:a00:1 (v4-translated) and 64:ff9b::/96 NAT64 as public; isBlockedExternalApiHostname misses expanded mapped 0:0:0:0:0:ffff:a00:1, v4-compatible ::a00:1/::10.0.0.1, and ff02::1 multicast.
 - L110 bug pinned (reported, not fixed): classifyAddress is spelling-dependent — ::0.0.0.2 → reserved but ::2 → public; WHATWG URL rewrites [::0.0.0.2] to [::2], so that URL passes the guard as public.
 
+- Container restart ~mid-batch-A: L026/L034/L056 resumed from transcripts; worktrees, pushes and uncommitted edits survived.
+
 ## Next
