@@ -246,3 +246,67 @@ describe('readOpenCodeServiceFailure', () => {
     expect(result?.code).toBe('RATE_LIMITED');
   });
 });
+
+describe('opencode-log characterization (pinned before the complexity refactor)', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'opencode-log-char-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('skips an unreadable newest .log entry (a directory) and reads the next one', () => {
+    mkdirSync(path.join(dir, '2026-02-01.log'));
+    writeFileSync(path.join(dir, '2026-01-01.log'), 'older');
+    expect(readLatestOpenCodeLogTail({ logDir: dir })).toBe('older');
+  });
+
+  it('returns null when every .log entry is unreadable', () => {
+    mkdirSync(path.join(dir, '2026-02-01.log'));
+    expect(readLatestOpenCodeLogTail({ logDir: dir })).toBeNull();
+  });
+
+  it('returns null when every .log file predates `since`', () => {
+    const file = path.join(dir, '2026-01-01.log');
+    writeFileSync(file, 'old');
+    utimesSync(file, new Date(1_000), new Date(1_000));
+    expect(readLatestOpenCodeLogTail({ logDir: dir }, { since: Date.now() })).toBeNull();
+  });
+
+  it('treats since: 0 as a bound (stat-checked) rather than as absent', () => {
+    symlinkSync(path.join(dir, 'missing-target'), path.join(dir, '2026-02-01.log'));
+    writeFileSync(path.join(dir, '2026-01-01.log'), 'real');
+    expect(readLatestOpenCodeLogTail({ logDir: dir }, { since: 0 })).toBe('real');
+  });
+
+  it('ignores a line whose ERROR marker is only part of a longer word', () => {
+    expect(extractOpenCodeServiceFailure({ logTail: 'service=llm ERRORS error={"statusCode":429}' })).toBeNull();
+  });
+
+  it('ignores a service=llm ERROR line with no error= payload', () => {
+    expect(extractOpenCodeServiceFailure({ logTail: 'service=llm ERROR statusCode 429 "statusCode":429' })).toBeNull();
+  });
+
+  it('keeps a keyword-gated message alongside a status-derived code', () => {
+    expect(extractOpenCodeServiceFailure({ logTail: 'service=llm ERROR error={"statusCode":429,"message":"usage limit reached"}' })).toEqual({
+      code: 'RATE_LIMITED',
+      message: 'usage limit reached',
+      statusCode: 429,
+    });
+  });
+
+  it.each([[499, null], [500, 'UPSTREAM_UNAVAILABLE'], [599, 'UPSTREAM_UNAVAILABLE'], [600, null]])('maps statusCode %i to %s', (statusCode, code) => {
+    const result = extractOpenCodeServiceFailure({ logTail: `service=llm ERROR error={"statusCode":${statusCode}}` });
+    expect(result?.code ?? null).toBe(code);
+  });
+
+  it('returns null from readOpenCodeServiceFailure when the newest log is empty', () => {
+    const logDir = path.join(dir, 'opencode', 'log');
+    mkdirSync(logDir, { recursive: true });
+    writeFileSync(path.join(logDir, '2026-01-01.log'), '');
+    expect(readOpenCodeServiceFailure({ env: { XDG_DATA_HOME: dir } })).toBeNull();
+  });
+});
