@@ -61,3 +61,71 @@ test("parse: rejects each malformed shape with its exact reason", () => {
   for (const [raw, reason] of cases) assert.deepEqual(parseCredentialSchemesFile(raw), { ok: false, reason }, raw);
 });
 
+
+// Characterization pins for parseRule / parseCredentialSchemesFile: every refusal branch and each
+// 64-character / 32-rule boundary, so the per-field validation can be restructured safely.
+const fileWith = (schemes: unknown): string => JSON.stringify({ schemaVersion: 1, schemes });
+const MAX_64 = "a".repeat(64);
+const OVER_64 = "a".repeat(65);
+
+test("parse: a top-level array, null, or a missing schemaVersion is refused as a schemaVersion problem", () => {
+  for (const raw of ["[]", "null", JSON.stringify({ schemes: [] }), JSON.stringify({ schemaVersion: "1", schemes: [] })]) {
+    assert.deepEqual(parseCredentialSchemesFile(raw), { ok: false, reason: "schemaVersion must be 1" }, raw);
+  }
+});
+
+test("parse: schemes that is not an array is refused", () => {
+  assert.deepEqual(parseCredentialSchemesFile(fileWith({ 0: { id: "a", prefix: "P", scheme: "P" } })), { ok: false, reason: "schemes must be an array of at most 32 rules" });
+});
+
+test("parse: exactly 32 rules are accepted and 33 are refused", () => {
+  const rules = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `r-${i}`, prefix: `P${i}x`, scheme: "S" }));
+  const accepted = parseCredentialSchemesFile(fileWith(rules(32)));
+  assert.equal(accepted.ok && accepted.rules.length, 32);
+  assert.deepEqual(parseCredentialSchemesFile(fileWith(rules(33))), { ok: false, reason: "schemes must be an array of at most 32 rules" });
+});
+
+test("parse: an empty schemes array is accepted as zero rules", () => {
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([])), { ok: true, rules: [] });
+});
+
+test("parse: a null or array scheme entry is refused as not an object", () => {
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([null])), { ok: false, reason: "schemes[0] must be an object" });
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([[]])), { ok: false, reason: "schemes[0] must be an object" });
+});
+
+test("parse: an id that is missing, non-string, empty, over 64 chars, or misshapen is refused", () => {
+  for (const id of [undefined, 7, "", OVER_64, "-a", "a-", "a--b", "a_b"]) {
+    assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id, prefix: "P", scheme: "P" }])), { ok: false, reason: "schemes[0].id must be a lowercase hyphenated id" }, String(id));
+  }
+});
+
+test("parse: a prefix that is missing, non-string, or over 64 chars is refused", () => {
+  for (const prefix of [undefined, 7, OVER_64]) {
+    assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: "a", prefix, scheme: "P" }])), { ok: false, reason: "schemes[0].prefix must be a non-empty run of HTTP token characters" }, String(prefix));
+  }
+});
+
+test("parse: a scheme that is missing, non-string, empty, or over 64 chars is refused", () => {
+  for (const scheme of [undefined, 7, "", OVER_64]) {
+    assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: "a", prefix: "P", scheme }])), { ok: false, reason: "schemes[0].scheme must be an HTTP auth-scheme name" }, String(scheme));
+  }
+});
+
+test("parse: id, prefix and scheme of exactly 64 characters are accepted", () => {
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: MAX_64, prefix: MAX_64, scheme: MAX_64 }])), { ok: true, rules: [{ id: MAX_64, prefix: MAX_64, scheme: MAX_64 }] });
+});
+
+test("parse: every RFC 9110 token punctuation character is accepted in prefix and scheme", () => {
+  const token = "!#$%&'*+.^_`|~0-9Az";
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: "a", prefix: token, scheme: token }])), { ok: true, rules: [{ id: "a", prefix: token, scheme: token }] });
+});
+
+test("parse: the first failing field is reported when several fields are bad", () => {
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: 1, prefix: 1, scheme: 1 }])), { ok: false, reason: "schemes[0].id must be a lowercase hyphenated id" });
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: "a", prefix: 1, scheme: 1 }])), { ok: false, reason: "schemes[0].prefix must be a non-empty run of HTTP token characters" });
+});
+
+test("parse: a refusal in a later entry rejects the whole file atomically, naming that entry's index", () => {
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: "a", prefix: "P", scheme: "P" }, { id: "b", prefix: "Q", scheme: "Q y" }])), { ok: false, reason: "schemes[1].scheme must be an HTTP auth-scheme name" });
+});
