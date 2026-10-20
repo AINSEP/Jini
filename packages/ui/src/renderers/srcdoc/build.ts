@@ -145,17 +145,8 @@ export function injectBeforeHeadEnd(doc: string, payload: string): string {
   const limit = bodyStart >= 0 ? bodyStart : lower.length;
   const idx = lower.lastIndexOf('</head>', limit - 1);
   if (idx >= 0) return doc.slice(0, idx) + payload + doc.slice(idx);
-  if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (m) => `${m}${payload}`);
-  if (typeof DOMParser !== 'undefined') {
-    try {
-      const parsed = new DOMParser().parseFromString(doc, 'text/html');
-      if (parsed.head) parsed.head.insertAdjacentHTML('beforeend', payload);
-      return serializeHtmlDocument(parsed);
-    } catch {
-      /* fall through to prepend */
-    }
-  }
-  return payload + doc;
+  if (/<head[^>]*>/i.test(doc)) return injectAfterHeadOpen(doc, payload);
+  return injectViaDomParser({ doc, payload, section: 'head' }) ?? payload + doc;
 }
 
 /** Splice `payload` right before the real `</body>` (the last one before `</html>`). See {@link injectBeforeHeadEnd}. */
@@ -165,21 +156,33 @@ export function injectBeforeBodyEnd(doc: string, payload: string): string {
   const limit = htmlEnd >= 0 ? htmlEnd : lower.length;
   const idx = lower.lastIndexOf('</body>', limit - 1);
   if (idx >= 0) return doc.slice(0, idx) + payload + doc.slice(idx);
-  if (typeof DOMParser !== 'undefined') {
-    try {
-      const parsed = new DOMParser().parseFromString(doc, 'text/html');
-      if (parsed.body) parsed.body.insertAdjacentHTML('beforeend', payload);
-      return serializeHtmlDocument(parsed);
-    } catch {
-      /* fall through to append */
-    }
+  return injectViaDomParser({ doc, payload, section: 'body' }) ?? doc + payload;
+}
+
+/**
+ * DOMParser fallback shared by the head/body splicers for fragments with no
+ * textual insertion point. Returns `null` when `DOMParser` is unavailable or
+ * throws, so the caller falls through to its own prepend/append.
+ */
+function injectViaDomParser({ doc, payload, section }: {
+  doc: string;
+  payload: string;
+  section: 'head' | 'body';
+}): string | null {
+  if (typeof DOMParser === 'undefined') return null;
+  try {
+    const parsed = new DOMParser().parseFromString(doc, 'text/html');
+    parsed[section]?.insertAdjacentHTML('beforeend', payload);
+    return serializeHtmlDocument(parsed);
+  } catch {
+    /* fall through to the caller's prepend/append */
+    return null;
   }
-  return doc + payload;
 }
 
 /** Srcdoc keeps its head/body/prepend fallback instead of the generic builder's string-only head insertion. */
 function injectSandboxScript(doc: string, script: string): string {
-  if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (m) => `${m}${script}`);
+  if (/<head[^>]*>/i.test(doc)) return injectAfterHeadOpen(doc, script);
   if (/<body[^>]*>/i.test(doc)) return doc.replace(/<body[^>]*>/i, (m) => `${m}${script}`);
   return script + doc;
 }
@@ -268,6 +271,13 @@ export function canActivateSrcDocTransport(state: SrcDocActivationInputs): boole
   return true;
 }
 
+/** `false` disables CSP, `true`/omitted means {@link DEFAULT_SRC_DOC_CSP}, a string is used verbatim (an empty string therefore injects nothing). */
+function resolveCspValue(csp: BuildSrcDocOptions['csp']): string | null {
+  if (csp === false) return null;
+  if (csp === true || csp === undefined) return DEFAULT_SRC_DOC_CSP;
+  return csp;
+}
+
 /**
  * Wrap `html` for a sandboxed iframe's `srcDoc`. If `html` is already a full
  * document (`<!doctype …>` / `<html>`), it's passed through unchanged;
@@ -281,7 +291,7 @@ export function buildSrcDoc(html: string, options: BuildSrcDocOptions = {}): str
   const wrapped = wrapFragmentAsDocument(html);
 
   const withSafeTitle = sanitizeTitleInDoc(wrapped);
-  const cspValue = options.csp === false ? null : options.csp === true || options.csp === undefined ? DEFAULT_SRC_DOC_CSP : options.csp;
+  const cspValue = resolveCspValue(options.csp);
   const withCsp = cspValue ? injectContentSecurityPolicy(withSafeTitle, cspValue) : withSafeTitle;
   const withBase = options.baseHref ? injectBaseHref(withCsp, options.baseHref) : withCsp;
   const withShim = injectSandboxScript(withBase, buildStorageScript({ format: 'srcdoc' }));
