@@ -149,6 +149,72 @@ describe('renderOpenRouterImage', () => {
     });
 });
 
+describe('renderOpenRouterImage response parsing (pinned before refactor)', () => {
+    const MODEL = 'black-forest-labs/flux-1.1-pro';
+    function stubBody(body: string): ReturnType<typeof vi.fn> {
+        const fetchMock = vi.fn(async () => new Response(body, { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+        return fetchMock;
+    }
+    it('reports no images for a JSON null body', async () => {
+        stubBody('null');
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(`openrouter image response contained no images for model ${MODEL}: null`);
+    });
+    it('reports no images for an empty choices array', async () => {
+        stubBody('{"choices":[]}');
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(`openrouter image response contained no images for model ${MODEL}: {"choices":[]}`);
+    });
+    it('reports a missing url when the first image entry is null', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => chatResponse([null])));
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow('openrouter image response missing image_url.url: {"choices":[{"message":{"images":[null]}}]}');
+    });
+    it('reports a missing url when image_url.url is not a string', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => chatResponse([{ image_url: { url: 42 } }])));
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(/^openrouter image response missing image_url\.url: /);
+    });
+    it('reports a missing url when image_url.url is an empty string', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => chatResponse([{ image_url: { url: '' } }])));
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(/^openrouter image response missing image_url\.url: /);
+    });
+    it('decodes a data:image base64 URI (including a multi-line payload) without a second fetch, sniffing the extension', async () => {
+        const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]);
+        const b64 = png.toString('base64');
+        const fetchMock = vi.fn(async () => chatResponse([{ image_url: { url: `data:image/png;base64,${b64.slice(0, 4)}\n${b64.slice(4)}` } }]));
+        vi.stubGlobal('fetch', fetchMock);
+        const result = await renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } });
+        expect(result.bytes.equals(png)).toBe(true);
+        expect(result.suggestedExt).toBe('.png');
+        expect(result.providerNote).toBe(`openrouter/${MODEL} · 16:9 · 10 bytes`);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    it('treats a non-image data: URI as raw base64 of the whole string', async () => {
+        const url = 'data:text/plain;base64,aGk=';
+        vi.stubGlobal('fetch', vi.fn(async () => chatResponse([{ image_url: { url } }])));
+        const result = await renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } });
+        expect(result.bytes.equals(Buffer.from(url, 'base64'))).toBe(true);
+    });
+    it('downloads an http URL only through the SSRF guard, which refuses a private address', async () => {
+        const fetchMock = vi.fn(async () => chatResponse([{ image_url: { url: 'http://10.0.0.5/x.png' } }]));
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(/blocked download url/);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    it('sends a non-URL string starting with "http" to the SSRF guard rather than decoding it as base64', async () => {
+        const fetchMock = vi.fn(async () => chatResponse([{ image_url: { url: 'httpAAAA' } }]));
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(/blocked download url/);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    it('truncates the body in the non-OK error to 240 chars', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('x'.repeat(300), { status: 500 })));
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(`openrouter image 500: ${'x'.repeat(239)}…`);
+    });
+    it('quotes the truncated body in the non-JSON error', async () => {
+        stubBody('<html>');
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(/^openrouter image non-JSON response: <html>$/);
+    });
+});
+
 vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
   const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
   const { testNodeGuardedHttpPorts } = await import('../../__tests__/outbound-fixtures.js');
