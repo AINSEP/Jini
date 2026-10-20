@@ -60,6 +60,37 @@ function hasVerticalProgression(offsets: number[]): boolean {
   return offsets.some((offset, index) => index > 0 && offset > first + 0.5);
 }
 
+type MarkdownEvents = ReturnType<typeof postprocess>;
+
+function parseMarkdownEvents({ markdown }: { markdown: string }): MarkdownEvents | null {
+  try {
+    return postprocess(
+      parse({ extensions: [gfm()] })
+        .document()
+        .write(preprocess()(markdown, undefined, true)),
+    );
+  } catch {
+    return null;
+  }
+}
+
+// Nesting depth after a container token's enter/exit event.
+function nextContainerDepth({ phase, depth }: { phase: string; depth: number }): number {
+  return phase === 'enter' ? depth + 1 : Math.max(0, depth - 1);
+}
+
+function collectTopLevelBlockLines({ events }: { events: MarkdownEvents }): number[] {
+  const lines: number[] = [];
+  let depth = 0;
+  for (const [phase, token] of events) {
+    const isContainer = CONTAINER_TOKENS.has(token.type);
+    const isTopLevelStart = phase === 'enter' && depth === 0;
+    if (isTopLevelStart && (isContainer || FLOW_BLOCK_TOKENS.has(token.type))) lines.push(token.start.line);
+    if (isContainer) depth = nextContainerDepth({ phase, depth });
+  }
+  return lines;
+}
+
 /**
  * 1-based source start line of every top-level markdown block, in document
  * order. Nested blocks (list items, blockquote contents) collapse into their
@@ -68,40 +99,83 @@ function hasVerticalProgression(offsets: number[]): boolean {
  */
 export function extractMarkdownBlockLines(markdown: string): number[] {
   if (!markdown) return [];
-  let events: ReturnType<typeof postprocess>;
-  try {
-    events = postprocess(
-      parse({ extensions: [gfm()] })
-        .document()
-        .write(preprocess()(markdown, undefined, true)),
-    );
-  } catch {
-    return [];
-  }
-  const lines: number[] = [];
-  let depth = 0;
-  for (const event of events) {
-    const phase = event[0];
-    const token = event[1];
-    const type = token.type;
-    if (CONTAINER_TOKENS.has(type)) {
-      if (phase === 'enter') {
-        if (depth === 0) lines.push(token.start.line);
-        depth += 1;
-      } else {
-        depth = Math.max(0, depth - 1);
-      }
-      continue;
-    }
-    if (phase === 'enter' && depth === 0 && FLOW_BLOCK_TOKENS.has(type)) {
-      lines.push(token.start.line);
-    }
-  }
-  return lines;
+  const events = parseMarkdownEvents({ markdown });
+  return events ? collectTopLevelBlockLines({ events }) : [];
 }
 
 function escapeMirrorText(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// A hidden off-screen div styled to wrap text exactly like `textarea`.
+function createMirror({ textarea }: { textarea: HTMLTextAreaElement }): HTMLDivElement {
+  const computed = window.getComputedStyle(textarea);
+  const mirror = document.createElement('div');
+  const style = mirror.style;
+  for (const prop of MIRROR_COPIED_STYLES) {
+    style.setProperty(prop, computed.getPropertyValue(prop));
+  }
+  // Reproduce the textarea content-box width regardless of its box model.
+  style.boxSizing = 'border-box';
+  style.borderWidth = '0';
+  style.margin = '0';
+  style.position = 'absolute';
+  style.top = '0';
+  style.left = '-9999px';
+  style.height = 'auto';
+  style.overflow = 'hidden';
+  style.visibility = 'hidden';
+  style.pointerEvents = 'none';
+  style.width = `${textarea.clientWidth}px`;
+  if (style.whiteSpace === 'normal' || !style.whiteSpace) style.whiteSpace = 'pre-wrap';
+  return mirror;
+}
+
+// Block indices grouped by the (clamped, 0-based) source line they start on.
+function groupBlocksByLine({ blockLines, lineCount }: { blockLines: number[]; lineCount: number }): Map<number, number[]> {
+  const markersByLine = new Map<number, number[]>();
+  blockLines.forEach((line, blockIndex) => {
+    const lineIndex = Math.max(0, Math.min(lineCount - 1, line - 1));
+    const existing = markersByLine.get(lineIndex);
+    if (existing) existing.push(blockIndex);
+    else markersByLine.set(lineIndex, [blockIndex]);
+  });
+  return markersByLine;
+}
+
+// The escaped `text` with an empty `data-md-block` marker span in front of
+// every block's start line.
+function buildMirrorMarkup({ blockLines, text }: { blockLines: number[]; text: string }): string {
+  const lines = text.split('\n');
+  const markersByLine = groupBlocksByLine({ blockLines, lineCount: lines.length });
+  let buffer = '';
+  for (let i = 0; i < lines.length; i += 1) {
+    for (const blockIndex of markersByLine.get(i) ?? []) buffer += `<span data-md-block="${blockIndex}"></span>`;
+    // `text.split('\n')` always yields a dense array (never a hole), so
+    // `lines[i]` for `i` in `[0, lines.length)` is always a defined string
+    // (possibly `''`) — the `?? ''` fallback this used to have was dead
+    // code for every real string input, removed rather than tested around
+    // (same pattern as `utils/auto-open-file.ts`'s `basenameOf`).
+    buffer += escapeMirrorText(lines[i] as string);
+    if (i < lines.length - 1) buffer += '\n';
+  }
+  return buffer;
+}
+
+// Lay the mirror out in the document just long enough to read each marker's
+// offsetTop. Every marker span comes from `buildMirrorMarkup` (the text itself
+// is escaped, so it cannot inject one), so each index is a valid block index.
+function readMarkerOffsets({ mirror, blockCount }: { mirror: HTMLDivElement; blockCount: number }): number[] {
+  document.body.appendChild(mirror);
+  const offsets = new Array<number>(blockCount).fill(0);
+  try {
+    for (const marker of Array.from(mirror.querySelectorAll<HTMLElement>('span[data-md-block]'))) {
+      offsets[Number(marker.getAttribute('data-md-block'))] = marker.offsetTop;
+    }
+  } finally {
+    document.body.removeChild(mirror);
+  }
+  return offsets;
 }
 
 /**
@@ -129,66 +203,10 @@ export function measureEditorBlockOffsets(
   // Node — disproportionate to a defensive guard with no reachable path.
   // See packages/ui/archived provenance ledger's 2026-07-22 dated entry.
   if (blockLines.length === 0 || typeof document === 'undefined') return null;
-  const computed = window.getComputedStyle(textarea);
-  const mirror = document.createElement('div');
-  const style = mirror.style;
-  for (const prop of MIRROR_COPIED_STYLES) {
-    style.setProperty(prop, computed.getPropertyValue(prop));
-  }
-  // Reproduce the textarea content-box width regardless of its box model.
-  style.boxSizing = 'border-box';
-  style.borderWidth = '0';
-  style.margin = '0';
-  style.position = 'absolute';
-  style.top = '0';
-  style.left = '-9999px';
-  style.height = 'auto';
-  style.overflow = 'hidden';
-  style.visibility = 'hidden';
-  style.pointerEvents = 'none';
-  style.width = `${textarea.clientWidth}px`;
-  if (style.whiteSpace === 'normal' || !style.whiteSpace) style.whiteSpace = 'pre-wrap';
-
-  const lines = text.split('\n');
-  const markersByLine = new Map<number, number[]>();
-  blockLines.forEach((line, blockIndex) => {
-    const lineIndex = Math.max(0, Math.min(lines.length - 1, line - 1));
-    const existing = markersByLine.get(lineIndex);
-    if (existing) existing.push(blockIndex);
-    else markersByLine.set(lineIndex, [blockIndex]);
-  });
-
-  let buffer = '';
-  for (let i = 0; i < lines.length; i += 1) {
-    const markers = markersByLine.get(i);
-    if (markers) {
-      for (const blockIndex of markers) buffer += `<span data-md-block="${blockIndex}"></span>`;
-    }
-    // `text.split('\n')` always yields a dense array (never a hole), so
-    // `lines[i]` for `i` in `[0, lines.length)` is always a defined string
-    // (possibly `''`) — the `?? ''` fallback this used to have was dead
-    // code for every real string input, removed rather than tested around
-    // (same pattern as `utils/auto-open-file.ts`'s `basenameOf`).
-    buffer += escapeMirrorText(lines[i] as string);
-    if (i < lines.length - 1) buffer += '\n';
-  }
-  mirror.innerHTML = buffer;
-
-  document.body.appendChild(mirror);
-  const offsets = new Array<number>(blockLines.length).fill(0);
-  try {
-    const markers = mirror.querySelectorAll<HTMLElement>('span[data-md-block]');
-    for (const marker of Array.from(markers)) {
-      const blockIndex = Number(marker.getAttribute('data-md-block'));
-      if (Number.isInteger(blockIndex) && blockIndex >= 0 && blockIndex < offsets.length) {
-        offsets[blockIndex] = marker.offsetTop;
-      }
-    }
-  } finally {
-    document.body.removeChild(mirror);
-  }
-  if (!hasVerticalProgression(offsets)) return null;
-  return offsets;
+  const mirror = createMirror({ textarea });
+  mirror.innerHTML = buildMirrorMarkup({ blockLines, text });
+  const offsets = readMarkerOffsets({ mirror, blockCount: blockLines.length });
+  return hasVerticalProgression(offsets) ? offsets : null;
 }
 
 /**
@@ -238,6 +256,25 @@ export function buildScrollAnchors(blockOffsets: number[], scrollHeight: number)
   return anchors;
 }
 
+// Anchor value at `index`, reading an array hole as 0.
+function anchorAt({ anchors, index }: { anchors: number[]; index: number }): number {
+  return anchors[index] ?? 0;
+}
+
+// Binary-search the lower index of the segment bracketing `value`, given
+// `source[0] <= value < source[count - 1]`; the segment's upper index is
+// always this plus one.
+function findBracketLow({ value, source, count }: { value: number; source: number[]; count: number }): number {
+  let low = 0;
+  let high = count - 1;
+  while (high - low > 1) {
+    const mid = (low + high) >> 1;
+    if (anchorAt({ anchors: source, index: mid }) <= value) low = mid;
+    else high = mid;
+  }
+  return low;
+}
+
 /**
  * Map a scroll position from the source pane to the target pane using paired
  * anchor arrays (same length, both monotonic). Linear interpolation within the
@@ -246,20 +283,14 @@ export function buildScrollAnchors(blockOffsets: number[], scrollHeight: number)
 export function mapScrollPosition(value: number, source: number[], target: number[]): number {
   const count = Math.min(source.length, target.length);
   if (count === 0) return value;
-  if (count === 1) return target[0] ?? 0;
-  if (value <= (source[0] ?? 0)) return target[0] ?? 0;
-  if (value >= (source[count - 1] ?? 0)) return target[count - 1] ?? 0;
-  let low = 0;
-  let high = count - 1;
-  while (high - low > 1) {
-    const mid = (low + high) >> 1;
-    if ((source[mid] ?? 0) <= value) low = mid;
-    else high = mid;
-  }
-  const sourceLow = source[low] ?? 0;
-  const sourceHigh = source[high] ?? 0;
-  const targetLow = target[low] ?? 0;
-  const targetHigh = target[high] ?? 0;
+  const last = count - 1;
+  if (count === 1 || value <= anchorAt({ anchors: source, index: 0 })) return anchorAt({ anchors: target, index: 0 });
+  if (value >= anchorAt({ anchors: source, index: last })) return anchorAt({ anchors: target, index: last });
+  const low = findBracketLow({ value, source, count });
+  const sourceLow = anchorAt({ anchors: source, index: low });
+  const sourceHigh = anchorAt({ anchors: source, index: low + 1 });
+  const targetLow = anchorAt({ anchors: target, index: low });
+  const targetHigh = anchorAt({ anchors: target, index: low + 1 });
   // `span` is provably > 0 here, for *any* input array (not just a
   // monotonic one): the early clamp checks above guarantee
   // `source[0] <= value < source[count - 1]` before the search loop ever

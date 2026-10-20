@@ -24,6 +24,27 @@ describe('extractMarkdownBlockLines', () => {
     expect(extractMarkdownBlockLines(markdown)).toEqual([1]);
   });
 
+  it('lists every top-level flow block kind and collapses blockquotes and lists with nested content', () => {
+    const markdown = [
+      'Setext', '======', '',
+      '> quote', '> - nested', '',
+      '1. one', '2. two', '',
+      '| a | b |', '| - | - |', '| 1 | 2 |', '',
+      '```js', 'x', '```', '',
+      '    indented', '',
+      '<div>', 'hi', '</div>', '',
+      '---', '',
+      '- a', '  > q', '  ```', '  c', '  ```',
+    ].join('\n');
+    // setext, blockquote, ordered list, table, fenced code, indented code,
+    // html, thematic break, unordered list (its nested quote/code collapse in)
+    expect(extractMarkdownBlockLines(markdown)).toEqual([1, 4, 7, 10, 14, 18, 20, 24, 26]);
+  });
+
+  it('returns no lines for a whitespace-only document', () => {
+    expect(extractMarkdownBlockLines('\n\n   \n')).toEqual([]);
+  });
+
   it('returns an empty array rather than throwing when the underlying parser throws', async () => {
     // Mocks the underlying `micromark` parse call to throw, rather than
     // trying to hand-craft a markdown string that breaks a deliberately
@@ -256,6 +277,85 @@ describe('measureEditorBlockOffsets', () => {
     } finally {
       appendSpy.mockRestore();
     }
+  });
+});
+
+describe('measureEditorBlockOffsets mirror markup', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function captureMirror(run: () => void): HTMLDivElement | undefined {
+    const appended: Node[] = [];
+    const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(function (
+      this: HTMLElement,
+      node: Node,
+    ) {
+      appended.push(node);
+      return HTMLElement.prototype.appendChild.call(this, node);
+    });
+    try {
+      run();
+    } finally {
+      appendSpy.mockRestore();
+    }
+    return appended.find((node): node is HTMLDivElement => node instanceof HTMLDivElement);
+  }
+
+  it('places one marker per block before its (clamped) source line and escapes the text', () => {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    const mirror = captureMirror(() => {
+      measureEditorBlockOffsets(textarea, [0, 2, 9], 'a<b>&\n<span data-md-block="7"></span>\nlast');
+    });
+    expect(mirror?.innerHTML).toBe(
+      '<span data-md-block="0"></span>a&lt;b&gt;&amp;\n' +
+        '<span data-md-block="1"></span>&lt;span data-md-block="7"&gt;&lt;/span&gt;\n' +
+        '<span data-md-block="2"></span>last',
+    );
+  });
+
+  it('removes the mirror from the document after measuring', () => {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    measureEditorBlockOffsets(textarea, [1, 2], 'a\nb');
+    expect(document.body.children).toHaveLength(1);
+  });
+
+  it('sizes the hidden mirror to the textarea client width and hides it off-screen', () => {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    Object.defineProperty(textarea, 'clientWidth', { configurable: true, value: 321 });
+    const mirror = captureMirror(() => {
+      measureEditorBlockOffsets(textarea, [1], 'a');
+    });
+    // The leading entries are jsdom's computed defaults copied from the textarea.
+    expect(mirror?.style.cssText).toBe(
+      'line-height: normal; letter-spacing: normal; word-spacing: normal; text-transform: none; text-indent: 0; ' +
+        'white-space: pre-wrap; padding: 2px 2px 2px 2px; box-sizing: border-box; border-width: 0px; margin: 0px; ' +
+        'position: absolute; top: 0px; left: -9999px; height: auto; overflow: hidden; visibility: hidden; ' +
+        'pointer-events: none; width: 321px;',
+    );
+  });
+});
+
+describe('mapScrollPosition bracketing', () => {
+  it('interpolates within the correct segment of a many-anchor array', () => {
+    const source = [0, 10, 20, 30, 40, 50];
+    const target = [0, 100, 200, 300, 400, 500];
+    expect(mapScrollPosition(35, source, target)).toBe(350);
+  });
+
+  it('maps a value exactly on an interior anchor to that anchor\'s target', () => {
+    expect(mapScrollPosition(20, [0, 10, 20, 30], [0, 5, 60, 70])).toBe(60);
+  });
+
+  it('only uses the shorter array\'s length when the arrays differ in length', () => {
+    expect(mapScrollPosition(99, [0, 10, 20, 30], [0, 100, 200])).toBe(200);
+  });
+
+  it('returns the first target for a value equal to the first source anchor', () => {
+    expect(mapScrollPosition(5, [5, 10], [7, 70])).toBe(7);
   });
 });
 
