@@ -217,7 +217,7 @@ describe('HW2 vendor and HW9 plugin imports', () => {
     const base: Partial<HardwiringSource> = { mode: 'consumer', file: 'site.ts', resolveImport: (specifier) => specifier === 'none' ? undefined : specifier + '.ts' };
     const plugin = (file: string) => file.startsWith('site') ? 'site' : file.startsWith('agent') ? 'agent' : undefined;
     expect(rules('import "agent";', base)).toEqual([]);
-    expect(rules('import "agent";', { ...base, pluginIdentity: plugin, resolveImport: undefined })).toEqual([]);
+    expect(rules('import "agent";', { mode: 'consumer', file: 'site.ts', pluginIdentity: plugin })).toEqual([]);
     expect(rules('import "none";', { ...base, pluginIdentity: plugin })).toEqual([]);
     expect(rules('import "agent";', { ...base, file: 'host.ts', pluginIdentity: plugin })).toEqual([]);
     const [hit] = scan('import "agent";', { ...base, pluginIdentity: plugin });
@@ -272,4 +272,9 @@ describe('inspectPublicGraph', () => {
   it('an authored file reports every React edge and its implicit JSX separately', () => {
     expect(graph({ 'entry.tsx': 'import "react"; import "react-dom"; export const v = <div />;' }, ['entry.tsx'])).toHaveLength(3);
   });
+});
+
+it('the host resolver runs for every edge even without plugin identities, so its refusal propagates', () => {
+  const resolveImport = () => { throw new Error('Unresolved code import in site.ts (specifier omitted); refusing an incomplete public/plugin graph.'); };
+  expect(() => scan('import "x";', { mode: 'consumer', file: 'site.ts', resolveImport })).toThrow('Unresolved code import in site.ts (specifier omitted); refusing an incomplete public/plugin graph.');
 });
