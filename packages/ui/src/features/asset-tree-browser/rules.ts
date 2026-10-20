@@ -60,31 +60,66 @@ export function deriveTreeChildren<TFile extends AssetTreeFileItem>(
   folders: readonly AssetTreeFolderItem[],
   currentDir: string,
 ): TreeChildren<TFile> {
-  const prefix = currentDir === '' ? '' : `${currentDir}/`;
+  const isRoot = currentDir === '';
+  const prefix = isRoot ? '' : `${currentDir}/`;
   const dirs = new Set<string>();
-  const localFiles: TFile[] = [];
-  for (const f of files) {
-    if (!f.path.startsWith(prefix)) continue;
-    const remainder = f.path.slice(prefix.length);
-    const slashIdx = remainder.indexOf('/');
-    if (slashIdx === -1) {
-      localFiles.push(f);
-    } else {
-      dirs.add(remainder.slice(0, slashIdx));
-      if (currentDir === '') localFiles.push(f);
-    }
-  }
-  for (const folder of folders) {
-    if (!folder.path.startsWith(prefix)) continue;
-    const remainder = folder.path.slice(prefix.length);
-    if (!remainder) continue; // the current directory itself
-    const slashIdx = remainder.indexOf('/');
-    dirs.add(slashIdx === -1 ? remainder : remainder.slice(0, slashIdx));
-  }
+  const localFiles = collectFileChildren({ files, prefix, isRoot, dirs });
+  collectFolderChildren({ folders, prefix, dirs });
   return {
     dirsAtCurrentDir: [...dirs].sort((a, b) => a.localeCompare(b)),
     filesAtCurrentDir: localFiles,
   };
+}
+
+interface ChildSegment {
+  /** The first path component below the prefix. */
+  head: string;
+  /** Whether the path continues past `head` (i.e. `head` is a directory). */
+  nested: boolean;
+}
+
+/** The first path component of `path` below `prefix`, or `null` when `path` is outside `prefix`. */
+function childSegment(path: string, prefix: string): ChildSegment | null {
+  if (!path.startsWith(prefix)) return null;
+  const remainder = path.slice(prefix.length);
+  const slashIdx = remainder.indexOf('/');
+  if (slashIdx === -1) return { head: remainder, nested: false };
+  return { head: remainder.slice(0, slashIdx), nested: true };
+}
+
+/**
+ * File half of {@link deriveTreeChildren}: adds each nested file's top
+ * segment to `dirs` and returns the files listed at this level (every
+ * in-prefix file at the root, only one-level-deep files elsewhere).
+ */
+function collectFileChildren<TFile extends AssetTreeFileItem>(input: {
+  files: readonly TFile[];
+  prefix: string;
+  isRoot: boolean;
+  dirs: Set<string>;
+}): TFile[] {
+  const localFiles: TFile[] = [];
+  for (const f of input.files) {
+    const segment = childSegment(f.path, input.prefix);
+    if (!segment) continue;
+    if (segment.nested) input.dirs.add(segment.head);
+    if (!segment.nested || input.isRoot) localFiles.push(f);
+  }
+  return localFiles;
+}
+
+/** Folder half of {@link deriveTreeChildren}: adds each persisted folder's top segment below `prefix` to `dirs`. */
+function collectFolderChildren(input: {
+  folders: readonly AssetTreeFolderItem[];
+  prefix: string;
+  dirs: Set<string>;
+}): void {
+  for (const folder of input.folders) {
+    const segment = childSegment(folder.path, input.prefix);
+    if (!segment) continue;
+    if (!segment.nested && !segment.head) continue; // the current directory itself
+    input.dirs.add(segment.head);
+  }
 }
 
 /** Total files (at every depth, not just the immediate level) under `dirPath` — what a folder row's "N files" subtitle counts. */
