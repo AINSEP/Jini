@@ -30,7 +30,9 @@ export function fixedHooks(account: ApiConnectionAccount = { accountId: 'alice',
   return { hooks, revoked };
 }
 
-export function unitDeps(overrides: Partial<Omit<ApiConnectionServiceDeps, 'records' | 'clock'>> = {}): UnitDeps {
+export function unitDeps(
+  overrides: Partial<Omit<ApiConnectionServiceDeps, 'records' | 'clock'>> & { readonly records?: UnitDeps['records'] } = {},
+): UnitDeps {
   const descriptor = parseApiConnectionDescriptor({ value: {
     pluginId: 'acme-office', connectionId: 'account', label: 'Acme account',
     authorizationEndpoint: 'http://127.0.0.1:9/authorize', tokenEndpoint: 'http://127.0.0.1:9/token',
