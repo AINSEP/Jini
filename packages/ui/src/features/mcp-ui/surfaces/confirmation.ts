@@ -209,27 +209,29 @@ function confirmationActions(spec: ConfirmationSurfaceSpec): SurfaceAction[] {
   return actions;
 }
 
-export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): string {
-  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...spec.text };
-  const choicesParam = spec.choicesParam ?? 'overwrite';
-  // The ticked ids are merged into confirm.params at click time; a key already there (the token,
-  // say) would be silently replaced by an array.
-  if ((spec.choices ?? []).length > 0 && Object.prototype.hasOwnProperty.call(spec.confirm.params, choicesParam)) {
+type ConfirmationPlan = Record<string, { toolName: string; params: Readonly<Record<string, unknown>> } | null>;
+
+/** The ticked ids are merged into confirm.params at click time; a key already there (the token,
+ * say) would be silently replaced by an array.
+ * @complexity O(a) in the alternative count. @throws Error naming the colliding param (and alternative). */
+function assertChoicesParamFree(spec: ConfirmationSurfaceSpec, required: { choicesParam: string }): void {
+  const { choicesParam } = required;
+  if ((spec.choices ?? []).length === 0) return;
+  if (Object.prototype.hasOwnProperty.call(spec.confirm.params, choicesParam)) {
     throw new Error(`choicesParam ${JSON.stringify(choicesParam)} collides with a key already in confirm.params.`);
   }
-  for (const alternative of (spec.choices ?? []).length > 0 ? (spec.alternatives ?? []) : []) {
+  for (const alternative of spec.alternatives ?? []) {
     if (Object.prototype.hasOwnProperty.call(alternative.params, choicesParam)) {
       throw new Error(`choicesParam ${JSON.stringify(choicesParam)} collides with a key already in the params of alternative ${JSON.stringify(alternative.id)}.`);
     }
   }
-  const alternatives = spec.alternatives ?? [];
-  assertAlternativeIds(alternatives);
-  const actions = confirmationActions(spec);
-  // Every affirmative button starts disabled and waits out the dwell; only cancel is live at once.
-  const affirmative = new Set(['confirm', ...alternatives.map((alternative) => alternative.id)]);
+}
 
+/** Header, context, choices, warning, actions and the status region. @complexity O(n) in the rendered length. */
+function confirmationBodyHtml(spec: ConfirmationSurfaceSpec, required: { affirmative: ReadonlySet<string> }): string {
+  const { affirmative } = required;
   const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
-  const bodyHtml = [
+  return [
     renderSurfaceHeader(
       spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description },
     ),
@@ -237,19 +239,22 @@ export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): strin
     renderChoices(spec.choices ?? []),
     warning,
     // Confirm starts disabled; the script enables it once the dwell has run out.
-    renderActions(actions.map((action) => (affirmative.has(action.id) ? { ...action, disabled: true } : action))),
+    renderActions(confirmationActions(spec).map((action) => (affirmative.has(action.id) ? { ...action, disabled: true } : action))),
     renderStatusRegion(),
   ]
     .filter((fragment) => fragment !== '')
     .join('\n');
+}
 
-  // A map from button id to what that button does. `null` means "dismiss locally, call nothing" —
-  // the shape a cancel-without-a-tool takes, kept as an explicit null rather than an absent key so
-  // the script can tell "this button dismisses" from "this button is unknown to me".
-  const plan: Record<string, { toolName: string; params: Readonly<Record<string, unknown>> } | null> = {
+/** A map from button id to what that button does. `null` means "dismiss locally, call nothing" —
+ * the shape a cancel-without-a-tool takes, kept as an explicit null rather than an absent key so
+ * the script can tell "this button dismisses" from "this button is unknown to me".
+ * @complexity O(a) in the alternative count. */
+function confirmationPlan(spec: ConfirmationSurfaceSpec, required: { alternatives: readonly ConfirmationAlternative[] }): ConfirmationPlan {
+  const plan: ConfirmationPlan = {
     confirm: { toolName: spec.confirm.toolName, params: spec.confirm.params },
   };
-  for (const alternative of alternatives) {
+  for (const alternative of required.alternatives) {
     plan[alternative.id] = { toolName: alternative.toolName, params: alternative.params };
   }
   if (spec.cancel !== undefined) {
@@ -257,8 +262,15 @@ export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): strin
       ? { toolName: spec.cancel.toolName, params: spec.cancel.params }
       : null;
   }
+  return plan;
+}
 
-  const script = `(function () {
+/** The inline runtime script: dwell, visibility, locking and tool calls. @complexity O(s) in the script length. */
+function confirmationScript(required: {
+  plan: ConfirmationPlan; text: SurfaceStatusText; choicesParam: string; affirmative: ReadonlySet<string>;
+}): string {
+  const { plan, text, choicesParam, affirmative } = required;
+  return `(function () {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
   var PLAN = ${escapeJsValue(plan)};
@@ -407,11 +419,21 @@ ${SURFACE_SCRIPT_PRELUDE}
     });
   }
 }());`;
+}
+
+export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): string {
+  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...spec.text };
+  const choicesParam = spec.choicesParam ?? 'overwrite';
+  assertChoicesParamFree(spec, { choicesParam });
+  const alternatives = spec.alternatives ?? [];
+  assertAlternativeIds(alternatives);
+  // Every affirmative button starts disabled and waits out the dwell; only cancel is live at once.
+  const affirmative = new Set(['confirm', ...alternatives.map((alternative) => alternative.id)]);
 
   return renderSurfaceDocument({
     title: spec.title,
-    bodyHtml,
-    script,
+    bodyHtml: confirmationBodyHtml(spec, { affirmative }),
+    script: confirmationScript({ plan: confirmationPlan(spec, { alternatives }), text, choicesParam, affirmative }),
     app: spec.app ?? DEFAULT_APP,
     ...(spec.lang === undefined ? {} : { lang: spec.lang }),
     ...(spec.tokens === undefined ? {} : { tokens: spec.tokens }),

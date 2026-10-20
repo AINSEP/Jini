@@ -283,3 +283,51 @@ describe('toFieldReadSpecs', () => {
     ]);
   });
 });
+
+// Exact-output pins for the kind dispatch: every optional property present, then none present.
+// Captured on the pre-refactor code so forwarding changes surface as a markup diff.
+describe('renderFieldControl exact markup', () => {
+  const shared = { hint: 'Help', required: true, disabled: true } as const;
+  const options = [{ value: 'a', label: 'A' }, { value: 'b' }] as const;
+  const cases: ReadonlyArray<readonly [string, SurfaceField]> = [
+    ['string, all props', { kind: 'string', name: 's', label: 'S', ...shared, value: 'v', placeholder: 'p', multiline: true, rows: 3, secret: false }],
+    ['string, no props', { kind: 'string', name: 's', label: 'S' }],
+    ['number, all props', { kind: 'number', name: 'n', label: 'N', ...shared, value: 4, placeholder: 'p', min: 1, max: 9, step: 2 }],
+    ['number, no props', { kind: 'number', name: 'n', label: 'N' }],
+    ['boolean, all props', { kind: 'boolean', name: 'b', label: 'B', ...shared, value: true }],
+    ['boolean, no props', { kind: 'boolean', name: 'b', label: 'B' }],
+    ['enum select, all props', { kind: 'enum', name: 'e', label: 'E', ...shared, options, value: 'b', placeholder: 'p', presentation: 'select' }],
+    ['enum select, no props', { kind: 'enum', name: 'e', label: 'E', options }],
+    ['enum radio, all props', { kind: 'enum', name: 'e', label: 'E', ...shared, options, value: 'b', placeholder: 'p', presentation: 'radio' }],
+    ['enum radio, no props', { kind: 'enum', name: 'e', label: 'E', options, presentation: 'radio' }],
+    ['multi-enum, all props', { kind: 'multi-enum', name: 'm', label: 'M', ...shared, options, value: ['a', 'b'] }],
+    ['multi-enum, no props', { kind: 'multi-enum', name: 'm', label: 'M', options }],
+  ];
+  it.each(cases)('%s', (_name, field) => {
+    expect(renderFieldControl(field)).toMatchSnapshot();
+  });
+
+  it('forwards host secret-reveal text to a secret string field', () => {
+    expect(renderFieldControl({ kind: 'string', name: 's', label: 'S', secret: true, multiline: true }, { showSecret: 'Reveal', hideSecret: 'Conceal' })).toMatchSnapshot();
+  });
+});
+
+// Exact-output pins for each control shape renderTextInput can emit, captured on the pre-refactor code.
+describe('renderTextInput exact markup', () => {
+  const shared = { name: 'f', label: 'F', hint: 'Help', placeholder: 'p<"', required: true, disabled: true } as const;
+  const cases: ReadonlyArray<readonly [string, Parameters<typeof renderTextInput>[0]]> = [
+    ['text input with escaped value', { ...shared, value: 'a&<"b' }],
+    ['bare text input', { name: 'f', label: 'F' }],
+    ['number input with constraints and numeric value', { ...shared, inputType: 'number', value: 7, min: 1, max: 9, step: 2 }],
+    ['number input ignores multiline and secret', { name: 'f', label: 'F', inputType: 'number', multiline: true, secret: true, rows: 4 }],
+    ['password input', { ...shared, secret: true }],
+    ['plain textarea with rows and value', { ...shared, multiline: true, rows: 5, value: 'line1\nline2' }],
+    ['bare textarea', { name: 'f', label: 'F', multiline: true }],
+    ['secret textarea with default reveal text', { ...shared, multiline: true, secret: true }],
+    ['secret textarea with host reveal text', { name: 'f', label: 'F', multiline: true, secret: true, showSecret: 'Reveal<', hideSecret: 'Conceal"' }],
+    ['explicit text input type', { name: 'f', label: 'F', inputType: 'text', secret: false, min: 1 }],
+  ];
+  it.each(cases)('%s', (_name, props) => {
+    expect(renderTextInput(props)).toMatchSnapshot();
+  });
+});

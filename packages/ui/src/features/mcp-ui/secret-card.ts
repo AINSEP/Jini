@@ -99,8 +99,68 @@ function checkedFields(form: SecretCardForm): readonly SecretCardField[] {
   return form.fields.map(field => ({ ...field }));
 }
 
+type SecretField = Extract<SecretCardField, { readonly secret: true }>;
+type AnswerStep = { readonly run: SecretCardRun<never> } | { readonly params: Readonly<Record<string, unknown>> };
+type CardEmitter = NonNullable<ToolExecutionOptions['emitSurface']>;
+
 /** Classify before persistence; an abort wins over an already-buffered answer.
+ * @complexity O(1). */
+function answerStep(required: { answer: SurfaceMessage; signal: AbortSignal }): AnswerStep {
+  const { answer, signal } = required;
+  if (signal.aborted) return { run: { status: 'abandoned' } };
+  if (answer.status !== 'received') return { run: { status: answer.status } };
+  if (answer.params[SURFACE_DISMISSED_PARAM] === true) return { run: { status: 'cancelled' } };
+  return { params: answer.params };
+}
+
+/** The exact submitted secret, or undefined when it is blank or malformed.
  * Trimming tests blankness only: rewriting a provider secret can corrupt intentional newlines.
+ * @complexity O(b) in the submitted secret bytes. */
+function secretValue(required: { field: SecretField; value: unknown }): string | undefined {
+  const { field, value } = required;
+  if (value !== undefined && typeof value !== 'string') return undefined;
+  const secret = typeof value === 'string' ? value : '';
+  if (secret.trim() === '' && (secret !== '' || field.allowBlank !== true)) return undefined;
+  return secret;
+}
+
+/** Project only declared names; undefined means a required secret was blank or malformed.
+ * @complexity O(n + b) in fields and submitted secret bytes. */
+function collectValues(required: {
+  fields: readonly SecretCardField[]; params: Readonly<Record<string, unknown>>;
+}): { values: Record<string, unknown>; secrets: string[] } | undefined {
+  const { fields, params } = required;
+  const values = Object.fromEntries(fields.map(field => [field.name, params[field.name]]));
+  const secrets: string[] = [];
+  for (const field of fields) {
+    if (field.secret !== true) continue;
+    const secret = secretValue({ field, value: values[field.name] });
+    if (secret === undefined) return undefined;
+    values[field.name] = secret;
+    secrets.push(secret);
+  }
+  return { values, secrets };
+}
+
+/** Map a save exception to fixed, redacted text and log fixed metadata only.
+ * @complexity O(m + b): delegates to core's exact-secret redaction scan. */
+function failedRun(required: {
+  error: unknown; secrets: string[]; signal: AbortSignal; toolId: string;
+  options: SecretCardOptions; exchangeId: string;
+}): SecretCardRun<never> {
+  const { error, secrets, signal, toolId, options, exchangeId } = required;
+  if (signal.aborted) return { status: 'abandoned' };
+  let safeMessage = options.text?.saveFailure ?? 'Saving failed. Nothing was saved.';
+  try { safeMessage = options.safeError?.(error) ?? safeMessage; }
+  catch { /* An error mapper must not disclose a second exception containing the submitted value. */ }
+  // Even an accidentally permissive allowlist must not echo the submitted secret.
+  safeMessage = redactSecrets({ input: safeMessage }, { exactSecrets: secrets });
+  try { options.logFailure?.({ toolId, exchangeId, saved: false }); }
+  catch { /* Logging must not replace the safe model result with an opaque logger exception. */ }
+  return { status: 'failed', safeMessage };
+}
+
+/** Classify, then persist; an abort wins over an already-buffered answer.
  * @complexity O(n + b) before save in fields and submitted secret bytes; failure text delegates
  * to core's exact-secret redaction scan. Host persistence cost is external. */
 async function saveAnswer<Prep, Saved>(required: {
@@ -108,33 +168,68 @@ async function saveAnswer<Prep, Saved>(required: {
   spec: SecretCardSpec<Prep, Saved, unknown>; options: SecretCardOptions; exchangeId: string;
 }): Promise<SecretCardRun<Saved>> {
   const { answer, fields, prep, ctx, spec, options, exchangeId } = required;
+  const step = answerStep({ answer, signal: ctx.signal });
+  if ('run' in step) return step.run;
+  const collected = collectValues({ fields, params: step.params });
+  if (collected === undefined) return { status: 'blank' };
   if (ctx.signal.aborted) return { status: 'abandoned' };
-  if (answer.status !== 'received') return { status: answer.status };
-  if (answer.params[SURFACE_DISMISSED_PARAM] === true) return { status: 'cancelled' };
-  const values = Object.fromEntries(fields.map(field => [field.name, answer.params[field.name]]));
-  const secrets: string[] = [];
-  for (const field of fields) {
-    if (field.secret !== true) continue;
-    const value = values[field.name];
-    if (value !== undefined && typeof value !== 'string') return { status: 'blank' };
-    const secret = typeof value === 'string' ? value : '';
-    if (secret.trim() === '' && (secret !== '' || field.allowBlank !== true)) return { status: 'blank' };
-    values[field.name] = secret;
-    secrets.push(secret);
-  }
-  if (ctx.signal.aborted) return { status: 'abandoned' };
+  const { values, secrets } = collected;
   try {
     return { status: 'saved', saved: await spec.save({ values, prep, signal: ctx.signal }) };
   } catch (error) {
-    if (ctx.signal.aborted) return { status: 'abandoned' };
-    let safeMessage = options.text?.saveFailure ?? 'Saving failed. Nothing was saved.';
-    try { safeMessage = options.safeError?.(error) ?? safeMessage; }
-    catch { /* An error mapper must not disclose a second exception containing the submitted value. */ }
-    // Even an accidentally permissive allowlist must not echo the submitted secret.
-    safeMessage = redactSecrets({ input: safeMessage }, { exactSecrets: secrets });
-    try { options.logFailure?.({ toolId: spec.toolId, exchangeId, saved: false }); }
-    catch { /* Logging must not replace the safe model result with an opaque logger exception. */ }
-    return { status: 'failed', safeMessage };
+    return failedRun({ error, secrets, signal: ctx.signal, toolId: spec.toolId, options, exchangeId });
+  }
+}
+
+/** Fail closed without an emitter. @complexity O(1). @throws ToolInputError with fixed text. */
+function requireEmitter(required: { toolId: string; options: SecretCardOptions }, optional: Pick<ToolExecutionOptions, 'emitSurface'>): CardEmitter {
+  if (optional.emitSurface) return optional.emitSurface;
+  throw new ToolInputError({ message: required.options.text?.noEmitter ?? `${required.toolId}: this execution context has no interactive form channel (no emitSurface), so this form cannot be shown here. Nothing was changed.` });
+}
+
+/** The form resource: engine-owned routing params and dismissal around the host's copy.
+ * @complexity O(n + h) in fields and rendered HTML. */
+function buildCardForm(required: {
+  form: SecretCardForm; fields: readonly SecretCardField[]; uri: UIResourceUri;
+  framing: { preferredFrameSize?: readonly [string, string] }; toolId: string; exchangeId: string; options: SecretCardOptions;
+}): ReturnType<typeof buildFormSurface> {
+  const { form, fields, uri, framing, toolId, exchangeId, options } = required;
+  return buildFormSurface({ ...form, fields, uri, ...framing, toolName: toolId,
+    baseParams: { [SURFACE_EXCHANGE_ID_PARAM]: exchangeId },
+    cancel: { label: form.cancelLabel ?? options.text?.cancelLabel ?? 'Cancel', toolName: toolId,
+      params: { [SURFACE_EXCHANGE_ID_PARAM]: exchangeId, [SURFACE_DISMISSED_PARAM]: true } },
+  });
+}
+
+/** Open the exchange, emit the card and hold the call until the real save is reported.
+ * @complexity O(n + h + b) locally, plus host I/O. */
+async function runCard<Prep, Saved, Result>(required: {
+  spec: SecretCardSpec<Prep, Saved, Result>; options: SecretCardOptions; deps: SecretCardDeps;
+  ctx: ToolExecutionContext; emit: CardEmitter; prep: Prep; form: SecretCardForm; fields: readonly SecretCardField[];
+}): Promise<Result> {
+  const { spec, options, deps, ctx, emit, prep, form, fields } = required;
+  const exchange = deps.surfaceExchanges.open({ binding: { toolId: spec.toolId, principalId: ctx.principal.id, channel: 'mcp-ui' }, emit });
+  const closeOnAbort = (): void => exchange.close({});
+  ctx.signal.addEventListener('abort', closeOnAbort, { once: true });
+  try {
+    // Close the open/register race as well as the prepare/abort race.
+    if (ctx.signal.aborted) return spec.result({ prep, run: { status: 'abandoned' } });
+    const uri: UIResourceUri = `ui://${options.uriHost ?? 'jini'}/secret-card/${encodeURIComponent(spec.toolId)}/${encodeURIComponent(exchange.id)}`;
+    const framing = options.frameSize === undefined ? {} : { preferredFrameSize: options.frameSize };
+    const resource = buildCardForm({ form, fields, uri, framing, toolId: spec.toolId, exchangeId: exchange.id, options });
+    return await deps.askThenReport({ exchange, confirmationEmission: { channel: 'mcp-ui', payload: { resource } },
+      handle: async answer => {
+        const run = await saveAnswer({ answer, fields, prep, ctx, spec, options, exchangeId: exchange.id });
+        const result = spec.result({ prep, run });
+        const outcome = spec.outcome({ prep, run });
+        if (outcome === undefined) return { result };
+        return { result, outcome: { channel: 'mcp-ui', payload: { resource: buildOutcomeSurface({ ...outcome, uri, ...framing }) } } };
+      },
+    });
+  } finally {
+    ctx.signal.removeEventListener('abort', closeOnAbort);
+    // Also covers rendering/projection failures before or inside askThenReport; close is idempotent.
+    exchange.close({});
   }
 }
 
@@ -158,39 +253,13 @@ export function defineSecretCardTool<Prep, Saved, Result>(
     toolId: spec.toolId,
     secretFieldNames: prep => checkedFields(spec.form({ prep })).filter(field => field.secret === true).map(field => field.name),
     handler: deps => async (ctx, optional = {}) => {
-      if (!optional.emitSurface) throw new ToolInputError({ message: options.text?.noEmitter ?? `${spec.toolId}: this execution context has no interactive form channel (no emitSurface), so this form cannot be shown here. Nothing was changed.` });
+      const emit = requireEmitter({ toolId: spec.toolId, options }, optional);
       const prep = await spec.prepare({ ctx });
       if (ctx.signal.aborted) return spec.result({ prep, run: { status: 'abandoned' } });
       const form = spec.form({ prep });
       const fields = checkedFields(form);
       if (ctx.signal.aborted) return spec.result({ prep, run: { status: 'abandoned' } });
-      const exchange = deps.surfaceExchanges.open({ binding: { toolId: spec.toolId, principalId: ctx.principal.id, channel: 'mcp-ui' }, emit: optional.emitSurface });
-      const closeOnAbort = (): void => exchange.close({});
-      ctx.signal.addEventListener('abort', closeOnAbort, { once: true });
-      try {
-        // Close the open/register race as well as the prepare/abort race.
-        if (ctx.signal.aborted) return spec.result({ prep, run: { status: 'abandoned' } });
-        const uri: UIResourceUri = `ui://${options.uriHost ?? 'jini'}/secret-card/${encodeURIComponent(spec.toolId)}/${encodeURIComponent(exchange.id)}`;
-        const framing = options.frameSize === undefined ? {} : { preferredFrameSize: options.frameSize };
-        const resource = buildFormSurface({ ...form, fields, uri, ...framing, toolName: spec.toolId,
-          baseParams: { [SURFACE_EXCHANGE_ID_PARAM]: exchange.id },
-          cancel: { label: form.cancelLabel ?? options.text?.cancelLabel ?? 'Cancel', toolName: spec.toolId,
-            params: { [SURFACE_EXCHANGE_ID_PARAM]: exchange.id, [SURFACE_DISMISSED_PARAM]: true } },
-        });
-        return await deps.askThenReport({ exchange, confirmationEmission: { channel: 'mcp-ui', payload: { resource } },
-          handle: async answer => {
-            const run = await saveAnswer({ answer, fields, prep, ctx, spec, options, exchangeId: exchange.id });
-            const result = spec.result({ prep, run });
-            const outcome = spec.outcome({ prep, run });
-            if (outcome === undefined) return { result };
-            return { result, outcome: { channel: 'mcp-ui', payload: { resource: buildOutcomeSurface({ ...outcome, uri, ...framing }) } } };
-          },
-        });
-      } finally {
-        ctx.signal.removeEventListener('abort', closeOnAbort);
-        // Also covers rendering/projection failures before or inside askThenReport; close is idempotent.
-        exchange.close({});
-      }
+      return runCard({ spec, options, deps, ctx, emit, prep, form, fields });
     },
   };
 }
