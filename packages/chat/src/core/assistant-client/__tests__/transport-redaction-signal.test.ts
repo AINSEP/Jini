@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
-import { createAssistantTransportClient, type AssistantTransportPorts } from '../assistant-client/transport.js';
-import { createAgUiRunClient } from '../assistant-client/ag-ui-transport.js';
-import type { ChatMessage } from '../messages.js';
-import { notices } from '../run-events/__tests__/fixture.js';
+import { createAssistantTransportClient, type AssistantTransportPorts } from '../transport.js';
+import { createAgUiRunClient } from '../ag-ui-transport.js';
+import type { ChatMessage } from '../../messages.js';
+import { notices } from '../../run-events/__tests__/fixture.js';
 
 const handlers = { onEvent: () => {}, onDone: () => {}, onError: () => {} };
 const history: ChatMessage[] = [{ id: 'u', role: 'user', content: 'Connect [token removed]', secretRedaction: { secretRedacted: true, count: 1 } }];

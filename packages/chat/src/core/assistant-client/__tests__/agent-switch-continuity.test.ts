@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
-import { createAssistantTransportClient, type AssistantTransportPorts } from '../assistant-client/transport.js';
-import type { ChatMessage } from '../messages.js';
-import { notices } from '../run-events/__tests__/fixture.js';
+import { createAssistantTransportClient, type AssistantTransportPorts } from '../transport.js';
+import type { ChatMessage } from '../../messages.js';
+import { notices } from '../../run-events/__tests__/fixture.js';
 
 async function dispatch(history: ChatMessage[], agentId = 'claude') {
   let context: Record<string, string> = {};
