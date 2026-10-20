@@ -496,6 +496,40 @@ describe('handleToolCallUpdate', () => {
 });
 
 describe('handleSessionUpdate', () => {
+  it('records a current_model_update switch and emits a model status', () => {
+    const state = createAcpSessionState();
+    const effects = fakeEffects();
+    handleSessionUpdate({ state, effects, update: { sessionUpdate: 'current_model_update', currentModelId: 'm2' } });
+    expect(state.activeModel).toBe('m2');
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'model', model: 'm2' } });
+  });
+
+  it('records a model switch reported through configOptions', () => {
+    const state = createAcpSessionState();
+    const effects = fakeEffects();
+    handleSessionUpdate({ state, effects, update: {
+      sessionUpdate: 'config_option_update',
+      configOptions: [{ id: 'model', category: 'model', currentValue: 'm3' }],
+    } });
+    expect(state.activeModel).toBe('m3');
+    expect(effects.send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'model', model: 'm3' } });
+  });
+
+  it('emits no model status when the reported model is already active', () => {
+    const state = createAcpSessionState();
+    state.activeModel = 'm2';
+    const effects = fakeEffects();
+    handleSessionUpdate({ state, effects, update: { sessionUpdate: 'current_model_update', currentModelId: 'm2' } });
+    expect(effects.send).not.toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ label: 'model' }) });
+  });
+
+  it('ignores a currentModelId on an update that is not current_model_update', () => {
+    const state = createAcpSessionState();
+    const effects = fakeEffects();
+    handleSessionUpdate({ state, effects, update: { sessionUpdate: 'plan', currentModelId: 'm9' } });
+    expect(state.activeModel).toBeNull();
+  });
+
   it('short-circuits on a promoted AMR retry status without emitting the generic status event', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects({ modelUnavailableErrorCode: 'AMR_MODEL_UNAVAILABLE', accountFailureClassifier: matchingClassifier });
