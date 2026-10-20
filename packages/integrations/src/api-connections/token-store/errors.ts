@@ -17,8 +17,8 @@ const TEXT: Readonly<Record<OAuthTokenStoreErrorCode, { message: string; nextAct
     nextAction: "Retry against the current connection." },
   "owner-mismatch": { message: "OAuth token store: the stored credential belongs to a different connection owner.",
     nextAction: "Reconnect this connection." },
-  "write-conflict": { message: "OAuth token store: the connection kept changing while it was being removed.",
-    nextAction: "Retry the disconnect." },
+  "write-conflict": { message: "OAuth token store: the connection kept changing while its credential was being written or removed.",
+    nextAction: "Retry the sign-in or the disconnect." },
   "invalid-record": { message: "OAuth token store: the stored credential is not a valid OAuth token record.",
     nextAction: "Reconnect this connection." },
 };

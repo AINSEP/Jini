@@ -6,7 +6,7 @@ export { parseApiConnectionDescriptor } from './descriptor.js';
 export { createApiConnectionService, type ApiConnectionService } from './service.js';
 export { deriveApiConnectionKey, createApiConnectionGenerationReader } from './keys.js';
 export { ApiConnectionError, type ApiConnectionErrorCode } from './errors.js';
-export type { ApiConnectionServiceDeps } from './deps.js';
+export type { ApiConnectionClientKind, ApiConnectionServiceDeps } from './deps.js';
 export type { ApiConnectionHooks, ApiConnectionRecordStore, ApiConnectionTokenStore } from './ports.js';
 export type { StartApiConnectionResult } from './authorization.js';
 export type { CompletedAuthorization } from './finish-authorization.js';

@@ -5,11 +5,17 @@
  * vault-backed token store and the metadata store; the plugin owns scope sets, identity and
  * revocation. Tests use typed in-memory fakes of these same interfaces.
  */
-import type { OAuthTokenStore } from '@jini-ai/oauth';
+import type { OAuthTokenSet, OAuthTokenStore } from '@jini-ai/oauth';
 import type { ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionRecord } from './types.js';
 
-/** Secret storage keyed by the opaque connection key; `delete` clears local tokens on disconnect. */
+/**
+ * Secret storage keyed by the opaque connection key; `delete` clears local tokens on disconnect.
+ * `persist` is the refresher's write (the store may require its refresh lease); `install` writes a
+ * freshly issued sign-in or switch credential for `generation`, needs no lease, and must refuse
+ * once the connection's live generation differs or a newer generation's tokens are stored.
+ */
 export type ApiConnectionTokenStore = OAuthTokenStore & {
+  install(requiredArgs: { readonly key: string; readonly tokens: OAuthTokenSet; readonly generation: number }): Promise<void>;
   delete(requiredArgs: { readonly key: string }): Promise<void>;
 };
 

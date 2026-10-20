@@ -5,9 +5,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
-import { parseApiConnectionDescriptor } from '../index.js';
+import type { OAuthClient } from '@jini-ai/oauth';
+import { createApiConnectionService, parseApiConnectionDescriptor, type ApiConnectionServiceDeps } from '../index.js';
 import { startAcmeProvider, type AcmeProvider } from './fixtures/acme-provider.js';
-import { buildHarness, CALLBACK, signIn, type Harness } from './fixtures/harness.js';
+import { buildHarness, buildVaultHarness, CALLBACK, signIn, type Harness } from './fixtures/harness.js';
 
 let provider: AcmeProvider;
 let h: Harness;
@@ -66,6 +67,88 @@ describe('PKCE', () => {
     const challenge = new URL(started.authorizationUrl).searchParams.get('code_challenge');
     const verifier = provider.tokenRequests[0]!.get('code_verifier') ?? '';
     expect(createHash('sha256').update(verifier).digest('base64url')).toBe(challenge);
+  });
+});
+
+describe('client kind', () => {
+  it('sends the hosted extra parameters, not the installed-app ones, for a hosted client', async () => {
+    h = buildHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' }, clientKind: 'confidential' });
+    const { started } = await signIn(h, provider);
+    const params = new URL(started.authorizationUrl).searchParams;
+    expect([params.get('include_granted'), params.get('prompt')]).toEqual(['true', null]);
+  });
+});
+
+describe('installed-app client that sends a client secret', () => {
+  // Built at runtime: some providers issue such non-confidential secrets to installed apps.
+  const installedSecret = ['installed', 'app', 'secret', 'x'.repeat(24)].join('-');
+  const installedClient: OAuthClient = { clientId: 'acme-desktop', clientSecret: installedSecret, authMethod: 'client_secret_post' };
+  beforeEach(() => { h = buildHarness(provider, { client: installedClient, clientKind: 'public' }); });
+
+  it('uses the installed-app parameters and PKCE while sending the secret the way its auth method says', async () => {
+    const { started, callbackParams } = await signIn(h, provider);
+    await complete(callbackParams);
+    const params = new URL(started.authorizationUrl).searchParams;
+    const exchange = provider.tokenRequests[0]!;
+    expect([params.get('prompt'), params.get('include_granted'), exchange.get('client_secret'), exchange.has('code_verifier')])
+      .toEqual(['consent', null, installedSecret, true]);
+  });
+  it('replaces the whole token set when a same-account exchange omits a refresh token', async () => {
+    const ref = await connect('alice');
+    const { callbackParams } = await signIn(h, provider, { account: 'alice', omitRefreshToken: true });
+    await complete(callbackParams);
+    expect((await h.tokens.load({ key: ref }))?.refreshToken).toBeNull();
+  });
+  it('keeps the secret out of the authorization URL, attempt, record, stored tokens, status and result', async () => {
+    const { started, callbackParams } = await signIn(h, provider);
+    const attempts = JSON.stringify([...h.records.attempts.values()]);
+    const result = await complete(callbackParams);
+    const stored = JSON.stringify([await h.records.read({ key: started.connectionRef }), [...h.tokens.entries.values()],
+      await h.service.getStatus({ connectionRef: started.connectionRef }), result, started]);
+    expect([attempts, stored].filter(text => text.includes(installedSecret))).toEqual([]);
+  });
+  it('keeps the secret out of a refused exchange and its causes', async () => {
+    provider.expectedClientSecret = 'a-different-value';
+    const { callbackParams } = await signIn(h, provider);
+    const error = await complete(callbackParams).then((): Error => new Error('expected a refusal'), (caught: unknown) => caught as Error);
+    const chain = [error, error.cause].map(item => `${(item as Error | undefined)?.message ?? ''} ${JSON.stringify(item ?? null)}`);
+    expect([(error as { code?: string }).code, chain.join(' ').includes(installedSecret)]).toEqual(['authorization-failed', false]);
+  });
+  it('refuses a confidential client kind that does not authenticate at the token endpoint', () => {
+    const deps = { clientKind: 'confidential', client: { clientId: 'acme-web', authMethod: 'none' } } as unknown as ApiConnectionServiceDeps; // malformed wiring on purpose
+    expect(() => createApiConnectionService({ ...deps, descriptor: parseApiConnectionDescriptor({ value: { pluginId: 'p', connectionId: 'c',
+      label: 'L', authorizationEndpoint: 'https://a.example/auth', tokenEndpoint: 'https://a.example/token' } }) }))
+      .toThrow(expect.objectContaining({ code: 'configuration-invalid' }));
+  });
+});
+
+describe('credential install into the vault token store (no host-held lease)', () => {
+  it('connects and serves the new token', async () => {
+    const v = buildVaultHarness(provider);
+    const { started, callbackParams } = await signIn(v, provider);
+    await v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+    expect(await v.service.getAccessToken({ connectionRef: started.connectionRef })).toBe('acme-at-1');
+  });
+  it('stages and confirms an account switch', async () => {
+    const v = buildVaultHarness(provider);
+    const finish = (callbackParams: Record<string, string>) =>
+      v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+    const { started, callbackParams } = await signIn(v, provider, { account: 'alice' });
+    await finish(callbackParams);
+    await finish((await signIn(v, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
+    await v.service.confirmSwitchAccount({ connectionRef: started.connectionRef, actorId: 'actor-1' });
+    expect(await v.service.getAccessToken({ connectionRef: started.connectionRef }, { expectedAccountId: 'bob' })).toBe('acme-at-2');
+  });
+  it('keeps the stored refresh token on a hosted same-account reconnect right after a token was served', async () => {
+    const v = buildVaultHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' },
+      clientKind: 'confidential' });
+    const finish = (callbackParams: Record<string, string>) =>
+      v.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK, callbackParams });
+    const { started, callbackParams } = await signIn(v, provider, { account: 'alice' });
+    await finish(callbackParams);
+    expect(await v.service.getAccessToken({ connectionRef: started.connectionRef })).toBe('acme-at-1');
+    await finish((await signIn(v, provider, { account: 'alice', omitRefreshToken: true })).callbackParams);
+    expect((await v.tokens.load({ key: started.connectionRef }))?.refreshToken).toBe('acme-rt-1');
   });
 });
 
@@ -143,11 +226,17 @@ describe('account rules', () => {
     await expect(complete(callbackParams)).rejects.toMatchObject({ code: 'account-mismatch' });
   });
   it('keeps the stored refresh token when a hosted same-account exchange omits one', async () => {
-    h = buildHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' } });
+    h = buildHarness(provider, { client: { clientId: 'acme-web', clientSecret: 'test-only', authMethod: 'client_secret_post' }, clientKind: 'confidential' });
     const ref = await connect('alice');
     const { callbackParams } = await signIn(h, provider, { account: 'alice', omitRefreshToken: true });
     await complete(callbackParams);
     expect((await h.tokens.load({ key: ref }))?.refreshToken).toBe('acme-rt-1');
+  });
+  it('replaces the whole token set when an installed-app same-account exchange omits a refresh token', async () => {
+    const ref = await connect('alice');
+    const { callbackParams } = await signIn(h, provider, { account: 'alice', omitRefreshToken: true });
+    await complete(callbackParams);
+    expect((await h.tokens.load({ key: ref }))?.refreshToken).toBeNull();
   });
   it('stages a switch without changing the live account until confirmed', async () => {
     const ref = await connect('alice');

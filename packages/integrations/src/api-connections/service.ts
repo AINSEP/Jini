@@ -7,7 +7,7 @@
 import { createApiConnectionAccessTokens } from './access-token.js';
 import { cancelSwitchAccount, confirmSwitchAccount, disconnectApiConnection } from './account-actions.js';
 import { completeApiConnectionAuthorization, startApiConnectionAuthorization } from './authorization.js';
-import type { ApiConnectionServiceDeps } from './deps.js';
+import { assertClientWiring, type ApiConnectionServiceDeps } from './deps.js';
 import { createApiConnectionGenerationReader, deriveApiConnectionKey } from './keys.js';
 import { getApiConnectionStatus } from './status.js';
 
@@ -27,7 +27,9 @@ export interface ApiConnectionService {
   readonly readGeneration: ReturnType<typeof createApiConnectionGenerationReader>;
 }
 
+/** @throws ApiConnectionError `configuration-invalid` when the client kind contradicts the client. */
 export function createApiConnectionService(deps: ApiConnectionServiceDeps): ApiConnectionService {
+  assertClientWiring(deps);
   const accessTokens = createApiConnectionAccessTokens(deps);
   const { pluginId, connectionId } = deps.descriptor;
   return {

@@ -6,8 +6,12 @@
  */
 import { randomBytes } from 'node:crypto';
 import { createOAuthUrlGuard, type OAuthClient, type OAuthFetch, type OAuthTokenSet } from '@jini-ai/oauth';
-import { createApiConnectionService, parseApiConnectionDescriptor, type ApiConnectionHooks, type ApiConnectionRecordStore,
-  type ApiConnectionService, type ApiConnectionTokenStore } from '../../index.js';
+import { AesGcmSecretSealer } from '@jini-ai/platform/secrets';
+import { InMemoryKeyring } from '@jini-ai/platform/secrets/testing';
+import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers } from '@jini-ai/platform/secrets/credential-sets';
+import { createApiConnectionGenerationReader, createApiConnectionService, createVaultOAuthTokenStore, parseApiConnectionDescriptor,
+  parseOAuthTokenVaultMeta, type ApiConnectionHooks, type ApiConnectionRecordStore, type ApiConnectionService,
+  type ApiConnectionTokenStore, type VaultOAuthTokenStore } from '../../index.js';
 import type { ApiConnectionAttempt, ApiConnectionIntent, ApiConnectionRecord } from '../../types.js';
 import type { AcmeProvider } from './acme-provider.js';
 
@@ -39,6 +43,7 @@ export function memoryTokenStore(): ApiConnectionTokenStore & { entries: Map<str
     entries,
     async load({ key }) { return structuredClone(entries.get(key) ?? null); },
     async persist({ key, tokens }) { entries.set(key, structuredClone(tokens)); },
+    async install({ key, tokens }) { entries.set(key, structuredClone(tokens)); },
     async markNeedsReauth() { /* status lives in the record store */ },
     async delete({ key }) { entries.delete(key); },
   };
@@ -60,15 +65,18 @@ export function acmeHooks(provider: AcmeProvider): ApiConnectionHooks {
   };
 }
 
-export interface Harness {
+export interface Harness<Tokens extends ApiConnectionTokenStore = ReturnType<typeof memoryTokenStore>> {
   service: ApiConnectionService;
   records: ReturnType<typeof memoryRecordStore>;
-  tokens: ReturnType<typeof memoryTokenStore>;
+  tokens: Tokens;
   clock: { now: number; nowMs(): number };
 }
 
-export function buildHarness(provider: AcmeProvider, { client = { clientId: 'acme-desktop', authMethod: 'none' } as OAuthClient,
-  pluginId = 'acme-office' } = {}): Harness {
+interface HarnessOptions { client?: OAuthClient; clientKind?: 'public' | 'confidential'; pluginId?: string }
+
+function buildWith<Tokens extends ApiConnectionTokenStore>(provider: AcmeProvider, options: HarnessOptions,
+  makeTokens: (required: { records: ApiConnectionRecordStore; clock: Harness['clock'] }) => Tokens): Harness<Tokens> {
+  const { client = { clientId: 'acme-desktop', authMethod: 'none' } as OAuthClient, clientKind = 'public', pluginId = 'acme-office' } = options;
   const descriptor = parseApiConnectionDescriptor({ value: {
     pluginId, connectionId: 'account', label: 'Acme account',
     authorizationEndpoint: `${provider.origin}/authorize`, tokenEndpoint: `${provider.origin}/token`,
@@ -82,9 +90,9 @@ export function buildHarness(provider: AcmeProvider, { client = { clientId: 'acm
   };
   const clock = { now: Date.parse('2026-10-20T10:00:00.000Z'), nowMs() { return this.now; } };
   const records = memoryRecordStore();
-  const tokens = memoryTokenStore();
+  const tokens = makeTokens({ records, clock });
   const service = createApiConnectionService({
-    descriptor, client, hooks: acmeHooks(provider), records, tokens, fetchFn, clock,
+    descriptor, client, clientKind, hooks: acmeHooks(provider), records, tokens, fetchFn, clock,
     appOptions: { clientDisplayName: 'Test host', softwareId: 'test-host', redirectUris: [CALLBACK] },
     guard: createOAuthUrlGuard({ assertAllowed: () => undefined }, { allowLoopbackHttp: true }),
     randomBytesFn: ({ byteLength }) => randomBytes(byteLength), sleep: async () => undefined,
@@ -92,8 +100,27 @@ export function buildHarness(provider: AcmeProvider, { client = { clientId: 'acm
   return { service, records, tokens, clock };
 }
 
+export function buildHarness(provider: AcmeProvider, options: HarnessOptions = {}): Harness {
+  return buildWith(provider, options, () => memoryTokenStore());
+}
+
+/** The same service over the real vault-backed token store (real sealing, lease and generation fencing). */
+export function buildVaultHarness(provider: AcmeProvider, options: HarnessOptions = {}): Harness<VaultOAuthTokenStore> {
+  const repo = new InMemoryVaultRepo({});
+  const keyring = new InMemoryKeyring({ hkdfSalt: 'api-connection-tests' });
+  const vault = new SecretsVaultService({ repo, keyring, sealer: new AesGcmSecretSealer({ keyring }),
+    metaParsers: createVaultMetaParsers({}, { parsers: { 'mcp-auth': parseOAuthTokenVaultMeta } }),
+    authorize: async () => {}, now: () => '2026-10-20T10:00:00.000Z', newId: () => 'unused-id' });
+  return buildWith(provider, options, ({ records, clock }) => createVaultOAuthTokenStore({
+    vault, clock, readGeneration: createApiConnectionGenerationReader({ records }),
+    vaultScope: { workspaceId: 'ws-1', kind: 'mcp-auth', ownerKey: 'acme-office', principalId: null, binding: null },
+    owner: { workspaceId: 'ws-1', pluginId: options.pluginId ?? 'acme-office', connectionId: 'account',
+      clientId: options.client?.clientId ?? 'acme-desktop' },
+  }));
+}
+
 /** Start a connect for `actor` in workspace ws-1 and approve it at the fake provider. */
-export async function signIn(h: Harness, provider: AcmeProvider, { account = 'alice', actorId = 'actor-1', intent = 'connect' as ApiConnectionIntent,
+export async function signIn(h: Harness<ApiConnectionTokenStore>, provider: AcmeProvider, { account = 'alice', actorId = 'actor-1', intent = 'connect' as ApiConnectionIntent,
   grantScopes = undefined as string[] | undefined, omitRefreshToken = false } = {}) {
   const started = await h.service.start({ workspaceId: 'ws-1', actorId, intent, scopeSetIds: ['files'], redirectUri: CALLBACK });
   const callbackParams = provider.approve({ authorizationUrl: started.authorizationUrl, account, omitRefreshToken,

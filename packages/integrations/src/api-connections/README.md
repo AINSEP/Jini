@@ -24,12 +24,32 @@ error mapping, code exchange), `createTokenRefresher` and `refreshAccessToken`.
 
 Ports (`ports.ts`), all injected:
 
-- `ApiConnectionTokenStore = OAuthTokenStore & { delete({ key }) }` — secret storage (a vault).
+- `ApiConnectionTokenStore = OAuthTokenStore & { install({ key, tokens, generation }), delete({ key }) }` —
+  secret storage (a vault). `persist` is the refresher's write and may require the store's refresh
+  lease; `install` is the sign-in / switch write: no lease, refused once the live generation differs
+  from `generation` or a newer generation's tokens are stored. The bundled vault token store
+  (`createVaultOAuthTokenStore`) implements both, so a host needs no lease wrapper of its own.
 - `ApiConnectionRecordStore` — non-secret metadata: `read`, `compareAndSet({ key, expectedRevision, record })`,
   `putAttempt`, `takeAttempt` (atomic consume-once). Attempts hold a short-lived PKCE verifier:
   keep them out of logs and exports.
 - `ApiConnectionHooks` (the plugin) — `resolveScopes({ scopeSetIds })`, `readAccount({ accessToken })`,
   `revoke({ token })` (throw unless the provider confirmed).
+
+## Client kind vs auth method
+
+`deps.clientKind` says how the app is registered; `deps.client.authMethod` says how it
+authenticates at the token endpoint. They are separate because some providers give installed
+apps a client secret that is not confidential:
+
+| `clientKind` | Meaning | Rules it selects |
+|---|---|---|
+| `public` | Installed app: PKCE, loopback callback, re-consent replaces the whole token set | `authorizationParams.public`; a same-account exchange without a refresh token replaces the set |
+| `confidential` | Hosted server that keeps its secret | `authorizationParams.confidential`; a same-account exchange without a refresh token keeps the stored one |
+
+A `public` client may use `client_secret_post` / `client_secret_basic`; its secret is still a
+secret: it stays in the host's server-side config, is sent only to the token endpoint, and never
+appears in attempts, records, stored tokens, status, results or error messages. A `confidential`
+client with `authMethod: 'none'` is refused at construction (`configuration-invalid`).
 
 ## How it behaves
 
@@ -42,8 +62,8 @@ Ports (`ports.ts`), all injected:
   `reconnect-required`, then tokens are written, then the record becomes `connected`. A crash in
   between leaves "reconnect required", never a record that disagrees with its token.
 - **Reconnect** (`intent: 'connect'`) keeps the same `connectionRef` and must sign in as the same
-  account (`account-mismatch` otherwise). A confidential (hosted) client keeps the stored refresh
-  token when a same-account exchange omits one; a public (installed) client replaces the set.
+  account (`account-mismatch` otherwise). A `confidential` (hosted) client keeps the stored refresh
+  token when a same-account exchange omits one; a `public` (installed) client replaces the set.
 - **Switch account** (`intent: 'switch-account'`) stages the new tokens and identity; nothing
   changes until the same actor calls `confirmSwitchAccount`. Bindings that froze an account pass
   `getAccessToken({ connectionRef }, { expectedAccountId })` and get `account-changed` instead of
@@ -60,7 +80,7 @@ Ports (`ports.ts`), all injected:
 ```ts
 const descriptor = parseApiConnectionDescriptor({ value: plugin.manifest.connection });
 const service = createApiConnectionService({
-  descriptor, client, appOptions: { clientDisplayName, softwareId, redirectUris },
+  descriptor, client, clientKind: runtime === 'desktop' ? 'public' : 'confidential', appOptions: { clientDisplayName, softwareId, redirectUris },
   hooks: plugin.connectionHooks, records, tokens, fetchFn, guard, clock, randomBytesFn, sleep,
 });
 const { authorizationUrl, connectionRef } = await service.start(
