@@ -28,16 +28,17 @@ Lots are file-disjoint; no lot changes a public export, so lots are independent 
 | Lot | status | subagent | commits | before→after | coverage | verify |
 |---|---|---|---|---|---|---|
 | L089 | dispatched | | | | | |
-| L091 | dispatched | | | | | |
+| L091 | MERGED (75e42a6b) | 1 agent, 24 tool calls, 101k tok, 6.3 min | bb71753b | TabbedDialog 50/26 → 8/5 | 100/100/100 on 5 files; 21→34 tests (+12 view-helper tests) | eslint 0, tsc 0, 41 tests green, why-comments moved (verified by grep) |
 | L102 | dispatched | | | | | |
 | L103 | dispatched | | | | | |
 | L111 | dispatched | | | | | |
-| L117 | queued | | | | | |
+| L117 | dispatched | | | | | |
 | L122 | queued | | | | | |
 | L127 | queued | | | | | |
 | L132 | queued | | | | | |
 | L133 | queued | | | | | |
 
 ## Problems / notes
+- L091: label explicitly `undefined` falls back to default — untestable under exactOptionalPropertyTypes without a cast (noted, not an issue).
 
 ## Next
