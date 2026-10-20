@@ -123,6 +123,12 @@ describe('decideSafeRunRetry — suppression paths', () => {
     const decision = decideSafeRunRetry({ result: 'failed', attemptCount: 0 }, { failure: transient(), sideEffects: { [flag]: true } });
     expect(decision).toMatchObject({ shouldRetry: false, retrySuppressedReason: reason });
   });
+
+  it('suppresses on a non-boolean truthy side-effect flag (malformed input)', () => {
+    const sideEffects = { toolCallSeen: 1 } as unknown as RunRetrySideEffectState; // malformed-on-purpose: untyped JSON state
+    const decision = decideSafeRunRetry({ result: 'failed', attemptCount: 0 }, { failure: transient(), sideEffects });
+    expect(decision).toMatchObject({ shouldRetry: false, retrySuppressedReason: 'tool_call_seen' });
+  });
 });
 
 describe('decideSafeRunRetry — transient category/detail/stage matrix', () => {
@@ -306,5 +312,31 @@ describe('resumableFromProcessExit', () => {
 
   it('a signal kill with no observed side effects stays retryable when sideEffects is explicitly all-false', () => {
     expect(resumableFromProcessExit({ code: null, signal: 'SIGKILL' }, { sideEffects: { userVisibleOutputSeen: false, toolCallSeen: false } })).toBe(true);
+  });
+});
+
+// Pins the order in which `decideSafeRunRetry` checks its suppression reasons: each row satisfies
+// TWO reasons at once, and only the earlier one in the policy's order may be reported.
+describe('decideSafeRunRetry — suppression precedence when several reasons apply', () => {
+  const allSideEffects: RunRetrySideEffectState = {
+    cancelRequested: false, userVisibleOutputSeen: true, toolCallSeen: true, artifactWriteSeen: true, liveArtifactSeen: true,
+  };
+  it.each<[string, Parameters<typeof decideSafeRunRetry>[0], Parameters<typeof decideSafeRunRetry>[1], string]>([
+    ['not_failed beats cancel_requested', { result: 'success', attemptCount: 0 }, { failure: transient(), sideEffects: { cancelRequested: true } }, 'not_failed'],
+    ['cancel_requested beats a missing failure signal', { result: 'failed', attemptCount: 0 }, { sideEffects: { cancelRequested: true } }, 'cancel_requested'],
+    ['hard_quota beats non_retryable_category', { result: 'failed', attemptCount: 0 }, { failure: { failure_category: 'auth', failure_detail: 'hard_quota', retryable: false } }, 'hard_quota'],
+    ['non_retryable_category beats not_retryable', { result: 'failed', attemptCount: 0 }, { failure: { failure_category: 'auth', retryable: false } }, 'non_retryable_category'],
+    ['not_retryable beats a missing category', { result: 'failed', attemptCount: 0 }, { failure: { retryable: false } }, 'not_retryable'],
+    ['not_retryable beats unsafe_failure_stage', { result: 'failed', attemptCount: 0 }, { failure: { failure_category: 'timeout', failure_stage: 'child_close', retryable: false } }, 'not_retryable'],
+    ['unsafe_failure_stage beats attempt_limit_reached', { result: 'failed', attemptCount: 5 }, { failure: { failure_category: 'timeout', failure_stage: 'child_close', retryable: true } }, 'unsafe_failure_stage'],
+    ['attempt_limit_reached beats every side effect', { result: 'failed', attemptCount: 1 }, { failure: transient(), sideEffects: allSideEffects }, 'attempt_limit_reached'],
+    ['user_visible_output_seen beats the later side effects', { result: 'failed', attemptCount: 0 }, { failure: transient(), sideEffects: allSideEffects }, 'user_visible_output_seen'],
+    ['tool_call_seen beats artifact and live-artifact writes', { result: 'failed', attemptCount: 0 }, { failure: transient(), sideEffects: { ...allSideEffects, userVisibleOutputSeen: false } }, 'tool_call_seen'],
+    ['artifact_write_seen beats live_artifact_seen', { result: 'failed', attemptCount: 0 }, { failure: transient(), sideEffects: { ...allSideEffects, userVisibleOutputSeen: false, toolCallSeen: false } }, 'artifact_write_seen'],
+  ])('%s', (_name, requiredArgs, optionalArgs, reason) => {
+    expect(decideSafeRunRetry(requiredArgs, optionalArgs)).toEqual({
+      shouldRetry: false, retrySuppressedReason: reason, retryAttemptIndex: requiredArgs.attemptCount + 1,
+      retryMaxAttempts: 1, retryStrategy: 'same_run_transient',
+    });
   });
 });
