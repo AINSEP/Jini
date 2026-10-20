@@ -16,7 +16,7 @@ claude-segment-usage 32/25, detection 23/19, model-discovery 34/24, qoder-stream
 | L015 | dispatched 01:30Z | | | | |
 | L031 | dispatched 01:30Z | | | | |
 | L045 | pending | | | | |
-| L059 | dispatched 01:30Z | | | | |
+| L059 | MERGED 5dc18720 | fa204f53, 568038fd, 10a3b051, dc446d1b, 8e7b9c4e, 35d2023e, 3749c3bb | json -/11, models 20/20, session-params 25/19, session 15/12, updates 14/15 → all ≤10 (0 violations) | 100/100/100 on all 5 (438 acp tests) | eslint 0, tsc ok; why-comments verified moved; behaviour-preserving extractions |
 | L174 | pending | | | | |
 | L198 | MERGED 0f6c99be | 88dca258, c6667314 | 18/16 → ≤10/≤10 (0 violations) | 100/100/100 (34 tests; needs `--coverage.exclude=__none__`) | eslint 0, tsc ok, tests green; markup proof 864 old-vs-new renders identical (temp test deleted) |
 | L283 | pending | | | | |
@@ -26,5 +26,7 @@ claude-segment-usage 32/25, detection 23/19, model-discovery 34/24, qoder-stream
 - Baseline: all 66 lot test files green on unmodified tree (1449 passed, 1 pre-existing skip). agent-runtime tsc clean.
 - Round 1 dispatched 01:30Z.
 ## Problems
+- L059 BUG pinned (reported, not fixed): acp/session.ts `state.setModelRequestId` starts `null`, so a JSON-RPC error with `id: null` + recoverable code before the prompt (no model pinned) is treated as a failed set_model → prompt sent before session/new ack + `model: default` status. Test "...sends the prompt early (reported, not fixed)".
+- L059: acp tests still use the pre-existing `spawn as unknown as ReturnType<typeof vi.fn>` cast pattern (15 sites before; +1 new following it). Follow-up: retype the fake child/spawn helpers.
 - L198: BubbleScene test resolves react from the root `node_modules/.pnpm/node_modules` hoist dir (template is not a workspace member); template tsc only checked against a remotion stub.
 ## Next
