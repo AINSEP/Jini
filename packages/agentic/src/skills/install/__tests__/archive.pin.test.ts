@@ -71,6 +71,12 @@ describe('readSkillArchive refusals', () => {
     await expect(readSkillArchive({ base64: '', archiveReader: port })).rejects.toThrow(GENERIC);
   });
 
+  it('keeps the parser failure as the cause of the generic ZIP refusal', async () => {
+    const parserError = new Error('bad central directory');
+    const port: ArchiveReaderPort = { open: async () => { throw parserError; } };
+    await expect(readSkillArchive({ base64: '', archiveReader: port })).rejects.toMatchObject({ message: GENERIC, cause: parserError });
+  });
+
   it('turns an entry iteration failure into the generic ZIP refusal and closes', async () => {
     expect(await refusal([fileEntry('SKILL.md', 'a')], { throwAfter: new Error('crc mismatch') })).toEqual({ message: GENERIC, closed: 1 });
   });
