@@ -55,6 +55,50 @@ export interface UseMediaProvidersTabResult {
 }
 
 /**
+ * Releases the tombstones a successful write carried. The server has now accepted a map without
+ * these, so the local absence is no longer a claim waiting to be defended — the daemon agrees.
+ * Re-touched ids keep their tombstone: the operator changed their mind mid-flight and this
+ * response does not describe that decision.
+ */
+function releaseAcknowledgedClears({
+  cleared,
+  clearsInFlight,
+  touched,
+}: {
+  cleared: Set<string>;
+  clearsInFlight: readonly string[];
+  touched: ReadonlySet<string>;
+}): void {
+  for (const providerId of clearsInFlight) {
+    if (!touched.has(providerId)) cleared.delete(providerId);
+  }
+}
+
+/** The server's saved map with every provider touched during the flight reset to local truth —
+ *  including local deletion (see `flushNow`'s doc comment). Mutates and returns `saved`. */
+function overlayTouchedProviders({
+  saved,
+  local,
+  touched,
+}: {
+  saved: MediaProviderMap;
+  local: MediaProviderMap;
+  touched: ReadonlySet<string>;
+}): MediaProviderMap {
+  for (const providerId of touched) {
+    const entry = local[providerId];
+    if (entry === undefined) delete saved[providerId];
+    else saved[providerId] = entry;
+  }
+  return saved;
+}
+
+/** A save rejection as display text; a non-`Error` rejection is stringified rather than read as `.message`. */
+function saveErrorMessage({ error }: { error: unknown }): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
  * Owns the tab's async edges: the initial daemon fetch (plus the one-time
  * first-upload migration `shouldSyncLocalProvidersToDaemon` guards), manual
  * reload, per-field edits, clear, and save. Origin: `MediaProvidersSection`'s
@@ -180,19 +224,10 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
       const saved = await portRef.current.saveMediaProviders(sent);
       if (!alive.current) return { status: 'abandoned' };
       const touched = mutatedSinceSend.current;
-      // The server has now accepted a map without these, so the local absence is no longer a claim
-      // waiting to be defended — the daemon agrees. Re-touched ids keep their tombstone: the
-      // operator changed their mind mid-flight and this response does not describe that decision.
-      for (const providerId of clearsInFlight) {
-        if (!touched.has(providerId)) clearedProviderIds.current.delete(providerId);
-      }
-      const next: MediaProviderMap = normalizeMediaProviderMap({ providers: saved });
-      for (const providerId of touched) {
-        const local = providersRef.current[providerId];
-        if (local === undefined) delete next[providerId];
-        else next[providerId] = local;
-      }
-      applyProviders(next);
+      releaseAcknowledgedClears({ cleared: clearedProviderIds.current, clearsInFlight, touched });
+      applyProviders(
+        overlayTouchedProviders({ saved: normalizeMediaProviderMap({ providers: saved }), local: providersRef.current, touched }),
+      );
       // Everything this write sent is now persisted; only edits made during
       // the flight are still unflushed.
       applyPending(new Set([...pendingRef.current].filter((providerId) => touched.has(providerId))));
@@ -200,7 +235,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
       return { status: 'saved' };
     } catch (error: unknown) {
       if (!alive.current) return { status: 'abandoned' };
-      setSave({ status: 'save-error', message: error instanceof Error ? error.message : String(error) });
+      setSave({ status: 'save-error', message: saveErrorMessage({ error }) });
       return { status: 'failed' };
     }
   }, [applyProviders, applyPending]);
