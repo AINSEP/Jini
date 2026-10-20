@@ -5,7 +5,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { isBuiltin } from 'node:module';
 import type ts from 'typescript';
-import { diffHardwiringDebt, HARDWIRING_RULES } from './hardwiring.js';
+import { diffHardwiringDebt, HARDWIRING_RULES, syntaxError } from './hardwiring.js';
 import type { HardwiringViolation } from './hardwiring.js';
 
 /** Authored inventory excludes generated output, fixtures and tests. O(directory entries). */
@@ -36,17 +36,23 @@ export function createResolver({ root, compiler: c, runtime = false, aliases = {
   const host = runtime ? { ...c.sys, fileExists: (file: string) => !/\.d\.[cm]?ts$/.test(file) && c.sys.fileExists(file) } : c.sys;
   return (specifier: string, file: string): string | undefined => {
     if (isBuiltin(specifier) || /\.(?:css|scss|sass|less|svg|png|jpg|woff2?|json)(?:\?|$)/.test(specifier)) return undefined;
-    for (const [prefix, directory] of Object.entries(aliases)) {
-      if (specifier.startsWith(prefix)) { specifier = join(directory, specifier.slice(prefix.length)); break; }
-    }
-    const resolved = c.resolveModuleName(specifier, file, options, host).resolvedModule?.resolvedFileName;
+    const resolved = c.resolveModuleName(aliased(specifier, aliases), file, options, host).resolvedModule?.resolvedFileName;
     if (!resolved) throw new Error(`Unresolved code import in ${relative(root, file)} (specifier omitted); refusing an incomplete public/plugin graph.`);
-    // Prefer executable published JS over its paired declaration file for bundle reachability.
-    if (resolved.endsWith('.d.ts')) {
-      for (const candidate of [resolved.slice(0, -5) + '.js', resolved.slice(0, -5) + '.mjs']) if (existsSync(candidate)) return candidate;
-    }
-    return resolved;
+    return executable(resolved);
   };
+}
+
+/** The first matching host alias prefix wins. */
+function aliased(specifier: string, aliases: Readonly<Record<string, string>>): string {
+  const match = Object.entries(aliases).find(([prefix]) => specifier.startsWith(prefix));
+  return match ? join(match[1], specifier.slice(match[0].length)) : specifier;
+}
+
+/** Prefer executable published JS over its paired declaration file for bundle reachability. */
+function executable(resolved: string): string {
+  if (!resolved.endsWith('.d.ts')) return resolved;
+  const stem = resolved.slice(0, -5);
+  return [stem + '.js', stem + '.mjs'].find(candidate => existsSync(candidate)) ?? resolved;
 }
 
 /** Debt stops at dependency package ownership; authored apps/content keep file identities.
@@ -66,37 +72,78 @@ export function displayGraphFile({ file, root, authoredDirectories = ['apps', 'c
   return relative(root, file).replaceAll('\\', '/');
 }
 
+/** Export maps may expose wildcard entries; private declarations stay excluded. */
+function wildcardTargets(file: string): string[] {
+  // Only called for targets containing '*', so split always yields a prefix and a suffix.
+  const [prefix, suffix] = file.split('*') as [string, string];
+  return sourceFiles({ directory: dirname(prefix), declarations: true })
+    .filter(candidate => candidate.startsWith(prefix) && candidate.endsWith(suffix));
+}
+
 /** Select installed public targets, favouring declarations without executing package code. */
 function publicTargets(directory: string, exports: unknown): string[] {
   const targets: string[] = [];
+  function selectPath(value: string): void {
+    if (!value.startsWith('./')) throw new Error(`Invalid public export target in ${directory}.`);
+    const file = resolve(directory, value);
+    if (value.includes('*')) targets.push(...wildcardTargets(file));
+    else if (existsSync(file)) targets.push(file);
+    else throw new Error(`Missing installed public entry in ${directory}.`);
+  }
+  function selectRecord(record: Record<string, unknown>): void {
+    const entryKeys = Object.keys(record).filter(key => key.startsWith('.'));
+    if (entryKeys.length) {
+      for (const key of entryKeys) select(record[key]);
+      return;
+    }
+    const condition = ['types', 'import', 'default', 'node', 'browser', 'require'].find(key => record[key] !== undefined);
+    if (condition) select(record[condition]);
+  }
   function select(value: unknown): void {
-    if (typeof value === 'string') {
-      if (!value.startsWith('./')) throw new Error(`Invalid public export target in ${directory}.`);
-      const file = resolve(directory, value);
-      if (value.includes('*')) {
-        const [prefix, suffix] = file.split('*');
-        // Export maps may expose wildcard entries; private declarations stay excluded.
-        const scanDir = dirname(prefix!);
-        for (const candidate of sourceFiles({ directory: scanDir, declarations: true })) {
-          if (candidate.startsWith(prefix!) && candidate.endsWith(suffix ?? '')) targets.push(candidate);
-        }
-      } else if (existsSync(file)) targets.push(file);
-      else throw new Error(`Missing installed public entry in ${directory}.`);
-    } else if (Array.isArray(value)) {
+    if (typeof value === 'string') selectPath(value);
+    else if (Array.isArray(value)) {
       const candidate = value.find(item => item !== null);
       if (candidate !== undefined) select(candidate);
-    } else if (value && typeof value === 'object') {
-      const record = value as Record<string, unknown>;
-      const entryKeys = Object.keys(record).filter(key => key.startsWith('.'));
-      if (entryKeys.length) for (const key of entryKeys) select(record[key]);
-      else {
-        const condition = ['types', 'import', 'default', 'node', 'browser', 'require'].find(key => record[key] !== undefined);
-        if (condition) select(record[condition]);
-      }
-    }
+    } else if (value && typeof value === 'object') selectRecord(value as Record<string, unknown>);
   }
   select(exports);
   return targets;
+}
+
+interface InstalledManifest { name?: string; exports?: unknown; types?: string; main?: string }
+
+/** Packages without `exports` fall back to their legacy types/main entry, made package-relative. */
+function legacyEntry({ types, main }: InstalledManifest): string | undefined {
+  const legacy = types ?? main;
+  if (!legacy) return undefined;
+  return legacy.startsWith('./') ? legacy : './' + legacy;
+}
+
+function packageEntries(directory: string): string[] {
+  const manifest = join(directory, 'package.json');
+  if (!existsSync(manifest)) return [];
+  const data = JSON.parse(readFileSync(manifest, 'utf8')) as InstalledManifest;
+  if (!data.name?.startsWith('@jini-ai/')) return [];
+  return publicTargets(directory, data.exports ?? legacyEntry(data));
+}
+
+/** Parsing errors fail closed for every loaded file, including transitive declarations. */
+function assertParsed(program: ts.Program): void {
+  for (const file of program.getSourceFiles()) {
+    const failure = syntaxError({ tree: file, file: file.fileName });
+    if (failure) throw failure;
+  }
+}
+
+function callableExports(c: typeof ts, checker: ts.TypeChecker, tree: ts.SourceFile): string[] {
+  const module = checker.getSymbolAtLocation(tree);
+  if (!module) return [];
+  return checker.getExportsOfModule(module).filter((item) => {
+    const symbol = item.flags & c.SymbolFlags.Alias ? checker.getAliasedSymbol(item) : item;
+    // Interfaces with call signatures are types, not public runtime functions.
+    if (!(symbol.flags & c.SymbolFlags.Value)) return false;
+    return checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration ?? tree).getCallSignatures().length > 0;
+  }).map((item) => item.name);
 }
 
 /** HW5 reads only installed package export entries, including aliases and re-export barrels.
@@ -106,33 +153,14 @@ function publicTargets(directory: string, exports: unknown): string[] {
 export function installedPublicFunctions({ root, compiler: c }: { root: string; compiler: typeof ts }, _options: Record<string, never> = {}): ReadonlySet<string> {
   const installed = join(root, 'node_modules/@jini-ai');
   if (!existsSync(installed)) throw new Error('Jini export inventory unavailable; install the declared packages.');
-  const entries: string[] = [];
-  for (const item of readdirSync(installed)) {
-    const directory = join(installed, item);
-    const manifest = join(directory, 'package.json');
-    if (!existsSync(manifest)) continue;
-    const data = JSON.parse(readFileSync(manifest, 'utf8')) as { name?: string; exports?: unknown; types?: string; main?: string };
-    if (!data.name?.startsWith('@jini-ai/')) continue;
-    const legacy = data.types ?? data.main;
-    entries.push(...publicTargets(directory, data.exports ?? (legacy?.startsWith("./") ? legacy : legacy ? "./" + legacy : undefined)));
-  }
+  const entries = readdirSync(installed).flatMap(item => packageEntries(join(installed, item)));
   const program = c.createProgram(entries, { moduleResolution: c.ModuleResolutionKind.Bundler, module: c.ModuleKind.ESNext, allowJs: true, noEmit: true, skipLibCheck: true });
+  assertParsed(program);
   const checker = program.getTypeChecker();
   const found = new Set<string>();
-  for (const file of program.getSourceFiles()) {
-    const diagnostics = (file as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] }).parseDiagnostics;
-    if (diagnostics.length) throw new Error(`Cannot parse ${file.fileName}: syntax error at line ${file.getLineAndCharacterOfPosition(diagnostics[0]!.start ?? 0).line + 1}.`);
-  }
   for (const entry of entries) {
     const tree = program.getSourceFile(entry);
-    const module = tree && checker.getSymbolAtLocation(tree);
-    if (!module || !tree) continue;
-    for (const item of checker.getExportsOfModule(module)) {
-      const symbol = item.flags & c.SymbolFlags.Alias ? checker.getAliasedSymbol(item) : item;
-      // Interfaces with call signatures are types, not public runtime functions.
-      if (!(symbol.flags & c.SymbolFlags.Value)) continue;
-      if (checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration ?? tree).getCallSignatures().length) found.add(item.name);
-    }
+    if (tree) for (const name of callableExports(c, checker, tree)) found.add(name);
   }
   if (!found.size) throw new Error('Jini export inventory is empty; refusing a vacuous duplication check.');
   return found;
