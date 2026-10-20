@@ -49,7 +49,7 @@ function exactOrigins({ values }: { values: readonly string[] }): string[] {
   return values.map(value => {
     let url: URL | null = null;
     try { url = new URL(value); } catch { /* reported below with the expected shape */ }
-    if (!url || !['http:', 'https:'].includes(url.protocol) || url.origin !== value) throw new Error(`Consent resource origin "${value}" must be an exact HTTP(S) origin such as https://cdn.example (no path or trailing slash).`);
+    if (!url || !['http:', 'https:'].includes(url.protocol) || url.origin !== value || url.hostname.includes('*')) throw new Error(`Consent resource origin "${value}" must be an exact HTTP(S) origin such as https://cdn.example (no path or trailing slash).`);
     return url.origin;
   });
 }

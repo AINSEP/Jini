@@ -1,4 +1,4 @@
-import { defaultTreeAdapter, parse, serialize, serializeOuter, type DefaultTreeAdapterMap, type TreeAdapter } from 'parse5';
+import { defaultTreeAdapter, parse, serializeOuter, type DefaultTreeAdapterMap, type TreeAdapter } from 'parse5';
 import { escapeHtml } from '@jini-ai/core/text';
 import { type ConsentConfig, type ConsentRecord, type ConsentRegionMode } from '../types.js';
 import { renderConsentHead, renderConsentUi, type ConsentCategoryOrigins } from './render.js';
@@ -103,11 +103,18 @@ function wrapEdit({ element, location, category }: { element: Element; location:
   return { start: location.startOffset, end: location.endOffset, text: element.namespaceURI === HTML_NAMESPACE ? `<template ${marker} data-category="${category}">${source}</template>` : '' };
 }
 
+/** Use the browser URL parser: HTML entities are already decoded by parse5, and URL parsing
+ * removes embedded tabs/CR/LF as well as leading controls. @complexity O(URL length). */
+function isJavascriptUrl({ value }: { value: string }): boolean {
+  try { return new URL(value, 'https://consent.invalid/').protocol === 'javascript:'; }
+  catch { return false; }
+}
+
 /** @complexity O(attribute length). */
 function isDeferredAttribute({ name, value }: Attribute): boolean {
   if (name === 'background' && external({ url: value })) return true;
   if (/^on/i.test(name)) return true;
-  if (['href', 'action', 'formaction'].includes(name)) return /^[\s\x00-\x20]*javascript:/i.test(value);
+  if (['href', 'action', 'formaction'].includes(name)) return isJavascriptUrl({ value });
   return name === 'style' && cssRequestsRemote({ css: value });
 }
 
@@ -179,27 +186,42 @@ function gateDocument({ document }: { document: DefaultTreeAdapterMap['document'
   return { edits, startTagEnds };
 }
 
-/** Parse with a tree adapter that counts repeated html/body start tags. @complexity O(n). */
-function parseCountingMerges({ html }: { html: string }): { document: DefaultTreeAdapterMap['document']; merges: number } {
-  let merges = 0;
-  const treeAdapter: TreeAdapter<DefaultTreeAdapterMap> = { ...defaultTreeAdapter, adoptAttributes(recipient, attrs) { merges++; defaultTreeAdapter.adoptAttributes(recipient, attrs); } };
-  return { document: parse(html, { sourceCodeLocationInfo: true, scriptingEnabled: false, treeAdapter }), merges };
+/** Count merged roots and ignored duplicate attributes through the existing parser.
+ * Removing only the retained attribute's source span would expose its ignored duplicate when
+ * the browser reparses it. Normalize the whole tree before any offset edits. @complexity O(n). */
+function parseForNormalization({ html }: { html: string }): { document: DefaultTreeAdapterMap['document']; normalize: boolean } {
+  let normalize = false;
+  const treeAdapter: TreeAdapter<DefaultTreeAdapterMap> = { ...defaultTreeAdapter, adoptAttributes(recipient, attrs) { normalize = true; defaultTreeAdapter.adoptAttributes(recipient, attrs); } };
+  const document = parse(html, { sourceCodeLocationInfo: true, scriptingEnabled: false, treeAdapter,
+    onParseError(error) { if (error.code === 'duplicate-attribute') normalize = true; },
+  });
+  return { document, normalize };
+}
+
+/** parse5's serializer drops public/system doctype IDs, which can switch quirks mode. Keep the
+ * original doctype token, including malformed legacy doctypes. @complexity O(n) document bytes. */
+function serializePreservingDoctype({ html, document }: { html: string; document: DefaultTreeAdapterMap['document'] }): string {
+  return document.childNodes.map(node => {
+    const location = node.sourceCodeLocation;
+    if (node.nodeName === '#documentType' && location) return html.slice(location.startOffset, location.endOffset);
+    // Without scripting, noscript children are elements; serializing them as raw text changes them.
+    return serializeOuter(node, { scriptingEnabled: false });
+  }).join('');
 }
 
 /** A repeated html/body start tag has no element of its own: the parser merges its new attributes
- * into the first element, and a browser re-parsing the delivered page merges them again, so
- * source-offset edits can neither defer nor strip them (even a handler the first tag already had
- * would return once the gate removes it there). Re-serialize the repaired tree once instead; it has
- * exactly one html and one body start tag, and every attribute has a source location.
- * Byte preservation is given up only for these malformed documents.
- * @throws Error when the normalized document still repeats a root tag. @complexity O(n). */
+ * into the first element, and a browser reparsing the delivered page merges them again. Offset
+ * edits cannot remove them, even when the first tag already had the handler being removed.
+ * Duplicate attributes likewise hide later source occurrences. Re-serialize the repaired tree
+ * once so every retained attribute has one source location and edits cannot expose ignored code.
+ * Byte preservation is given up only for malformed documents needing normalization.
+ * @throws Error when the normalized document still contains ambiguous attributes. @complexity O(n). */
 function locatedDocument({ html }: { html: string }): { html: string; document: DefaultTreeAdapterMap['document'] } {
-  const parsed = parseCountingMerges({ html });
-  if (parsed.merges === 0) return { html, document: parsed.document };
-  // Without scripting, noscript children are elements; serializing them as raw text would change them.
-  const normalized = serialize(parsed.document, { scriptingEnabled: false });
-  const reparsed = parseCountingMerges({ html: normalized });
-  if (reparsed.merges !== 0) throw new Error('Consent could not normalize repeated <html> or <body> start tags. Serve this page under the restrictive consent fallback.');
+  const parsed = parseForNormalization({ html });
+  if (!parsed.normalize) return { html, document: parsed.document };
+  const normalized = serializePreservingDoctype({ html, document: parsed.document });
+  const reparsed = parseForNormalization({ html: normalized });
+  if (reparsed.normalize) throw new Error('Consent could not normalize repeated root tags or duplicate attributes. Serve this page under the restrictive consent fallback.');
   return { html: normalized, document: reparsed.document };
 }
 
@@ -213,7 +235,7 @@ function insertionOffsets({ document, startTagEnds }: { document: DefaultTreeAda
 /** Gate delivered HTML using the existing parser, including no-JS and non-script requests.
  * Only host allowlisted scripts are necessary. JSON/JSON-LD and authored templates stay inert.
  * Resource hints are removed so browsers cannot fetch before consent. Source offsets preserve
- * unrelated markup byte-for-byte (except repeated html/body start tags, see locatedDocument);
+ * unrelated markup byte-for-byte (except repeated roots/duplicate attributes, see locatedDocument);
  * wrapping a parent consumes its subtree without overlapping edits.
  * @throws Error when an attribute that must change cannot be located; never returns it ungated.
  * @complexity O(n + s log s + a*k) time/O(n) space: n bytes, s edits, a scripts, k manifest entries. */

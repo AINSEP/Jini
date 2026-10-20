@@ -68,5 +68,5 @@ export type GoogleConsentSignals = Record<keyof typeof GOOGLE_CONSENT_SIGNAL_CAT
 
 /** This enqueues signals, never loads a Google tag. @complexity O(1). */
 export function googleConsentSignals({ choices }: { choices: ConsentChoices }, _options = {}): GoogleConsentSignals {
-  return Object.fromEntries(Object.entries(GOOGLE_CONSENT_SIGNAL_CATEGORIES).map(([signal, category]) => [signal, choices[category] ? 'granted' : 'denied'])) as GoogleConsentSignals;
+  return Object.fromEntries(Object.entries(GOOGLE_CONSENT_SIGNAL_CATEGORIES).map(([signal, category]) => [signal, category === 'necessary' || choices[category] ? 'granted' : 'denied'])) as GoogleConsentSignals;
 }

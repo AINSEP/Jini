@@ -42,3 +42,9 @@ describe('consent decisions', () => {
     expect(googleConsentSignals({ choices: accepted.choices })).toEqual({ ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted', analytics_storage: 'granted', functionality_storage: 'granted', personalization_storage: 'granted', security_storage: 'granted' });
   });
 });
+
+
+it('always grants security_storage even when a caller supplies necessary=false', () => {
+  const signals = googleConsentSignals({ choices: { necessary: false, functional: false, analytics: false, marketing: false } });
+  expect(signals).toEqual({ ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied', functionality_storage: 'denied', personalization_storage: 'denied', security_storage: 'granted' });
+});

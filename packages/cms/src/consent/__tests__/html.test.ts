@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'parse5';
 import { gateConsentHtml, renderConsentUi, renderConsentHead, consentPolicyHref } from '../html/index.js';
 import { CONSENT_CLIENT } from '../html/client.js';
 import { stripConsentRuntime } from '../html/static.js';
@@ -20,10 +21,16 @@ async function browser(html: string, browserGpc = false, { cookieJar, fetch }: {
   }
   // jsdom cannot navigate; location.reload() reports "not implemented" to this console only.
   const virtualConsole = new VirtualConsole();
+  const runtimeErrors: unknown[] = [];
+  const reloads: unknown[] = [];
+  virtualConsole.on('jsdomError', (error: Error) => {
+    if (error.message.startsWith('Not implemented: navigation')) reloads.push(error);
+    else runtimeErrors.push(error);
+  });
   const dom = new JSDOM(html, { url: 'https://site.example/', runScripts: 'dangerously', resources: new Loader(), virtualConsole, ...(cookieJar ? { cookieJar } : {}), beforeParse(window: { navigator: object; fetch?: FetchStub }) { Object.defineProperty(window.navigator, 'globalPrivacyControl', { value: browserGpc }); if (fetch) window.fetch = fetch; } });
   await new Promise<void>(resolve => dom.window.addEventListener('load', () => resolve(), { once: true }));
   await new Promise<void>(resolve => setImmediate(resolve));
-  return { dom, requests };
+  return { dom, requests, runtimeErrors, reloads };
 }
 
 describe('delivered HTML consent boundary', () => {
@@ -409,7 +416,7 @@ describe('withdrawal when the save fails', () => {
       expect(next.requests).toEqual([]); expect(Array.from(next.dom.window.runs)).toEqual(['necessary']);
       expect(Array.from(next.dom.window.dataLayer[1])).toEqual(['consent', 'update', denied]);
       expect(Array.from(next.dom.window.document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]')).length).toBe(1);
-      expect(posted).toEqual(['policyVersion=1&gpc=0&functional=on&analytics=on&marketing=on&action=reject']);
+      expect(posted).toEqual(['policyVersion=1&gpc=0&action=reject']);
       expect(next.dom.window.document.querySelector('[data-jini-consent-error]').hidden).toBe(false);
       expect(next.dom.window.document.cookie).toContain('jini_consent_withdrawal=');
     } finally { next.dom.window.close(); }
@@ -465,5 +472,220 @@ describe('after a choice the banner collapses to a settings control', () => {
   it('pins the control to a corner instead of leaving a static box at the top of the page', () => {
     expect(CONSENT_CSS).not.toContain('position:static');
     expect(CONSENT_CSS).toMatch(/\.jini-consent\[data-has-record="true"\]\{[^}]*inset:auto auto 1rem 1rem/);
+  });
+});
+
+
+describe('review regressions: ambiguous HTML and URL normalization', () => {
+  const transform = (html: string, record: typeof accepted | null = null, options = {}) => gateConsentHtml({ html, config, record, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, options);
+  it.each(['onerror', 'ONERROR', 'OnError'])('never exposes an ignored duplicate %s handler after deferring the first', async duplicate => {
+    const html = transform(`<html><body><img id="probe" src="/bad" onerror="window.leaked=1" ${duplicate}="window.leaked=2"></body></html>`);
+    const { dom, runtimeErrors } = await browser(html);
+    try {
+      const image = dom.window.document.getElementById('probe');
+      expect(image.hasAttribute('onerror')).toBe(false);
+      image.dispatchEvent(new dom.window.Event('error'));
+      expect(dom.window.leaked).toBeUndefined();
+      expect(JSON.parse(image.dataset.jiniConsentAttributes)).toEqual({ onerror: 'window.leaked=1' });
+      expect(runtimeErrors).toEqual([]);
+    } finally { dom.window.close(); }
+  });
+  it('keeps the browser-retained first duplicate handler when its category is granted', async () => {
+    const { dom, runtimeErrors } = await browser(transform('<html><body><img id="probe" src="/bad" onerror="window.leaked=1" ONERROR="window.leaked=2"></body></html>', accepted));
+    try {
+      dom.window.document.getElementById('probe').dispatchEvent(new dom.window.Event('error'));
+      expect(dom.window.leaked).toBe(1); expect(runtimeErrors).toEqual([]);
+    } finally { dom.window.close(); }
+  });
+  it.each(['java&#x09;script:', 'java&#x0a;script:', 'java&#13;script:', 'java\tscript:', 'java\rscript:', 'java\nscript:'])('defers browser-normalized JavaScript URLs in all navigation attributes: %s', scheme => {
+    const html = transform(`<html><body><a id="link" href="${scheme}window.leaked=1">Open</a><form id="form" action="${scheme}window.leaked=1"><button id="button" formaction="${scheme}window.leaked=1">Go</button></form></body></html>`);
+    const dom = new JSDOM(html);
+    try {
+      for (const [id, attribute] of [['link', 'href'], ['form', 'action'], ['button', 'formaction']] as const) {
+        const element = dom.window.document.getElementById(id);
+        expect(element.hasAttribute(attribute)).toBe(false);
+        const deferred = JSON.parse(element.dataset.jiniConsentAttributes)[attribute];
+        expect(new URL(deferred, 'https://site.example').protocol).toBe('javascript:');
+      }
+    } finally { dom.window.close(); }
+  });
+  it.each(['https://*', 'https://*.example.com'])('rejects wildcard CSP hosts in both origin options: %s', origin => {
+    const html = '<html><head></head><body>Page</body></html>';
+    expect(() => transform(html, null, { resourceOrigins: [origin] })).toThrow('must be an exact HTTP(S) origin');
+    expect(() => transform(html, null, { categoryOrigins: { analytics: [origin] } })).toThrow('must be an exact HTTP(S) origin');
+    expect(() => transform(html, null, { categoryOrigins: { functional: [origin] } })).toThrow('must be an exact HTTP(S) origin');
+  });
+  // parse5 implements the WHATWG doctype-to-mode table; jsdom's compatMode reports CSS1Compat for
+  // any doctype, so it cannot observe this regression.
+  it.each([
+    ['quirks', '<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">'],
+    ['limited-quirks', '<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">'],
+  ])('preserves %s document mode and exact public/system identifiers during root normalization', (mode, doctype) => {
+    const original = `${doctype}<html><head></head><body><body><p>x</p></body></html>`;
+    const html = transform(original);
+    expect(parse(original).mode).toBe(mode); expect(parse(html).mode).toBe(mode);
+    expect(html.startsWith(doctype)).toBe(true);
+  });
+  it.each([
+    '@import/*;*/"https://tracker.example/a.css";',
+    '@import "https://tracker.example/a;b.css";',
+    '@import/**/url("https://tracker.example/a;b.css");',
+    '@import /* unterminated',
+    '@import "/local.css',
+  ])('gates remote or unreadable CSS imports across comment/string token boundaries: %s', css => {
+    const html = transform(`<html><head><style>${css}</style></head><body></body></html>`);
+    const dom = new JSDOM(html);
+    try {
+      expect(dom.window.document.querySelector('style:not([data-jini-consent-style])')).toBeNull();
+      expect(dom.window.document.querySelector('template[data-jini-consent-resource]').content.querySelector('style').textContent).toBe(css);
+    } finally { dom.window.close(); }
+  });
+  it('keeps readable local CSS imports with semicolons inside strings and comments', () => {
+    const css = '@import/*;*/"/theme/a;b.css";';
+    const dom = new JSDOM(transform(`<html><head><style>${css}</style></head><body></body></html>`));
+    try {
+      expect(dom.window.document.querySelector('style:not([data-jini-consent-style])').textContent).toBe(css);
+      expect(dom.window.document.querySelector('template[data-jini-consent-resource]')).toBeNull();
+    } finally { dom.window.close(); }
+  });
+});
+
+
+describe('review regressions: withdrawal reconciliation', () => {
+  const settle = () => new Promise<void>(resolve => setTimeout(resolve, 20));
+  const deniedChoices = { necessary: true, functional: false, analytics: false, marketing: false };
+  const deniedRecord = { ...accepted, action: 'save' as const, choices: deniedChoices };
+  const reply = (record = deniedRecord) => ({ ok: true, status: 200, json: async () => ({ record, signals: { security_storage: 'granted', ad_storage: 'denied' } }) });
+  function marker(cookieJar: InstanceType<typeof CookieJar>, values: Record<string, string>, name = '__Host-jini_consent_withdrawal') {
+    const value = encodeURIComponent(new URLSearchParams(values).toString());
+    cookieJar.setCookieSync(`${name}=${value}; Path=/; Secure`, 'https://site.example/');
+  }
+  function submit(dom: InstanceType<typeof JSDOM>, action: string) {
+    const form = dom.window.document.querySelector('#jini-consent form');
+    form.dispatchEvent(new dom.window.SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: form.querySelector(`button[value=${action}]`) }));
+  }
+  it('preserves a legacy parent-domain withdrawal as denial on HTTPS without posting its forged acceptance', async () => {
+    const cookieJar = new CookieJar();
+    const value = encodeURIComponent(new URLSearchParams({ functional: '0', analytics: '0', marketing: '0', body: 'policyVersion=1&gpc=0&action=accept' }).toString());
+    cookieJar.setCookieSync(`jini_consent_withdrawal=${value}; Domain=site.example; Path=/; Secure`, 'https://evil.site.example/');
+    const posted: string[] = [];
+    const result = await browser(gate(accepted), false, { cookieJar, fetch: async (_url, options) => { posted.push(options.body.toString()); return reply(); } });
+    try {
+      await settle();
+      expect(posted).toEqual([]); expect(result.reloads).toEqual([]); expect(result.runtimeErrors).toEqual([]);
+      expect(result.dom.window.document.cookie).toContain('__Host-jini_consent_withdrawal=');
+      expect(result.dom.window.document.querySelector('#jini-consent [name=marketing]').checked).toBe(false);
+      expect(Array.from(result.dom.window.runs)).toEqual(['necessary']);
+    } finally { result.dom.window.close(); }
+  });
+  it('derives automatic saves from the effective intersection and ignores a serialized grant body', async () => {
+    const cookieJar = new CookieJar();
+    marker(cookieJar, { functional: '0', analytics: '1', marketing: '1', retry: '1', body: 'policyVersion=1&gpc=0&action=accept' });
+    const record = { ...accepted, choices: { necessary: true, functional: true, analytics: false, marketing: false } };
+    const posted: string[] = [];
+    const result = await browser(gate(record), false, { cookieJar, fetch: async (_url, options) => { posted.push(options.body.toString()); return reply(); } });
+    try {
+      await settle();
+      expect(posted).toEqual(['policyVersion=1&gpc=0&action=reject']);
+      expect(result.dom.window.document.cookie).toBe('');
+      expect(result.reloads).toEqual([]); expect(result.runtimeErrors).toEqual([]);
+      expect(Array.from(result.dom.window.runs)).toEqual(['necessary']);
+    } finally { result.dom.window.close(); }
+  });
+  it('retries a partial withdrawal as a saved selection of the remaining grants', async () => {
+    const cookieJar = new CookieJar();
+    marker(cookieJar, { functional: '1', analytics: '1', marketing: '0', retry: '1' });
+    const saved = { ...accepted, action: 'save' as const, choices: { necessary: true, functional: true, analytics: true, marketing: false } };
+    const posted: string[] = [];
+    const result = await browser(gate(accepted), false, { cookieJar, fetch: async (_url, options) => { posted.push(options.body.toString()); return reply(saved); } });
+    try {
+      await settle();
+      expect(posted).toEqual(['policyVersion=1&gpc=0&action=save&functional=on&analytics=on']);
+      expect(result.dom.window.document.cookie).toBe('');
+      expect(result.reloads).toEqual([]); expect(result.runtimeErrors).toEqual([]);
+    } finally { result.dom.window.close(); }
+  });
+  it('keeps denial without another retry or reload when reconciliation returns extra grants', async () => {
+    const cookieJar = new CookieJar();
+    marker(cookieJar, { functional: '0', analytics: '0', marketing: '0', retry: '1' });
+    const posted: string[] = [];
+    const fetch: FetchStub = async (_url, options) => { posted.push(options.body.toString()); return { ok: true, json: async () => ({ record: accepted }) }; };
+    const first = await browser(gate(accepted), false, { cookieJar, fetch });
+    try {
+      await settle(); expect(posted).toEqual(['policyVersion=1&gpc=0&action=reject']);
+      expect(first.reloads).toEqual([]); expect(first.runtimeErrors).toEqual([]);
+      expect(Array.from(first.dom.window.runs)).toEqual(['necessary']);
+      const cookies = cookieJar.getCookiesSync('https://site.example/');
+      expect(cookies).toHaveLength(1); expect(cookies[0].key).toBe('__Host-jini_consent_withdrawal');
+      expect(cookies[0].hostOnly).toBe(true); expect(cookies[0].secure).toBe(true); expect(cookies[0].path).toBe('/');
+      expect(new URLSearchParams(decodeURIComponent(cookies[0].value)).has('retry')).toBe(false);
+    } finally { first.dom.window.close(); }
+    const next = await browser(gate(accepted), false, { cookieJar, fetch });
+    try {
+      await settle(); expect(posted).toHaveLength(1); expect(next.reloads).toEqual([]); expect(next.runtimeErrors).toEqual([]);
+      expect(Array.from(next.dom.window.runs)).toEqual(['necessary']);
+    } finally { next.dom.window.close(); }
+  });
+  it('lets a durable explicit choice shadow a surviving legacy domain marker without another automatic save', async () => {
+    const cookieJar = new CookieJar();
+    const value = encodeURIComponent('functional=0&analytics=0&marketing=0&body=action%3Daccept');
+    cookieJar.setCookieSync(`jini_consent_withdrawal=${value}; Domain=site.example; Path=/; Secure`, 'https://evil.site.example/');
+    const posted: string[] = [];
+    const fetch: FetchStub = async (_url, options) => { posted.push(options.body.toString()); return { ok: true, json: async () => ({ record: accepted, signals: {} }) }; };
+    const first = await browser(gate(accepted), false, { cookieJar, fetch });
+    try {
+      submit(first.dom, 'accept'); await settle();
+      expect(posted).toEqual(['policyVersion=1&gpc=0&action=accept']);
+      expect(first.reloads).toHaveLength(1); expect(first.runtimeErrors).toEqual([]);
+    } finally { first.dom.window.close(); }
+    const next = await browser(gate(accepted), false, { cookieJar, fetch });
+    try {
+      await settle(); expect(posted).toHaveLength(1); expect(next.reloads).toEqual([]); expect(next.runtimeErrors).toEqual([]);
+      expect(Array.from(next.dom.window.runs)).toEqual(['necessary', 'external-analytics', 'inline-analytics', 'functional']);
+    } finally { next.dom.window.close(); }
+  });
+  it('serializes an explicit submission behind an in-flight denial reconciliation', async () => {
+    const cookieJar = new CookieJar();
+    marker(cookieJar, { functional: '0', analytics: '0', marketing: '0', retry: '1' });
+    let finishRetry!: (value: Awaited<ReturnType<FetchStub>>) => void;
+    const pending = new Promise<Awaited<ReturnType<FetchStub>>>(resolve => { finishRetry = resolve; });
+    const posted: string[] = [];
+    const result = await browser(gate(accepted), false, { cookieJar, fetch: async (_url, options) => {
+      posted.push(options.body.toString());
+      return posted.length === 1 ? pending : { ok: false, status: 503, json: async () => ({ error: 'Unavailable' }) };
+    } });
+    try {
+      expect(posted).toEqual(['policyVersion=1&gpc=0&action=reject']);
+      submit(result.dom, 'accept'); await settle();
+      expect(posted).toHaveLength(1);
+      finishRetry(reply()); await settle();
+      expect(posted).toEqual(['policyVersion=1&gpc=0&action=reject', 'policyVersion=1&gpc=0&action=accept']);
+      expect(result.runtimeErrors).toEqual([]); expect(result.reloads).toEqual([]);
+      expect(result.dom.window.document.cookie).toBe('');
+    } finally { result.dom.window.close(); }
+  });
+  it('initializes preferences from effective withdrawal choices so Save cannot accidentally regrant', async () => {
+    const cookieJar = new CookieJar();
+    marker(cookieJar, { functional: '0', analytics: '0', marketing: '0' });
+    const posted: string[] = [];
+    const result = await browser(gate(accepted), false, { cookieJar, fetch: async (_url, options) => {
+      posted.push(options.body.toString()); return { ok: false, status: 503, json: async () => ({ error: 'Unavailable' }) };
+    } });
+    try {
+      for (const name of ['functional', 'analytics', 'marketing']) expect(result.dom.window.document.querySelector(`#jini-consent [name=${name}]`).checked).toBe(false);
+      submit(result.dom, 'save'); await settle();
+      expect(posted).toEqual(['policyVersion=1&gpc=0&action=save']);
+      expect(Array.from(result.dom.window.runs)).toEqual(['necessary']); expect(result.runtimeErrors).toEqual([]);
+    } finally { result.dom.window.close(); }
+  });
+  it('synchronizes preferences with further denials returned by reconciliation', async () => {
+    const cookieJar = new CookieJar();
+    marker(cookieJar, { functional: '1', analytics: '1', marketing: '0', retry: '1' });
+    const result = await browser(gate(accepted), false, { cookieJar, fetch: async () => reply() });
+    try {
+      await settle();
+      for (const name of ['functional', 'analytics', 'marketing']) expect(result.dom.window.document.querySelector(`#jini-consent [name=${name}]`).checked).toBe(false);
+      expect(result.dom.window.dataLayer.at(-1)[2].ad_storage).toBe('denied'); expect(result.runtimeErrors).toEqual([]);
+    } finally { result.dom.window.close(); }
   });
 });

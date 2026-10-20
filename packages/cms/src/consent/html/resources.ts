@@ -41,6 +41,41 @@ function argumentReferences({ syntax, argument }: { syntax: string; argument: st
   return Array.from(argument.matchAll(CSS_STRING), string => string[1] ?? string[2]!);
 }
 
+// Token boundaries keep semicolons inside comments, strings and url() out of @import termination.
+const IMPORT_TOKEN = /\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|[^"'\/;()]+|\/(?!\*)|[();]/y;
+
+/** Read an import prelude through its top-level semicolon or EOF. Unterminated comments,
+ * strings or parentheses are unreadable, so the caller denies them. @complexity O(prelude length). */
+function importArgument({ css, start }: { css: string; start: number }): string | null {
+  const tokens = new RegExp(IMPORT_TOKEN);
+  let index = start, depth = 0;
+  const parts: string[] = [];
+  while (index < css.length) {
+    tokens.lastIndex = index;
+    const match = tokens.exec(css);
+    if (!match) return null;
+    const token = match[0];
+    if (token === ';' && depth === 0) return importText({ parts });
+    depth += PAREN_DEPTH[token] ?? 0;
+    if (depth < 0) return null;
+    parts.push(token);
+    index = tokens.lastIndex;
+  }
+  return depth === 0 ? importText({ parts }) : null;
+}
+
+/** Comments are trivia, while quoted tokens retain their contents. @complexity O(prelude length). */
+function importText({ parts }: { parts: string[] }): string {
+  return parts.map(part => part.startsWith('/*') ? ' ' : part).join('');
+}
+
+/** An import must name a string or a url() reference; empty/unknown preludes fail closed.
+ * Nested url() is checked independently by cssReferences. @complexity O(prelude length). */
+function importReferences({ argument }: { argument: string }): string[] | null {
+  const references = argumentReferences({ syntax: '@import', argument });
+  return references.length || /^\s*url\(/i.test(argument) ? references : null;
+}
+
 /** Every URL the CSS can fetch, or null when a fetch syntax cannot be read (treated as remote).
  * Comments are not stripped: a URL inside one is merely checked too, never hidden.
  * @complexity O(t * f) for t text length and f fetch syntaxes, each argument scanned once. */
@@ -48,9 +83,12 @@ function cssReferences({ css }: { css: string }): string[] | null {
   const references: string[] = [];
   for (const match of css.matchAll(CSS_FETCH)) {
     const start = match.index + match[0].length;
-    const argument = match[0].startsWith('@') ? css.slice(start).split(';', 1)[0]! : functionArgument({ css, start });
+    const isImport = match[0].startsWith('@');
+    const argument = isImport ? importArgument({ css, start }) : functionArgument({ css, start });
     if (argument === null) return null;
-    references.push(...argumentReferences({ syntax: match[0], argument }));
+    const found = isImport ? importReferences({ argument }) : argumentReferences({ syntax: match[0], argument });
+    if (found === null) return null;
+    references.push(...found);
   }
   return references;
 }
