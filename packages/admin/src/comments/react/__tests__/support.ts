@@ -103,11 +103,20 @@ export function createFakeCommentQueuePort(options: { items?: AdminComment[]; ne
     async purgeComment(input) { purgeCalls.push(input); if (options.purgeError) throw options.purgeError; },
   };
 }
-export function useCommentQueue({ port, locale }: { port: CommentQueuePort; locale: string }) {
-  const api = useMemo<AdminCommentsPort>(() => ({ ...createMemoryCommentsApi({}),
+const queueApis = new WeakMap<CommentQueuePort, AdminCommentsPort>();
+/** Consumers of one fixture port must share its API identity, like production module consumers. */
+export function commentQueueApi({ port }: { port: CommentQueuePort }): AdminCommentsPort {
+  const existing = queueApis.get(port);
+  if (existing) return existing;
+  const api: AdminCommentsPort = { ...createMemoryCommentsApi({}),
     listCommentsQueue: (_required, options = {}) => port.listCommentsQueue({ ...(options.status ? { status: options.status } : {}), ...(options.cursor ? { cursor: options.cursor } : {}) }),
     moderateComment: input => port.moderateComment(input), purgeComment: input => port.purgeComment(input),
-  }), [port]);
+  };
+  queueApis.set(port, api);
+  return api;
+}
+export function useCommentQueue({ port, locale }: { port: CommentQueuePort; locale: string }) {
+  const api = useMemo(() => commentQueueApi({ port }), [port]);
   return useQueue({ api, permissions: TEST_GRANTS }, { t: fixtureTranslator(locale), events: testEvents });
 }
 

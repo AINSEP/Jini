@@ -3,12 +3,13 @@ import { assert, afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "./support.js";
 import type { AdminComment, AdminCommentsQueuePage, CommentStatus } from "./support.js";
-import { FetchQueryProvider, useFetchQuery } from "@jini-ai/ui/fetch-query";
+import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 import { publishContentRefresh, resetContentRefreshBus } from "./support.js";
-import { createFakeCommentQueuePort } from "./support.js";
+import { commentQueueApi, createFakeCommentQueuePort } from "./support.js";
 import { useCommentQueue } from "./support.js";
 import type { CommentQueuePort } from "./support.js";
-import { COMMENTS_QUEUE_RESOURCE, KEYS } from "../../rules.js";
+import { COMMENTS_QUEUE_RESOURCE } from "../../rules.js";
+import { useCommentQueue as useCoreCommentQueue } from "../hooks/use-comment-queue.hooks.js";
 
 /**
  * @file `useCommentQueue` — new coverage added alongside the `useWiredX` conversion
@@ -270,7 +271,8 @@ describe("useCommentQueue — content refresh bus", () => {
       return null;
     }
     function Observer() {
-      useFetchQuery({ key: KEYS.queue("pending"), fetch: () => port.listCommentsQueue({ status: "pending" }) });
+      // Keep the same scoped read alive, without the fixture's refresh subscription.
+      useCoreCommentQueue({ api: commentQueueApi({ port }) });
       return null;
     }
     const { rerender } = render(<FetchQueryProvider><Observer /><Subscriber /></FetchQueryProvider>);
@@ -464,5 +466,61 @@ describe("cursor pages share the query cache", () => {
       expect(result.current.first.items).toEqual([COMMENT, next]);
       expect(result.current.second.items).toEqual([COMMENT, next]);
     });
+  });
+});
+
+describe("queue cache scope isolation", () => {
+  afterEach(() => resetContentRefreshBus());
+
+  it.each(['workspace', 'principal'])('fetches scope B after a %s change and never renders scope A rows', async scope => {
+    const a = { ...COMMENT, authorEmail: 'visitor-a@example.com', bodyText: 'private A' };
+    const aMore = { ...a, id: 'a-more' };
+    const b = { ...COMMENT, workspaceId: scope === 'workspace' ? 'w2' : 'w1', authorEmail: 'visitor-b@example.com', bodyText: 'private B' };
+    const bMore = { ...b, id: 'b-more' };
+    const portA = createFakeCommentQueuePort();
+    portA.listCommentsQueue = vi.fn(async options => ({ items: options.cursor ? [aMore] : [a], nextCursor: options.cursor ? null : 'shared-cursor' }));
+    let completeB!: (page: AdminCommentsQueuePage) => void;
+    const portB = createFakeCommentQueuePort();
+    portB.listCommentsQueue = vi.fn(options => options.cursor
+      ? Promise.resolve({ items: [bMore], nextCursor: null })
+      : new Promise<AdminCommentsQueuePage>(resolve => { completeB = resolve; }));
+    const bRenders: Array<readonly AdminComment[] | null> = [];
+    const { result, rerender } = renderHook(({ port }) => {
+      const queue = useCommentQueue({ port, locale: 'en' });
+      if (port === portB) bRenders.push(queue.items);
+      return queue;
+    }, { initialProps: { port: portA }, wrapper });
+    await waitFor(() => expect(result.current.items).toEqual([a]));
+    await act(async () => { await result.current.loadMore(); });
+    await waitFor(() => expect(result.current.items).toEqual([a, aMore]));
+
+    rerender({ port: portB });
+    await waitFor(() => expect(portB.listCommentsQueue).toHaveBeenCalledTimes(1));
+    expect(result.current.items).toBeNull();
+    await act(async () => completeB({ items: [b], nextCursor: 'shared-cursor' }));
+    await waitFor(() => expect(result.current.items).toEqual([b]));
+    await act(async () => { await result.current.loadMore(); });
+    await waitFor(() => expect(result.current.items).toEqual([b, bMore]));
+    expect(portB.listCommentsQueue).toHaveBeenCalledTimes(2);
+    expect(bRenders.flatMap(items => items ?? [])).not.toContainEqual(a);
+    expect(bRenders.flatMap(items => items ?? [])).not.toContainEqual(aMore);
+  });
+
+  it('invalidates only the moderated API scope while another scope remains mounted', async () => {
+    const portA = createFakeCommentQueuePort({ items: [COMMENT] });
+    const b = { ...COMMENT, workspaceId: 'w2', bodyText: 'private B' };
+    const portB = createFakeCommentQueuePort({ items: [b] });
+    const { result } = renderHook(() => ({
+      a: useCommentQueue({ port: portA, locale: 'en' }),
+      b: useCommentQueue({ port: portB, locale: 'en' }),
+    }), { wrapper });
+    await waitFor(() => {
+      expect(result.current.a.items).toEqual([COMMENT]);
+      expect(result.current.b.items).toEqual([b]);
+    });
+    await act(async () => result.current.a.onModerate(COMMENT, 'approve'));
+    await waitFor(() => expect(portA.listCalls).toHaveLength(2));
+    expect(portB.listCalls).toHaveLength(1);
+    expect(result.current.b.items).toEqual([b]);
   });
 });
