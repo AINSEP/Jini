@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { isBundleInput, prebuildTarget, strippableReason } from './policies.js';
-import type { Target } from './policies.js';
+import type { PrebuildBuilt, Target } from './policies.js';
 import type { PackagingFilesystemPort, PackageResolverPort, WorkspacePackagePackerPort, ProcessRunnerPort } from './ports.js';
 
 interface Manifest { name?: string; version?: string; dependencies?: Record<string, string> }
@@ -20,34 +20,57 @@ export function declaredDependencies({ packageDir, fs }: { packageDir: string; f
 export function stageDir(required: { source: string; destination: string; fs: PackagingFilesystemPort }, optional: { dropNestedModules?: boolean } = {}): void {
   required.fs.copy({ from: required.source, to: required.destination }, optional);
 }
+type PlannedPackage = { directory: string; version: string | undefined };
+function stagedPath(outDir: string, name: string): string { return path.join(outDir, 'node_modules', name); }
+function resolveDependency(required: { from: string; name: string; fs: PackagingFilesystemPort; resolver: PackageResolverPort }): string {
+  const { from, name, fs, resolver } = required;
+  const resolved = resolver.resolve({ fromDirectory: from, packageName: name });
+  if (!resolved) throw new Error(`Unresolved production dependency: ${from} -> ${name}`);
+  return fs.realpath({ path: resolved });
+}
+/**
+ * Flattening `name` from `directory` conflicts with an already planned copy from another directory
+ * unless both carry the same known version, and with an already staged destination unless that
+ * destination carries the same known version. Unversioned packages never count as the same.
+ */
+function assertFlattenable(required: { name: string; planned: PlannedPackage; existing: PlannedPackage | undefined; destination: string; fs: PackagingFilesystemPort }): void {
+  const { name, planned: { directory, version }, existing, destination, fs } = required;
+  const destinationVersion = fs.exists({ path: path.join(destination, 'package.json') }) ? manifest(destination, fs).version : undefined;
+  const plannedConflict = existing !== undefined && existing.directory !== directory && (!version || existing.version !== version);
+  const stagedConflict = fs.exists({ path: destination }) && (!version || destinationVersion !== version);
+  if (plannedConflict || stagedConflict) throw new Error(`Package version conflict while flattening ${name}`);
+}
+interface ClosurePlan {
+  outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort; resolver: PackageResolverPort;
+  staged: Map<string, PlannedPackage>; visited: Set<string>; queue: string[];
+}
+/** Add one declared dependency of `from` to the plan (validated, resolved, conflict-checked) and queue its directory once. */
+function planDependency(plan: ClosurePlan, required: { from: string; name: string }): void {
+  const { outDir, excluded, fs, resolver, staged, visited, queue } = plan;
+  const { from, name } = required;
+  safePackageName(name);
+  if (isExcluded({ name, excluded })) return;
+  const directory = resolveDependency({ from, name, fs, resolver });
+  const planned = { directory, version: manifest(directory, fs).version };
+  const existing = staged.get(name);
+  assertFlattenable({ name, planned, existing, destination: stagedPath(outDir, name), fs });
+  if (!existing) staged.set(name, planned);
+  if (!visited.has(directory)) { visited.add(directory); queue.push(directory); }
+}
 /** Plan the production closure first. Fail unresolved/conflicting versions before copying anything. */
 export function stageTransitiveDependencies(required: {
   roots: readonly string[]; outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort; resolver: PackageResolverPort;
 }): number {
-  const { roots, outDir, excluded, fs, resolver } = required;
+  const { roots, outDir, fs } = required;
   const visited = new Set(roots.map(root => fs.realpath({ path: root })));
-  const queue = [...visited];
-  const staged = new Map<string, { directory: string; version: string | undefined }>();
-  for (let index = 0; index < queue.length; index++) {
-    const from = queue[index]!;
-    for (const name of declaredDependencies({ packageDir: from, fs })) {
-      safePackageName(name);
-      if (isExcluded({ name, excluded })) continue;
-      const resolved = resolver.resolve({ fromDirectory: from, packageName: name });
-      if (!resolved) throw new Error(`Unresolved production dependency: ${from} -> ${name}`);
-      const directory = fs.realpath({ path: resolved });
-      const version = manifest(directory, fs).version;
-      const existing = staged.get(name);
-      const destination = path.join(outDir, 'node_modules', name);
-      const destinationVersion = fs.exists({ path: path.join(destination, 'package.json') }) ? manifest(destination, fs).version : undefined;
-      if ((existing && existing.directory !== directory && (!version || existing.version !== version)) || (fs.exists({ path: destination }) && (!version || destinationVersion !== version))) throw new Error(`Package version conflict while flattening ${name}`);
-      if (!existing) staged.set(name, { directory, version });
-      if (!visited.has(directory)) { visited.add(directory); queue.push(directory); }
-    }
+  const plan: ClosurePlan = { ...required, staged: new Map(), visited, queue: [...visited] };
+  for (let index = 0; index < plan.queue.length; index++) {
+    const from = plan.queue[index]!;
+    for (const name of declaredDependencies({ packageDir: from, fs })) planDependency(plan, { from, name });
   }
   let count = 0;
-  for (const [name, entry] of staged) {
-    const destination = path.join(outDir, 'node_modules', name);
+  for (const [name, entry] of plan.staged) {
+    const destination = stagedPath(outDir, name);
     if (fs.exists({ path: destination })) continue;
     stageDir({ source: entry.directory, destination, fs }, { dropNestedModules: true });
     count++;
@@ -69,11 +92,12 @@ export function assertClosureComplete(required: { outDir: string; excluded: Read
   const modulesDir = path.join(outDir, 'node_modules');
   const missing: string[] = [];
   if (!fs.exists({ path: modulesDir })) throw new Error('staged node_modules tree is missing');
+  // Hoisted beside the package, or nested inside it: the only two places a shipped require can land.
+  const shipped = (directory: string, name: string) => fs.exists({ path: path.join(modulesDir, name, 'package.json') }) || fs.exists({ path: path.join(directory, 'node_modules', name, 'package.json') });
   for (const directory of stagedPackageDirs({ modulesDir, fs })) {
     for (const name of declaredDependencies({ packageDir: directory, fs })) {
       safePackageName(name);
-      if (isExcluded({ name, excluded })) continue;
-      if (!fs.exists({ path: path.join(modulesDir, name, 'package.json') }) && !fs.exists({ path: path.join(directory, 'node_modules', name, 'package.json') })) missing.push(`${path.relative(modulesDir, directory)} -> ${name}`);
+      if (!isExcluded({ name, excluded }) && !shipped(directory, name)) missing.push(`${path.relative(modulesDir, directory)} -> ${name}`);
     }
   }
   if (missing.length) throw new Error(`staged tree is missing ${missing.length} declared dependencies:\n  ${missing.join('\n  ')}`);
@@ -134,22 +158,29 @@ export function stripNonRuntimeFiles(required: { outDir: string; keepScopes: Rea
   return tally;
 }
 export interface PruneTally { prebuilds: number; buildInputs: number; bytes: number }
+type PruneRemoval = { full: string; reason: 'prebuilds' | 'buildInputs' };
+function serves(built: PrebuildBuilt, target: Target): boolean {
+  return built.architectures.includes(target.arch) && (target.platform === built.platform || (target.platform === 'linux' && built.platform === 'linuxmusl'));
+}
+/** One staged package's removals; throws when its prebuilds cannot serve every target, before anything is removed. */
+function packagePruneRemovals(required: { directory: string; modulesDir: string; targets: readonly Target[]; fs: PackagingFilesystemPort }): PruneRemoval[] {
+  const { directory, modulesDir, targets, fs } = required;
+  const prebuilds = path.join(directory, 'prebuilds');
+  if (!fs.exists({ path: prebuilds })) return [];
+  const entries = fs.entries({ path: prebuilds }).map(name => ({ name, built: prebuildTarget({ entryName: name }) }));
+  const known = entries.filter((entry): entry is { name: string; built: PrebuildBuilt } => entry.built !== undefined);
+  if (!targets.every(target => known.some(entry => serves(entry.built, target)))) throw new Error(`${path.relative(modulesDir, directory)} ships no prebuild for every requested target: ${targets.map(x => x.platform + '-' + x.arch).join(', ')}`);
+  const foreign = known.filter(entry => !targets.some(target => serves(entry.built, target))).map(entry => ({ full: path.join(prebuilds, entry.name), reason: 'prebuilds' as const }));
+  const buildInputs = ['deps', 'binding.gyp'].map(input => path.join(directory, input)).filter(full => fs.exists({ path: full })).map(full => ({ full, reason: 'buildInputs' as const }));
+  return [...foreign, ...buildInputs];
+}
 /** Verify every target before removing foreign prebuilds or source build inputs. */
 export function pruneNativePrebuilds(required: { outDir: string; targets: readonly Target[]; fs: PackagingFilesystemPort }): PruneTally {
   const { outDir, targets, fs } = required;
   if (!targets.length) throw new Error('at least one native target is required');
   const modulesDir = path.join(outDir, 'node_modules');
   const tally: PruneTally = { prebuilds: 0, buildInputs: 0, bytes: 0 };
-  const removals: { full: string; reason: 'prebuilds' | 'buildInputs' }[] = [];
-  for (const directory of stagedPackageDirs({ modulesDir, fs })) {
-    const prebuilds = path.join(directory, 'prebuilds');
-    if (!fs.exists({ path: prebuilds })) continue;
-    const entries = fs.entries({ path: prebuilds }).map(name => ({ name, built: prebuildTarget({ entryName: name }) }));
-    const serves = (built: NonNullable<ReturnType<typeof prebuildTarget>>, target: Target) => built.architectures.includes(target.arch) && (target.platform === built.platform || (target.platform === 'linux' && built.platform === 'linuxmusl'));
-    if (!targets.every(target => entries.some(entry => entry.built && serves(entry.built, target)))) throw new Error(`${path.relative(modulesDir, directory)} ships no prebuild for every requested target: ${targets.map(x => x.platform + '-' + x.arch).join(', ')}`);
-    for (const entry of entries) if (entry.built && !targets.some(target => serves(entry.built!, target))) removals.push({ full: path.join(prebuilds, entry.name), reason: 'prebuilds' });
-    for (const input of ['deps', 'binding.gyp']) if (fs.exists({ path: path.join(directory, input) })) removals.push({ full: path.join(directory, input), reason: 'buildInputs' });
-  }
+  const removals = stagedPackageDirs({ modulesDir, fs }).flatMap(directory => packagePruneRemovals({ directory, modulesDir, targets, fs }));
   for (const { full, reason } of removals) { tally.bytes += diskBytes({ absolutePath: full, fs }); tally[reason]++; fs.remove({ path: full }); }
   return tally;
 }

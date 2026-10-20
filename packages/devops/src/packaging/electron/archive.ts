@@ -59,12 +59,34 @@ export function toArchiveEntryPath({ relPath, separator }: { relPath: string; se
   safeEntry(relPath);
   return relPath.split('/').join(separator);
 }
-/** Compare actual content: equal sizes and an archive's own hash cannot detect shifted offsets. */
-export function verifyAsarAgainstSource(required: {
+type VerifyRequired = {
   archivePath: string; sourceRoot: string; prefixes: readonly string[]; separator: string;
   fs: PackagingFilesystemPort; archive: ArchiveReaderPort;
-}, optional: { readFailureMessage?: (required: { error: unknown }) => string; contentMismatchMessage?: string } = {}): AsarVerification {
-  const { archivePath, sourceRoot, prefixes, separator, fs, archive } = required;
+};
+type VerifyOptional = { readFailureMessage?: (required: { error: unknown }) => string; contentMismatchMessage?: string };
+function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((byte, index) => byte === right[index]);
+}
+/** One shipped entry against its source file: the mismatch reason, or undefined when identical. */
+function entryMismatch(required: VerifyRequired & { relPath: string }, optional: VerifyOptional): string | undefined {
+  const { archivePath, sourceRoot, separator, fs, archive, relPath } = required;
+  let source: Uint8Array;
+  try { source = fs.read({ path: path.join(sourceRoot, relPath) }); }
+  catch { return 'shipped in app.asar but missing from the source tree'; }
+  // No leading slash: `extractFile`'s path argument is resolved relative to the archive root by
+  // splitting on the OS path separator (`filesystem.js`'s `searchNodeFromDirectory`), and a
+  // leading "/" produces a spurious empty first segment that walks into a fresh, empty directory
+  // node instead of the real root — silently "not found" for every nested path. This is the
+  // opposite convention from `listPackage()`'s OUTPUT, which prefixes every entry with "/" for
+  // display; that display format is not the input format `extractFile` expects.
+  let shipped: Uint8Array;
+  try { shipped = archive.read({ archivePath, entryPath: toArchiveEntryPath({ relPath, separator }) }); }
+  catch (error) { return optional.readFailureMessage?.({ error }) ?? `present in the asar header but could not read it (${String(error)})`; }
+  return sameBytes(source, shipped) ? undefined : optional.contentMismatchMessage ?? 'content differs from source (compared byte-for-byte, never by length alone)';
+}
+/** Compare actual content: equal sizes and an archive's own hash cannot detect shifted offsets. */
+export function verifyAsarAgainstSource(required: VerifyRequired, optional: VerifyOptional = {}): AsarVerification {
+  const { archivePath, prefixes, archive } = required;
   if (!prefixes.length) return { checkedCount: 0, mismatches: [{ relPath: '', reason: 'no checked archive prefixes supplied' }] };
   const { files: headerFiles } = archive.header({ archivePath });
   const relPaths = filesUnderPrefixes({ headerFiles, prefixes });
@@ -72,19 +94,8 @@ export function verifyAsarAgainstSource(required: {
   const mismatches: AsarMismatch[] = prefixes.filter(prefix => !filesUnderPrefixes({ headerFiles, prefixes: [prefix] }).length)
     .map(relPath => ({ relPath, reason: 'nothing under this checked prefix is in app.asar' }));
   for (const relPath of relPaths) {
-    let source: Uint8Array;
-    try { source = fs.read({ path: path.join(sourceRoot, relPath) }); }
-    catch { mismatches.push({ relPath, reason: 'shipped in app.asar but missing from the source tree' }); continue; }
-    // No leading slash: `extractFile`'s path argument is resolved relative to the archive root by
-    // splitting on the OS path separator (`filesystem.js`'s `searchNodeFromDirectory`), and a
-    // leading "/" produces a spurious empty first segment that walks into a fresh, empty directory
-    // node instead of the real root — silently "not found" for every nested path. This is the
-    // opposite convention from `listPackage()`'s OUTPUT, which prefixes every entry with "/" for
-    // display; that display format is not the input format `extractFile` expects.
-    let shipped: Uint8Array;
-    try { shipped = archive.read({ archivePath, entryPath: toArchiveEntryPath({ relPath, separator }) }); }
-    catch (error) { mismatches.push({ relPath, reason: optional.readFailureMessage?.({ error }) ?? `present in the asar header but could not read it (${String(error)})` }); continue; }
-    if (source.length !== shipped.length || !source.every((byte, index) => byte === shipped[index])) mismatches.push({ relPath, reason: optional.contentMismatchMessage ?? 'content differs from source (compared byte-for-byte, never by length alone)' });
+    const reason = entryMismatch({ ...required, relPath }, optional);
+    if (reason !== undefined) mismatches.push({ relPath, reason });
   }
   return { checkedCount: relPaths.length, mismatches };
 }
