@@ -1,6 +1,7 @@
-import { it, expect } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { mountVanillaChat, type MountVanillaChatArgs } from '../index.js';
-import type { RunHandlers } from '../../../core/transport.js';
+import type { ChatTransport, RunHandlers } from '../../../core/transport.js';
+import type { AgentEvent } from '../../../core/events.js';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -135,7 +136,9 @@ it('drains a queued destination treatment once without replaying stored replies'
   expect(canceled).toBe(true);
 });
 
-function focusFixture({ restored = false, renderMarkdown }: { restored?: boolean; renderMarkdown?: MountVanillaChatArgs['renderMarkdown'] } = {}) {
+function focusFixture({ restored = false, renderMarkdown, startRun }: {
+  restored?: boolean; renderMarkdown?: MountVanillaChatArgs['renderMarkdown']; startRun?: ChatTransport['startRun'];
+} = {}) {
   const outside = document.createElement('input');
   const element = document.createElement('div');
   document.body.replaceChildren(outside, element);
@@ -146,7 +149,7 @@ function focusFixture({ restored = false, renderMarkdown }: { restored?: boolean
   const rendered: string[] = [];
   const mount = mountVanillaChat({ element, document, agentId: 'visitor', directiveEventName: 'client_directive',
     ids: () => String(++sequence), createAbortController: () => new AbortController(),
-    transport: { async startRun(_input, callbacks) { handlers = callbacks; return { runId: 'run' }; },
+    transport: { startRun: startRun ?? (async (_input, callbacks) => { handlers = callbacks; return { runId: 'run' }; }),
       async reattachRun() {}, async fetchRunStatus() { return null; }, async stopRun() {} },
     session: { load: () => ({ open: restored, messages: restored ? [{ id: 'old', role: 'assistant', content: 'Previous reply', runStatus: 'succeeded' }] : [] }),
       save: () => {}, clear: () => {}, enqueue: () => {}, drain: () => null },
@@ -310,4 +313,204 @@ it('announces rendered reply text and retains only the two most recent live addi
     f.mount.controller.reset({});
     expect(announcements.children).toHaveLength(0);
   } finally { f.mount.unmount({}); }
+});
+
+describe('vanilla widget interaction boundaries', () => {
+  const byLabel = (root: HTMLElement, label: string) => Array.from(root.querySelectorAll('button'))
+    .find(node => node.textContent === label || node.getAttribute('aria-label') === label)!;
+  const key = (target: EventTarget, init: KeyboardEventInit) => {
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+    target.dispatchEvent(event);
+    return event;
+  };
+  const submit = (element: HTMLElement) => element.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  const settleImmediately: ChatTransport['startRun'] = async (_input, callbacks) => { callbacks.onDone([]); return { runId: 'run' }; };
+  const navigateDirective: AgentEvent = { kind: 'ext', name: 'client_directive',
+    data: { kind: 'page_action', action: { type: 'navigate', auto: false, target: { slug: 'about', title: 'About', path: '/about' } } } };
+
+  it('shows the proposal label for a pending navigation and hides it once accepted', async () => {
+    const f = focusFixture();
+    try {
+      f.element.dispatchEvent(new Event('jini-chat-open'));
+      await f.mount.controller.send({ text: 'Where?' });
+      f.callbacks().onDone([navigateDirective]);
+      const proposal = f.element.querySelector<HTMLElement>('.jini-chat-vanilla__proposal')!;
+      expect(proposal.hidden).toBe(false);
+      expect(proposal.textContent).toBe('AboutGo');
+      byLabel(f.element, 'Go').click();
+      expect(proposal.hidden).toBe(true);
+      expect(proposal.querySelector('span')!.textContent).toBe('');
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('focuses Close when the bubble opens the panel during a running reply', async () => {
+    const f = focusFixture();
+    try {
+      await f.mount.controller.send({ text: 'Hello' });
+      f.element.querySelector<HTMLButtonElement>('.jini-chat-bubble')!.click();
+      expect(document.activeElement).toBe(byLabel(f.element, 'Close'));
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('focuses Close when the host open event arrives during a running reply', async () => {
+    const f = focusFixture();
+    try {
+      await f.mount.controller.send({ text: 'Hello' });
+      f.element.dispatchEvent(new Event('jini-chat-open'));
+      expect(document.activeElement).toBe(byLabel(f.element, 'Close'));
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('ignores a submit while a reply is running and keeps the draft', async () => {
+    let runs = 0;
+    const f = focusFixture({ startRun: async () => { runs++; return { runId: 'run' }; } });
+    try {
+      f.element.dispatchEvent(new Event('jini-chat-open'));
+      await f.mount.controller.send({ text: 'Hello' });
+      const input = f.element.querySelector('textarea')!;
+      input.value = 'Next question';
+      submit(f.element);
+      expect(input.value).toBe('Next question');
+      expect(runs).toBe(1);
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('returns focus to the composer after a submitted run settles while focus stays in the panel', async () => {
+    const f = focusFixture({ startRun: settleImmediately });
+    try {
+      f.element.dispatchEvent(new Event('jini-chat-open'));
+      const input = f.element.querySelector('textarea')!;
+      input.value = 'Hello';
+      byLabel(f.element, 'New thread').focus();
+      submit(f.element);
+      await Promise.resolve(); await Promise.resolve();
+      expect(document.activeElement).toBe(input);
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('leaves focus alone after a submitted run settles when focus moved outside the panel', async () => {
+    const f = focusFixture({ startRun: settleImmediately });
+    try {
+      f.element.dispatchEvent(new Event('jini-chat-open'));
+      f.element.querySelector('textarea')!.value = 'Hello';
+      f.outside.focus();
+      submit(f.element);
+      await Promise.resolve(); await Promise.resolve();
+      expect(document.activeElement).toBe(f.outside);
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('leaves focus alone after a submitted run settles while the panel is closed', async () => {
+    const f = focusFixture({ startRun: settleImmediately });
+    try {
+      f.element.querySelector('textarea')!.value = 'Hello';
+      submit(f.element);
+      await Promise.resolve(); await Promise.resolve();
+      expect(f.mount.controller.getState({}).messages).toHaveLength(2);
+      expect(document.activeElement).toBe(f.outside);
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('leaves focus alone after submit resolves while the reply is still running', async () => {
+    const f = focusFixture();
+    try {
+      f.element.dispatchEvent(new Event('jini-chat-open'));
+      f.element.querySelector('textarea')!.value = 'Hello';
+      const reset = byLabel(f.element, 'New thread');
+      reset.focus();
+      submit(f.element);
+      await Promise.resolve(); await Promise.resolve();
+      expect(f.mount.controller.getState({}).busy).toBe(true);
+      expect(document.activeElement).toBe(reset);
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('submits on Enter but not on Shift+Enter, during IME composition or for other keys', () => {
+    const f = focusFixture();
+    try {
+      f.element.dispatchEvent(new Event('jini-chat-open'));
+      const input = f.element.querySelector('textarea')!;
+      input.value = 'Hello';
+      for (const init of [{ key: 'Enter', shiftKey: true }, { key: 'Enter', isComposing: true }, { key: 'a' }]) {
+        expect(key(input, init).defaultPrevented).toBe(false);
+        expect(f.mount.controller.getState({}).messages).toHaveLength(0);
+      }
+      expect(key(input, { key: 'Enter' }).defaultPrevented).toBe(true);
+      expect(f.mount.controller.getState({}).messages).toHaveLength(2);
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('lets Tab move naturally between inner controls and ignores other keys inside the panel', () => {
+    const f = focusFixture();
+    try {
+      f.element.dispatchEvent(new Event('jini-chat-open'));
+      const reset = byLabel(f.element, 'New thread');
+      const close = byLabel(f.element, 'Close');
+      reset.focus();
+      expect(key(reset, { key: 'Tab' }).defaultPrevented).toBe(false);
+      close.focus();
+      expect(key(close, { key: 'Tab', shiftKey: true }).defaultPrevented).toBe(false);
+      expect(key(close, { key: 'a' }).defaultPrevented).toBe(false);
+      expect(f.mount.controller.getState({}).open).toBe(true);
+      expect(document.activeElement).toBe(close);
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('moves focus from the composer to Stop when an Enter submit starts a run', () => {
+    const f = focusFixture();
+    try {
+      f.element.dispatchEvent(new Event('jini-chat-open'));
+      const input = f.element.querySelector('textarea')!;
+      input.value = 'Hello';
+      input.focus();
+      key(input, { key: 'Enter' });
+      expect(document.activeElement).toBe(byLabel(f.element, 'Stop'));
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('returns focus from Stop to the composer once the stopped run settles', async () => {
+    const f = focusFixture();
+    try {
+      f.element.dispatchEvent(new Event('jini-chat-open'));
+      await f.mount.controller.send({ text: 'Hello' });
+      const stop = byLabel(f.element, 'Stop');
+      stop.focus();
+      stop.click();
+      f.callbacks().onDone([]);
+      expect(document.activeElement).toBe(f.element.querySelector('textarea'));
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('does not announce a streaming reply when its frame renders, only once it settles', async () => {
+    const f = focusFixture();
+    try {
+      const announcements = f.element.querySelector('.jini-chat-vanilla__announcements')!;
+      await f.mount.controller.send({ text: 'Hello' });
+      f.callbacks().onEvent({ kind: 'text', text: 'Streaming' });
+      f.flush();
+      expect(announcements.children).toHaveLength(0);
+      f.callbacks().onDone([{ kind: 'text', text: 'Streaming' }]);
+      expect(Array.from(announcements.children, child => child.textContent)).toEqual(['Streaming']);
+    } finally { f.mount.unmount({}); }
+  });
+
+  it('announces the mount with the global Event when the document has no window', () => {
+    const detached = document.implementation.createHTMLDocument('detached');
+    const element = detached.createElement('div');
+    detached.body.append(element);
+    let mounted = 0;
+    element.addEventListener('jini-chat-mounted', () => { mounted++; });
+    const mount = mountVanillaChat({ element, document: detached, agentId: 'visitor', directiveEventName: 'client_directive',
+      ids: () => 'id', createAbortController: () => new AbortController(),
+      transport: { async startRun() { return { runId: 'run' }; }, async reattachRun() {}, async fetchRunStatus() { return null; }, async stopRun() {} },
+      session: { load: () => ({ open: false, messages: [] }), save: () => {}, clear: () => {}, enqueue: () => {}, drain: () => null },
+      pageActions: { allows: () => true, navigate: () => true, execute: () => true, clearHighlight: () => {} },
+      scheduleFrame: () => () => {}, renderMarkdown: () => {},
+      copy: { title: 'Chat', fabLabel: 'Open chat', placeholder: 'Message', send: 'Send', stop: 'Stop', close: 'Close', reset: 'New thread',
+        resetQuestion: 'Discard?', confirm: 'Confirm', keep: 'Keep', proposalGo: 'Go', proposalLabel: ({ title }) => title, thinking: 'Replying' } });
+    expect(detached.defaultView).toBeNull();
+    expect(mounted).toBe(1);
+    expect(element.dataset.chatMounted).toBe('true');
+    mount.unmount({});
+  });
 });

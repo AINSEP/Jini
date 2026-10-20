@@ -1,6 +1,6 @@
 import type { AgentEvent } from '../../core/events.js';
 import type { ChatMessage } from '../../core/messages.js';
-import type { ChatTransport, StartRunInput } from '../../core/transport.js';
+import type { ChatTransport, RunHandlers, StartRunInput } from '../../core/transport.js';
 
 export interface DecodedSseFrame { readonly event: string | null; readonly data: string }
 /** Structurally satisfied by the existing agent-runtime decodeSseStream; host binds it. */
@@ -45,15 +45,16 @@ export function mapJsonChatSseFrame({ frame, directiveEventName, streamError }: 
   if (!frame.data) return {};
   const data: unknown = JSON.parse(frame.data);
   const obj = typeof data === 'object' && data !== null ? data as Record<string, unknown> : {};
-  if (frame.event === 'text') {
-    if (typeof obj.delta !== 'string') throw new Error('Invalid text frame');
-    return { event: { kind: 'text', text: obj.delta } };
+  switch (frame.event) {
+    case 'text':
+      if (typeof obj.delta !== 'string') throw new Error('Invalid text frame');
+      return { event: { kind: 'text', text: obj.delta } };
+    case 'error': return { error: new Error(nonEmptyString(obj.message) ?? streamError) };
+    case 'end': return { done: true };
+    default: return frame.event === directiveEventName ? { event: { kind: 'ext', name: directiveEventName, data } } : {};
   }
-  if (frame.event === 'error') return { error: new Error(typeof obj.message === 'string' && obj.message ? obj.message : streamError) };
-  if (frame.event === 'end') return { done: true };
-  if (frame.event === directiveEventName) return { event: { kind: 'ext', name: directiveEventName, data } };
-  return {};
 }
+const nonEmptyString = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined);
 async function* responseChunks(body: ReadableStream<Uint8Array>, signal: AbortSignal): AsyncGenerator<Uint8Array> {
   const reader = body.getReader();
   const cancel = () => { void reader.cancel().catch(() => {}); };
@@ -88,77 +89,117 @@ export function createFetchSseTransport(args: FetchSseTransportArgs, options: Fe
   }
   if (!args.endpoint || !args.agentId) throw new Error('Endpoint and agent identity are required');
   const activeRuns = new Map<string, AbortController>();
-  const observe = (runId: string, phase: 'started' | 'settled' | 'error' | 'aborted') => {
+  const observe = (runId: string, phase: RunPhase) => {
     try { options.onLifecycle?.({ runId, phase }); } catch { /* Telemetry cannot break a run. */ }
   };
   return {
     async startRun(input, handlers) {
-      let latestIndex = input.history.length - 1;
-      while (latestIndex >= 0 && input.history[latestIndex]?.role !== 'user') latestIndex -= 1;
+      const latestIndex = latestUserIndex(input.history);
       const message = input.history[latestIndex]?.content;
       if (!message) throw new Error(args.copy.noUserMessage);
-      const history = (args.maxHistoryMessages === 0 ? [] : input.history.slice(Math.max(0, latestIndex - args.maxHistoryMessages), latestIndex))
-        .filter(m => m.content.trim().length > 0)
-        .map(m => ({ role: m.role, content: m.content.slice(0, args.maxHistoryMessageChars) }));
+      const history = priorHistory({ history: input.history, latestIndex, maxMessages: args.maxHistoryMessages, maxChars: args.maxHistoryMessageChars });
       // Build before registering a run, so a synchronous host-builder failure leaks no state.
       const request = args.requestBuilder({ endpoint: args.endpoint, agentId: args.agentId, message, history, input });
       const runId = args.ids({});
       if (!runId || activeRuns.has(runId)) throw new Error('Run ID must be unique and nonempty');
       const controller = options.createAbortController?.({}) ?? new AbortController();
       activeRuns.set(runId, controller);
-      const collected: AgentEvent[] = [];
-      let settled = false;
-      const signals = [input.signal, ...(input.cancelSignal ? [input.cancelSignal] : [])];
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        activeRuns.delete(runId);
-        for (const signal of signals) signal.removeEventListener('abort', abort);
-        controller.signal.removeEventListener('abort', onAborted);
-        observe(runId, 'settled');
-        handlers.onDone([...collected]);
-      };
-      const onAborted = () => { observe(runId, 'aborted'); finish(); };
-      const abort = () => controller.abort();
-      controller.signal.addEventListener('abort', onAborted, { once: true });
-      for (const signal of signals) signal.addEventListener('abort', abort, { once: true });
-      observe(runId, 'started');
-      if (signals.some(signal => signal.aborted)) abort();
-      void (async () => {
-        try {
-          if (settled) return;
-          const response = await args.fetch(args.endpoint, { ...request, signal: controller.signal });
-          if (settled) { try { await response.body?.cancel(); } catch { /* closed body */ } return; }
-          if (!response.ok) {
-            const body: unknown = await response.json().catch(() => null);
-            if (settled) return;
-            const error = typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string' && body.error
-              ? body.error : args.copy.requestFailed({ status: response.status });
-            observe(runId, 'error');
-            handlers.onError(new Error(error));
-            return;
-          }
-          if (!response.body) throw new Error(args.copy.missingBody);
-          for await (const frame of args.decode({ source: responseChunks(response.body, controller.signal) })) {
-            if (settled) break;
-            const result = args.frameMapper({ frame });
-            if (result.event) { collected.push(result.event); handlers.onEvent(result.event); }
-            if (settled) break;
-            if (result.error) { observe(runId, 'error'); handlers.onError(result.error); }
-            if (settled) break;
-            if (result.done) { finish(); break; }
-          }
-        } catch (error) {
-          if (!settled && !controller.signal.aborted) {
-            observe(runId, 'error');
-            handlers.onError(error instanceof Error ? error : new Error(String(error)));
-          }
-        } finally { finish(); }
-      })();
+      const run = openRun({ controller, input, handlers },
+        { observe: phase => observe(runId, phase), release: () => activeRuns.delete(runId) });
+      void pumpRun({ run, args, request });
       return { runId };
     },
     async reattachRun(_runId, handlers) { handlers.onDone([]); },
     async fetchRunStatus() { return null; },
     async stopRun(runId) { activeRuns.get(runId)?.abort(); },
   };
+}
+
+type RunPhase = 'started' | 'settled' | 'error' | 'aborted';
+/** One run's settle-once state: its controller, listeners and collected event log. */
+interface ActiveRun {
+  readonly controller: AbortController;
+  readonly handlers: RunHandlers;
+  readonly collected: AgentEvent[];
+  isSettled(): boolean;
+  finish(): void;
+  report(error: Error): void;
+}
+
+function latestUserIndex(history: readonly ChatMessage[]): number {
+  let index = history.length - 1;
+  while (index >= 0 && history[index]?.role !== 'user') index -= 1;
+  return index;
+}
+
+/** Prior turns only (the latest user turn travels as `message`), non-empty, count- and char-bounded. */
+function priorHistory({ history, latestIndex, maxMessages, maxChars }: {
+  history: readonly ChatMessage[]; latestIndex: number; maxMessages: number; maxChars: number;
+}): HistoryTurn[] {
+  return (maxMessages === 0 ? [] : history.slice(Math.max(0, latestIndex - maxMessages), latestIndex))
+    .filter(m => m.content.trim().length > 0)
+    .map(m => ({ role: m.role, content: m.content.slice(0, maxChars) }));
+}
+
+/** Wires abort listeners and returns the settle-once handle; an already-aborted signal aborts at once. */
+function openRun({ controller, input, handlers }: { controller: AbortController; input: StartRunInput; handlers: RunHandlers },
+  { observe, release }: { observe: (phase: RunPhase) => void; release: () => void }): ActiveRun {
+  const collected: AgentEvent[] = [];
+  let settled = false;
+  const signals = [input.signal, ...(input.cancelSignal ? [input.cancelSignal] : [])];
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    release();
+    for (const signal of signals) signal.removeEventListener('abort', abort);
+    controller.signal.removeEventListener('abort', onAborted);
+    observe('settled');
+    handlers.onDone([...collected]);
+  };
+  const onAborted = () => { observe('aborted'); finish(); };
+  const abort = () => controller.abort();
+  controller.signal.addEventListener('abort', onAborted, { once: true });
+  for (const signal of signals) signal.addEventListener('abort', abort, { once: true });
+  observe('started');
+  if (signals.some(signal => signal.aborted)) abort();
+  const report = (error: Error) => { observe('error'); handlers.onError(error); };
+  return { controller, handlers, collected, isSettled: () => settled, finish, report };
+}
+
+/** Performs the POST and streams frames; always settles the run exactly once when it returns. */
+async function pumpRun({ run, args, request }: { run: ActiveRun; args: FetchSseTransportArgs; request: RequestInit }): Promise<void> {
+  try {
+    if (run.isSettled()) return;
+    const response = await args.fetch(args.endpoint, { ...request, signal: run.controller.signal });
+    await deliverResponse({ run, args, response });
+  } catch (error) {
+    if (!run.isSettled() && !run.controller.signal.aborted) run.report(error instanceof Error ? error : new Error(String(error)));
+  } finally { run.finish(); }
+}
+
+async function deliverResponse({ run, args, response }: { run: ActiveRun; args: FetchSseTransportArgs; response: Response }): Promise<void> {
+  if (run.isSettled()) { try { await response.body?.cancel(); } catch { /* closed body */ } return; }
+  if (!response.ok) return reportHttpFailure({ run, response, requestFailed: args.copy.requestFailed });
+  if (!response.body) throw new Error(args.copy.missingBody);
+  for await (const frame of args.decode({ source: responseChunks(response.body, run.controller.signal) })) {
+    if (run.isSettled() || !dispatchFrame({ run, result: args.frameMapper({ frame }) })) break;
+  }
+}
+
+async function reportHttpFailure({ run, response, requestFailed }: {
+  run: ActiveRun; response: Response; requestFailed: FetchSseTransportArgs['copy']['requestFailed'];
+}): Promise<void> {
+  const body: unknown = await response.json().catch(() => null);
+  if (run.isSettled()) return;
+  const serverError = typeof body === 'object' && body !== null && 'error' in body ? nonEmptyString(body.error) : undefined;
+  run.report(new Error(serverError ?? requestFailed({ status: response.status })));
+}
+
+/** Delivers one mapped frame; returns false once the run is settled (by a handler or an end frame). */
+function dispatchFrame({ run, result }: { run: ActiveRun; result: FetchSseFrameResult }): boolean {
+  if (result.event) { run.collected.push(result.event); run.handlers.onEvent(result.event); }
+  if (run.isSettled()) return false;
+  if (result.error) run.report(result.error);
+  if (run.isSettled() || result.done) { run.finish(); return false; }
+  return true;
 }

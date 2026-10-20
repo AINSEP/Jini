@@ -126,7 +126,8 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
   const greeting = node('p', 'jini-chat-vanilla__greeting', copy.greeting);
   const suggestions = node('div', 'jini-chat-vanilla__suggestions');
   if (copy.suggestionsLabel) suggestions.setAttribute('aria-label', copy.suggestionsLabel);
-  const suggestionButtons = (args.suggestions ?? []).map(text => button(text));
+  const suggestionEntries = (args.suggestions ?? []).map(text => ({ text, button: button(text) }));
+  const suggestionButtons = suggestionEntries.map(entry => entry.button);
   suggestions.append(...suggestionButtons);
   log.append(greeting, suggestions);
   panel.append(header, confirmation, log, status, announcements, error, proposal, form);
@@ -154,46 +155,58 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
     proposal.hidden = state.proposal === null;
     proposalText.textContent = state.proposal ? copy.proposalLabel({ title: state.proposal.navigate.target.title }) : '';
   };
+  const createRow = ({ message }: { message: VanillaChatState['messages'][number] }) => {
+    const row = { element: node('div', `jini-chat-vanilla__message jini-chat-vanilla__message--${message.role}`), content: '\0' };
+    rows.set(message.id, row);
+    log.append(row.element);
+    return row;
+  };
+  const renderRow = ({ message }: { message: VanillaChatState['messages'][number] }) => {
+    const row = rows.get(message.id) ?? createRow({ message });
+    if (row.content === message.content) return;
+    if (message.role === 'user') row.element.textContent = message.content;
+    else args.renderMarkdown({ content: message.content, element: row.element });
+    row.content = message.content;
+  };
+  const announce = ({ text }: { text: string | undefined }) => {
+    if (!text) return;
+    announcements.append(node('span', '', text));
+    // Bound the additions-only live region without replaying earlier replies.
+    while (announcements.childElementCount > 2) announcements.firstElementChild!.remove();
+  };
+  const announceSettledReplies = ({ messages }: { messages: VanillaChatState['messages'] }) => {
+    // A dedicated additions-only region announces each LIVE settled reply once. Markdown rows
+    // may be rebuilt while streaming, but restored transcripts and old text stay silent.
+    for (const message of messages) {
+      if (message.role !== 'assistant' || message.runStatus === 'running' || !liveReplies.delete(message.id)) continue;
+      announce({ text: rows.get(message.id)?.element.textContent });
+    }
+  };
   const renderRows = ({ state }: { state: VanillaChatState }) => {
     const pinned = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
     const ids = new Set(state.messages.map(message => message.id));
     for (const [id, row] of rows) if (!ids.has(id)) { row.element.remove(); rows.delete(id); }
-    for (const message of state.messages) {
-      let row = rows.get(message.id);
-      if (!row) {
-        row = { element: node('div', `jini-chat-vanilla__message jini-chat-vanilla__message--${message.role}`), content: '\0' };
-        rows.set(message.id, row);
-        log.append(row.element);
-      }
-      if (row.content !== message.content) {
-        if (message.role === 'user') row.element.textContent = message.content;
-        else args.renderMarkdown({ content: message.content, element: row.element });
-        row.content = message.content;
-      }
-    }
-    // A dedicated additions-only region announces each LIVE settled reply once. Markdown rows
-    // may be rebuilt while streaming, but restored transcripts and old text stay silent.
-    for (const message of state.messages) {
-      if (message.role !== 'assistant' || message.runStatus === 'running' || !liveReplies.delete(message.id)) continue;
-      const text = rows.get(message.id)?.element.textContent;
-      if (text) {
-        announcements.append(node('span', '', text));
-        // Bound the additions-only live region without replaying earlier replies.
-        while (announcements.childElementCount > 2) announcements.firstElementChild!.remove();
-      }
-    }
+    for (const message of state.messages) renderRow({ message });
+    announceSettledReplies({ messages: state.messages });
     if (state.messages.length === 0) announcements.replaceChildren();
     if (pinned) log.scrollTop = log.scrollHeight;
+  };
+  const focusEntry = ({ busy }: { busy: boolean }) => { if (busy) close.focus(); else input.focus(); };
+  const moveFocus = ({ state, composerHadFocus, stopHadFocus }: {
+    state: VanillaChatState; composerHadFocus: boolean; stopHadFocus: boolean;
+  }) => {
+    if (!state.open) return;
+    if (!wasOpen && initialized) focusEntry({ busy: state.busy });
+    else if (state.busy && composerHadFocus) stop.focus();
+    else if (!state.busy && stopHadFocus) input.focus();
   };
   const renderFocus = ({ state, composerHadFocus, stopHadFocus, panelHadFocus }: {
     state: VanillaChatState; composerHadFocus: boolean; stopHadFocus: boolean; panelHadFocus: boolean;
   }) => {
-    if (state.open && !wasOpen && initialized) { if (state.busy) close.focus(); else input.focus(); }
-    else if (state.open && state.busy && composerHadFocus) stop.focus();
-    else if (state.open && !state.busy && stopHadFocus) input.focus();
+    moveFocus({ state, composerHadFocus, stopHadFocus });
+    // renderChrome (which always runs first) already ended modal semantics for a closed panel.
     if (!state.open && wasOpen) {
       confirmation.hidden = true;
-      panel.setAttribute('aria-modal', 'false');
       if (panelHadFocus) fab.focus();
     }
     wasOpen = state.open;
@@ -228,8 +241,8 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
     target.addEventListener(type, handler);
     listeners.push(() => target.removeEventListener(type, handler));
   };
-  suggestionButtons.forEach(button => listen(button, 'click', () => {
-    input.value = button.textContent ?? '';
+  suggestionEntries.forEach(({ text, button }) => listen(button, 'click', () => {
+    input.value = text;
     renderChrome({ state: controller.getState({}) });
     input.focus();
   }));
@@ -243,7 +256,8 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
     confirm.textContent = controller.getState({}).messages.length === 0 ? copy.confirmDraft ?? copy.confirm : copy.confirm;
     confirmation.hidden = false; keep.focus();
   });
-  listen(keep, 'click', () => { confirmation.hidden = true; reset.focus(); });
+  const dismissConfirmation = () => { confirmation.hidden = true; reset.focus(); };
+  listen(keep, 'click', dismissConfirmation);
   listen(confirm, 'click', () => { confirmation.hidden = true; input.value = ''; controller.reset({}); input.focus(); });
   listen(go, 'click', () => controller.acceptProposal({}));
   listen(stop, 'click', () => controller.cancel({}));
@@ -261,26 +275,31 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
     const key = event as KeyboardEvent;
     if (key.key === 'Enter' && !key.shiftKey && !key.isComposing) { key.preventDefault(); form.requestSubmit(); }
   });
-  listen(document, 'keydown', event => {
-    if (!controller.getState({}).open || !panel.contains(document.activeElement)) return;
-    const key = event as KeyboardEvent;
-    if (key.key === 'Escape') {
-      key.preventDefault();
-      if (!confirmation.hidden) { confirmation.hidden = true; reset.focus(); }
-      else controller.setOpen({ open: false });
-      return;
-    }
-    if (key.key !== 'Tab') return;
+  const onEscape = ({ key }: { key: KeyboardEvent }) => {
+    key.preventDefault();
+    if (!confirmation.hidden) dismissConfirmation();
+    else controller.setOpen({ open: false });
+  };
+  // Only reached while focus is inside the panel (see the document keydown guard), so wrapping
+  // happens exactly at the first/last visible enabled control.
+  const trapTab = ({ key }: { key: KeyboardEvent }) => {
     const focusable = Array.from(panel.querySelectorAll<HTMLElement>('button:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]'))
       .filter(candidate => !candidate.closest('[hidden]'));
     const first = focusable[0];
     const last = focusable.at(-1);
-    if (key.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) { key.preventDefault(); last?.focus(); }
-    else if (!key.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) { key.preventDefault(); first?.focus(); }
+    if (document.activeElement !== (key.shiftKey ? first : last)) return;
+    key.preventDefault();
+    (key.shiftKey ? last : first)?.focus();
+  };
+  listen(document, 'keydown', event => {
+    if (!controller.getState({}).open || !panel.contains(document.activeElement)) return;
+    const key = event as KeyboardEvent;
+    if (key.key === 'Escape') onEscape({ key });
+    else if (key.key === 'Tab') trapTab({ key });
   });
   listen(element, 'jini-chat-open', () => {
     controller.setOpen({ open: true });
-    if (controller.getState({}).busy) close.focus(); else input.focus();
+    focusEntry({ busy: controller.getState({}).busy });
   });
   const queued = { value: args.session.drain({}) };
   let cancelFrame = () => {};

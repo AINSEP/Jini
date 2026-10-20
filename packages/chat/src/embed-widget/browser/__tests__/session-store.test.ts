@@ -80,6 +80,13 @@ describe("transcript-storage", () => {
       assert.equal(storage.getItem(TRANSCRIPT_STORAGE_KEY), null);
     });
 
+    it("clears the key and starts empty when messages is not an array", () => {
+      const storage = new FakeStorage();
+      storage.setItem(TRANSCRIPT_STORAGE_KEY, JSON.stringify({ open: true, messages: "nope" }));
+      assert.deepEqual(loadPersistedState(storage), { open: false, messages: [] });
+      assert.equal(storage.getItem(TRANSCRIPT_STORAGE_KEY), null);
+    });
+
     it("clears the whole entry when a message's id is not a string", () => {
       const storage = new FakeStorage();
       const poisoned = { open: true, messages: [{ id: 42, role: "user", content: "fine" }] };
