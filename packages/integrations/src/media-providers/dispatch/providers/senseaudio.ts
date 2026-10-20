@@ -108,7 +108,7 @@ const senseAudioTTSAdapter: VendorAdapter<HexEnvelopeAudioMeta> = {
 };
 
 export async function renderSenseAudioTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
-  return dispatchVendorRequest({ adapter: senseAudioTTSAdapter, ctx: ctx, credentials: credentials });
+  return dispatchVendorRequest({ adapter: senseAudioTTSAdapter, ctx, credentials });
 }
 
 /** SenseAudio's image gateway rejects non-standard pixel sizes with a 400; keep this mapping in sync with any other SenseAudio-image call site a future host adds. */
@@ -145,7 +145,7 @@ const senseAudioImageAdapter: VendorAdapter<SenseAudioImageMeta> = {
     const promptRaw = (ctx.prompt && ctx.prompt.trim()) || 'A high-quality reference image.';
     // SenseAudio rejects prompts over 2000 chars with a 4xx; trim
     // defensively so a verbose caller doesn't dead-end the generation.
-    const prompt = promptRaw.length > SENSEAUDIO_IMAGE_PROMPT_LIMIT ? promptRaw.slice(0, SENSEAUDIO_IMAGE_PROMPT_LIMIT) : promptRaw;
+    const prompt = promptRaw.slice(0, SENSEAUDIO_IMAGE_PROMPT_LIMIT);
     const size = senseAudioImageSize(ctx.aspect);
     const reference = ctx.imageRef?.dataUrl;
 
@@ -180,30 +180,8 @@ const senseAudioImageAdapter: VendorAdapter<SenseAudioImageMeta> = {
     if (!resp.ok) {
       throw new Error(`senseaudio image ${resp.status}: ${truncate(respText, 240)}`);
     }
-    let data: SenseAudioImageResponse;
-    try {
-      data = JSON.parse(respText);
-    } catch {
-      throw new Error(`senseaudio image non-JSON: ${truncate(respText, 200)}`);
-    }
-    if (data.base_resp && data.base_resp.status_code !== 0) {
-      throw new Error(`senseaudio image api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || 'unknown'}`);
-    }
-    if (typeof data.error_message === 'string' && data.error_message) {
-      throw new Error(`senseaudio image api error: ${data.error_message}`);
-    }
-    const url = typeof data.url === 'string' ? data.url : '';
-    if (!url) {
-      throw new Error('senseaudio image response missing url');
-    }
-    const imgResp = await assertAndFetchExternalAsset({ url: url }, { ...ctx, init: withRequestInit(ctx) });
-    if (!imgResp.ok) {
-      throw new Error(`senseaudio image fetch ${imgResp.status}`);
-    }
-    const bytes = Buffer.from(await imgResp.arrayBuffer());
-    if (bytes.length === 0) {
-      throw new Error('senseaudio image fetch returned zero bytes');
-    }
+    const url = extractSenseAudioImageUrl({ respText });
+    const bytes = await downloadSenseAudioImage({ url, ctx });
 
     return {
       bytes,
@@ -213,8 +191,51 @@ const senseAudioImageAdapter: VendorAdapter<SenseAudioImageMeta> = {
   },
 };
 
+/**
+ * Parses an OK image envelope and returns its `url`. Two independent
+ * failure-signaling paths are honored in order: a non-zero (or absent)
+ * `base_resp.status_code`, then a non-empty `error_message`.
+ * @throws Error — non-JSON body, either API-error path, or a missing/non-string url.
+ */
+function extractSenseAudioImageUrl({ respText }: { respText: string }): string {
+  let data: SenseAudioImageResponse;
+  try {
+    data = JSON.parse(respText);
+  } catch {
+    throw new Error(`senseaudio image non-JSON: ${truncate(respText, 200)}`);
+  }
+  if (data.base_resp && data.base_resp.status_code !== 0) {
+    throw new Error(`senseaudio image api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || 'unknown'}`);
+  }
+  if (typeof data.error_message === 'string' && data.error_message) {
+    throw new Error(`senseaudio image api error: ${data.error_message}`);
+  }
+  if (typeof data.url !== 'string' || !data.url) {
+    throw new Error('senseaudio image response missing url');
+  }
+  return data.url;
+}
+
+/**
+ * Downloads the generated image through the SSRF guard (the url is
+ * attacker-controllable inside an otherwise-successful response — see the
+ * module doc).
+ * @throws Error — the guard refuses the url, the download is not OK, or it is empty.
+ */
+async function downloadSenseAudioImage({ url, ctx }: { url: string; ctx: RenderContext }): Promise<Buffer> {
+  const imgResp = await assertAndFetchExternalAsset({ url }, { ...ctx, init: withRequestInit(ctx) });
+  if (!imgResp.ok) {
+    throw new Error(`senseaudio image fetch ${imgResp.status}`);
+  }
+  const bytes = Buffer.from(await imgResp.arrayBuffer());
+  if (bytes.length === 0) {
+    throw new Error('senseaudio image fetch returned zero bytes');
+  }
+  return bytes;
+}
+
 export async function renderSenseAudioImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
-  return dispatchVendorRequest({ adapter: senseAudioImageAdapter, ctx: ctx, credentials: credentials });
+  return dispatchVendorRequest({ adapter: senseAudioImageAdapter, ctx, credentials });
 }
 
 /** Explicit composition: importing a renderer never changes another module's registry. */
