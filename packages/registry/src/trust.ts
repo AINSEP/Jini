@@ -78,6 +78,7 @@
  */
 import { X509Certificate, verify as nodeVerify } from 'node:crypto';
 import type { RegistryEntry, RegistrySignature } from '@jini-ai/protocol';
+import { chainToTrustedRoot, parseCertificateBundle, parseSanUris } from './trust-certificates.js';
 
 /** GitHub Actions' own OIDC token issuer — the default {@link GithubOidcTrustRoot.allowedIssuers} entry. */
 export const GITHUB_ACTIONS_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
@@ -176,74 +177,104 @@ export function verifyRegistrySignature(
     // report "unsupported", never silently pass and never throw.
     return { verified: false, kind: signature.kind, reason: `unsupported signature kind: ${signature.kind}` };
   }
+  const outcome = verifyGithubOidcSignature(entry, signature, trustRoot?.githubOidc);
+  if ('reason' in outcome) return { verified: false, kind: signature.kind, reason: outcome.reason };
+  return { verified: true, kind: signature.kind, issuer: outcome.issuer, ...(outcome.subject !== undefined ? { subject: outcome.subject } : {}) };
+}
 
-  const root = trustRoot?.githubOidc;
+/** A failed check's human-readable reason. Every stage below returns one instead of throwing. */
+interface VerificationFailure {
+  reason: string;
+}
+
+const fail = (reason: string): VerificationFailure => ({ reason });
+
+/**
+ * The `github-oidc` checks, in their fixed order — the first failing check's
+ * reason is the one reported: trust root, signature fields, certificate
+ * chain + validity window, identity allowlist, signature bytes.
+ */
+function verifyGithubOidcSignature(
+  entry: RegistryEntry,
+  signature: RegistrySignature,
+  root: GithubOidcTrustRoot | undefined,
+): VerificationFailure | { issuer: string; subject: string | undefined } {
   if (!root || root.caCertificates.length === 0) {
     // Decision 4: a backend with no configured trust root gets no
     // verification at all — current (pre-this-task) behavior, unchanged.
-    return { verified: false, kind: signature.kind, reason: 'no github-oidc trust root configured' };
+    return fail('no github-oidc trust root configured');
   }
-  if (!signature.certificate) {
-    return { verified: false, kind: signature.kind, reason: 'github-oidc signature is missing a certificate' };
+  const fields = checkSignatureFields(signature, root);
+  if ('reason' in fields) return fields;
+  const leaf = checkCertificate(fields.certificate, root, fields.signedAt);
+  if ('reason' in leaf) return leaf;
+  const identities = parseSanUris(leaf.subjectAltName);
+  if (!identityAllowed(identities, root.allowedIdentities)) {
+    return fail('signer identity is not in the configured allowlist');
   }
-  if (!signature.issuer) {
-    return { verified: false, kind: signature.kind, reason: 'github-oidc signature is missing an issuer' };
-  }
+  const signatureFailure = checkSignatureBytes(entry, signature.signature, leaf);
+  if (signatureFailure) return signatureFailure;
+  return { issuer: fields.issuer, subject: signature.subject ?? identities[0] };
+}
+
+/** Presence of certificate/issuer/signedAt, the issuer allowlist, and a parseable `signedAt`. */
+function checkSignatureFields(
+  signature: RegistrySignature,
+  root: GithubOidcTrustRoot,
+): VerificationFailure | { certificate: string; issuer: string; signedAt: Date } {
+  if (!signature.certificate) return fail('github-oidc signature is missing a certificate');
+  if (!signature.issuer) return fail('github-oidc signature is missing an issuer');
   const allowedIssuers = root.allowedIssuers ?? [GITHUB_ACTIONS_OIDC_ISSUER];
   if (!allowedIssuers.includes(signature.issuer)) {
-    return { verified: false, kind: signature.kind, reason: `issuer ${JSON.stringify(signature.issuer)} is not in the configured allowlist` };
+    return fail(`issuer ${JSON.stringify(signature.issuer)} is not in the configured allowlist`);
   }
-  if (!signature.signedAt) {
-    return { verified: false, kind: signature.kind, reason: 'github-oidc signature is missing signedAt' };
-  }
+  if (!signature.signedAt) return fail('github-oidc signature is missing signedAt');
   const signedAt = new Date(signature.signedAt);
-  if (Number.isNaN(signedAt.getTime())) {
-    return { verified: false, kind: signature.kind, reason: 'github-oidc signature has an invalid signedAt timestamp' };
-  }
+  if (Number.isNaN(signedAt.getTime())) return fail('github-oidc signature has an invalid signedAt timestamp');
+  return { certificate: signature.certificate, issuer: signature.issuer, signedAt };
+}
 
+/** Parse the bundled certificate(s) and the configured CAs, require a chain to a CA, and require `signedAt` inside the leaf's validity window. Returns the leaf. */
+function checkCertificate(pem: string, root: GithubOidcTrustRoot, signedAt: Date): VerificationFailure | X509Certificate {
   let chain: X509Certificate[];
   try {
-    chain = parseCertificateBundle(signature.certificate);
+    chain = parseCertificateBundle(pem);
   } catch (cause) {
-    return { verified: false, kind: signature.kind, reason: `could not parse certificate: ${(cause as Error).message}` };
+    return fail(`could not parse certificate: ${(cause as Error).message}`);
   }
-  if (chain.length === 0) {
-    return { verified: false, kind: signature.kind, reason: 'no PEM certificate found in signature.certificate' };
-  }
-  const leaf = chain[0]!;
+  const leaf = chain[0];
+  if (!leaf) return fail('no PEM certificate found in signature.certificate');
 
   let trustedCas: X509Certificate[];
   try {
-    trustedCas = root.caCertificates.map((pem) => new X509Certificate(pem));
+    trustedCas = root.caCertificates.map((caPem) => new X509Certificate(caPem));
   } catch (cause) {
-    return { verified: false, kind: signature.kind, reason: `configured trust root certificate is invalid: ${(cause as Error).message}` };
+    return fail(`configured trust root certificate is invalid: ${(cause as Error).message}`);
   }
-  if (!chainToTrustedRoot(chain, trustedCas)) {
-    return { verified: false, kind: signature.kind, reason: 'certificate does not chain to a configured trust root' };
-  }
+  if (!chainToTrustedRoot(chain, trustedCas)) return fail('certificate does not chain to a configured trust root');
 
   if (signedAt < leaf.validFromDate || signedAt > leaf.validToDate) {
-    return { verified: false, kind: signature.kind, reason: 'signedAt falls outside the certificate validity window' };
+    return fail('signedAt falls outside the certificate validity window');
   }
+  return leaf;
+}
 
-  const identities = parseSanUris(leaf.subjectAltName);
-  if (root.allowedIdentities && root.allowedIdentities.length > 0) {
-    const matched = identities.some((identity) =>
-      root.allowedIdentities!.some((pattern) => (typeof pattern === 'string' ? pattern === identity : pattern.test(identity))),
-    );
-    if (!matched) {
-      return { verified: false, kind: signature.kind, reason: 'signer identity is not in the configured allowlist' };
-    }
-  }
+/** No (or an empty) allowlist accepts any identity; otherwise one SAN URI must match one pattern — exact string, or `RegExp#test`. */
+function identityAllowed(identities: string[], allowedIdentities: GithubOidcTrustRoot['allowedIdentities']): boolean {
+  if (!allowedIdentities || allowedIdentities.length === 0) return true;
+  return identities.some((identity) =>
+    allowedIdentities.some((pattern) => (typeof pattern === 'string' ? pattern === identity : pattern.test(identity))),
+  );
+}
 
+/** Verify `signature` (base64) over {@link canonicalRegistrySigningPayload} with the leaf's public key; `undefined` when it verifies. */
+function checkSignatureBytes(entry: RegistryEntry, signature: string, leaf: X509Certificate): VerificationFailure | undefined {
   // `Buffer.from(str, 'base64')` never throws (Node's base64 decoder is
   // lenient about invalid input, silently dropping bad characters) — a
   // malformed encoding surfaces as an empty/garbage buffer that then fails
   // the signature check below, not as an exception here.
-  const signatureBytes = Buffer.from(signature.signature, 'base64');
-  if (signatureBytes.length === 0) {
-    return { verified: false, kind: signature.kind, reason: 'signature is empty after base64 decoding' };
-  }
+  const signatureBytes = Buffer.from(signature, 'base64');
+  if (signatureBytes.length === 0) return fail('signature is empty after base64 decoding');
   const payload = Buffer.from(canonicalRegistrySigningPayload({ entry }), 'utf8');
   let signatureValid: boolean;
   try {
@@ -255,14 +286,9 @@ export function verifyRegistrySignature(
     // "Provider routines::invalid digest" from this exact call.
     signatureValid = nodeVerify('sha256', payload, leaf.publicKey, signatureBytes);
   } catch (cause) {
-    return { verified: false, kind: signature.kind, reason: `signature verification failed: ${(cause as Error).message}` };
+    return fail(`signature verification failed: ${(cause as Error).message}`);
   }
-  if (!signatureValid) {
-    return { verified: false, kind: signature.kind, reason: 'signature does not match the certificate public key' };
-  }
-
-  const subject = signature.subject ?? identities[0];
-  return { verified: true, kind: signature.kind, issuer: signature.issuer, ...(subject !== undefined ? { subject } : {}) };
+  return signatureValid ? undefined : fail('signature does not match the certificate public key');
 }
 
 /**
@@ -287,78 +313,4 @@ export function verifyRegistryEntrySignatures(
     last = result;
   }
   return last;
-}
-
-/** @internal Split a PEM string that may contain a leaf certificate followed by one or more intermediate certificates into individual parsed certificates, leaf first. */
-function parseCertificateBundle(pem: string): X509Certificate[] {
-  const blocks = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [];
-  return blocks.map((block) => new X509Certificate(block));
-}
-
-/**
- * @internal Walk from `chain[0]` (the leaf) through any bundled
- * intermediates toward a certificate in `trustedCas`, checking a genuine
- * cryptographic signature at every hop (`X509Certificate#verify`, not just
- * `checkIssued`'s DN-string comparison). Bounded by `chain.length +
- * trustedCas.length + 1` hops so a malformed/cyclic bundle cannot loop
- * forever.
- */
-function chainToTrustedRoot(chain: X509Certificate[], trustedCas: X509Certificate[]): boolean {
-  let current = chain[0];
-  if (!current) return false;
-  const remaining = chain.slice(1);
-  const maxHops = chain.length + trustedCas.length + 1;
-  for (let hop = 0; hop < maxHops; hop += 1) {
-    if (trustedCas.some((ca) => certIssuedAndSignedBy(current!, ca))) return true;
-    const nextIndex = remaining.findIndex((candidate) => certIssuedAndSignedBy(current!, candidate));
-    if (nextIndex === -1) return false;
-    current = remaining[nextIndex];
-    remaining.splice(nextIndex, 1);
-  }
-  return false;
-}
-
-/**
- * @internal `checkIssued` (DN linkage) AND `verify` (the actual cryptographic
- * signature check) — either alone is insufficient: DN match alone proves
- * nothing cryptographically. The `try`/`catch` is defense-in-depth for this
- * function's own "never throw" contract, not a path this module's test
- * suite demonstrates reachable: empirically, `X509Certificate#verify()`
- * (unlike the standalone `crypto.verify()` function used later in this
- * file, which genuinely does throw for an incompatible key/digest pairing —
- * see `verifyRegistrySignature`'s doc comment on that call) was checked
- * across EC/RSA/Ed25519 issuer-key combinations during this module's
- * construction and consistently returned `false` rather than throwing.
- * Kept anyway in case a future Node/OpenSSL version or an exotic key type
- * behaves differently.
- *
- * **Re-verified 2026-07-22** (audit fix — re-derived independently rather than
- * trusted from this comment's own prior claim): all 9 cross-combinations of
- * {RSA, P-256, Ed25519} signer × tester, plus same-key self-verification for
- * each, plus a P-384 cross-check, all returned a clean `boolean` — zero
- * throws — against this repo's actual Node/OpenSSL (v22.22.2 / OpenSSL
- * 3.0.13). `X509Certificate#verify(publicKey)` *can* throw a `TypeError`,
- * but only for a malformed `publicKey` argument (a non-`KeyObject`, or a
- * private key passed where a public key is required) — neither is reachable
- * through this function's only call site (`chainToTrustedRoot`, which always
- * passes `issuer.publicKey`, a real `X509Certificate`'s own getter, never
- * arbitrary user input). The `catch` here is genuinely unreachable through
- * this module's real call graph, confirmed empirically, not merely asserted.
- */
-function certIssuedAndSignedBy(cert: X509Certificate, issuer: X509Certificate): boolean {
-  try {
-    return cert.checkIssued(issuer) && cert.verify(issuer.publicKey);
-  } catch {
-    return false;
-  }
-}
-
-/** @internal Extract `URI:...` entries from an `X509Certificate#subjectAltName` string (e.g. `"URI:https://github.com/acme/example/.github/workflows/build.yml@refs/heads/main"`, comma-separated when multiple SAN entries are present). */
-function parseSanUris(subjectAltName: string | null | undefined): string[] {
-  if (!subjectAltName) return [];
-  return subjectAltName
-    .split(',')
-    .map((part) => part.trim())
-    .filter((part) => part.startsWith('URI:'))
-    .map((part) => part.slice('URI:'.length));
 }
