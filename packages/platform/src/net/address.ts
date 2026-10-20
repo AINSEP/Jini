@@ -55,6 +55,52 @@ export function expandIpv6({ address: addr }: { address: string }): number[] | n
   return groups;
 }
 
+/** First-octet / second-octet-range table of the IPv4 space an external CDN
+ *  must never resolve to (`a >= 224` is handled separately). */
+const PRIVATE_IPV4_RANGES: ReadonlyArray<readonly [first: number, secondMin: number, secondMax: number]> = [
+  [0, 0, 255], // "this" network / unspecified
+  [10, 0, 255], // private
+  [127, 0, 255], // loopback
+  [169, 254, 254], // link-local
+  [172, 16, 31], // private
+  [192, 168, 168], // private
+  [100, 64, 127], // CGNAT
+];
+
+/** True when the IPv4 address whose first two octets are `a`.`b` is private. */
+function isPrivateIpv4Octets(a: number, b: number): boolean {
+  if (a >= 224) return true; // multicast + reserved
+  return PRIVATE_IPV4_RANGES.some(([first, min, max]) => a === first && b >= min && b <= max);
+}
+
+/** IPv4-mapped (`::ffff:0:0/96`) and the deprecated IPv4-compatible
+ *  (`::0:0/96`, excluding :: / ::1) carry an embedded IPv4 — return its first
+ *  two octets so it is classified by its real v4 range (`::ffff:7f00:1` ==
+ *  127.0.0.1 is caught), or null when `groups` embeds none. */
+function embeddedIpv4Octets(groups: number[]): [number, number] | null {
+  const topZero = groups.slice(0, 5).every((g) => g === 0);
+  if (!topZero || (groups[5] !== 0xffff && groups[5] !== 0)) return null;
+  // `groups` is a validated 8-element array once non-null — index 6
+  // always defined. Only the first two octets decide the v4 verdict.
+  const a = groups[6]! >> 8;
+  const b = groups[6]! & 0xff;
+  return groups[5] === 0xffff || a !== 0 || b !== 0 ? [a, b] : null;
+}
+
+/** True when the canonical eight IPv6 groups name a non-public address. */
+function isPrivateIpv6Groups(groups: number[]): boolean {
+  const v4 = embeddedIpv4Octets(groups);
+  if (v4) return isPrivateIpv4Octets(v4[0], v4[1]);
+  if (groups.every((g) => g === 0)) return true; // ::  (unspecified)
+  if (groups.slice(0, 7).every((g) => g === 0) && groups[7] === 1) return true; // ::1 loopback
+  const first = groups[0]!;
+  return (
+    (first & 0xffc0) === 0xfe80 || // link-local fe80::/10 (fe80–febf)
+    (first & 0xfe00) === 0xfc00 || // unique-local fc00::/7
+    (first & 0xff00) === 0xff00 // multicast ff00::/8
+  );
+}
+
 /** True for any address an external CDN must never resolve to: loopback,
  *  link-local, private, CGNAT, ULA, multicast, or unspecified. An unparseable
  *  input is treated as unsafe. */
@@ -68,55 +114,23 @@ export function isPrivateAddress({ address: addr }: { address: string }): boolea
     // this same re-derivation with zero divergences. `o` is therefore always
     // a validated 4-element array.
     const o = addr.split('.').map((n) => Number(n));
-    const a = o[0]!;
-    const b = o[1]!;
-    if (a === 0) return true; // "this" network / unspecified
-    if (a === 10) return true; // private
-    if (a === 127) return true; // loopback
-    if (a === 169 && b === 254) return true; // link-local
-    if (a === 172 && b >= 16 && b <= 31) return true; // private
-    if (a === 192 && b === 168) return true; // private
-    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-    if (a >= 224) return true; // multicast + reserved
-    return false;
+    return isPrivateIpv4Octets(o[0]!, o[1]!);
   }
-  if (fam === 6) {
-    const groups = expandIpv6({ address: addr });
-    // `net.isIP(addr) === 6` already guarantees `addr` is syntactically valid
-    // IPv6 (Node validates this before classifying the family), and
-    // `expandIpv6` implements the same canonicalization Node's own parser
-    // does, so it never returns `null` for an `isIP`-accepted literal —
-    // empirically re-verified this session by fuzzing ~10k `isIP`-accepted
-    // v6 literals through `expandIpv6` with zero `null` results (see
-    // `expandIpv6`'s doc comment and `archived provenance ledger`'s 2026-07-22 entry).
-    // Kept as a real fail-closed guard (defense-in-depth against a future
-    // change to either parser) rather than asserted away, so it stays
-    // provably-unreachable-but-intentional instead of a forced test.
-    if (!groups) return true; // can't canonicalize a "valid" v6 → refuse
-    // IPv4-mapped (`::ffff:0:0/96`) and the deprecated IPv4-compatible
-    // (`::0:0/96`, excluding :: / ::1) carry an embedded IPv4 — classify it by
-    // its real v4 range so `::ffff:7f00:1` (== 127.0.0.1) is caught.
-    const topZero = groups.slice(0, 5).every((g) => g === 0);
-    if (topZero && (groups[5] === 0xffff || groups[5] === 0)) {
-      // `groups` is a validated 8-element array once non-null — indices 6-7
-      // always defined.
-      const a = groups[6]! >> 8;
-      const b = groups[6]! & 0xff;
-      const c = groups[7]! >> 8;
-      const d = groups[7]! & 0xff;
-      if (groups[5] === 0xffff || a !== 0 || b !== 0) {
-        return isPrivateAddress({ address: `${a}.${b}.${c}.${d}` });
-      }
-    }
-    if (groups.every((g) => g === 0)) return true; // ::  (unspecified)
-    if (groups.slice(0, 7).every((g) => g === 0) && groups[7] === 1) return true; // ::1 loopback
-    const first = groups[0]!;
-    if ((first & 0xffc0) === 0xfe80) return true; // link-local fe80::/10 (fe80–febf)
-    if ((first & 0xfe00) === 0xfc00) return true; // unique-local fc00::/7
-    if ((first & 0xff00) === 0xff00) return true; // multicast ff00::/8
-    return false;
-  }
-  return true; // not a literal IP — caller must resolve before trusting it
+  // `net.isIP(addr) === 6` already guarantees `addr` is syntactically valid
+  // IPv6 (Node validates this before classifying the family), and
+  // `expandIpv6` implements the same canonicalization Node's own parser
+  // does, so it never returns `null` for an `isIP`-accepted literal —
+  // empirically re-verified this session by fuzzing ~10k `isIP`-accepted
+  // v6 literals through `expandIpv6` with zero `null` results (see
+  // `expandIpv6`'s doc comment and `archived provenance ledger`'s 2026-07-22 entry).
+  // Kept as a real fail-closed guard (defense-in-depth against a future
+  // change to either parser) rather than asserted away, so it stays
+  // provably-unreachable-but-intentional instead of a forced test: a `null`
+  // here shares the not-a-literal refusal below instead of its own branch.
+  const groups = fam === 6 ? expandIpv6({ address: addr }) : null;
+  // null: can't canonicalize a "valid" v6 → refuse; or not a literal IP —
+  // caller must resolve before trusting it.
+  return groups === null || isPrivateIpv6Groups(groups);
 }
 
 // Preserve the Node entry's published names while sharing the literal-host owner with browser consumers.
