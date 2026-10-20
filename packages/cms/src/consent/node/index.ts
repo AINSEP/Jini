@@ -4,6 +4,23 @@ import { isIP } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { CONSENT_MAX_AGE_MS, type ConsentRecord, type ConsentRecordPort } from '../types.js';
 
+const RECEIPT_FILENAME = /^[a-zA-Z0-9_-]{16,128}\.json$/;
+
+/** Count is unknown when the host cannot inspect receipt storage. */
+export type ConsentReceiptStorageHealth = { writable: boolean; count: number | null };
+
+/** Prepare the same private directory used by receipt writes, check write/search access and count
+ * receipt files without reading visitor proof. Filesystem errors propagate to the host's readiness check.
+ * This is a current permissions check, not a guarantee against later capacity or I/O failures.
+ * @example await readConsentReceiptStorage({ directory: '/site/consent-receipts' })
+ * @complexity O(directory entries) time and space; no per-receipt reads or writes. */
+export async function readConsentReceiptStorage({ directory }: { directory: string }, { filesystem = fs }: { filesystem?: Pick<typeof fs, 'mkdir' | 'access' | 'readdir'> } = {}): Promise<ConsentReceiptStorageHealth> {
+  await filesystem.mkdir(directory, { recursive: true, mode: 0o700 });
+  await filesystem.access(directory, fs.constants.W_OK | fs.constants.X_OK);
+  const entries = await filesystem.readdir(directory, { withFileTypes: true });
+  return { writable: true, count: entries.filter(entry => entry.isFile() && RECEIPT_FILENAME.test(entry.name)).length };
+}
+
 /** Atomic writer owns flush/rename/permissions; the host binds its installed platform writer. */
 export interface ConsentFilePorts {
   readText(required: { filePath: string }, optional?: Record<string, never>): Promise<string | null>;
@@ -42,7 +59,7 @@ export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAt
     }
     const entries: Array<[string, number]> = [];
     for (const name of names) {
-      if (/^[a-zA-Z0-9_-]{16,128}\.json$/.test(name)) entries.push([name, (await filesystem.stat(path.join(directory, name))).mtimeMs]);
+      if (RECEIPT_FILENAME.test(name)) entries.push([name, (await filesystem.stat(path.join(directory, name))).mtimeMs]);
     }
     entries.sort((left, right) => left[1] - right[1]);
     const retained = new Map(entries);

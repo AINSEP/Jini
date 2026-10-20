@@ -2,11 +2,34 @@ import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { createConsentFileRecords, createNodeConsentFiles, consentRateLimitKey, type ConsentFilePorts } from '../node/index.js';
+import { createConsentFileRecords, createNodeConsentFiles, consentRateLimitKey, readConsentReceiptStorage, type ConsentFilePorts } from '../node/index.js';
 import { CONSENT_MAX_AGE_MS } from '../types.js';
 import { accepted } from './fixtures.js';
 
 describe('consent proof storage', () => {
+  it('creates a private receipt directory and counts only stored receipt files', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-health-'));
+    const directory = path.join(root, 'receipts');
+    try {
+      expect(await readConsentReceiptStorage({ directory })).toEqual({ writable: true, count: 0 });
+      await fs.writeFile(path.join(directory, `${accepted.id}.json`), JSON.stringify(accepted));
+      await fs.writeFile(path.join(directory, '.pending_receipt_0123456789.json'), '{}');
+      await fs.writeFile(path.join(directory, 'unrelated.json'), '{}');
+      await fs.mkdir(path.join(directory, 'directory_receipt_0123456789.json'));
+      expect(await readConsentReceiptStorage({ directory })).toEqual({ writable: true, count: 1 });
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+  });
+  it('rejects unwritable or unreadable receipt storage instead of reporting it healthy', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-health-'));
+    const denied = Object.assign(new Error('Permission denied'), { code: 'EACCES' });
+    try {
+      await expect(readConsentReceiptStorage({ directory }, { filesystem: { ...fs, access: async () => { throw denied; } } })).rejects.toBe(denied);
+      await expect(readConsentReceiptStorage({ directory }, { filesystem: { ...fs, readdir: async () => { throw denied; } } })).rejects.toBe(denied);
+      const blocker = path.join(directory, 'file');
+      await fs.writeFile(blocker, 'not a directory');
+      await expect(readConsentReceiptStorage({ directory: path.join(blocker, 'receipts') })).rejects.toThrow();
+    } finally { await fs.rm(directory, { recursive: true, force: true }); }
+  });
   // REGRESSION: fails if Windows receipt publication opens a directory after its hard link lands.
   it('publishes Windows receipts without opening their directory', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-win32-'));

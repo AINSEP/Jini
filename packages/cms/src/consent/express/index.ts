@@ -112,17 +112,17 @@ async function saveChoice({ request, response, ports }: { request: Request; resp
   response.redirect(303, redirectDestination({ request, origin }));
 }
 
-/** On a read failure keep the last good policy; without one, deny optional content.
+/** On a read failure retain only an enabled last good policy; otherwise deny optional content.
+ * A stale OFF policy cannot establish that a newer publication still allows ungated HTML.
  * @complexity O(1), one config read. */
-async function deliveryConfig({ ports, state }: { ports: ConsentHttpPorts; state: { lastGood?: ConsentConfig } }): Promise<{ config: ConsentConfig; failed: boolean }> {
+async function deliveryConfig({ ports, state }: { ports: ConsentHttpPorts; state: { lastGood?: ConsentConfig } }, _options = {}): Promise<{ config: ConsentConfig; failed: boolean }> {
   try {
     const config = await ports.config.get({});
     state.lastGood = config;
     return { config, failed: false };
   } catch (error) {
     ports.reportError({ operation: 'read', error });
-    // A failed policy/proof read cannot safely decide that consent is off.
-    return { config: state.lastGood ?? UNAVAILABLE_CONFIG, failed: true };
+    return { config: state.lastGood?.enabled ? state.lastGood : UNAVAILABLE_CONFIG, failed: true };
   }
 }
 

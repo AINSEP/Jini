@@ -117,14 +117,41 @@ describe('consent HTTP lifecycle', () => {
 
 
 describe('availability and delivery regressions', () => {
-  it('last-known OFF survives a later settings-read failure without gating or receipt access', async () => {
-    const { base, html, ports, failures } = await site({ enabled: false });
+  it.each([
+    { delivery: 'live' as const, register: {}, expectedStatus: 200 },
+    { delivery: 'live' as const, register: { maxHtmlBytes: 16 }, expectedStatus: 200 },
+    { delivery: 'static' as const, register: {}, expectedStatus: 409 },
+  ])('fails closed after OFF → publish ON → read failure ($delivery, $register)', async ({ delivery, register, expectedStatus }) => {
+    const { base, html, ports, failures, records } = await site({ enabled: false, delivery, register });
+    let published = { ...config, enabled: false, regionMode: 'opt-out' as const };
+    let readFails = false;
+    ports.config.get = async () => {
+      if (readFails) throw new Error('Ledger unavailable');
+      return published;
+    };
     expect(await (await fetch(base)).text()).toBe(html);
-    ports.config.get = async () => { throw new Error('Ledger unavailable'); };
-    ports.records.read = async () => { throw new Error('An OFF site must not read proof.'); };
+    // The new publication has not been read by this process when storage becomes unavailable.
+    published = { ...published, enabled: true };
+    readFails = true;
+    records.set(accepted.id, accepted);
+    let receiptReads = 0;
+    ports.records.read = async () => { receiptReads++; return accepted; };
     const response = await fetch(base, { headers: { cookie: `jini_consent=${accepted.id}` } });
-    expect(response.status).toBe(200); expect(await response.text()).toBe(html);
+    const denied = await response.text();
+    expect(response.status).toBe(expectedStatus);
+    expect(denied).not.toBe(html);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    if (delivery === 'static') expect(denied).toContain('Static export requires');
+    else if ('maxHtmlBytes' in register) expect(denied).toBe(inertText);
+    else {
+      expect(denied).toContain('<template data-jini-consent-script');
+      expect(denied).toContain('"hasRecord":false');
+      expect(denied).toContain('"marketing":false');
+    }
+    expect(receiptReads).toBe(0);
     expect(failures.map(entry => entry.operation)).toEqual(['read']);
+    readFails = false;
+    expect((await fetch(base)).status).toBe(expectedStatus);
   });
   it('failed ON settings override opt-out and saved acceptance with denied defaults while preserving the page', async () => {
     const { base, ports, records, failures } = await site();
