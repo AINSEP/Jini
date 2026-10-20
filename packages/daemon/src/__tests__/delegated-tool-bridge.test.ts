@@ -378,4 +378,117 @@ describe('DelegatedToolBridge', () => {
       isError: true,
     });
   });
+
+  it('aborts the in-flight handler when the owning run is cancelled, reporting a cancelled tool_result', async () => {
+    const registry = createToolRegistry({});
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    registry.register({
+      descriptor: { id: 'waits' },
+      handler: (ctx) => new Promise((_resolve, reject) => {
+        ctx.signal.addEventListener('abort', () => reject(new Error('aborted by run cancel')), { once: true });
+        void lifecycle.cancel({ runId: run.id });
+      }),
+      policy: { authorize: () => 'allow' },
+    });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'waits', principal: { id: 'user-1' }, input: {} });
+
+    expect(result.status).toBe('cancelled');
+    const results = (await collectEvents(lifecycle, run.id))
+      .filter((event) => event.kind === 'agent')
+      .map((event) => event.payload as RunAgentPayload)
+      .filter((payload) => payload.type === 'tool_result');
+    expect(results).toEqual([{ type: 'tool_result', toolUseId: 'call-1', content: 'Tool execution cancelled.', isError: true }]);
+  });
+
+  it('unsubscribes its run-cancel listener once the call settles, on both the result and the throw path', async () => {
+    const registry = createToolRegistry({});
+    registry.register({ descriptor: { id: 'ok-tool' }, handler: async () => 'done', policy: { authorize: () => 'allow' } });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const unsubscribes: Array<ReturnType<typeof vi.fn>> = [];
+    const original = lifecycle.onCancelRequested.bind(lifecycle);
+    vi.spyOn(lifecycle, 'onCancelRequested').mockImplementation((args) => {
+      const unsubscribe = vi.fn(original(args));
+      unsubscribes.push(unsubscribe);
+      return unsubscribe;
+    });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+
+    await bridge.execute({ runId: run.id, toolUseId: 'call-ok', toolId: 'ok-tool', principal: { id: 'user-1' }, input: {} });
+    await expect(bridge.execute({ runId: run.id, toolUseId: 'call-missing', toolId: 'missing', principal: { id: 'user-1' }, input: {} }))
+      .rejects.toThrow('ToolExecutor: unknown tool "missing"');
+
+    expect(unsubscribes).toHaveLength(2);
+    expect(unsubscribes.map((unsubscribe) => unsubscribe.mock.calls.length)).toEqual([1, 1]);
+  });
+
+  it('reports an emit failure on the result path as an error tool_result carrying that emit error, then rethrows it', async () => {
+    const registry = createToolRegistry({});
+    registry.register({ descriptor: { id: 'ok-tool' }, handler: async () => 'done', policy: { authorize: () => 'allow' } });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    const originalEmit = lifecycle.emit.bind(lifecycle);
+    const emitted: RunAgentPayload[] = [];
+    vi.spyOn(lifecycle, 'emit').mockImplementation(async (args) => {
+      const data = (args.input as { data: RunAgentPayload }).data;
+      emitted.push(data);
+      if (data.type === 'tool_result' && !('isError' in data)) throw new Error('event log unavailable');
+      return originalEmit(args);
+    });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+
+    await expect(bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'ok-tool', principal: { id: 'user-1' }, input: {} }))
+      .rejects.toThrow('event log unavailable');
+    expect(emitted.slice(1)).toEqual([
+      { type: 'tool_result', toolUseId: 'call-1', content: 'done' },
+      { type: 'tool_result', toolUseId: 'call-1', content: 'event log unavailable', isError: true },
+    ]);
+  });
+
+  it('re-arms the slow-run notice only after the tool_result is emitted, when a mid-call surface suspended it', async () => {
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    const registry = createToolRegistry({});
+    registry.register({
+      descriptor: { id: 'form' },
+      handler: async (_ctx, options) => { await options?.emitSurface?.({ channel: 'a2ui', payload: { message: {} } }); return 'answered'; },
+      policy: { authorize: () => 'allow' },
+    });
+    const order: string[] = [];
+    const originalEmit = lifecycle.emit.bind(lifecycle);
+    vi.spyOn(lifecycle, 'emit').mockImplementation(async (args) => {
+      order.push(`emit:${(args.input as { data: RunAgentPayload }).data.type}`);
+      return originalEmit(args);
+    });
+    const originalSuspend = lifecycle.suspendSlowRunNotice.bind(lifecycle);
+    vi.spyOn(lifecycle, 'suspendSlowRunNotice').mockImplementation((args) => { order.push('suspend'); originalSuspend(args); });
+    const originalResume = lifecycle.resumeSlowRunNotice.bind(lifecycle);
+    vi.spyOn(lifecycle, 'resumeSlowRunNotice').mockImplementation((args) => { order.push('resume'); originalResume(args); });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+
+    await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'form', principal: { id: 'user-1' }, input: {} });
+
+    expect(order).toEqual(['emit:tool_use', 'suspend', 'emit:a2ui', 'emit:tool_result', 'resume']);
+  });
+
+  it('honours a transport signal passed inside the first argument object, as the delegated-tools route does', async () => {
+    const registry = createToolRegistry({});
+    const handler = vi.fn(async () => 'must not run');
+    registry.register({ descriptor: { id: 'ok-tool' }, handler, policy: { authorize: () => 'allow' } });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+    const transport = new AbortController();
+    transport.abort();
+    // Malformed-by-type on purpose: `signal` is declared on the optional object, but the route spreads it into the first.
+    const required = { runId: run.id, toolUseId: 'call-1', toolId: 'ok-tool', principal: { id: 'user-1' }, input: {}, signal: transport.signal };
+
+    const result = await bridge.execute(required);
+
+    expect(result.status).toBe('cancelled');
+    expect(handler).not.toHaveBeenCalled();
+  });
 });
