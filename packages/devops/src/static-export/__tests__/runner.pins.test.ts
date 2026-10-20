@@ -80,6 +80,16 @@ test('a redirect route with no Location and no manifest target fails without wri
   assert.equal(h.writes.size, 0);
 });
 
+test('a redirect route answered without a 3xx leaves its response body uncancelled (reported, not fixed)', async () => {
+  // Every other failure path cancels the body; this one returns before the cancel, so the stream stays open.
+  let cancelled = false;
+  const body = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('not a redirect')); }, cancel() { cancelled = true; } });
+  const h = harness([{ path: '/old', kind: 'redirect', label: 'old' }], { '/old': () => new Response(body, { status: 200 }) });
+  const report = await exportSite(h.args);
+  assert.deepEqual(report.routes.failed, [{ path: '/old', kind: 'redirect', reason: 'expected a 3xx redirect response, got 200' }]);
+  assert.equal(cancelled, false);
+});
+
 test('a redirect route is never crawled for assets or discovered routes', async () => {
   const h = harness([{ path: '/old', kind: 'redirect', label: 'old', redirectTarget: '/assets/x.png' }], { '/old': () => new Response(null, { status: 301 }) });
   h.args.discoverRoutes = () => assert.fail('redirect stubs are not scanned for routes');
@@ -262,6 +272,12 @@ test('written artifact paths, route paths and asset URLs all count as exported; 
     '/probe': html('', 404), '/assets/i.png': () => new Response(new Uint8Array([1])),
   });
   assert.deepEqual((await exportSite(h.args)).droppedReferences, [{ page: '/p', url: '/probe', attribute: 'href', reason: 'not-exported' }]);
+});
+
+test('an index.html artifact also exports its directory path, even when no route has that path', async () => {
+  const h = harness([page('/p'), page('/probe', 'not-found')], { '/p': html('<a href="/errors"></a><a href="/errors/"></a><a href="/errors/index.html"></a>'), '/probe': html('', 404) });
+  h.args.errorPage.outputFile = 'errors/index.html';
+  assert.deepEqual((await exportSite(h.args)).droppedReferences, []);
 });
 
 test('dropped references are deduplicated per page, not across pages', async () => {
