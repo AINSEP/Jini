@@ -3,11 +3,11 @@ import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../i18n/index.js';
-import { SourceConfigItemCard } from './SourceConfigItemCard.js';
+import { I18nProvider } from '../../i18n/index.js';
+import { SourceConfigItemCard } from '../react/components/SourceConfigItemCard.js';
 import type { ComponentProps } from 'react';
-import type { SourceConfigListCapabilities } from '../hooks/useSourceConfigList.js';
-import type { SourceConfigItem, SourceFieldSpec, SourceTrustOption } from '../../types.js';
+import type { SourceConfigListCapabilities } from '../react/hooks/useSourceConfigList.js';
+import type { SourceConfigItem, SourceFieldSpec, SourceTrustOption } from '../types.js';
 
 const URL_FIELD: SourceFieldSpec = { key: 'url', label: 'URL', kind: 'url' };
 const KEY_FIELD: SourceFieldSpec = { key: 'apiKey', label: 'API Key', kind: 'password' };
@@ -221,6 +221,13 @@ describe('SourceConfigItemCard', () => {
       expect(screen.queryByRole('checkbox')).toBeNull();
     });
 
+    it('titles the toggle "Disabled" when the source is disabled, and leaves the checkbox unchecked', () => {
+      const source: SourceConfigItem = { id: 's1', fields: { url: 'https://a.example' }, enabled: false };
+      render(<SourceConfigItemCard {...baseProps({ source })} />);
+      expect(screen.getByTitle('Disabled')).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: /Enable/ })).not.toBeChecked();
+    });
+
     it('disables the checkbox while updating', () => {
       const source: SourceConfigItem = { id: 's1', fields: { url: 'https://a.example' }, enabled: true };
       render(<SourceConfigItemCard {...baseProps({ source, updating: true })} />);
@@ -259,12 +266,57 @@ describe('SourceConfigItemCard', () => {
       expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     });
 
+    it('keeps an in-progress edit draft across collapsing and re-expanding the card', async () => {
+      render(<SourceConfigItemCard {...baseProps()} />);
+      const summary = screen.getByRole('button', { name: 'https://a.example' });
+      await userEvent.click(summary);
+      await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+      await userEvent.type(screen.getByLabelText('Label'), 'Draft');
+      await userEvent.click(summary);
+      await userEvent.click(summary);
+      expect(screen.getByLabelText('Label')).toHaveValue('Draft');
+    });
+
+    it('saves an edited label in the patch', async () => {
+      const source: SourceConfigItem = { id: 's1', label: 'My server', fields: { url: 'https://a.example' } };
+      const onUpdate = vi.fn();
+      render(<SourceConfigItemCard {...baseProps({ source, onUpdate })} />);
+      await userEvent.click(screen.getByRole('button', { name: 'My server' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+      await userEvent.clear(screen.getByLabelText('Label'));
+      await userEvent.type(screen.getByLabelText('Label'), 'Renamed');
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(onUpdate).toHaveBeenCalledWith({ label: 'Renamed', fields: { url: 'https://a.example' } });
+    });
+
+    it('publishes each editing field as <agentHandle>-field-<key> when an agentHandle is given', async () => {
+      render(<SourceConfigItemCard {...baseProps({ agentHandle: 'mcp-server-1' })} />);
+      await userEvent.click(screen.getByRole('button', { name: 'https://a.example' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+      expect(screen.getByLabelText('URL', { exact: false })).toHaveAttribute('data-agent-element', 'mcp-server-1-field-url');
+    });
+
+    it('publishes the test control as <agentHandle>-test when an agentHandle is given', async () => {
+      render(<SourceConfigItemCard {...baseProps({ agentHandle: 'mcp-server-1' })} />);
+      await userEvent.click(screen.getByRole('button', { name: 'https://a.example' }));
+      expect(screen.getByRole('button', { name: 'Test' })).toHaveAttribute('data-agent-element', 'mcp-server-1-test');
+    });
+
     it('seeds an editable field with an empty string when the source is missing that field spec\'s key entirely', async () => {
       const source: SourceConfigItem = { id: 's1', fields: {} };
       render(<SourceConfigItemCard {...baseProps({ source, fieldSpecs: [URL_FIELD] })} />);
       await userEvent.click(screen.getByRole('button', { name: 's1' }));
       await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
       expect(screen.getByLabelText('URL', { exact: false })).toHaveValue('');
+    });
+
+    it('disables Save after a refused save attempt until the draft is valid again', async () => {
+      render(<SourceConfigItemCard {...baseProps({ fieldSpecs: [{ ...URL_FIELD, required: true }] })} />);
+      await userEvent.click(screen.getByRole('button', { name: 'https://a.example' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+      await userEvent.clear(screen.getByLabelText('URL', { exact: false }));
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     });
 
     it('discards edits when Cancel is clicked, without calling onUpdate', async () => {
