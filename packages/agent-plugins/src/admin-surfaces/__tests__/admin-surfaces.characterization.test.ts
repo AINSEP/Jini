@@ -3,7 +3,9 @@
  * `../surface-handlers.ts` before host-mediated link opening and the host-supplied `hostKind` were
  * added: the action gate keeps ignoring any message that is not an action request (so a new message
  * kind can never be forwarded to the server as an action), and a field the caller's context carries
- * beyond the known ones never reaches a plugin's handler.
+ * beyond the known ones never reaches a plugin's handler. Also pinned on the unmodified
+ * `../surface-capabilities.ts` before the `deliveryBindings` port: the exact set of ports a session
+ * hands out to a surface that declares no delivery adapters.
  */
 import { expect, test } from 'vitest';
 import { createIssuedTokenMemories } from '../../lifecycle/tools/capabilities.js';
@@ -11,6 +13,7 @@ import { WORKSPACE_ID } from '../../lifecycle/tools/__tests__/support.js';
 import {
   createAdminSurfaceActionDispatcher, createAdminSurfaceHandlerHost, parseAdminSurfacesFile, validateAdminSurfaceMessage, type AdminSurfaceDescriptor, type AdminSurfaceHandlerContext,
 } from '../index.js';
+import { openAdminSurfaceCapabilitySession } from '../surface-capabilities.js';
 import { createFakeSurfaceHost } from './surface-support.js';
 
 const input = { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } as const;
@@ -41,4 +44,12 @@ test('a field the caller context carries beyond the known ones never reaches the
   expect(seen).toHaveLength(1);
   expect(seen[0]).not.toHaveProperty('extra');
   expect(seen[0]).not.toHaveProperty('hostKind', 'desktop');
+});
+
+// Pinned green on the unmodified `../surface-capabilities.ts` before the `deliveryBindings` port was
+// added: a session for a surface that declares no delivery adapters hands out exactly these ports.
+test('a capability session exposes exactly the shared ports, connections, state and public config', () => {
+  const { port } = createFakeSurfaceHost();
+  const session = openAdminSurfaceCapabilitySession({ capabilities: port({ pluginId: 'acme-office', workspaceId: WORKSPACE_ID }), isLive: () => true, declared: {}, issued: new Set() });
+  expect(Object.keys(session.capabilities).sort()).toEqual(['artifacts', 'connections', 'http', 'limiter', 'publicConfig', 'state']);
 });
