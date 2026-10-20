@@ -32,10 +32,10 @@ Lots are file-disjoint; no lot changes a public export, so lots are independent 
 | L102 | MERGED (52f48f6e) | 1 agent, 54 calls, 150k tok, 11.4 min | 9ad0cad8 7006529a | AssetTreeBrowser 37/27→8/6; rules 17cog→7/7 | 100/100/100 (rules + 3 component files); +8 tests | eslint 0, tsc 0, 266 tests green, 4 why-comment blocks moved (grep-verified) |
 | L103 | MERGED (14d15f11) | 1 agent, 47 calls, 137k tok, 13.4 min | 87e6e4e8 6e1d21b1 aad8a988 55e7405f 80ec22fc | CommentSidePanel 23/20→10/6; MarkdownSplitPane 16→9/5; useCommentReorder 13→9/4; rules 11/17→5/7 | 100/100/100 on 4 files; +25 tests | eslint 0, tsc 0, 208 tests green; comment-line counts only grew |
 | L111 | MERGED (057659f7) | 1 agent, 45 calls, 130k tok, 11.3 min | 47de0d8c 83cb4cdb a7a0bdb7 bc25286e 49d139bb | FileDropzone 28/21→10/5; Lightbox 17/16→3/1; Grid 12/13→3/1 | 100/100/100 (4 files incl. new FileDropzoneZone.tsx); 66→81 tests | eslint 0, tsc 0, 163 tests green, why-comment moved to FileDropzoneZone |
-| L117 | dispatched | | | | | |
+| L117 | MERGED (a6a5bc52) | 1 agent, 34 calls, 125k tok, 9 min | f8b3b81a e90842b1 | dom.ts 15/22→8/10; SketchEditor 15/11→9/2 | 100/100/100 both; +28 tests | eslint 0, tsc 0, 196 tests green; comment lines 57→68 / 30→33 |
 | L122 | dispatched | | | | | |
 | L127 | dispatched | | | | | |
-| L132 | dispatched | | | | | |
+| L132 | MERGED (259f28e9) | 1 agent, 10 calls, 76k tok, 3 min | 2c2ea6e4 | validateAdminTheme 29/26→6/5 | 100/100/100; new __tests__/theme/validation.test.ts (78 tests, exact messages) | eslint 0, tsc 0, 84 tests green; 400+ input differential (deleted) |
 | L133 | dispatched | | | | | |
 
 ## Problems / notes
@@ -44,5 +44,6 @@ Lots are file-disjoint; no lot changes a public export, so lots are independent 
 - L111: commit 47de0d8c has broken test imports (fixed in 83cb4cdb) — don't bisect onto it. useFileDropzone/useFileDropzonePreviews override props only used by tests (public props; kept). Existing FileDropzone.test.tsx has 3 pre-existing `as any` (not introduced).
 - L102: KNOWN FOLLOW-UP (deps not behind wired hook) unchanged; new useAssetTreeBrowserController could host it — design decision for owner.
 - L103: rules.ts commit message says 6/6, measured 5/7. aad8a988 had a tsc error fixed in 55e7405f (don't bisect onto it). CommentSidePanel useCommentReorder override prop only used by tests (kept).
+- L117: f8b3b81a subject says 15->5/22->7; measured 8/10. BUG PINNED (reported, not fixed): duplicated allow-list action or duplicate <li> action → 'already ordered' check never passes → menu re-appended every MutationObserver tick. Export toast 5000 vs 2200 ms not pinned.
 
 ## Next
