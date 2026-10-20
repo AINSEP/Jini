@@ -2,7 +2,7 @@ import type { KeyringPort, SecretSealerPort } from "../ports.js";
 import { credentialTokenHint } from "../credential-token.js";
 import { buildVaultAad } from "./vault.aad.js";
 import { isCopyableKind } from "./vault.meta.js";
-import { VAULT_KINDS, VaultError, type VaultContext, type VaultIdentity, type VaultMeta, type VaultMetaParsers,
+import { VAULT_KINDS, VaultError, type VaultContext, type VaultIdentity, type VaultKind, type VaultMeta, type VaultMetaParsers,
   type VaultCopyResult, type VaultDefaultQuery, type VaultOptions, type VaultQuery, type VaultRecord, type VaultRepoPort, type VaultSummary } from "./vault.types.js";
 
 export interface VaultServiceDeps {
@@ -44,11 +44,54 @@ export interface VaultCopyInput {
   sourceRevisions?: Readonly<Record<string, number>>;
 }
 
+type CopyResultBody = Pick<VaultCopyResult, "status" | "last4" | "reasonCode">;
+type CopyRowInput = VaultCopyInput & { id: string };
+type Envelope = Pick<VaultRecord, "sealed" | "last4" | "tokenLength">;
+/** Kinds whose payloads are addresses, environment maps or OAuth sessions, never single tokens. */
+const HINTLESS_KINDS: readonly VaultKind[] = ["database-destination", "mcp-env", "mcp-auth"];
+
+function isNonEmptyString({ value }: { value: unknown }): boolean {
+  return typeof value === "string" && value !== "";
+}
+function isNullableString({ value }: { value: unknown }): boolean {
+  return value === null || typeof value === "string";
+}
+function hasValidOwnership({ context }: { context: VaultContext | VaultQuery }): boolean {
+  return isNonEmptyString({ value: context.workspaceId }) && isNonEmptyString({ value: context.ownerKey }) &&
+    isNullableString({ value: context.principalId }) && (!("binding" in context) || isNullableString({ value: context.binding }));
+}
+function hasValidKind({ context }: { context: VaultContext | VaultQuery }): boolean {
+  if (!VAULT_KINDS.some(kind => kind === context.kind) && context.kind !== "custom") return false;
+  return context.kind !== "personal-execution" || Boolean(context.principalId);
+}
 function assertContext(context: VaultContext | VaultQuery): void {
-  if (typeof context.workspaceId !== "string" || !context.workspaceId || typeof context.ownerKey !== "string" || !context.ownerKey ||
-    (!VAULT_KINDS.some(kind => kind === context.kind) && context.kind !== "custom") || (context.principalId !== null && typeof context.principalId !== "string") ||
-    ("binding" in context && context.binding !== null && typeof context.binding !== "string") ||
-    (context.kind === "personal-execution" && !context.principalId)) throw new VaultError({ code: "context" });
+  if (!hasValidOwnership({ context }) || !hasValidKind({ context })) throw new VaultError({ code: "context" });
+}
+/** Unified credential rows declare both subtype and compatibility; read defaults cover older rows. */
+function declaresCredential({ meta }: { meta: unknown }): boolean {
+  return meta !== null && typeof meta === "object" && Object.hasOwn(meta, "credentialType") && Object.hasOwn(meta, "worksFor");
+}
+function isInQueryScope({ record, query }: { record: VaultRecord; query: VaultQuery }): boolean {
+  return record.workspaceId === query.workspaceId && record.kind === query.kind && record.ownerKey === query.ownerKey &&
+    record.principalId === query.principalId && (query.provider === undefined || record.provider === query.provider);
+}
+/** Copy changes the site/key, never the credential's owning feature or endpoint. Principal
+ * identities are local to each installation and cannot be carried to the target.
+ */
+function isCopyTarget({ sourceContext, targetContext, sameRepo }: { sourceContext: VaultContext; targetContext: VaultContext; sameRepo: boolean }): boolean {
+  return sourceContext.kind === targetContext.kind && sourceContext.ownerKey === targetContext.ownerKey &&
+    sourceContext.binding === targetContext.binding && sourceContext.principalId === null && targetContext.principalId === null &&
+    !(sameRepo && sourceContext.workspaceId === targetContext.workspaceId);
+}
+function sourceNeedsUpgrade({ raw }: { raw: VaultRecord }): boolean {
+  return Object.hasOwn(raw.meta, "legacyAad") || (raw.kind === "vendor" && !declaresCredential({ meta: raw.meta }));
+}
+function isStaleSelection({ selected, id, revision }: { selected: VaultCopyInput["sourceRevisions"]; id: string; revision: number }): boolean {
+  if (!selected) return false;
+  return Object.hasOwn(selected, id) && selected[id] !== revision;
+}
+function isCompatibleOverwrite({ existing, record }: { existing: VaultRecord; record: VaultRecord }): boolean {
+  return existing.provider === record.provider && (record.kind !== "vendor" || existing.meta.credentialType === record.meta.credentialType);
 }
 function summary(record: VaultRecord): VaultSummary {
   // Enumerate the read model: an adapter's extra runtime properties cannot become API fields.
@@ -121,29 +164,42 @@ export class SecretsVaultService {
     // them for boot resealing. New credentials always use the unified vendor kind.
     if (input.kind === "custom" && input.expectedRevision === null) throw new VaultError({ code: "context" });
     await this.authorize({ action: "put", context: input });
+    const { identity, existing } = await this.findForPut({ input });
+    const meta = this.parsePutMeta({ input, existing });
+    const { sealed, last4, tokenLength } = await this.putEnvelope({ input, identity, existing });
+    const now = this.deps.now({});
+    return { ...identity, provider: input.provider, label: input.label, meta, sealed,
+      isDefault: input.isDefault ?? (existing !== null && existing.provider === input.provider && existing.isDefault),
+      revision: (input.expectedRevision ?? 0) + 1, last4, tokenLength,
+      createdAt: existing === null ? now : existing.createdAt, updatedAt: now };
+  }
+  /** Resolve the target identity and apply the service-level CAS precheck. */
+  private async findForPut({ input }: { input: VaultPutInput }): Promise<{ identity: VaultIdentity; existing: VaultRecord | null }> {
     if (input.expectedRevision !== null && !input.id) throw new VaultError({ code: "conflict" });
     const identity: VaultIdentity = { workspaceId: input.workspaceId, kind: input.kind, ownerKey: input.ownerKey,
       principalId: input.principalId, binding: input.binding, id: input.id ?? this.deps.newId({}) };
     const existing = await this.find(identity);
     if (input.expectedRevision === null ? existing !== null : existing?.revision !== input.expectedRevision) throw new VaultError({ code: "conflict" });
+    return { identity, existing };
+  }
+  private parsePutMeta({ input, existing }: { input: VaultPutInput; existing: VaultRecord | null }): VaultMeta {
     // Read defaults keep older sites usable; new records still declare their subtype/compatibility.
-    if (!existing && input.kind === "vendor" && (input.meta === null || typeof input.meta !== "object" ||
-      !Object.hasOwn(input.meta, "credentialType") || !Object.hasOwn(input.meta, "worksFor"))) throw new VaultError({ code: "invalid-meta" });
+    if (!existing && input.kind === "vendor" && !declaresCredential({ meta: input.meta })) throw new VaultError({ code: "invalid-meta" });
     const meta = this.deps.metaParsers[input.kind]({ meta: input.meta, provider: input.provider });
     if (existing?.kind === "vendor" && existing.meta.credentialType !== meta.credentialType) throw new VaultError({ code: "context" });
-    if (input.payload === undefined && !existing) throw new VaultError({ code: "invalid-record" });
-    const sealed = input.payload === undefined ? existing!.sealed : await this.seal({ context: identity, payload: input.payload });
+    return meta;
+  }
+  /** Omitted payload keeps the existing envelope and hints without opening or sealing. */
+  private async putEnvelope({ input, identity, existing }: { input: VaultPutInput; identity: VaultIdentity; existing: VaultRecord | null }): Promise<Envelope> {
+    if (input.payload === undefined) {
+      if (!existing) throw new VaultError({ code: "invalid-record" });
+      return { sealed: existing.sealed, last4: existing.last4, tokenLength: existing.tokenLength };
+    }
+    const sealed = await this.seal({ context: identity, payload: input.payload });
     // Never expose any suffix of a database address, environment map or OAuth session.
-    const hint = sealed && input.hintToken !== undefined && !["database-destination", "mcp-env", "mcp-auth"].includes(input.kind)
+    const hint = sealed && input.hintToken !== undefined && !HINTLESS_KINDS.includes(input.kind)
       ? credentialTokenHint({ token: input.hintToken }) : null;
-    const now = this.deps.now({});
-    const record: VaultRecord = { ...identity, provider: input.provider, label: input.label, meta, sealed,
-      isDefault: input.isDefault ?? (existing !== null && existing.provider === input.provider && existing.isDefault),
-      revision: (input.expectedRevision ?? 0) + 1,
-      last4: input.payload === undefined ? existing!.last4 : hint?.last4 ?? null,
-      tokenLength: input.payload === undefined ? existing!.tokenLength : hint?.length ?? null,
-      createdAt: existing?.createdAt ?? now, updatedAt: now };
-    return record;
+    return { sealed, last4: hint?.last4 ?? null, tokenLength: hint?.length ?? null };
   }
 
   /** Authorized runtime read; returns plaintext only to the caller that supplied exact ownership. */
@@ -204,51 +260,52 @@ export class SecretsVaultService {
   /** One transfer reuses both services' parsing/open/seal and the repository's default/CAS owner.
    * @complexity Constant row queries plus O(payload size); no group read or source transaction.
    */
-  private async copyRow(input: VaultCopyInput & { id: string }, _options: VaultOptions = {}): Promise<VaultCopyResult> {
-    const { source, sourceContext, targetContext, id } = input;
+  private async copyRow(input: CopyRowInput): Promise<VaultCopyResult> {
+    const { sourceContext, id } = input;
     const result = { kind: sourceContext.kind, id };
     if (!isCopyableKind[sourceContext.kind]) return { ...result, status: "skipped",
       reasonCode: sourceContext.kind === "mcp-env" ? "requires-mcp-configuration" : "kind-not-copyable" };
     try {
-      // Copy changes the site/key, never the credential's owning feature or endpoint. Principal
-      // identities are local to each installation and cannot be carried to the target.
-      if (sourceContext.kind !== targetContext.kind || sourceContext.ownerKey !== targetContext.ownerKey ||
-        sourceContext.binding !== targetContext.binding || sourceContext.principalId !== null || targetContext.principalId !== null ||
-        (source.deps.repo === this.deps.repo && sourceContext.workspaceId === targetContext.workspaceId)) {
-        throw new VaultError({ code: "context" });
-      }
-      const sourceIdentity = { ...sourceContext, id };
-      const targetIdentity = { ...targetContext, id };
-      await source.authorize({ action: "get", context: sourceIdentity });
-      await this.authorize({ action: "put", context: targetIdentity });
-      const raw = await source.deps.repo.find(sourceIdentity);
-      if (!raw) return { ...result, status: "failed", reasonCode: "source-missing" };
-      if (buildVaultAad(sourceIdentity) !== buildVaultAad(raw)) throw new VaultError({ code: "context" });
-      // Check before parsing: normal parsers deliberately reject legacy-AAD metadata.
-      if (Object.hasOwn(raw.meta, "legacyAad") || (raw.kind === "vendor" &&
-        (!Object.hasOwn(raw.meta, "credentialType") || !Object.hasOwn(raw.meta, "worksFor")))) {
-        return { ...result, status: "failed", reasonCode: "source-needs-upgrade" };
-      }
-      if (input.sourceRevisions && Object.hasOwn(input.sourceRevisions, id) && input.sourceRevisions[id] !== raw.revision) throw new VaultError({ code: "conflict" });
-      const record = source.parse(raw);
-      const existing = await this.find(targetIdentity);
-      if (existing && !input.overwrite) return { ...result, status: "skipped", reasonCode: "target-exists" };
-      if (existing && (existing.provider !== record.provider || (record.kind === "vendor" &&
-        existing.meta.credentialType !== record.meta.credentialType))) throw new VaultError({ code: "context" });
-      const expectedRevision = existing?.revision ?? null;
-      const now = this.deps.now({});
-      const candidate = this.parse({ ...record, ...targetIdentity, isDefault: existing?.isDefault ?? false,
-        revision: (expectedRevision ?? 0) + 1, createdAt: existing?.createdAt ?? now, updatedAt: now });
-      candidate.sealed = await this.seal({ context: targetIdentity, payload: await source.open(record) });
-      // Reuse the source's hint policy without guessing a token field from a structured payload.
-      candidate.last4 = record.kind === "database-destination" ? null : summary(record).last4;
-      candidate.tokenLength = record.kind === "database-destination" ? null : record.tokenLength;
-      const saved = await this.deps.repo.put({ record: candidate, expectedRevision });
-      const last4 = summary(saved).last4;
-      return { ...result, status: "copied", ...(last4 ? { last4 } : {}) };
+      return { ...result, ...(await this.transferRow(input)) };
     } catch (error) {
       return { ...result, status: "failed", reasonCode: error instanceof VaultError ? error.code : "copy-failed" };
     }
+  }
+  /** Guarded read of the source row, then a CAS write of the resealed target row. */
+  private async transferRow(input: CopyRowInput): Promise<CopyResultBody> {
+    const { source, sourceContext, targetContext, id } = input;
+    if (!isCopyTarget({ sourceContext, targetContext, sameRepo: source.deps.repo === this.deps.repo })) throw new VaultError({ code: "context" });
+    const sourceIdentity = { ...sourceContext, id };
+    const targetIdentity = { ...targetContext, id };
+    await source.authorize({ action: "get", context: sourceIdentity });
+    await this.authorize({ action: "put", context: targetIdentity });
+    const raw = await source.deps.repo.find(sourceIdentity);
+    if (!raw) return { status: "failed", reasonCode: "source-missing" };
+    if (buildVaultAad(sourceIdentity) !== buildVaultAad(raw)) throw new VaultError({ code: "context" });
+    // Check before parsing: normal parsers deliberately reject legacy-AAD metadata.
+    if (sourceNeedsUpgrade({ raw })) return { status: "failed", reasonCode: "source-needs-upgrade" };
+    if (isStaleSelection({ selected: input.sourceRevisions, id, revision: raw.revision })) throw new VaultError({ code: "conflict" });
+    const record = source.parse(raw);
+    const existing = await this.find(targetIdentity);
+    if (existing && !input.overwrite) return { status: "skipped", reasonCode: "target-exists" };
+    const last4 = summary(await this.writeCopy({ source, record, targetIdentity, existing })).last4;
+    return { status: "copied", ...(last4 ? { last4 } : {}) };
+  }
+  /** Overwrite keeps the target's default, revision chain and creation time. */
+  private async writeCopy({ source, record, targetIdentity, existing }:
+    { source: SecretsVaultService; record: VaultRecord; targetIdentity: VaultIdentity; existing: VaultRecord | null }): Promise<VaultRecord> {
+    if (existing && !isCompatibleOverwrite({ existing, record })) throw new VaultError({ code: "context" });
+    const now = this.deps.now({});
+    const placement = existing
+      ? { isDefault: existing.isDefault, revision: existing.revision + 1, createdAt: existing.createdAt }
+      : { isDefault: false, revision: 1, createdAt: now };
+    const candidate = this.parse({ ...record, ...targetIdentity, ...placement, updatedAt: now });
+    candidate.sealed = await this.seal({ context: targetIdentity, payload: await source.open(record) });
+    // Reuse the source's hint policy without guessing a token field from a structured payload.
+    const hintless = record.kind === "database-destination";
+    candidate.last4 = hintless ? null : summary(record).last4;
+    candidate.tokenLength = hintless ? null : record.tokenLength;
+    return this.deps.repo.put({ record: candidate, expectedRevision: existing ? existing.revision : null });
   }
 
   /** Human-managed scoped inventory. No envelope or plaintext is opened or returned. */
@@ -256,8 +313,7 @@ export class SecretsVaultService {
     assertContext(input);
     await this.authorize({ action: "list", context: input });
     return (await this.deps.repo.list(input)).map(record => {
-      if (record.workspaceId !== input.workspaceId || record.kind !== input.kind || record.ownerKey !== input.ownerKey ||
-        record.principalId !== input.principalId || (input.provider !== undefined && record.provider !== input.provider)) throw new VaultError({ code: "context" });
+      if (!isInQueryScope({ record, query: input })) throw new VaultError({ code: "context" });
       return summary(this.parse(record));
     });
   }

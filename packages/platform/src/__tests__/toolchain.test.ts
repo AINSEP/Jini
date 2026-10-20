@@ -248,3 +248,144 @@ describe('@jini-ai/platform — toolchain — per-version Node install root disc
     expect(dirs.some((dir) => dir.includes('.nvm'))).toBe(false);
   });
 });
+
+describe('@jini-ai/platform — toolchain — full ordered output (pins list order)', () => {
+  it('emits the exact POSIX order with VP_HOME, an npm prefix, MISE_DATA_DIR and system bins', () => {
+    const dirs = withPlatform('linux', () =>
+      wellKnownUserToolchainBins({
+        env: { MISE_DATA_DIR: '/m', NPM_CONFIG_PREFIX: ' /np ', VP_HOME: '/vp' },
+        home: '/h',
+      }),
+    );
+    expect(dirs).toEqual([
+      join('/vp', 'bin'),
+      join('/np', 'bin'),
+      join('/h', '.local', 'bin'),
+      join('/h', '.vite-plus', 'bin'),
+      join('/h', '.kimi-code', 'bin'),
+      join('/h', '.opencode', 'bin'),
+      join('/h', '.bun', 'bin'),
+      join('/h', '.volta', 'bin'),
+      join('/h', '.asdf', 'shims'),
+      join('/h', 'Library', 'pnpm'),
+      join('/h', '.cargo', 'bin'),
+      join('/h', '.npm-global', 'bin'),
+      join('/h', '.npm-packages', 'bin'),
+      join('/h', '.deno', 'bin'),
+      join('/h', 'go', 'bin'),
+      join('/h', '.pyenv', 'shims'),
+      join('/m', 'shims'),
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+    ]);
+  });
+
+  it('defaults includeSystemBins to false on Windows', () => {
+    const dirs = withPlatform('win32', () => wellKnownUserToolchainBins({ env: {}, home: '/h' }));
+    expect(dirs).not.toContain('/usr/local/bin');
+  });
+
+  it('defaults includeSystemBins to true on POSIX', () => {
+    const dirs = withPlatform('darwin', () => wellKnownUserToolchainBins({ env: {}, home: '/h' }));
+    expect(dirs.slice(-2)).toEqual(['/opt/homebrew/bin', '/usr/local/bin']);
+  });
+
+  it('prefers NPM_CONFIG_PREFIX over npm_config_prefix', () => {
+    const dirs = wellKnownUserToolchainBins({
+      env: { NPM_CONFIG_PREFIX: '/upper', npm_config_prefix: '/lower' },
+      home: '/h',
+    });
+    expect(dirs[0]).toBe(join('/upper', 'bin'));
+    expect(dirs).not.toContain(join('/lower', 'bin'));
+  });
+
+  it('emits the exact Windows order with an npm prefix and APPDATA', () => {
+    const dirs = withPlatform('win32', () =>
+      wellKnownUserToolchainBins({ env: { APPDATA: ' /ad ', NPM_CONFIG_PREFIX: '/np' }, home: '/h' }),
+    );
+    expect(dirs).toEqual([
+      join('/np', 'bin'),
+      '/np',
+      join('/h', 'AppData', 'Roaming', 'npm'),
+      join('/h', '.local', 'bin'),
+      join('/h', '.vite-plus', 'bin'),
+      join('/h', '.kimi-code', 'bin'),
+      join('/h', '.opencode', 'bin'),
+      join('/h', '.bun', 'bin'),
+      join('/h', '.volta', 'bin'),
+      join('/h', '.asdf', 'shims'),
+      join('/h', 'Library', 'pnpm'),
+      join('/h', '.cargo', 'bin'),
+      join('/h', '.npm-global', 'bin'),
+      join('/h', '.npm-packages', 'bin'),
+      join('/h', '.deno', 'bin'),
+      join('/h', 'go', 'bin'),
+      join('/h', '.pyenv', 'shims'),
+      join('/h', 'scoop', 'shims'),
+      join('/ad', 'npm'),
+      join('/h', '.local', 'share', 'mise', 'shims'),
+      join('/h', '.mise', 'shims'),
+    ]);
+  });
+
+  it('probes LOCALAPPDATA before APPDATA for fnm roots on Windows', async () => {
+    const local = await makeTempDir('jini-toolchain-fnm-local-');
+    const roaming = await makeTempDir('jini-toolchain-fnm-roaming-');
+    const localDir = join(local, 'fnm', 'node-versions', '20.0.0', 'installation');
+    const roamingDir = join(roaming, 'fnm', 'node-versions', '20.0.0', 'installation');
+    await mkdir(localDir, { recursive: true });
+    await mkdir(roamingDir, { recursive: true });
+    const dirs = withPlatform('win32', () =>
+      wellKnownUserToolchainBins({ env: { APPDATA: roaming, LOCALAPPDATA: local }, home: 'C:\\Users\\fake' }),
+    );
+    expect(dirs.filter((dir) => dir === localDir || dir === roamingDir)).toEqual([localDir, roamingDir]);
+  });
+
+  it('lets FNM_DIR replace the LOCALAPPDATA/APPDATA fnm roots on Windows', async () => {
+    const fnmDir = await makeTempDir('jini-toolchain-fnm-override-');
+    const local = await makeTempDir('jini-toolchain-fnm-ignored-');
+    const fnmVersion = join(fnmDir, 'node-versions', '20.0.0', 'installation');
+    const localVersion = join(local, 'fnm', 'node-versions', '20.0.0', 'installation');
+    await mkdir(fnmVersion, { recursive: true });
+    await mkdir(localVersion, { recursive: true });
+    const dirs = withPlatform('win32', () =>
+      wellKnownUserToolchainBins({ env: { FNM_DIR: ` ${fnmDir} `, LOCALAPPDATA: local }, home: 'C:\\Users\\fake' }),
+    );
+    expect(dirs).toContain(fnmVersion);
+    expect(dirs).not.toContain(localVersion);
+  });
+
+  it('falls back to LOCALAPPDATA when FNM_DIR is blank on Windows', async () => {
+    const local = await makeTempDir('jini-toolchain-fnm-blank-');
+    const localVersion = join(local, 'fnm', 'node-versions', '20.0.0', 'installation');
+    await mkdir(localVersion, { recursive: true });
+    const dirs = withPlatform('win32', () =>
+      wellKnownUserToolchainBins({ env: { FNM_DIR: '  ', LOCALAPPDATA: local }, home: 'C:\\Users\\fake' }),
+    );
+    expect(dirs).toContain(localVersion);
+  });
+
+  it('does not probe Windows-style fnm roots on POSIX', async () => {
+    const fnmDir = await makeTempDir('jini-toolchain-fnm-posix-');
+    const fnmVersion = join(fnmDir, 'node-versions', '20.0.0', 'installation');
+    await mkdir(fnmVersion, { recursive: true });
+    const dirs = withPlatform('linux', () =>
+      wellKnownUserToolchainBins({ env: { FNM_DIR: fnmDir }, home: '/h', includeSystemBins: false }),
+    );
+    expect(dirs).not.toContain(fnmVersion);
+  });
+
+  it('orders mise npm-package bins, then mise node, nvm, XDG fnm and legacy fnm roots', async () => {
+    const home = await makeTempDir('jini-toolchain-root-order-');
+    const expected = [
+      join(home, '.local', 'share', 'mise', 'installs', 'npm-openai-codex', '1.0.0', 'bin'),
+      join(home, '.local', 'share', 'mise', 'installs', 'node', '1.0.0', 'bin'),
+      join(home, '.nvm', 'versions', 'node', '1.0.0', 'bin'),
+      join(home, '.local', 'share', 'fnm', 'node-versions', '1.0.0', 'installation', 'bin'),
+      join(home, '.fnm', 'node-versions', '1.0.0', 'installation', 'bin'),
+    ];
+    for (const dir of expected) await mkdir(dir, { recursive: true });
+    const dirs = withPlatform('linux', () => wellKnownUserToolchainBins({ env: {}, home, includeSystemBins: false }));
+    expect(dirs.slice(-expected.length)).toEqual(expected);
+  });
+});

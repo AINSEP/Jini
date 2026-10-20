@@ -133,20 +133,19 @@ function capResponse(response: HttpResponse, maxBytes: number): HttpResponse {
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
-async function sendWithPolicy(
-  transport: HttpTransportAdapter,
-  policy: EgressPolicy,
-  request: HttpRequest,
-  redirectsFollowed: number,
-  dns: DnsResolver,
-  redirect: RequestRedirect
-): Promise<HttpResponse> {
-  const url = new URL(request.url);
-  request.signal?.throwIfAborted();
-  const peer = await resolveBeforeDeadline(resolvePinnedPeer(url, policy, dns), request.signal);
-  request.signal?.throwIfAborted();
+/** Per-client collaborators and the per-call redirect mode, fixed for every hop of one send. */
+interface HopContext { transport: HttpTransportAdapter; policy: EgressPolicy; dns: DnsResolver; redirect: RequestRedirect }
 
-  const boundedRequest: HttpRequest = {
+async function sendWithPolicy({ hop, request, redirectsFollowed }: { hop: HopContext; request: HttpRequest; redirectsFollowed: number }, _options: Record<string, never> = {}): Promise<HttpResponse> {
+  const url = new URL(request.url);
+  const response = await sendOneHop({ hop, request, url });
+  const nextRequest = followableRedirect({ hop, request, url, response, redirectsFollowed });
+  if (!nextRequest) return response;
+  return sendWithPolicy({ hop, request: nextRequest, redirectsFollowed: redirectsFollowed + 1 });
+}
+
+function boundRequest({ request, policy }: { request: HttpRequest; policy: EgressPolicy }, _options: Record<string, never> = {}): HttpRequest {
+  return {
     ...request,
     // The policy timeout is a ceiling: callers may choose a shorter idle budget, never a longer one.
     // Keep the legacy alias synchronized for host transport adapters. Activity resets
@@ -155,9 +154,17 @@ async function sendWithPolicy(
     timeoutMs: Math.min(request.idleTimeoutMs ?? request.timeoutMs!, policy.connectTimeoutMs),
     maxResponseBytes: Math.min(request.maxResponseBytes ?? Infinity, policy.maxResponseBytes, policy.maxDecompressedBytes),
   };
-  const response = await resolveBeforeDeadline(transport.requestPinned({ request: boundedRequest, peer }), request.signal);
+}
 
-  const effectiveCap = Math.min(request.maxResponseBytes ?? Infinity, policy.maxResponseBytes, policy.maxDecompressedBytes);
+async function sendOneHop({ hop, request, url }: { hop: HopContext; request: HttpRequest; url: URL }, _options: Record<string, never> = {}): Promise<HttpResponse> {
+  request.signal?.throwIfAborted();
+  const peer = await resolveBeforeDeadline(resolvePinnedPeer(url, hop.policy, hop.dns), request.signal);
+  request.signal?.throwIfAborted();
+
+  const boundedRequest = boundRequest({ request, policy: hop.policy });
+  const response = await resolveBeforeDeadline(hop.transport.requestPinned({ request: boundedRequest, peer }), request.signal);
+
+  const effectiveCap = Math.min(request.maxResponseBytes ?? Infinity, hop.policy.maxResponseBytes, hop.policy.maxDecompressedBytes);
 
   // Record the normalized URL actually resolved and pinned, not the caller's original spelling.
   // A followed redirect returns the deeper hop's response, including that hop's finalUrl.
@@ -165,22 +172,27 @@ async function sendWithPolicy(
 
   // A refused redirect is a policy decision like a refused address, so it carries the same type.
   // The text names no Location target, which may be private, so both messages can share it.
-  if (redirect === "error" && REDIRECT_STATUSES.has(cappedResponse.status)) {
+  if (hop.redirect === "error" && REDIRECT_STATUSES.has(cappedResponse.status)) {
     const message = "redirect response refused by the request's redirect policy";
     throw new EgressRefusedError({ message }, { callerSafeMessage: message });
   }
+  return cappedResponse;
+}
 
+/** The next hop's request when this response is a redirect the policy follows, else undefined. */
+function followableRedirect(
+  { hop, request, url, response, redirectsFollowed }: { hop: HopContext; request: HttpRequest; url: URL; response: HttpResponse; redirectsFollowed: number },
+  _options: Record<string, never> = {},
+): HttpRequest | undefined {
   // Follow GET only even when the policy allows redirects: 307/308 preserve method and body,
   // so following a mutating request would replay a write and leak its body to an unchosen target.
   // With follow policy, a non-GET redirect stays a raw response rather than a target refusal.
   const canFollowRedirect =
-    redirect === "follow" && request.method === "GET" && REDIRECT_STATUSES.has(cappedResponse.status) && redirectsFollowed < policy.maxRedirects;
-  if (!canFollowRedirect) {
-    return cappedResponse;
-  }
+    hop.redirect === "follow" && request.method === "GET" && REDIRECT_STATUSES.has(response.status) && redirectsFollowed < hop.policy.maxRedirects;
+  if (!canFollowRedirect) return undefined;
 
-  const location = cappedResponse.headers.location ?? cappedResponse.headers.Location;
-  if (!location) return cappedResponse;
+  const location = response.headers.location ?? response.headers.Location;
+  if (!location) return undefined;
 
   const nextUrl = new URL(location, url);
   // Cross-origin hops must not inherit authorization or cookies entrusted to the original origin.
@@ -188,15 +200,7 @@ async function sendWithPolicy(
   const nextHeaders = isCrossOrigin(url, nextUrl)
     ? withCrossOriginHeaders(request.headers)
     : request.headers;
-
-  return sendWithPolicy(
-    transport,
-    policy,
-    { ...request, url: nextUrl.toString(), headers: nextHeaders },
-    redirectsFollowed + 1,
-    dns,
-    redirect
-  );
+  return { ...request, url: nextUrl.toString(), headers: nextHeaders };
 }
 
 /** Builds an adapter-friendly outbound port. Every hop is resolved, checked, and pinned before I/O.
@@ -221,7 +225,7 @@ export function createHttpClient(required: GuardedHttpRequired): HttpClientPort 
     const deadline = request.totalDeadlineMs === undefined ? undefined : clock.timeoutSignal({ timeoutMs: request.totalDeadlineMs });
     const signal = request.signal && deadline ? AbortSignal.any([request.signal, deadline]) : request.signal ?? deadline;
     try {
-      return await sendWithPolicy(transport, policy, { ...request, ...(signal === undefined ? {} : { signal }), headers: withDefaultUserAgent(request.headers, userAgent) }, 0, dns, redirect);
+      return await sendWithPolicy({ hop: { transport, policy, dns, redirect }, request: { ...request, ...(signal === undefined ? {} : { signal }), headers: withDefaultUserAgent(request.headers, userAgent) }, redirectsFollowed: 0 });
     } catch (error) {
       if (deadline?.aborted && !request.signal?.aborted) throw new FetchTimeoutError(request.url, request.totalDeadlineMs!);
       throw error;

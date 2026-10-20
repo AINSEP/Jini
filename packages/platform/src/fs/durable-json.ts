@@ -206,32 +206,52 @@ export function updateDurableJsonFiles(
   if (new Set(changes.map((change) => change.filePath)).size !== changes.length) throw new Error("Duplicate JSON transaction path.");
   const ordered = [...changes].sort((a, b) => a.filePath.localeCompare(b.filePath));
   const files = ordered.map((change) => fileAt(change.filePath));
-  const lock = (index: number): void => {
-    if (index < files.length) { files[index]!.withLock({ critical: () => lock(index + 1) }); return; }
-    const updates = ordered.map((change, i) => {
-      const before = files[i]!.read({});
-      if (before.state === "unreadable") throw new Error(`JSON reference is unreadable: ${change.filePath}. Nothing was moved.`);
-      const previous = before.state === "ok" ? before.value : undefined;
-      return { file: files[i]!, filePath: change.filePath, previous, next: change.transform(previous) };
-    }).filter((item) => JSON.stringify(item.previous) !== JSON.stringify(item.next));
-    const attempted: typeof updates = [];
-    try {
-      for (const item of updates) {
-        attempted.push(item); // A write can fail after its rename; include it in rollback.
-        if (item.next === undefined) remove({ filePath: item.filePath });
-        else item.file.write({ value: item.next });
-      }
-    } catch (failure) {
-      const errors: unknown[] = [failure];
-      for (const item of attempted.reverse()) {
-        try {
-          if (item.previous === undefined) remove({ filePath: item.filePath });
-          else item.file.write({ value: item.previous });
-        } catch (error) { errors.push(error); }
-      }
-      if (errors.length > 1) throw new AggregateError(errors, "JSON reference rollback failed.");
-      throw failure;
+  withLocksInOrder({ files, critical: () => applyJsonUpdates({ updates: planJsonUpdates({ ordered, files }), remove }) });
+}
+
+interface PlannedJsonUpdate { file: DurableJsonFile; filePath: string; previous: unknown; next: unknown; }
+type RemoveJsonFile = (required: { filePath: string }) => void;
+
+/** Nests each file's lock in path order, then runs the critical section with all of them held. */
+function withLocksInOrder({ files, critical }: { files: readonly DurableJsonFile[]; critical: () => void }, { index = 0 }: { index?: number } = {}): void {
+  if (index >= files.length) { critical(); return; }
+  files[index]!.withLock({ critical: () => withLocksInOrder({ files, critical }, { index: index + 1 }) });
+}
+
+/** Every transform runs before any write, so a refusal leaves all participants untouched. */
+function planJsonUpdates({ ordered, files }: { ordered: readonly DurableJsonChange[]; files: readonly DurableJsonFile[] }): PlannedJsonUpdate[] {
+  return ordered.map((change, i) => {
+    const before = files[i]!.read({});
+    if (before.state === "unreadable") throw new Error(`JSON reference is unreadable: ${change.filePath}. Nothing was moved.`);
+    const previous = before.state === "ok" ? before.value : undefined;
+    return { file: files[i]!, filePath: change.filePath, previous, next: change.transform(previous) };
+  }).filter((item) => JSON.stringify(item.previous) !== JSON.stringify(item.next));
+}
+
+/** Undefined means the file is absent, so it is removed rather than written. */
+function persistJsonValue({ item, value, remove }: { item: PlannedJsonUpdate; value: unknown; remove: RemoveJsonFile }): void {
+  if (value === undefined) remove({ filePath: item.filePath });
+  else item.file.write({ value });
+}
+
+function applyJsonUpdates({ updates, remove }: { updates: readonly PlannedJsonUpdate[]; remove: RemoveJsonFile }): void {
+  const attempted: PlannedJsonUpdate[] = [];
+  try {
+    for (const item of updates) {
+      attempted.push(item); // A write can fail after its rename; include it in rollback.
+      persistJsonValue({ item, value: item.next, remove });
     }
-  };
-  lock(0);
+  } catch (failure) {
+    rollbackJsonUpdates({ attempted, remove, failure });
+  }
+}
+
+/** Restores prior bytes newest-first; keeps going past individual rollback failures. */
+function rollbackJsonUpdates({ attempted, remove, failure }: { attempted: PlannedJsonUpdate[]; remove: RemoveJsonFile; failure: unknown }): never {
+  const errors: unknown[] = [failure];
+  for (const item of attempted.reverse()) {
+    try { persistJsonValue({ item, value: item.previous, remove }); } catch (error) { errors.push(error); }
+  }
+  if (errors.length > 1) throw new AggregateError(errors, "JSON reference rollback failed.");
+  throw failure;
 }

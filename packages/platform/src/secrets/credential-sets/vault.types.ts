@@ -110,21 +110,30 @@ export function vaultGroupKey({ record }: { record: VaultRecord }, _options: Vau
   return JSON.stringify([record.workspaceId, record.kind, record.ownerKey, record.principalId, record.provider]);
 }
 
-/** Adapters guard CAS and immutable identity even for callers below the service. */
-export function assertVaultReplacement(
-  { record, existing, expectedRevision }: { record: VaultRecord; existing: VaultRecord | null; expectedRevision: number | null },
-  _options: VaultOptions = {},
-): void {
+/** Fields fixed at create and checked on every replacement. */
+// Provider groups defaults, but is not authenticated identity (see buildVaultAad).
+const IMMUTABLE_FIELDS = ["workspaceId", "kind", "ownerKey", "principalId", "id", "binding", "createdAt"] as const;
+
+function assertRevision({ record, existing, expectedRevision }: { record: VaultRecord; existing: VaultRecord | null; expectedRevision: number | null }): void {
   if (expectedRevision === null ? existing !== null : existing?.revision !== expectedRevision) throw new VaultError({ code: "conflict" });
   if (!Number.isSafeInteger(record.revision) || record.revision !== (expectedRevision ?? 0) + 1) throw new VaultError({ code: "invalid-record" });
-  // Provider groups defaults, but is not authenticated identity (see buildVaultAad).
-  if (existing && (record.workspaceId !== existing.workspaceId || record.kind !== existing.kind ||
-    record.ownerKey !== existing.ownerKey || record.principalId !== existing.principalId ||
-    record.id !== existing.id || record.binding !== existing.binding || record.createdAt !== existing.createdAt)) throw new VaultError({ code: "context" });
-  if (existing?.kind === "vendor") {
+}
+
+function assertSameIdentity({ record, existing }: { record: VaultRecord; existing: VaultRecord }): void {
+  if (IMMUTABLE_FIELDS.some(field => record[field] !== existing[field])) throw new VaultError({ code: "context" });
+  if (existing.kind === "vendor") {
     // Missing subtype identifies a pre-unification vendor; an explicit null is not a default.
     const previousType = existing.meta.credentialType === undefined ? "vendor" : existing.meta.credentialType;
     const nextType = record.meta.credentialType === undefined ? "vendor" : record.meta.credentialType;
     if (nextType !== previousType) throw new VaultError({ code: "context" });
   }
+}
+
+/** Adapters guard CAS and immutable identity even for callers below the service. */
+export function assertVaultReplacement(
+  { record, existing, expectedRevision }: { record: VaultRecord; existing: VaultRecord | null; expectedRevision: number | null },
+  _options: VaultOptions = {},
+): void {
+  assertRevision({ record, existing, expectedRevision });
+  if (existing) assertSameIdentity({ record, existing });
 }

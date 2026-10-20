@@ -211,13 +211,7 @@ export class S3BlobStorage implements BlobStorage {
     let continuationToken: string | undefined;
     // Cap iterations so a hostile bucket can't loop forever.
     for (let pages = 0; pages < 1000; pages++) {
-      const params: Array<[string, string]> = [
-        ['list-type', '2'],
-        ['prefix', namespacePrefix],
-      ];
-      if (continuationToken) params.push(['continuation-token', continuationToken]);
-      params.sort((a, b) => a[0].localeCompare(b[0]));
-      const query = params.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+      const query = listObjectsV2Query({ prefix: namespacePrefix, continuationToken });
       const res = await this.signedRequest({ method: 'GET', key: '', extraQuery: query });
       if (!res.ok) {
         throw new StorageError('IO', `S3 LIST ${namespacePrefix} → ${res.status} ${res.statusText}: ${await safeText(res)}`);
@@ -287,6 +281,20 @@ export class S3BlobStorage implements BlobStorage {
     };
     return this.fetchFn(url, init);
   }
+}
+
+/** Builds the ListObjectsV2 query string with keys sorted, as SigV4's canonical query requires. */
+function listObjectsV2Query(
+  { prefix, continuationToken }: { prefix: string; continuationToken: string | undefined },
+  _options: Record<string, never> = {},
+): string {
+  const params: Array<[string, string]> = [
+    ['list-type', '2'],
+    ['prefix', prefix],
+  ];
+  if (continuationToken) params.push(['continuation-token', continuationToken]);
+  params.sort((a, b) => a[0].localeCompare(b[0]));
+  return params.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
 }
 
 interface ListBucketEntry {
