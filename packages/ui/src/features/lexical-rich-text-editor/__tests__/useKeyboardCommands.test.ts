@@ -10,8 +10,8 @@ import {
   type LexicalCommand,
 } from 'lexical';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { makeLexicalWrapper } from '../test-support/lexical-harness.js';
-import { useKeyboardCommands } from './useKeyboardCommands.js';
+import { makeLexicalWrapper } from '../react/test-support/lexical-harness.js';
+import { useKeyboardCommands } from '../react/hooks/useKeyboardCommands.js';
 
 function enterEvent(overrides: Partial<KeyboardEventInit> = {}): KeyboardEvent {
   return new KeyboardEvent('keydown', { key: 'Enter', ...overrides });
@@ -187,5 +187,85 @@ describe('useKeyboardCommands', () => {
     });
     expect(handled).toBe(true);
     expect(dispatchSpy).toHaveBeenCalledWith(INSERT_LINE_BREAK_COMMAND, false);
+  });
+
+  it('Ctrl+Enter (without Cmd) force-submits and prevents default', () => {
+    const { wrapper, getEditor } = makeLexicalWrapper();
+    const onSubmit = vi.fn();
+    renderHook(() => useKeyboardCommands(true, onSubmit, vi.fn()), { wrapper });
+    const event = enterEvent({ ctrlKey: true });
+    const preventDefault = vi.spyOn(event, 'preventDefault');
+    act(() => {
+      getEditor().dispatchCommand(KEY_ENTER_COMMAND, event);
+    });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(preventDefault).toHaveBeenCalled();
+  });
+
+  it('plain Enter with the popover open returns whatever the popover handler returns', () => {
+    const { wrapper, getEditor } = makeLexicalWrapper();
+    const onSubmit = vi.fn();
+    const onPopoverKey = vi.fn().mockReturnValue(false);
+    renderHook(() => useKeyboardCommands(true, onSubmit, onPopoverKey), { wrapper });
+    const event = enterEvent();
+    const preventDefault = vi.spyOn(event, 'preventDefault');
+    let handled: boolean | undefined;
+    act(() => {
+      handled = getEditor().dispatchCommand(KEY_ENTER_COMMAND, event);
+    });
+    expect(handled).toBe(false);
+    expect(onPopoverKey).toHaveBeenCalledWith('Enter');
+    expect(preventDefault).toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('plain Enter prevents default before submitting', () => {
+    const { wrapper, getEditor } = makeLexicalWrapper();
+    renderHook(() => useKeyboardCommands(false, vi.fn(), vi.fn()), { wrapper });
+    const event = enterEvent();
+    const preventDefault = vi.spyOn(event, 'preventDefault');
+    act(() => {
+      getEditor().dispatchCommand(KEY_ENTER_COMMAND, event);
+    });
+    expect(preventDefault).toHaveBeenCalled();
+  });
+
+  it('calls the latest onSubmit after a rerender without re-registering', () => {
+    const { wrapper, getEditor } = makeLexicalWrapper();
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = renderHook(
+      ({ submit }: { submit: () => void }) => useKeyboardCommands(false, submit, vi.fn()),
+      { wrapper, initialProps: { submit: first } },
+    );
+    rerender({ submit: second });
+    act(() => {
+      getEditor().dispatchCommand(KEY_ENTER_COMMAND, enterEvent());
+    });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes Escape to the popover even while IME composition is in progress', () => {
+    const { wrapper, getEditor } = makeLexicalWrapper();
+    const onPopoverKey = vi.fn().mockReturnValue(true);
+    renderHook(() => useKeyboardCommands(true, vi.fn(), onPopoverKey), { wrapper });
+    const editor = getEditor();
+    vi.spyOn(editor, 'isComposing').mockReturnValue(true);
+    act(() => {
+      editor.dispatchCommand(KEY_ESCAPE_COMMAND, new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(onPopoverKey).toHaveBeenCalledWith('Escape');
+  });
+
+  it('prevents default on a popover-routed navigation key', () => {
+    const { wrapper, getEditor } = makeLexicalWrapper();
+    renderHook(() => useKeyboardCommands(true, vi.fn(), vi.fn().mockReturnValue(true)), { wrapper });
+    const event = new KeyboardEvent('keydown', { key: 'Tab' });
+    const preventDefault = vi.spyOn(event, 'preventDefault');
+    act(() => {
+      getEditor().dispatchCommand(KEY_TAB_COMMAND, event);
+    });
+    expect(preventDefault).toHaveBeenCalled();
   });
 });
