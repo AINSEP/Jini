@@ -104,4 +104,126 @@ describe('SkillDraftForm', () => {
     renderForm({ error: { kind: 'body-required' }, labels: { bodyRequiredError: 'Custom body error' } });
     expect(screen.getByRole('alert')).toHaveTextContent('Custom body error');
   });
+
+  it('typing into the Name field updates the draft', async () => {
+    const { appliedDrafts } = renderForm();
+    await userEvent.type(screen.getByPlaceholderText('my-skill'), 'x');
+    expect(appliedDrafts[0]?.name).toBe('x');
+  });
+
+  it('typing into the Body field updates the draft', async () => {
+    const { appliedDrafts } = renderForm();
+    await userEvent.type(screen.getByPlaceholderText(/# My skill/), 'x');
+    expect(appliedDrafts[0]?.body).toBe('x');
+  });
+
+  it('renders the built-in default labels when the host passes none', () => {
+    renderForm();
+    for (const text of ['Name', 'Triggers', 'Description', 'Body', 'Cancel']) {
+      expect(screen.getByText(text)).toBeInTheDocument();
+    }
+    expect(screen.getByTestId('skills-save')).toHaveTextContent('Create');
+  });
+
+  it('labels the submit button "Saving…" by default while saving, even when editing', () => {
+    renderForm({ saving: true, isEdit: true, isBuiltInOverride: true });
+    expect(screen.getByTestId('skills-save')).toHaveTextContent('Saving…');
+  });
+
+  it('disables both buttons while saving', () => {
+    renderForm({ saving: true });
+    expect(screen.getByTestId('skills-save')).toBeDisabled();
+    expect(screen.getByText('Cancel')).toBeDisabled();
+  });
+
+  it('labels the submit button "Save as override" by default when editing a built-in skill', () => {
+    renderForm({ isEdit: true, isBuiltInOverride: true });
+    expect(screen.getByTestId('skills-save')).toHaveTextContent('Save as override');
+  });
+
+  it('labels the submit button "Save" by default when editing a user skill', () => {
+    renderForm({ isEdit: true });
+    expect(screen.getByTestId('skills-save')).toHaveTextContent('Save');
+  });
+
+  it('ignores isBuiltInOverride when creating rather than editing', () => {
+    renderForm({ isBuiltInOverride: true });
+    expect(screen.getByTestId('skills-save')).toHaveTextContent('Create');
+  });
+
+  it('uses the edit-form test id and disables the Name input when editing', () => {
+    renderForm({ isEdit: true });
+    expect(screen.getByTestId('skills-edit-form')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('my-skill')).toBeDisabled();
+  });
+
+  it('uses the create-form test id and leaves the Name input enabled when creating', () => {
+    renderForm();
+    expect(screen.getByTestId('skills-create-form')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('my-skill')).toBeEnabled();
+  });
+
+  it('shows the default name-required error text', () => {
+    renderForm({ error: { kind: 'name-required' } });
+    expect(screen.getByRole('alert')).toHaveTextContent('Name is required.');
+  });
+
+  it('shows the default body-required error text', () => {
+    renderForm({ error: { kind: 'body-required' } });
+    expect(screen.getByRole('alert')).toHaveTextContent('Body is required.');
+  });
+
+  it('shows a submit-failed error with the message the host reported', () => {
+    renderForm({ error: { kind: 'submit-failed', message: 'disk full' } });
+    expect(screen.getByRole('alert')).toHaveTextContent('disk full');
+  });
+
+  it('renders no alert when a submit-failed error carries an empty message', () => {
+    renderForm({ error: { kind: 'submit-failed', message: '' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('renders no alert when there is no error', () => {
+    renderForm();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('renders the subheading as a hint when one is given', () => {
+    renderForm({ subheading: 'Edits create an override' });
+    expect(screen.getByText('Edits create an override')).toHaveClass('jini-hint');
+  });
+
+  it('renders no hint paragraph when the subheading is null', () => {
+    const { container } = render(
+      <SkillDraftForm
+        heading="New skill"
+        subheading={null}
+        draft={EMPTY_DRAFT}
+        onDraftChange={vi.fn()}
+        error={null}
+        saving={false}
+        isEdit={false}
+        onCancel={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('.jini-section-head .jini-hint')).toBeNull();
+  });
+
+  it('calls onCancel and onSubmit from their buttons', async () => {
+    const onCancel = vi.fn();
+    const onSubmit = vi.fn();
+    renderForm({ onCancel, onSubmit });
+    await userEvent.click(screen.getByText('Cancel'));
+    await userEvent.click(screen.getByTestId('skills-save'));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('stamps each field with an agent handle derived from the form handle', () => {
+    renderForm({ agentHandle: 'skills-create' });
+    const name = screen.getByPlaceholderText('my-skill');
+    expect([...name.attributes].some((attr) => attr.value === 'skills-create-name')).toBe(true);
+  });
 });
+
