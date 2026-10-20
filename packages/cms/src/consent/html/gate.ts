@@ -1,8 +1,9 @@
 import { defaultTreeAdapter, parse, serialize, serializeOuter, type DefaultTreeAdapterMap, type TreeAdapter } from 'parse5';
 import { escapeHtml } from '@jini-ai/core/text';
 import { type ConsentConfig, type ConsentRecord, type ConsentRegionMode } from '../types.js';
-import { renderConsentHead, renderConsentUi } from './render.js';
+import { renderConsentHead, renderConsentUi, type ConsentCategoryOrigins } from './render.js';
 import { CONSENT_CLIENT } from './client.js';
+import { cssRequestsRemote, external } from './resources.js';
 
 type Node = DefaultTreeAdapterMap['childNode'];
 type Element = DefaultTreeAdapterMap['element'];
@@ -16,6 +17,8 @@ export interface ConsentGateOptions {
   runtimeToken?: string;
   /** Host-reviewed theme origins allowed by the pre-consent resource policy. */
   resourceOrigins?: readonly string[];
+  /** Host-reviewed origins each granted category may reach before a marketing grant. */
+  categoryOrigins?: ConsentCategoryOrigins;
   necessaryScripts?: readonly ({ src: string; content?: never } | { content: string; src?: never })[];
 }
 
@@ -28,16 +31,7 @@ const IMAGE_TAGS = ['img', 'image', 'input'];
 const NAVIGATION_TAGS = ['a', 'area', 'form', 'html', 'head', 'body', 'script'];
 const STRUCTURAL_TAGS = ['html', 'head', 'body', 'script'];
 const OPTIONAL_CATEGORIES = ['functional', 'analytics', 'marketing'];
-const CSS_REQUEST = /url\s*\(|(?:-webkit-)?image-set\s*\(|@import|\\/i;
 const HTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
-
-/** Relative resources belong to the host. A base element is removed before delivery.
- * @complexity O(URL length). Unknown schemes and protocol-relative URLs are external. */
-function external({ url }: { url: string }, _options = {}): boolean {
-  // Browsers normalize backslashes and embedded ASCII URL whitespace before fetching.
-  const normalized = url.trim().replace(/[\t\r\n]/g, '').replace(/\\/g, '/');
-  return !/^(?:[?#]|\/(?!\/)|\.?\.?\/|[a-zA-Z0-9_-]+(?:[./?#]|$))/.test(normalized) || /^[a-z][a-z0-9+.-]*:|^\/\//i.test(normalized);
-}
 
 /** Direct text children only, matching what a browser executes for an inline script. @complexity O(children). */
 function directText({ element }: { element: Element }): string {
@@ -78,7 +72,7 @@ function isResource({ tagName, attrs, text, remote }: { tagName: string; attrs: 
   if (RESOURCE_TAGS.includes(tagName)) return true;
   if (IMAGE_TAGS.includes(tagName) && (remote || isTrackingImage({ attrs }))) return true;
   if (remote && !NAVIGATION_TAGS.includes(tagName)) return true;
-  if (tagName === 'style' && CSS_REQUEST.test(text)) return true;
+  if (tagName === 'style' && cssRequestsRemote({ css: text })) return true;
   return attrs.has('data-consent-category') && !STRUCTURAL_TAGS.includes(tagName);
 }
 
@@ -114,7 +108,7 @@ function isDeferredAttribute({ name, value }: Attribute): boolean {
   if (name === 'background' && external({ url: value })) return true;
   if (/^on/i.test(name)) return true;
   if (['href', 'action', 'formaction'].includes(name)) return /^[\s\x00-\x20]*javascript:/i.test(value);
-  return name === 'style' && CSS_REQUEST.test(value);
+  return name === 'style' && cssRequestsRemote({ css: value });
 }
 
 /** Foreign content renames parsed attributes (viewbox→viewBox, xlink:href→prefix xlink + href);

@@ -58,7 +58,7 @@ function respondError(response: Response, status: number, error: string): void {
   response.status(status).json({ error });
 }
 
-type ConsentHttpOptions = { endpoint?: string; cookieName?: string; nonce?: string | ((required: { request: Request; response: Response }) => string | undefined); necessaryScripts?: ConsentGateOptions['necessaryScripts']; resourceOrigins?: ConsentGateOptions['resourceOrigins']; delivery?: 'live' | 'static' };
+type ConsentHttpOptions = { endpoint?: string; cookieName?: string; nonce?: string | ((required: { request: Request; response: Response }) => string | undefined); necessaryScripts?: ConsentGateOptions['necessaryScripts']; resourceOrigins?: ConsentGateOptions['resourceOrigins']; categoryOrigins?: ConsentGateOptions['categoryOrigins']; delivery?: 'live' | 'static' };
 
 const UNAVAILABLE_CONFIG: ConsentConfig = { enabled: true, regionMode: 'opt-in', policyVersion: 'unavailable', privacyPolicyUrl: '', title: 'Cookie preferences', message: 'Optional content is paused while preferences are unavailable.', acceptLabel: 'Accept all', rejectLabel: 'Reject non-essential', preferencesLabel: 'Cookie preferences' };
 
@@ -112,9 +112,9 @@ async function deliveryConfig({ ports, state }: { ports: ConsentHttpPorts; state
 }
 
 /** @complexity O(1). */
-function gateOptions({ request, response }: { request: Request; response: Response }, { nonce, necessaryScripts, resourceOrigins }: ConsentHttpOptions): ConsentGateOptions {
+function gateOptions({ request, response }: { request: Request; response: Response }, { nonce, necessaryScripts, resourceOrigins, categoryOrigins }: ConsentHttpOptions): ConsentGateOptions {
   const requestNonce = typeof nonce === 'function' ? nonce({ request, response }) : nonce;
-  return { runtimeToken: randomUUID(), ...(requestNonce === undefined ? {} : { nonce: requestNonce }), ...(necessaryScripts === undefined ? {} : { necessaryScripts }), ...(resourceOrigins === undefined ? {} : { resourceOrigins }) };
+  return { runtimeToken: randomUUID(), ...(requestNonce === undefined ? {} : { nonce: requestNonce }), ...(necessaryScripts === undefined ? {} : { necessaryScripts }), ...(resourceOrigins === undefined ? {} : { resourceOrigins }), ...(categoryOrigins === undefined ? {} : { categoryOrigins }) };
 }
 
 /** Gate one enabled HTML body; any failure keeps the original page under the blocking policy.

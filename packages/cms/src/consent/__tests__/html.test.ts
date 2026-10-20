@@ -239,7 +239,7 @@ it('uses only host-reviewed theme origins in the resource policy, including brow
   try {
     expect(dom.window.document.querySelector('meta[http-equiv="Content-Security-Policy"]').content).toBe("style-src 'self' https://theme.example 'unsafe-inline'; font-src 'self' https://theme.example data:; img-src 'self' https://theme.example data: blob:; media-src 'self' https://theme.example; frame-src 'self' https://theme.example; connect-src 'self' https://theme.example");
   } finally { dom.window.close(); }
-  expect(() => gateConsentHtml({ html: '<html><body>Page</body></html>', config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, { resourceOrigins: ["https://theme.example/"] })).toThrow('Consent resource origins must be HTTP(S) origins.');
+  expect(() => gateConsentHtml({ html: '<html><body>Page</body></html>', config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, { resourceOrigins: ["https://theme.example/"] })).toThrow('Consent resource origin "https://theme.example/" must be an exact HTTP(S) origin such as https://cdn.example (no path or trailing slash).');
 });
 
 it('preserves local SVG references and ordinary navigation while gating remote resources', () => {
@@ -324,5 +324,56 @@ describe('repeated html/body start tags (the parser merges their attributes into
     const dom = new JSDOM(transform('<html><body><svg><a xlink:href="javascript:window.leaked=true"><text>x</text></a></svg></body></html>'));
     try { expect(dom.window.document.querySelector('svg a').getAttributeNames()).not.toContain('xlink:href'); }
     finally { dom.window.close(); }
+  });
+});
+
+describe('first-party presentation and category-specific resource policy', () => {
+  const transform = (html: string, record: typeof accepted | null = null, options = {}) => gateConsentHtml({ html, config, record, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, options);
+  const policyOf = (html: string) => {
+    const dom = new JSDOM(html);
+    try { return dom.window.document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content ?? null; }
+    finally { dom.window.close(); }
+  };
+  it.each([
+    ['local background and font urls', '.hero{background:url(/img/hero.jpg)}@font-face{font-family:x;src:url("/fonts/a.woff2") format("woff2"),url(\'fonts/a.woff\')}'],
+    ['relative image-set and local import', '.a{background:image-set("a.png" 1x, url(b.png) 2x)}@import "/theme/print.css";'],
+    ['data urls', '.i{background:url(data:image/svg+xml;utf8,<svg></svg>)}'],
+    ['escaped quote characters', 'q::before{content:"\\201C"}'],
+  ])('keeps a style element with %s ungated', (_name, css) => {
+    const html = transform(`<html><head><style>${css}</style></head><body></body></html>`);
+    expect(html).toContain(`<style>${css}</style>`); expect(html).not.toContain('<template data-jini-consent-resource');
+  });
+  it('keeps local style attribute images', () => {
+    expect(transform(`<html><body><div style="background-image:url('img/bg.png')">x</div></body></html>`)).toContain(`<div style="background-image:url('img/bg.png')">x</div>`);
+  });
+  it.each([
+    ['a remote url', '.a{background:url(https://tags.example/p.png)}'],
+    ['a protocol-relative url', '.a{background:url( "//tags.example/p.png" )}'],
+    ['an escaped url function', '.a{background:\\75 rl(https://tags.example/p.png)}'],
+    ['an escaped scheme', '.a{background:url(htt\\70s://tags.example/p.png)}'],
+    ['a remote string after a local url in image-set', '.a{background:image-set(url(/a.png) 1x, "https://tags.example/b.png" 2x)}'],
+    ['a remote import', '@import "https://tags.example/a.css";'],
+    ['an unterminated url', '.a{background:url(/a.png'],
+  ])('still gates a style element with %s', (_name, css) => {
+    expect(transform(`<html><head><style>${css}</style></head><body></body></html>`)).toContain('<template data-jini-consent-resource data-category="marketing"><style>');
+  });
+  it('an analytics grant allows only host-reviewed analytics origins; marketing removes the policy', () => {
+    const categoryOrigins = { analytics: ['https://collect.example'], functional: ['https://chat.example'] };
+    const page = '<html><head></head><body>Page</body></html>';
+    const analytics = policyOf(transform(page, { ...accepted, choices: { necessary: true, functional: false, analytics: true, marketing: false } }, { categoryOrigins }));
+    expect(analytics).toBe("style-src 'self' https://collect.example 'unsafe-inline'; font-src 'self' https://collect.example data:; img-src 'self' https://collect.example data: blob:; media-src 'self' https://collect.example; frame-src 'self' https://collect.example; connect-src 'self' https://collect.example");
+    expect(policyOf(transform(page, null, { categoryOrigins }))).not.toContain('example');
+    expect(policyOf(transform(page, accepted, { categoryOrigins }))).toBeNull();
+  });
+  it('browser-only GPC applies the policy of its own reduced choices', async () => {
+    const categoryOrigins = { analytics: ['https://collect.example'], functional: ['https://chat.example'] };
+    const { dom } = await browser(transform('<html><head></head><body>Page</body></html>', accepted, { categoryOrigins }), true);
+    try {
+      const policy = dom.window.document.querySelector('meta[http-equiv="Content-Security-Policy"]').content;
+      expect(policy).toContain("connect-src 'self' https://chat.example"); expect(policy).not.toContain('collect.example');
+    } finally { dom.window.close(); }
+  });
+  it('names an invalid category origin and how to fix it', () => {
+    expect(() => transform('<html><body></body></html>', null, { categoryOrigins: { analytics: ['https://collect.example/path'] } })).toThrow('Consent resource origin "https://collect.example/path" must be an exact HTTP(S) origin such as https://cdn.example (no path or trailing slash).');
   });
 });

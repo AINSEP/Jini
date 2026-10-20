@@ -1,5 +1,5 @@
 import { escapeHtml } from '@jini-ai/core/text';
-import { DENIED_CHOICES, type ConsentConfig, type ConsentRecord, type ConsentRegionMode } from '../types.js';
+import { DENIED_CHOICES, type ConsentChoices, type ConsentConfig, type ConsentRecord, type ConsentRegionMode } from '../types.js';
 import { googleConsentSignals, resolveConsentChoices } from '../policy.js';
 import { CONSENT_CLIENT } from './client.js';
 import { CONSENT_CSS } from './styles.js';
@@ -35,23 +35,51 @@ ${href ? `<a href="${e(href)}">Privacy policy</a> · ` : ''}<a href="#jini-conse
 <div class="jini-consent-actions"><button name="action" value="save">Save preferences</button><button name="action" value="reject">${e(config.rejectLabel)}</button></div></details></form></section>`;
 }
 
-/** Bootstrap must be inserted before every site script; JSON cannot terminate its script element.
- * @complexity O(config text length). */
-export function renderConsentHead({ record, gpc, regionMode = 'opt-in' }: { record: ConsentRecord | null; gpc: boolean; regionMode?: ConsentRegionMode }, { nonce, runtimeToken, resourceOrigins = [] }: { nonce?: string; runtimeToken?: string; resourceOrigins?: readonly string[] } = {}): string {
-  const choices = resolveConsentChoices({ choices: record?.choices, gpc, regionMode });
-  const gpcChoices = resolveConsentChoices({ choices: record?.choices, gpc: true, regionMode });
-  // Origins are a host contract, never extracted from authored resource URLs.
-  const origins = resourceOrigins.map(value => {
-    const url = new URL(value);
-    if (!['http:', 'https:'].includes(url.protocol) || url.origin !== value) throw new Error('Consent resource origins must be HTTP(S) origins.');
+/** Host-reviewed origins of resources a granted category may reach (an analytics collector,
+ * a chat service). Marketing needs none: a marketing grant removes the resource policy. */
+export type ConsentCategoryOrigins = Partial<Record<'functional' | 'analytics', readonly string[]>>;
+type ResourceOrigins = { resourceOrigins: readonly string[]; categoryOrigins: Required<ConsentCategoryOrigins> };
+
+/** Origins are a host contract, never extracted from authored resource URLs.
+ * @throws Error naming the invalid origin and the expected shape. @complexity O(origins). */
+function exactOrigins({ values }: { values: readonly string[] }): string[] {
+  return values.map(value => {
+    let url: URL | null = null;
+    try { url = new URL(value); } catch { /* reported below with the expected shape */ }
+    if (!url || !['http:', 'https:'].includes(url.protocol) || url.origin !== value) throw new Error(`Consent resource origin "${value}" must be an exact HTTP(S) origin such as https://cdn.example (no path or trailing slash).`);
     return url.origin;
   });
-  const sources = ["'self'", ...origins].join(' ');
-  const preConsentPolicy = `style-src ${sources} 'unsafe-inline'; font-src ${sources} data:; img-src ${sources} data: blob:; media-src ${sources}; frame-src ${sources}; connect-src ${sources}`;
-  const state = JSON.stringify({ resourcePolicy: preConsentPolicy, choices, gpcChoices, signals: googleConsentSignals({ choices }), gpcSignals: googleConsentSignals({ choices: gpcChoices }), deniedSignals: googleConsentSignals({ choices: DENIED_CHOICES }), hasRecord: record !== null, optOut: regionMode === 'opt-out', gpc }).replace(/</g, '\\u003c');
+}
+
+/** Pre-consent resource policy for one choice set: theme origins plus each granted category's
+ * origins, so an analytics grant reaches its collector without granting marketing. @complexity O(origins). */
+function resourcePolicy({ choices, origins }: { choices: ConsentChoices; origins: ResourceOrigins }): string {
+  const granted = (['functional', 'analytics'] as const).flatMap(category => choices[category] ? origins.categoryOrigins[category] : []);
+  const sources = ["'self'", ...new Set([...origins.resourceOrigins, ...granted])].join(' ');
+  return `style-src ${sources} 'unsafe-inline'; font-src ${sources} data:; img-src ${sources} data: blob:; media-src ${sources}; frame-src ${sources}; connect-src ${sources}`;
+}
+
+/** The browser runtime can only reduce choices (navigator GPC, an unsaved withdrawal), so it looks
+ * policies up by functional/analytics bits instead of rebuilding them. @complexity O(origins). */
+function resourcePolicies({ origins }: { origins: ResourceOrigins }): Record<string, string> {
+  const policies: Record<string, string> = {};
+  for (const functional of [false, true]) for (const analytics of [false, true]) {
+    policies[`${Number(functional)}${Number(analytics)}`] = resourcePolicy({ choices: { ...DENIED_CHOICES, functional, analytics }, origins });
+  }
+  return policies;
+}
+
+/** Bootstrap must be inserted before every site script; JSON cannot terminate its script element.
+ * @throws Error when a resource or category origin is not an exact HTTP(S) origin.
+ * @complexity O(config text length + origins). */
+export function renderConsentHead({ record, gpc, regionMode = 'opt-in' }: { record: ConsentRecord | null; gpc: boolean; regionMode?: ConsentRegionMode }, { nonce, runtimeToken, resourceOrigins = [], categoryOrigins = {} }: { nonce?: string; runtimeToken?: string; resourceOrigins?: readonly string[]; categoryOrigins?: ConsentCategoryOrigins } = {}): string {
+  const choices = resolveConsentChoices({ choices: record?.choices, gpc, regionMode });
+  const gpcChoices = resolveConsentChoices({ choices: record?.choices, gpc: true, regionMode });
+  const origins: ResourceOrigins = { resourceOrigins: exactOrigins({ values: resourceOrigins }), categoryOrigins: { functional: exactOrigins({ values: categoryOrigins.functional ?? [] }), analytics: exactOrigins({ values: categoryOrigins.analytics ?? [] }) } };
+  const state = JSON.stringify({ resourcePolicies: resourcePolicies({ origins }), choices, gpcChoices, signals: googleConsentSignals({ choices }), gpcSignals: googleConsentSignals({ choices: gpcChoices }), deniedSignals: googleConsentSignals({ choices: DENIED_CHOICES }), hasRecord: record !== null, optOut: regionMode === 'opt-out', gpc }).replace(/</g, '\\u003c');
   // A local stylesheet can import remote CSS/fonts that HTML traversal cannot see.
   // Each choice reloads, so restrictive policy can be removed only after a saved grant.
-  const resourcePolicy = choices.marketing ? '' : `<meta http-equiv="Content-Security-Policy" content="${escapeHtml({ text: preConsentPolicy })}">`;
+  const resourcePolicyMeta = choices.marketing ? '' : `<meta http-equiv="Content-Security-Policy" content="${escapeHtml({ text: resourcePolicy({ choices, origins }) })}">`;
   const nonceAttr = nonce === undefined ? '' : ` nonce="${escapeHtml({ text: nonce })}"`;
-  return `${resourcePolicy}<style data-jini-consent-style${nonceAttr}>${CONSENT_CSS}</style><script type="application/json" id="jini-consent-config"${nonceAttr}>${state}</script><script data-jini-consent-runtime="${escapeHtml({ text: runtimeToken ?? '' })}"${nonceAttr}>${CONSENT_CLIENT}</script>`;
+  return `${resourcePolicyMeta}<style data-jini-consent-style${nonceAttr}>${CONSENT_CSS}</style><script type="application/json" id="jini-consent-config"${nonceAttr}>${state}</script><script data-jini-consent-runtime="${escapeHtml({ text: runtimeToken ?? '' })}"${nonceAttr}>${CONSENT_CLIENT}</script>`;
 }

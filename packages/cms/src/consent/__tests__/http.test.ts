@@ -239,9 +239,9 @@ describe('choice and delivery boundaries', () => {
   });
   it('passes request nonces, manifest scripts and theme origins to the gate', async () => {
     const seen: string[] = [];
-    const dynamic = await site({ register: { nonce: ({ request }) => { seen.push(request.path); return 'n-1'; }, necessaryScripts: [{ src: 'https://tags.example/a.js' }], resourceOrigins: ['https://theme.example'] } });
+    const dynamic = await site({ register: { nonce: ({ request }) => { seen.push(request.path); return 'n-1'; }, necessaryScripts: [{ src: 'https://tags.example/a.js' }], resourceOrigins: ['https://theme.example'], categoryOrigins: { analytics: ['https://collect.example'] } } });
     const html = await (await fetch(dynamic.base)).text();
-    expect(seen).toEqual(['/']); expect(html).toContain('nonce="n-1"'); expect(html).toContain('https://theme.example');
+    expect(seen).toEqual(['/']); expect(html).toContain('nonce="n-1"'); expect(html).toContain('https://theme.example'); expect(html).toContain('https://collect.example');
     expect(html).not.toContain('<template data-jini-consent-script');
     const fixed = await site({ register: { nonce: 'n-2' } });
     expect(await (await fetch(fixed.base)).text()).toContain('nonce="n-2"');

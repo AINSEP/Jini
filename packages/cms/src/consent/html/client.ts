@@ -13,7 +13,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
     // navigator GPC may be absent from the request headers; enforce resource denial before parsing site styles.
     var policy = document.createElement('meta');
     policy.httpEquiv = 'Content-Security-Policy';
-    policy.content = state.resourcePolicy;
+    policy.content = state.resourcePolicies[(choices.functional ? '1' : '0') + (choices.analytics ? '1' : '0')];
     document.head.appendChild(policy);
   }
   window.dataLayer = window.dataLayer || [];
