@@ -155,10 +155,14 @@ function MarkdownModeTabs({
   splitLabel,
   previewLabel,
   modeAriaLabel,
-}: Pick<
-  MarkdownSplitPaneProps,
-  'mode' | 'onModeChange' | 'sourceLabel' | 'splitLabel' | 'previewLabel' | 'modeAriaLabel'
->) {
+}: {
+  mode: MarkdownSplitPaneMode;
+  onModeChange: (mode: MarkdownSplitPaneMode) => void;
+  sourceLabel: string | undefined;
+  splitLabel: string | undefined;
+  previewLabel: string | undefined;
+  modeAriaLabel: string | undefined;
+}) {
   const t = useT();
   return (
     <SegmentedToggle
