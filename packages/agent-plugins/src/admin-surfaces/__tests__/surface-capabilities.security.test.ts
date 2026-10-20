@@ -6,7 +6,7 @@
  * isolated per plugin and never stores an obtained token; disabling the plugin revokes every port.
  */
 import { describe, expect, test } from 'vitest';
-import { REVOKED_MESSAGE } from '../../lifecycle/tools/capabilities.js';
+import { REVOKED_MESSAGE, createIssuedTokenMemories } from '../../lifecycle/tools/capabilities.js';
 import { FAKE_TOKEN, WORKSPACE_ID } from '../../lifecycle/tools/__tests__/support.js';
 import {
   ADMIN_SURFACE_ACTION_INTENTS, ADMIN_SURFACE_STATE_LIMITS, createAdminSurfaceActionDispatcher, createAdminSurfaceCallbackInbox, createAdminSurfaceHandlerHost, openAdminSurfaceCapabilitySession,
@@ -243,7 +243,7 @@ describe('plugin isolation and revocation through the handler host', () => {
     const fake = createFakeSurfaceHost();
     const writer: AdminSurfaceHandlerModule = { actions: { save: async ({ capabilities, context: { pluginId } }) => { await capabilities.state.set({ key: 'selection', value: pluginId }); return {}; } } };
     const reader: AdminSurfaceHandlerModule = { actions: { save: async ({ capabilities }) => ({ empty: (await capabilities.state.get({ key: 'selection' })) === null }) } };
-    const host = createAdminSurfaceHandlerHost({ capabilities: fake.port });
+    const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: fake.port });
     host.sync({ loaded: [{ pluginId: 'plugin-a', descriptor: descriptorFor(), module: writer }, { pluginId: 'plugin-b', descriptor: descriptorFor(), module: reader }], refusals: [] });
     const dispatch = (pluginId: string) => createAdminSurfaceActionDispatcher({ descriptor: descriptorFor(), handlers: host.handlersFor({ pluginId, surfaceId: 'settings' }) })
       .dispatch({ action: 'save', payload: {}, context: context(pluginId) });
@@ -253,7 +253,7 @@ describe('plugin isolation and revocation through the handler host', () => {
 
   test('every port a module kept is revoked once the plugin is disabled', async () => {
     let kept: Parameters<AdminSurfaceHandlerModule['actions'][string]>[0]['capabilities'] | undefined;
-    const host = createAdminSurfaceHandlerHost({ capabilities: createFakeSurfaceHost().port });
+    const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: createFakeSurfaceHost().port });
     host.sync({ loaded: [{ pluginId: PLUGIN, descriptor: descriptorFor(), module: { actions: { save: async ({ capabilities }) => { kept = capabilities; return {}; } } } }], refusals: [] });
     await createAdminSurfaceActionDispatcher({ descriptor: descriptorFor(), handlers: host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }) }).dispatch({ action: 'save', payload: {}, context: context(PLUGIN) });
     host.sync({ loaded: [], refusals: [] });

@@ -12,7 +12,7 @@
  * the host sees it, and a host that answers with more than the port promises (a connection ref, raw
  * scopes, undeclared callback fields) is cut back to the declared shape. Like the tool session it
  * revokes everything once the plugin is disabled and withholds results and errors that mention a
- * token the surface generation obtained (in this call or an earlier one); it also refuses to persist
+ * token the plugin obtained (in this call, an earlier one, or one of its tools); it also refuses to persist
  * such a token in plugin state.
  */
 import {
@@ -251,7 +251,7 @@ function guardPublicConfig(gate: AgentPluginCapabilityGate, host: AdminSurfacePu
  * @param required.capabilities - The host's ports for this call (already scoped to plugin, workspace, principal).
  * @param required.isLive - False once the plugin's surface handlers are revoked.
  * @param required.declared - The surface's own capability declarations (the allowlists).
- * @param required.issued - The surface generation's token memory, shared by all its calls.
+ * @param required.issued - The plugin's token memory, shared by all its calls (tools included).
  * @param optional.actorId - The signed-in admin; account actions are refused without one.
  * @returns Wrapped capabilities plus the shared `release` (result) and `sanitize` (error) gates.
  * @complexity O(1) to open; each check is bounded by the declared lists and the value caps.

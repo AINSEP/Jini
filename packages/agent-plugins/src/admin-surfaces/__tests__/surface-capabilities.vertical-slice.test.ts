@@ -9,6 +9,7 @@
  * reads, through the same host store, so turning the product off blocks the tool. No network.
  */
 import { expect, test } from 'vitest';
+import { createIssuedTokenMemories } from '../../lifecycle/tools/capabilities.js';
 import { createPluginContributionLoader } from '../../lifecycle/contribution-loader.js';
 import { findTrustedPluginPackages, importContainedModule, readTrustedPluginFile } from '../../lifecycle/__tests__/test-support.js';
 import { createHarness, FAKE_TOKEN, fakeCapabilities, installPlugin, toolsFile, TOOLS_FILENAME, WORKSPACE_ID, withWorkspace } from '../../lifecycle/tools/__tests__/support.js';
@@ -65,7 +66,7 @@ test('an acme-style surface administers its own connection, takes a callback fie
       importModule: ({ plugin, modulePath }) => importContainedModule(plugin, modulePath),
     });
     const fake = createFakeSurfaceHost({ config: { ACME_APP_ID: 'app-123' } });
-    const host = createAdminSurfaceHandlerHost({ capabilities: fake.port });
+    const host = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: fake.port });
     const surfaces = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceContribution({ filename: FILENAME }) });
     const handlerLoad = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceHandlerContribution({ filename: FILENAME }) });
     expect([...surfaces.refusals, ...host.sync({ loaded: handlerLoad.items, refusals: handlerLoad.refusals }).refusals]).toEqual([]);
@@ -132,7 +133,7 @@ test('a product flag the surface writes is what the same plugin\'s tool reads: t
       importModule: ({ plugin, modulePath }) => importContainedModule(plugin, modulePath),
     });
     const fake = createFakeSurfaceHost();
-    const surfaceHost = createAdminSurfaceHandlerHost({ capabilities: fake.port });
+    const surfaceHost = createAdminSurfaceHandlerHost({ issuedTokens: createIssuedTokenMemories(), capabilities: fake.port });
     const surfaces = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceContribution({ filename: FILENAME }) });
     const handlerLoad = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition: defineAdminSurfaceHandlerContribution({ filename: FILENAME }) });
     expect([...surfaces.refusals, ...surfaceHost.sync({ loaded: handlerLoad.items, refusals: handlerLoad.refusals }).refusals]).toEqual([]);

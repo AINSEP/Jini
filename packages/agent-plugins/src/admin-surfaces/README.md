@@ -177,7 +177,7 @@ export default {
   executable contribution (`../lifecycle/contribution-loader.ts`'s `defineExecutablePluginContribution`,
   the loader executable tools use): the plugin must be active, be the build's shipped digest, and the
   module must resolve inside the package root on disk. Refusals are lines in the load's `refusals`.
-- Admission: `createAdminSurfaceHandlerHost({ capabilities }).sync({ loaded, refusals })` refuses a module
+- Admission: `createAdminSurfaceHandlerHost({ capabilities, issuedTokens }).sync({ loaded, refusals })` refuses a module
   that exports a handler for an undeclared action, a `bootstrap()` the surface has no schema for, or a
   surface two loaded modules claim. Call it on boot and on every activation change; a surface missing
   from a load loses its handlers, a handler a route already holds answers `plugin-disabled`, and
@@ -185,8 +185,9 @@ export default {
 - Calls: `capabilities` is the admin-surface port (next section), built per call for the LOADED
   plugin id and the route's workspace/principal; `context.pluginId`/`surfaceId` are the loaded
   module's own, whatever the caller passed, and `context.connectionIds` lists the surface's declared
-  connection ids (never refs). A result or error that mentions a token the surface generation obtained
-  (in this call or an earlier one; the newest 64 are remembered) is withheld (`action-failed`), and
+  connection ids (never refs). A result or error that mentions a token the plugin obtained (in this
+  call or an earlier one, by a surface handler or by one of the plugin's tools; the newest 64 are
+  remembered; `issuedTokens` is the host's one `createIssuedTokenMemories()`, also given to the tool projection) is withheld (`action-failed`), and
   such a token is never saved to state. `fail({ code, message }, { retryable })` builds a surface-safe
   failure; a code that is not lowercase hyphenated becomes `action-failed`, messages are cut at 300 characters.
 - Bootstrap: `bootstrapData({ context })` returns the provider's data (or `null`), refused when it does not
@@ -197,7 +198,7 @@ Host wiring:
 
 ```ts
 const handlerDefinition = defineAdminSurfaceHandlerContribution({ filename: '<product>-admin-surfaces.json' });
-const surfaceHandlers = createAdminSurfaceHandlerHost({ capabilities });          // same port as executable tools
+const surfaceHandlers = createAdminSurfaceHandlerHost({ capabilities, issuedTokens }); // the tool projection's issuedTokens
 const load = await lifecycle.loadPluginContributions({ workspaceId, definition: handlerDefinition });
 surfaceHandlers.sync({ loaded: load.items, refusals: load.refusals });           // boot + every activation change
 // action route
@@ -212,7 +213,7 @@ never name another plugin's connection.
 
 ## Capability ports (`./surface-capabilities.ts`)
 
-`createAdminSurfaceHandlerHost({ capabilities })` takes an `AdminSurfaceCapabilitiesPort`:
+`createAdminSurfaceHandlerHost({ capabilities, issuedTokens })` takes an `AdminSurfaceCapabilitiesPort`:
 `(scope: { pluginId, workspaceId, principalId? }) => AdminSurfaceCapabilities`. The host implements
 it; Jini wraps each call in `openAdminSurfaceCapabilitySession`, which refuses anything the surface
 did not declare before the host sees it, revokes every port once the plugin is disabled (the same

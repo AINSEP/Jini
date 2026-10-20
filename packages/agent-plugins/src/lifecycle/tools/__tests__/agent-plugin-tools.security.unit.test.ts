@@ -7,7 +7,7 @@
 import { expect, test } from 'vitest';
 import { ToolInputError } from '@jini-ai/core';
 import { createPluginContributionRegistry, pluginToolIdFor } from '@jini-ai/plugins/host';
-import { ISSUED_TOKEN_MEMORY_LIMIT, openCapabilityGate, REVOKED_MESSAGE, WITHHELD_ERROR_MESSAGE, WITHHELD_OUTPUT_MESSAGE, type AgentPluginToolCapabilities } from '../capabilities.js';
+import { ISSUED_TOKEN_MEMORY_LIMIT, openCapabilityGate, REVOKED_MESSAGE, WITHHELD_ERROR_MESSAGE, WITHHELD_OUTPUT_MESSAGE, type AgentPluginToolCapabilities, createIssuedTokenMemories } from '../capabilities.js';
 import type { LoadedAgentPluginTool } from '../definition.js';
 import { createAgentPluginToolProjection } from '../projection.js';
 import { setAgentPluginActivation } from '../../__tests__/test-support.js';
@@ -58,7 +58,7 @@ const loaded = (pluginId: string, overrides: Partial<LoadedAgentPluginTool['desc
 });
 function projectionFor(capabilities: AgentPluginToolCapabilities = fakeCapabilities({ tokenRequests: [], requests: [] })) {
   const registry = createPluginContributionRegistry({});
-  return { registry, projection: createAgentPluginToolProjection({ registry, toolIdFor: pluginToolIdFor, capabilities: () => capabilities }) };
+  return { registry, projection: createAgentPluginToolProjection({ issuedTokens: createIssuedTokenMemories(), registry, toolIdFor: pluginToolIdFor, capabilities: () => capabilities }) };
 }
 
 test('two plugins whose namespaced ids collide are both refused (ambiguous)', () => {
