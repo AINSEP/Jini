@@ -6,9 +6,11 @@ import {
 } from "../index.js";
 import type { JsonValue } from "../../primitives/index.js";
 import type { SettingsHttpRequired, SettingsHttpOptions } from "./contracts.js";
-import { respondToSettingsError, resolveTargetWorkspaceId, resolveUserLayerReadTarget, settingsWritePermission,
+import { resolveTargetWorkspaceId, resolveUserLayerReadTarget, settingsWritePermission,
   type SettingsErrorMapping } from "./shared.js";
 import { openSettingsChangeStream } from "./stream.js";
+import { failRequest, readValueMutation, resolvePrincipal, SETTING_SCOPES, unauthenticated, VALUE_MUTATION_REQUIRED,
+  type ValueMutationOperation } from "./http-request.js";
 
 const VALUE_ERRORS: readonly SettingsErrorMapping[] = [
   { matches: (e) => e instanceof PrincipalNotFoundError, status: 404, code: "PRINCIPAL_NOT_FOUND" },
@@ -27,7 +29,6 @@ const DEFINITION_ERRORS: readonly SettingsErrorMapping[] = [
   { matches: (e) => e instanceof ForbiddenError, status: 403, code: "FORBIDDEN" },
 ];
 const RESET_ERRORS = VALUE_ERRORS.filter((m) => m.code === "FORBIDDEN");
-const scopes: readonly string[] = ["global", "workspace", "user"];
 function validation(res: Response, error: string): void {
   res.status(400).json({ error, code: "VALIDATION_ERROR" });
 }
@@ -39,8 +40,8 @@ function bodyOf(req: Request): Record<string, unknown> {
   return req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body as Record<string, unknown> : {};
 }
 
-/** Mount all eight endpoints. The returned disposer closes active feeds and cancels their schedules. */
-/** Injected policy and services preserve the settings HTTP response envelopes.
+/** Mount all eight endpoints. The returned disposer closes active feeds and cancels their schedules.
+ * Injected policy and services preserve the settings HTTP response envelopes.
  * O(1) mounting; read/mutation work is delegated. Feed resources are bounded per connection.
  * @example registerSettingsRoutes({ app, workspaceId, ready, service, changeFeed, principalResolver, authorize, scheduler, routes, permissions });
  */
@@ -54,24 +55,12 @@ export function registerSettingsRoutes(required: SettingsHttpRequired, optional:
     if (String(req.params[routes.workspaceParam] ?? "") !== workspaceId) {
       res.status(404).json({ error: "workspace was not found" }); return;
     }
-    let principal: { id: string } | null;
-    try {
-      await required.ready;
-      principal = await required.principalResolver({ request: req, response: res });
-    } catch {
-      // Readiness/principal failures preserve the authentication boundary's existing 401 envelope.
-      res.status(401).json({ error: "unauthenticated", code: "UNAUTHENTICATED" }); return;
-    }
-    if (!principal) { res.status(401).json({ error: "unauthenticated", code: "UNAUTHENTICATED" }); return; }
+    const principal = await resolvePrincipal(required, { request: req, response: res });
+    if (!principal) { unauthenticated(res); return; }
     try {
       await handler(req, res, principal.id);
     } catch (error) {
-      if (res.headersSent) {
-        // Reporting cannot prevent ending a response whose headers have already been sent.
-        try { optional.onError?.({ operation: "settings-request", error }); }
-        catch { /* Host diagnostics are best-effort. */ }
-        finally { res.end(); }
-      } else respondToSettingsError({ response: res, error, mappings });
+      failRequest({ response: res, error, mappings }, optional);
     }
   };
   const check = async (res: Response, principalId: string, permission: string, entityType: string): Promise<boolean> => {
@@ -123,14 +112,11 @@ export function registerSettingsRoutes(required: SettingsHttpRequired, optional:
     res.json(result);
   }, DEFINITION_ERRORS));
 
-  const mutate = (operation: "set" | "clear"): Handler => async (req, res, callerPrincipalId) => {
+  const mutate = (operation: ValueMutationOperation): Handler => async (req, res, callerPrincipalId) => {
     const body = bodyOf(req);
-    const namespace = String(body.namespace ?? "");
-    const key = String(body.key ?? "");
-    const scope = body.scope as SettingScope;
-    if (!namespace || !key || !scopes.includes(scope) || (operation === "set" && !("valueJson" in body))) {
-      validation(res, operation === "set" ? "namespace, key, scope (global|workspace|user), and valueJson are required" : "namespace, key, and scope (global|workspace|user) are required"); return;
-    }
+    const fields = readValueMutation(body, operation);
+    if (!fields) { validation(res, VALUE_MUTATION_REQUIRED[operation]); return; }
+    const { namespace, key, scope } = fields;
     const target = resolveTargetWorkspaceId({ workspaceId, input: { bodyWorkspaceId: body.workspaceId, scope } });
     if (!target.ok) { validation(res, target.error); return; }
     const principalId = body.principalId ? String(body.principalId) : undefined;
@@ -146,7 +132,7 @@ export function registerSettingsRoutes(required: SettingsHttpRequired, optional:
     const body = bodyOf(req);
     const namespace = String(body.namespace ?? "");
     const scope = body.scope as SettingScope;
-    if (!namespace || !scopes.includes(scope)) { validation(res, "namespace and scope (global|workspace|user) are required"); return; }
+    if (!namespace || !SETTING_SCOPES.includes(scope)) { validation(res, "namespace and scope (global|workspace|user) are required"); return; }
     const target = resolveTargetWorkspaceId({ workspaceId, input: { bodyWorkspaceId: body.workspaceId, scope } });
     if (!target.ok) { validation(res, target.error); return; }
     if (!await check(res, callerPrincipalId, permissions.reset[scope], "setting-namespace")) return;
@@ -158,10 +144,8 @@ export function registerSettingsRoutes(required: SettingsHttpRequired, optional:
     const close = await openSettingsChangeStream({ request: req, response: res, workspaceId, principalId,
       changeFeed: required.changeFeed, authorize: required.authorize, permission: permissions.read, scheduler: required.scheduler,
       onClose: ({ close }) => { streams.delete(close); }, isDisposed: () => disposed }, optional);
-    if (close) {
-      if (disposed) close();
-      else if (!res.destroyed && !res.writableEnded) streams.add(close);
-    }
+    if (disposed) close();
+    else if (!res.destroyed && !res.writableEnded) streams.add(close);
   }));
   return { dispose: () => { disposed = true; for (const close of streams) close(); streams.clear(); } };
 }

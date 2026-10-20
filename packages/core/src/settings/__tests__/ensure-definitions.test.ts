@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { ensureSettingDefinitions, type SettingDefinitionSpec } from "../ensure-definitions.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import { getEffective } from "../settings.js";
-import { SCOPE_BIT } from "../types.js";
+import { SCOPE_BIT, type SettingDefinitionRecord } from "../types.js";
 import { extendDefinitionScopes, set } from "../write-service.js";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 
@@ -142,4 +142,56 @@ test("scope extension refuses operator-owned definitions and invalid masks", asy
   const beforeSeq = await deps.settingsRepo.maxRevisionSeq();
   for (const scopes of [0, -1, 8, 2 ** 32 + 4, 1.5]) await assert.rejects(extendDefinitionScopes({ deps: writeDeps, input: { namespace: "core.preferences", key: "enabled", workspaceId: null, scopes, callerPrincipalId: "boot", authWorkspaceId: "ws" } }), /valid source-declared scope bits/);
   assert.equal(await deps.settingsRepo.maxRevisionSeq(), beforeSeq);
+});
+
+/** Seed one stored definition row directly, so each skip slot below starts from an exact ledger state. */
+function storedDefinition(overrides: Partial<SettingDefinitionRecord>): SettingDefinitionRecord {
+  return { settingId: "stored-1", version: 1, workspaceId: null, namespace: "core.pinned", key: "enabled",
+    ownerKind: "core", ownerId: null, schema: { type: "boolean" }, defaultValue: false, scopes: SCOPE_BIT.workspace,
+    secret: false, status: "active", aliasOfNamespace: null, aliasOfKey: null, coercionTag: null,
+    createdAt: "2026-10-07T00:00:00.000Z", updatedAt: "2026-10-07T00:00:00.000Z", ...overrides };
+}
+const changedEnabled: readonly SettingDefinitionSpec[] = [{ key: "enabled", schema: { type: "boolean" }, defaultValue: true, scopes: SCOPE_BIT.user }];
+
+test.each([
+  ["a tombstoned core row", [storedDefinition({ status: "tombstone" })], "core.pinned"],
+  ["a theme-owned platform row", [storedDefinition({ namespace: "theme.pinned", ownerKind: "theme" })], "theme.pinned"],
+  ["an alias that resolves to a different slot", [
+    storedDefinition({ settingId: "alias-1", status: "alias", aliasOfNamespace: "core.pinned", aliasOfKey: "renamed" }),
+    storedDefinition({ key: "renamed" }),
+  ], "core.pinned"],
+] as const)("core boot leaves %s untouched: no scope extension, no redefault, no registration", async (_label, rows, namespace) => {
+  const deps = { ...fixture(), settingsRepo: new InMemorySettingsRepo({ definitions: rows.map((row) => ({ ...row })) }) };
+  await ensureSettingDefinitions(deps, { namespace, definitions: changedEnabled, systemPrincipalId: "boot" });
+  assert.deepEqual(await deps.settingsRepo.listActiveDefinitions({ workspaceId: null }),
+    rows.filter((row) => row.status !== "tombstone"));
+  assert.equal(await deps.settingsRepo.maxRevisionSeq(), 0);
+});
+
+test("an existing active core row without declared scopes is redefaulted but keeps its scopes", async () => {
+  const deps = { ...fixture(), settingsRepo: new InMemorySettingsRepo({ definitions: [storedDefinition({})] }) };
+  await ensureSettingDefinitions(deps, { namespace: "core.pinned", systemPrincipalId: "boot",
+    definitions: [{ key: "enabled", schema: { type: "boolean" }, defaultValue: true }] });
+  const row = await deps.settingsRepo.findActiveDefinition({ namespace: "core.pinned", key: "enabled", workspaceId: null });
+  assert.equal(row?.defaultValue, true);
+  assert.equal(row?.scopes, SCOPE_BIT.workspace);
+  assert.deepEqual((await deps.settingsRepo.listRevisions({ settingId: "stored-1" })).map(({ op }) => op), ["redefault"]);
+});
+
+test("an existing active core row with declared scopes gains them before its default is reconciled", async () => {
+  const deps = { ...fixture(), settingsRepo: new InMemorySettingsRepo({ definitions: [storedDefinition({})] }) };
+  await ensureSettingDefinitions(deps, { namespace: "core.pinned", definitions: changedEnabled, systemPrincipalId: "boot" });
+  const row = await deps.settingsRepo.findActiveDefinition({ namespace: "core.pinned", key: "enabled", workspaceId: null });
+  assert.equal(row?.scopes, SCOPE_BIT.workspace | SCOPE_BIT.user);
+  assert.equal(row?.defaultValue, true);
+  assert.deepEqual((await deps.settingsRepo.listRevisions({ settingId: "stored-1" })).map(({ op }) => op), ["register", "redefault"]);
+});
+
+test("a fresh core registration without declared scopes defaults to the workspace scope with a null workspace", async () => {
+  const deps = fixture();
+  await ensureSettingDefinitions(deps, { namespace: "core.pinned", systemPrincipalId: "boot",
+    definitions: [{ key: "enabled", schema: { type: "boolean" }, defaultValue: false }] });
+  const [row] = await deps.settingsRepo.listActiveDefinitions({ workspaceId: null });
+  assert.deepEqual({ ownerKind: row?.ownerKind, workspaceId: row?.workspaceId, scopes: row?.scopes, secret: row?.secret },
+    { ownerKind: "core", workspaceId: null, scopes: SCOPE_BIT.workspace, secret: false });
 });
