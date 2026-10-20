@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import type { Request, Response } from "express";
 import { test } from "vitest";
-import { createCommentSubmitHandler, type CommentSubmitRequired } from "../express/index.js";
+import { createCommentSubmitHandler, type CommentSubmitRequired } from "../index.js";
 
 test("comment submit handler refuses every missing required port at construction", () => {
   const complete: CommentSubmitRequired = {
@@ -19,15 +19,17 @@ test("comment submit handler refuses every missing required port at construction
       name: "TypeError", message: `comments submit handler requires ${key}`,
     });
   }
-  for (const invalid of [
-    { ...complete, ingressPolicy: {} },
-    { ...complete, ingressPolicy: null },
-    { ...complete, workspaceId: "" },
-    { ...complete, workspaceId: 0 },
-    { ...complete, ipHashSalt: "" },
-    { ...complete, ipHashSalt: 0 },
-  ]) {
-    assert.throws(() => createCommentSubmitHandler(invalid as CommentSubmitRequired, {}), TypeError);
+  for (const [key, value] of [
+    ["ingressPolicy", {}],
+    ["ingressPolicy", null],
+    ["workspaceId", ""],
+    ["workspaceId", 0],
+    ["ipHashSalt", ""],
+    ["ipHashSalt", 0],
+  ] as const) {
+    assert.throws(() => createCommentSubmitHandler({ ...complete, [key]: value } as CommentSubmitRequired, {}), {
+      name: "TypeError", message: `comments submit handler requires ${key}`,
+    });
   }
   for (const [key, value] of [
     ["rateLimiter", null], ["rateLimiter", {}], ["rateLimiter", { check: true }],
@@ -37,7 +39,9 @@ test("comment submit handler refuses every missing required port at construction
       name: "TypeError", message: `comments submit handler requires ${key}`,
     });
   }
-  assert.throws(() => createCommentSubmitHandler(undefined as never, {}), TypeError);
+  assert.throws(() => createCommentSubmitHandler(undefined as never, {}), {
+    name: "TypeError", message: "comments submit handler requires ingressPolicy",
+  });
   assert.doesNotThrow(() => createCommentSubmitHandler(complete, {}));
 });
 
