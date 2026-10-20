@@ -569,3 +569,15 @@ test("classifyBlock pin: duplicate wrapper names are counted once", () => {
   const verdict = classifyBlock({ file: "/fixture/src/x.ts", fnda: [{ name: "__toESM", hits: 1 }, { name: "__toESM", hits: 2 }], da: [1] });
   assert.match(verdict.reason, /^1 esbuild CJS-wrapper helper record\(s\) \[__toESM\]/);
 });
+
+test("classifyBlock pin: a first-party barrel is skipped with the exact barrel reason", () => {
+  const verdict = classifyBlock(wrapperBlock([1]), 'export { a } from "./a.js";\n');
+  assert.deepEqual(verdict, {
+    file: "src/x.ts", status: "skip", severe: false,
+    reason: 'pure re-export barrel (source is entirely `export ... from "...";` statements) -- its only ' +
+      "instrumented \"functions\" are esbuild's own CJS-interop wrapper helpers plus one lazy getter " +
+      "per re-exported name, not a second merged coverage image; wrapper-name presence here is " +
+      "structurally guaranteed for any barrel, with or without Route A, so it carries no " +
+      "contamination signal -- see this file's header",
+  });
+});
