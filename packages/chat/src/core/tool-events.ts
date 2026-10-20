@@ -1,4 +1,4 @@
-import type { AgentEvent } from './events.js';
+import type { AgentEvent, ToolUseEvent } from './events.js';
 
 /**
  * Drop repeated `tool_use` events that share an `id`. A retried/duplicated
@@ -22,14 +22,14 @@ export function dedupeToolUsesById({ events }: { events: AgentEvent[] | undefine
   let deduped: AgentEvent[] | null = null;
   for (let i = 0; i < events.length; i += 1) {
     const event = events[i]!;
-    if (event.kind === 'tool_use') {
-      if (seen.has(event.id)) {
-        if (!deduped) deduped = events.slice(0, i);
-        continue;
-      }
+    if (event.kind !== 'tool_use') {
+      deduped?.push(event);
+    } else if (seen.has(event.id)) {
+      deduped ??= events.slice(0, i);
+    } else {
       seen.add(event.id);
+      deduped?.push(event);
     }
-    if (deduped) deduped.push(event);
   }
 
   return deduped ?? events;
@@ -50,8 +50,8 @@ export function isDelegatedWrapperToolName({ name }: { name: string }): boolean 
   return DELEGATED_WRAPPER_PATTERN.test(name);
 }
 
-function wrapperToolId(event: AgentEvent): string | undefined {
-  if (event.kind !== 'tool_use' || !isDelegatedWrapperToolName({ name: event.name })) return undefined;
+function wrapperToolId({ event }: { event: ToolUseEvent }): string | undefined {
+  if (!isDelegatedWrapperToolName({ name: event.name })) return undefined;
   const input = event.input;
   const toolId = typeof input === 'object' && input !== null ? (input as Record<string, unknown>).toolId : undefined;
   return typeof toolId === 'string' && toolId ? toolId : undefined;
@@ -83,9 +83,10 @@ export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | u
   const claimed = new Set<number>();
   const folded = new Set<string>();
   events.forEach((event, i) => {
-    const toolId = wrapperToolId(event);
+    if (event.kind !== 'tool_use') return;
+    const toolId = wrapperToolId({ event });
     // A replayed wrapper (same id) must not claim a second canonical row.
-    if (toolId === undefined || event.kind !== 'tool_use' || folded.has(event.id)) return;
+    if (toolId === undefined || folded.has(event.id)) return;
     const match = events.findIndex((other, j) => j > i && !claimed.has(j) && other.kind === 'tool_use' && other.name === toolId);
     if (match === -1) return;
     claimed.add(match);

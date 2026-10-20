@@ -84,6 +84,34 @@ describe('useChatPaneNewTabLinks', () => {
     fireEvent.click(screen.getByText('link'), { button: 1 });
     expect(open).not.toHaveBeenCalled();
   });
+
+  it('leaves an alt-click to the browser', () => {
+    const open = renderPane(<a href="/admin/x">alt link</a>);
+    fireEvent.click(screen.getByText('alt link'), { altKey: true });
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('opens an http: link in a new tab, not only https:', () => {
+    const open = renderPane(<a href="http://example.com/plain">plain http</a>);
+    fireEvent.click(screen.getByText('plain http'));
+    expect(open).toHaveBeenCalledWith('http://example.com/plain');
+  });
+
+  it('defaults the opener to window.open with a new tab and no opener or referrer', () => {
+    const windowOpen = vi.spyOn(window, 'open').mockReturnValue(null);
+    function DefaultPane() {
+      const onClickCapture = useChatPaneNewTabLinks();
+      return (
+        <section onClickCapture={onClickCapture}>
+          <a href="https://example.com/default">default opener</a>
+        </section>
+      );
+    }
+    render(<DefaultPane />);
+    fireEvent.click(screen.getByText('default opener'));
+    expect(windowOpen).toHaveBeenCalledWith('https://example.com/default', '_blank', 'noopener,noreferrer');
+    windowOpen.mockRestore();
+  });
 });
 
 describe('newTabLinkHref', () => {

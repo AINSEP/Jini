@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '../events.js';
-import { assistantContentFromEvents } from '../assistant-content.js';
+import { assistantContentFromEvents, legacyAssistantContentFromEvents } from '../assistant-content.js';
 
 describe('assistantContentFromEvents — a working note is never glued onto the answer', () => {
   it('puts a paragraph break where a tool call sat between two text runs (the saved-row bug)', () => {
@@ -50,5 +50,60 @@ describe('assistantContentFromEvents — a working note is never glued onto the 
         { kind: 'text', text: '\nB' },
       ] }),
     ).toBe('A\nB');
+  });
+});
+
+describe('assistantContentFromEvents — edges', () => {
+  it('returns an empty string for no events', () => {
+    expect(assistantContentFromEvents({ events: undefined })).toBe('');
+  });
+
+  it('skips an empty text delta without consuming the pending step break', () => {
+    expect(assistantContentFromEvents({ events: [
+      { kind: 'text', text: 'A' },
+      { kind: 'tool_use', id: 't', name: 'x', input: {} },
+      { kind: 'text', text: '' },
+      { kind: 'text', text: 'B' },
+    ] })).toBe('A\n\nB');
+  });
+
+  it('adds no second break when the earlier run already ends with a paragraph break', () => {
+    expect(assistantContentFromEvents({ events: [
+      { kind: 'text', text: 'A\n\n' },
+      { kind: 'tool_use', id: 't', name: 'x', input: {} },
+      { kind: 'text', text: 'B' },
+    ] })).toBe('A\n\nB');
+  });
+
+  it('does not treat a tool_result alone as a step boundary', () => {
+    expect(assistantContentFromEvents({ events: [
+      { kind: 'text', text: 'A' },
+      { kind: 'tool_result', toolUseId: 't', content: 'ok', isError: false },
+      { kind: 'text', text: 'B' },
+    ] })).toBe('AB');
+  });
+
+  it('does not mutate the caller\'s readonly event list', () => {
+    const events: readonly AgentEvent[] = Object.freeze([
+      { kind: 'tool_use', id: 't', name: 'x', input: {} },
+      { kind: 'tool_use', id: 't', name: 'x', input: {} },
+      { kind: 'text', text: 'A' },
+    ]);
+    expect(assistantContentFromEvents({ events })).toBe('A');
+    expect(events).toHaveLength(3);
+  });
+});
+
+describe('legacyAssistantContentFromEvents', () => {
+  it('glues every text event together, ignoring tool calls between them', () => {
+    expect(legacyAssistantContentFromEvents({ events: [
+      { kind: 'text', text: 'Need id.' },
+      { kind: 'tool_use', id: 't', name: 'x', input: {} },
+      { kind: 'text', text: 'Done.' },
+    ] })).toBe('Need id.Done.');
+  });
+
+  it('returns an empty string for no events', () => {
+    expect(legacyAssistantContentFromEvents({ events: undefined })).toBe('');
   });
 });

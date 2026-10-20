@@ -1106,4 +1106,63 @@ describe('useChatPane', () => {
       expect(result.current.typedAnswerNotice).toBeNull();
     });
   });
+
+  describe('pane state and guarded entry points', () => {
+    it('reports activity failed when the run fails', async () => {
+      const transport = createFakeChatTransport();
+      const onActivityChange = vi.fn();
+      const { result } = renderHook(() => useChatPane({
+        transport, agents, selection: { agentId: 'codex' }, initialDraft: 'ship it', onActivityChange,
+      }));
+      await act(() => result.current.send());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+      await act(async () => { transport.fail(new Error('run crashed')); });
+
+      await waitFor(() => expect(result.current.activity).toBe('failed'));
+      expect(onActivityChange).toHaveBeenLastCalledWith('failed');
+    });
+
+    it('lets a configured API mode send with no CLI agent selected', () => {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({ transport, agents: [], apiModeConfigured: true }));
+      expect(result.current.sendBlocker).toBeNull();
+    });
+
+    it('refuses an agent-driven send while a blocker stands, naming the blocker', async () => {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({ transport, agents: [] }));
+      await expect(result.current.sendPrompt('ship it')).rejects.toThrow('cannot send: no agent is selected');
+      expect(transport.calls).toHaveLength(0);
+    });
+
+    it('sendAsNewMessage does nothing for an empty draft', async () => {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({ transport, agents, selection: { agentId: 'codex' } }));
+      await act(() => result.current.sendAsNewMessage());
+      expect(transport.calls).toHaveLength(0);
+    });
+
+    it('sendAsNewMessage sends an ordinary turn when no answer is held', async () => {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({
+        transport, agents, selection: { agentId: 'codex' }, initialDraft: 'ship it',
+      }));
+      await act(() => result.current.sendAsNewMessage());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+      expect(transport.calls[0]?.input.history.at(-1)?.content).toBe('ship it');
+    });
+
+    it('interruptSend leaves the running turn alone when there is nothing to send', async () => {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({
+        transport, agents, selection: { agentId: 'codex' }, initialDraft: 'ship it',
+      }));
+      await act(() => result.current.send());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+      act(() => result.current.interruptSend());
+      expect(transport.stoppedRunIds).toEqual([]);
+      expect(result.current.conversation.isStreaming).toBe(true);
+      expect(result.current.queuedPrompt).toBeNull();
+    });
+  });
 });

@@ -36,13 +36,11 @@ export function assistantContentFromEvents({ events }: { events: readonly AgentE
   let out = '';
   let stepBoundary = false;
   for (const ev of dedupeToolUsesById({ events: events ? [...events] : undefined })) {
-    if (ev.kind === 'text') {
-      if (ev.text.length === 0) continue;
-      if (stepBoundary) out += separatorBefore(out, ev.text);
-      out += ev.text;
-      stepBoundary = false;
-    } else if (ev.kind === 'tool_use' || ev.kind === 'ext') {
+    if (ev.kind === 'tool_use' || ev.kind === 'ext') {
       stepBoundary = true;
+    } else if (ev.kind === 'text' && ev.text.length > 0) {
+      out += (stepBoundary ? separatorBefore(out, ev.text) : '') + ev.text;
+      stepBoundary = false;
     }
   }
   return out;

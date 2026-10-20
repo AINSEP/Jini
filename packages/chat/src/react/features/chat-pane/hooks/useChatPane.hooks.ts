@@ -153,6 +153,9 @@ export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
   reset: () => void;
 }
 
+/** The stand-in prompt for a turn that carries only attachments. */
+const ATTACHMENTS_ONLY_PROMPT = 'Review the attached file(s).';
+
 /**
  * The prompt a composer-driven send would carry: the trimmed draft, or a stand-in when only
  * attachments are staged. Module scope so `send()` and `interruptSend()` cannot drift apart on
@@ -160,7 +163,7 @@ export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
  */
 function composerPrompt(composer: UseComposerResult): string {
   return composer.draft.trim()
-    || (composer.attachments.length > 0 ? 'Review the attached file(s).' : '');
+    || (composer.attachments.length > 0 ? ATTACHMENTS_ONLY_PROMPT : '');
 }
 
 function createAttachmentBatchId(): string {
@@ -210,6 +213,60 @@ function resolveChatPaneActivity(
   if (conversation.error) return 'failed';
   if (conversation.isStreaming) return 'streaming';
   return 'ready';
+}
+
+/**
+ * The host delivery and live run a send can go INTO instead of queueing behind, or `null` when the
+ * host offers no mid-run delivery or no run can take it ({@link findMidRunMessageRunId}).
+ *
+ * @complexity O(1).
+ */
+function findMidRunTarget(
+  { deliver, blocker, attachmentCount, messages }: {
+    deliver: DeliverMidRunMessage | undefined;
+    blocker: ChatPaneSendBlocker | null;
+    attachmentCount: number;
+    messages: readonly ChatMessage[];
+  },
+): { deliver: DeliverMidRunMessage; runId: string } | null {
+  if (deliver === undefined) return null;
+  const runId = findMidRunMessageRunId({ blocker, attachmentCount, messages });
+  return runId === null ? null : { deliver, runId };
+}
+
+/**
+ * The host's typed-answer delivery when this send answers the question the run is waiting on
+ * ({@link isTypedAnswerTurn}), else `null`.
+ *
+ * @complexity O(m) over the messages scanned for the open question.
+ */
+function findTypedAnswerDeliverer(
+  { deliver, blocker, attachmentCount, messages }: {
+    deliver: DeliverTypedAnswer | undefined;
+    blocker: ChatPaneSendBlocker | null;
+    attachmentCount: number;
+    messages: readonly ChatMessage[];
+  },
+): DeliverTypedAnswer | null {
+  if (deliver === undefined) return null;
+  return isTypedAnswerTurn({ blocker, attachmentCount, messages, toolName: deliver.toolName }) ? deliver : null;
+}
+
+/**
+ * Whether a delivered mid-run turn took every staged attachment with it, so the next staged file
+ * starts a fresh upload batch. Not while an upload is still landing: that file joins this batch.
+ *
+ * @complexity O(s * t) over the staged and sent attachments (both a handful).
+ */
+function deliveredEveryStagedAttachment(
+  { sent, staged, activeUploadCount }: {
+    sent: readonly ChatAttachment[];
+    staged: readonly ChatAttachment[];
+    activeUploadCount: number;
+  },
+): boolean {
+  if (activeUploadCount > 0 || sent.length === 0) return false;
+  return staged.every(attachment => sent.some(item => item.path === attachment.path));
 }
 
 /**
@@ -473,7 +530,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     }
   }, [composer, options.conversationId, options.uploadAttachments]);
 
-  const sendGuardedPrompt = useCallback(async ({ redaction }: { redaction: UserTextRedaction }, _optional = {}) => {
+  const sendGuardedPrompt = useCallback(async ({ redaction }: { redaction: UserTextRedaction }) => {
     const trimmed = redaction.text.trim();
     if (!trimmed) throw new Error('cannot send: the prompt is empty');
     if (sendBlocker !== null) {
@@ -510,7 +567,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   ]);
 
   const sendPrompt = useCallback(async (prompt: string) => {
-    await sendGuardedPrompt({ redaction: guard.redact({ text: prompt.trim() }, {}) }, {});
+    await sendGuardedPrompt({ redaction: guard.redact({ text: prompt.trim() }, {}) });
   }, [guard.redact, sendGuardedPrompt]);
 
   const answerWaitingQuestion = useCallback(async (
@@ -563,8 +620,9 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     if (!mountedRef.current || generation !== typedAnswerGenerationRef.current) return;
     if (outcome === 'delivered') {
       for (const attachment of attachments) composer.removeAttachment(attachment.path);
-      if (activeUploadsRef.current.size === 0 && attachments.length > 0
-        && latestAttachmentsRef.current.every(attachment => attachments.some(sent => sent.path === attachment.path))) {
+      if (deliveredEveryStagedAttachment({
+        sent: attachments, staged: latestAttachmentsRef.current, activeUploadCount: activeUploadsRef.current.size,
+      })) {
         attachmentBatchIdRef.current = createAttachmentBatchId();
       }
       return;
@@ -575,39 +633,29 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
 
   // The ordinary next-turn path: into the running run, else queue behind it, else send now.
   const sendOrdinaryTurn = useCallback(async (prompt: string) => {
-    if (isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
-      const turn = guard.redact({ text: prompt }, {});
-      if (activeUploadsRef.current.size > 0 || attachmentError !== null) {
-        queuedForUploadRef.current = queuedTurn === null || queuedForUploadRef.current;
-        enqueueTurn(turn);
-        composer.setDraft('');
-        return;
-      }
-      // The existing queue still owns the staged files; a later steer cannot consume them.
-      if (queuedTurn !== null) {
-        enqueueTurn(turn);
-        composer.setDraft('');
-        return;
-      }
-      const deliver = options.deliverMidRunMessage;
-      const runId = deliver === undefined ? null : findMidRunMessageRunId({
-        blocker: sendBlocker,
-        attachmentCount: composer.attachments.length,
-        messages: conversation.messages,
-      });
-      if (deliver !== undefined && runId !== null) {
-        composer.setDraft('');
-        await sendIntoRunningTurn({ deliver, runId, turn });
-        return;
-      }
-      // Queue instead of no-op'ing. `setDraft('')` and NOT `composer.reset()`: reset also discards
-      // staged attachments, which this turn still needs when it finally goes out.
-      enqueueTurn(turn);
-      composer.setDraft('');
+    if (!isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
+      if (canSend) await sendPrompt(prompt);
       return;
     }
-    if (!canSend) return;
-    await sendPrompt(prompt);
+    const turn = guard.redact({ text: prompt }, {});
+    const uploadPending = activeUploadsRef.current.size > 0 || attachmentError !== null;
+    if (uploadPending) queuedForUploadRef.current = queuedTurn === null || queuedForUploadRef.current;
+    // The existing queue still owns the staged files; a later steer cannot consume them.
+    const target = uploadPending || queuedTurn !== null ? null : findMidRunTarget({
+      deliver: options.deliverMidRunMessage,
+      blocker: sendBlocker,
+      attachmentCount: composer.attachments.length,
+      messages: conversation.messages,
+    });
+    if (target !== null) {
+      composer.setDraft('');
+      await sendIntoRunningTurn({ ...target, turn });
+      return;
+    }
+    // Queue instead of no-op'ing. `setDraft('')` and NOT `composer.reset()`: reset also discards
+    // staged attachments, which this turn still needs when it finally goes out.
+    enqueueTurn(turn);
+    composer.setDraft('');
   }, [
     canSend,
     attachmentError,
@@ -623,22 +671,22 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   ]);
 
   const send = useCallback(async () => {
-    const prompt = composerPrompt(composer)
-      || (conversation.isStreaming && activeUploadsRef.current.size > 0 ? 'Review the attached file(s).' : '');
+    const uploadingWhileStreaming = conversation.isStreaming && activeUploadsRef.current.size > 0;
+    const prompt = composerPrompt(composer) || (uploadingWhileStreaming ? ATTACHMENTS_ONLY_PROMPT : '');
     if (!prompt || deliveringTypedAnswerRef.current) return;
     setTypedAnswerNotice(null);
     // Until upload completes, an empty attachment list is not evidence of a text-only answer.
-    if (conversation.isStreaming && activeUploadsRef.current.size > 0) {
+    if (uploadingWhileStreaming) {
       await sendOrdinaryTurn(prompt);
       return;
     }
-    const deliver = options.deliverTypedAnswer;
-    if (deliver !== undefined && isTypedAnswerTurn({
+    const deliver = findTypedAnswerDeliverer({
+      deliver: options.deliverTypedAnswer,
       blocker: sendBlocker,
       attachmentCount: composer.attachments.length,
       messages: conversation.messages,
-      toolName: deliver.toolName,
-    })) {
+    });
+    if (deliver !== null) {
       await answerWaitingQuestion({ deliver, text: prompt });
       return;
     }
@@ -698,18 +746,18 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       return;
     }
     if (activeUploadCount > 0 || attachmentError !== null) return;
-    const deliver = options.deliverMidRunMessage;
-    const runId = queuedForUploadRef.current && deliver !== undefined ? findMidRunMessageRunId({
+    const target = queuedForUploadRef.current ? findMidRunTarget({
+      deliver: options.deliverMidRunMessage,
       blocker: sendBlocker, attachmentCount: composer.attachments.length, messages: conversation.messages,
     }) : null;
-    if (sendBlocker !== null && runId === null) return;
+    if (sendBlocker !== null && target === null) return;
     queuedForUploadRef.current = false;
     setQueuedTurn(null);
-    if (deliver !== undefined && runId !== null) {
-      void sendIntoRunningTurn({ deliver, runId, turn: queuedTurn });
+    if (target !== null) {
+      void sendIntoRunningTurn({ ...target, turn: queuedTurn });
       return;
     }
-    void sendGuardedPrompt({ redaction: queuedTurn }, {});
+    void sendGuardedPrompt({ redaction: queuedTurn });
   }, [activeUploadCount, attachmentError, composer.attachments.length, conversation.messages,
     options.conversationId, options.deliverMidRunMessage, queuedTurn, sendBlocker, sendGuardedPrompt, sendIntoRunningTurn]);
 

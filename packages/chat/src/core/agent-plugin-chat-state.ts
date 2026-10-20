@@ -7,14 +7,20 @@ const key = (conversationId: string) => `jini:chat-agent-plugins:${conversationI
 function browserStorage(): ChatPluginStorage | undefined {
   try { return typeof window === 'undefined' ? undefined : window.localStorage; } catch { return undefined; }
 }
+function isStringList({ value }: { value: unknown }): boolean {
+  return Array.isArray(value) && value.every(id => typeof id === 'string');
+}
+/** A stored row is usable only when its exclusions and (null or listed) decision are all string ids. */
+function usableChatState({ value }: { value: AgentPluginChatState | null }): AgentPluginChatState | null {
+  return value && isStringList({ value: value.excluded }) && (value.decision === null || isStringList({ value: value.decision?.selected })) ? value : null;
+}
 /** Corrupt/blocked storage permits a fresh question, as clearing localStorage does. */
 export function readAgentPluginChatState(
   { conversationId }: { conversationId: string }, { storage = browserStorage() }: { storage?: ChatPluginStorage | undefined } = {},
 ): AgentPluginChatState {
   try {
-    const value = JSON.parse(storage?.getItem(key(conversationId)) ?? 'null') as AgentPluginChatState | null;
-    if (value && Array.isArray(value.excluded) && value.excluded.every(id => typeof id === 'string') &&
-      (value.decision === null || (Array.isArray(value.decision?.selected) && value.decision.selected.every(id => typeof id === 'string')))) return value;
+    const state = usableChatState({ value: JSON.parse(storage?.getItem(key(conversationId)) ?? 'null') as AgentPluginChatState | null });
+    if (state) return state;
   } catch { /* Private browsing/corrupt rows behave as a new chat decision. */ }
   return { decision: null, excluded: [] };
 }
