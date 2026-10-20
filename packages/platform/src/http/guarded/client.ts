@@ -203,6 +203,29 @@ function followableRedirect(
   return { ...request, url: nextUrl.toString(), headers: nextHeaders };
 }
 
+function assertPositiveLimit(
+  { value, name }: { value: number | undefined; name: string },
+  _options: Record<string, never> = {},
+): void {
+  if (!Number.isSafeInteger(value) || value! <= 0) throw new TypeError(`${name} must be a positive safe integer`);
+}
+
+function assertRequestLimits({ request }: { request: HttpRequest }, _options: Record<string, never> = {}): void {
+  assertPositiveLimit({
+    value: request.idleTimeoutMs ?? request.timeoutMs,
+    name: request.idleTimeoutMs === undefined ? "timeoutMs" : "idleTimeoutMs",
+  });
+  if (request.totalDeadlineMs !== undefined) assertPositiveLimit({ value: request.totalDeadlineMs, name: "totalDeadlineMs" });
+  if (request.maxResponseBytes !== undefined) assertPositiveLimit({ value: request.maxResponseBytes, name: "maxResponseBytes" });
+}
+
+function composeRequestSignal(
+  { caller, deadline }: { caller: AbortSignal | undefined; deadline: AbortSignal | undefined },
+  _options: Record<string, never> = {},
+): AbortSignal | undefined {
+  return caller && deadline ? AbortSignal.any([caller, deadline]) : caller ?? deadline;
+}
+
 /** Builds an adapter-friendly outbound port. Every hop is resolved, checked, and pinned before I/O.
  * Socket idle time is bounded on every hop. An optional totalDeadlineMs includes DNS,
  * redirect hops and decoded body reads; it is never inferred from the idle budget.
@@ -215,15 +238,9 @@ export function createHttpClient(required: GuardedHttpRequired): HttpClientPort 
   }
   if (!Number.isSafeInteger(policy.maxRedirects) || policy.maxRedirects < 0) throw new TypeError("maxRedirects must be a nonnegative safe integer");
   return { async send({ request }, { redirect = "follow" } = {}): Promise<HttpResponse> {
-    const idleTimeoutMs = request.idleTimeoutMs ?? request.timeoutMs;
-    if (!Number.isSafeInteger(idleTimeoutMs) || idleTimeoutMs! <= 0) {
-      const timeoutName = request.idleTimeoutMs === undefined ? "timeoutMs" : "idleTimeoutMs";
-      throw new TypeError(`${timeoutName} must be a positive safe integer`);
-    }
-    if (request.totalDeadlineMs !== undefined && (!Number.isSafeInteger(request.totalDeadlineMs) || request.totalDeadlineMs <= 0)) throw new TypeError("totalDeadlineMs must be a positive safe integer");
-    if (request.maxResponseBytes !== undefined && (!Number.isSafeInteger(request.maxResponseBytes) || request.maxResponseBytes <= 0)) throw new TypeError("maxResponseBytes must be a positive safe integer");
+    assertRequestLimits({ request });
     const deadline = request.totalDeadlineMs === undefined ? undefined : clock.timeoutSignal({ timeoutMs: request.totalDeadlineMs });
-    const signal = request.signal && deadline ? AbortSignal.any([request.signal, deadline]) : request.signal ?? deadline;
+    const signal = composeRequestSignal({ caller: request.signal, deadline });
     try {
       return await sendWithPolicy({ hop: { transport, policy, dns, redirect }, request: { ...request, ...(signal === undefined ? {} : { signal }), headers: withDefaultUserAgent(request.headers, userAgent) }, redirectsFollowed: 0 });
     } catch (error) {
