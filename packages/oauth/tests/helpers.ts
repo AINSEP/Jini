@@ -37,22 +37,25 @@ export interface FetchDouble {
 export function createFetchDouble(script: readonly ScriptedResponse[]): FetchDouble {
     const requests: RecordedRequest[] = [];
     let calls = 0;
-    const fetchFn = (async ({ url: input }: { readonly url: string | URL | Request }, init?: RequestInit): Promise<Response> => {
+    const fetchFn: OAuthFetch = async ({ url: input }, init) => {
         const step = script[Math.min(calls, script.length - 1)] ?? {};
         calls += 1;
-        requests.push({
-            url: String(input),
-            method: init?.method ?? "GET",
-            headers: { ...(init?.headers as Record<string, string> | undefined) },
-            body: new URLSearchParams(typeof init?.body === "string" ? init.body : ""),
-            redirect: init?.redirect,
-        });
+        requests.push(recordFetchRequest({ input }, init));
         if (step.throws)
             throw step.throws;
         const body = step.text ?? JSON.stringify(step.json ?? {});
         return new Response(body, { status: step.status ?? 200, headers: { "content-type": "application/json" } });
-    }) as OAuthFetch;
+    };
     return { fetchFn, requests, callCount: () => calls };
+}
+function recordFetchRequest({ input }: { readonly input: string | URL | Request }, init?: RequestInit): RecordedRequest {
+    return {
+        url: String(input),
+        method: init?.method ?? "GET",
+        headers: { ...(init?.headers as Record<string, string> | undefined) },
+        body: new URLSearchParams(typeof init?.body === "string" ? init.body : ""),
+        redirect: init?.redirect,
+    };
 }
 /** A clock the test moves by hand. */
 export function createTestClock(startIso = "2026-08-25T12:00:00.000Z"): Clock & {
@@ -238,24 +241,46 @@ function buildFixtureMetadata(origin: string, options: DiscoveryFixtureOptions, 
 function buildChallenge(origin: string, resourcePath: string, resourceScopes: readonly string[]): string {
     return `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource${resourcePath}", scope="${resourceScopes.join(" ")}"`;
 }
+function sendProtectedResourceMetadata({ res, origin, resourcePath, resourceScopes }: {
+    readonly res: ServerResponse;
+    readonly origin: string;
+    readonly resourcePath: string;
+    readonly resourceScopes: readonly string[];
+}, options: DiscoveryFixtureOptions = {}): void {
+    if (options.withoutProtectedResourceMetadata === true)
+        sendJson(res, 404, { detail: "Not Found" });
+    else {
+        sendJson(res, 200, {
+            resource: `${origin}${resourcePath}`,
+            authorization_servers: [...(options.deadAuthorizationServers ?? []), origin],
+            scopes_supported: [...resourceScopes],
+        });
+    }
+}
+function sendFixtureRegistration({ req, res, registration }: {
+    readonly req: IncomingMessage;
+    readonly res: ServerResponse;
+    readonly registration: { count: number };
+}, options: DiscoveryFixtureOptions = {}): void {
+    if (req.headers["content-type"]?.split(";")[0].trim() !== "application/json") {
+        sendJson(res, 415, { error: "invalid_client_metadata" });
+        return;
+    }
+    const sequence = options.registrations;
+    const scripted = sequence === undefined ? undefined : sequence[Math.min(registration.count, sequence.length - 1)];
+    registration.count += 1;
+    sendJson(res, options.registration?.status ?? 201, scripted ?? options.registration?.json ?? { client_id: "minted-client-id" });
+}
 export async function startDiscoveryFixture(options: DiscoveryFixtureOptions = {}): Promise<DiscoveryFixture> {
     const resourcePath = options.resourcePath ?? "/resource";
     const resourceScopes = options.resourceScopes ?? ["openid", "email", "offline_access"];
     let origin = "";
-    let registrationCount = 0;
+    const registration = { count: 0 };
     const isProtectedResourcePath = (path: string): boolean => path === `/.well-known/oauth-protected-resource${resourcePath}` || path === "/.well-known/oauth-protected-resource";
     const server = await startLoopbackServer((req, res) => {
         const path = (req.url ?? "/").split("?")[0] ?? "/";
         if (isProtectedResourcePath(path)) {
-            if (options.withoutProtectedResourceMetadata === true)
-                sendJson(res, 404, { detail: "Not Found" });
-            else {
-                sendJson(res, 200, {
-                    resource: `${origin}${resourcePath}`,
-                    authorization_servers: [...(options.deadAuthorizationServers ?? []), origin],
-                    scopes_supported: [...resourceScopes],
-                });
-            }
+            sendProtectedResourceMetadata({ res, origin, resourcePath, resourceScopes }, options);
             return;
         }
         if (path === "/.well-known/oauth-authorization-server") {
@@ -263,14 +288,7 @@ export async function startDiscoveryFixture(options: DiscoveryFixtureOptions = {
             return;
         }
         if (path === "/oauth2/register") {
-            if (req.headers["content-type"]?.split(";")[0].trim() !== "application/json") {
-                sendJson(res, 415, { error: "invalid_client_metadata" });
-                return;
-            }
-            const sequence = options.registrations;
-            const scripted = sequence === undefined ? undefined : sequence[Math.min(registrationCount, sequence.length - 1)];
-            registrationCount += 1;
-            sendJson(res, options.registration?.status ?? 201, scripted ?? options.registration?.json ?? { client_id: "minted-client-id" });
+            sendFixtureRegistration({ req, res, registration }, options);
             return;
         }
         if (path === "/oauth2/token" && options.token !== undefined) {
