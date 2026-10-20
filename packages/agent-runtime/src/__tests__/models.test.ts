@@ -236,7 +236,8 @@ describe('validateRuntimeSelection characterization (pinned before the complexit
   });
 
   it('refuses unverified credentials with the exact message', () => {
-    expect(validateRuntimeSelection({ agents: [{ ...ready, authStatus: undefined }], agentId: 'runtime' })).toBe("Credentials for 'runtime' are not ready (unverified). Sign in and rescan the chat picker.");
+    const { authStatus: _ready, ...unverified } = ready;
+    expect(validateRuntimeSelection({ agents: [unverified], agentId: 'runtime' })).toBe("Credentials for 'runtime' are not ready (unverified). Sign in and rescan the chat picker.");
   });
 
   it('refuses concrete-selection-incapable agents even with no model or effort', () => {
@@ -272,7 +273,7 @@ describe('validateRuntimeSelection characterization (pinned before the complexit
   });
 
   it('refuses any effort for a reasoning-in-model-id runtime even when the model lists the level', () => {
-    expect(validateRuntimeSelection({ agents: [{ ...ready, reasoningInModelId: true }], agentId: 'runtime', modelId: 'm-reasoning', effort: 'high' })).toBe("Unknown effort 'high' for 'runtime'. Available effort levels:  (empty means Default).");
+    expect(validateRuntimeSelection({ agents: [{ ...ready, reasoningInModelId: { levels: [{ id: 'high', label: 'High' }] } }], agentId: 'runtime', modelId: 'm-reasoning', effort: 'high' })).toBe("Unknown effort 'high' for 'runtime'. Available effort levels:  (empty means Default).");
   });
 });
 
