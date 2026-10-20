@@ -31,6 +31,11 @@ export interface AdminSurfaceDescriptor {
   readonly files: readonly string[];
   readonly actions: readonly AdminSurfaceAction[];
   readonly csp: Readonly<Partial<Record<AdminSurfaceCspDirective, readonly string[]>>>;
+  /** A server-side `.mjs` module exporting this surface's action handlers and optional bootstrap
+   * provider (`./surface-handlers.ts`). Loaded only through the executable trust gate; never served. */
+  readonly handlerModule?: string;
+  /** The schema bootstrap data from `handlerModule` must match before it reaches the frame. */
+  readonly bootstrap?: AdminSurfaceActionSchema;
 }
 
 type Parsed<T> = T | string;
@@ -106,7 +111,30 @@ function parseSurface(entry: unknown, at: string): Parsed<AdminSurfaceDescriptor
   const actions = parseActions(entry.actions ?? [], at);
   if (typeof actions === 'string') return actions;
   const csp = parseCsp(entry.csp ?? {}, at);
-  return typeof csp === 'string' ? csp : { ...identity, files, actions, csp };
+  if (typeof csp === 'string') return csp;
+  const handler = parseHandler(entry, { files, actions }, at);
+  return typeof handler === 'string' ? handler : { ...identity, files, actions, csp, ...handler };
+}
+
+/**
+ * The optional server-side handler fields. A handler module is plugin code running in the server, so
+ * it may not also be served to the frame, and every action it answers must declare a `result`: unlike
+ * a host handler, plugin code is not trusted to shape what reaches the frame.
+ */
+function parseHandler(entry: Entry, surface: Pick<AdminSurfaceDescriptor, 'files' | 'actions'>, at: string): Parsed<Pick<AdminSurfaceDescriptor, 'handlerModule' | 'bootstrap'>> {
+  const { handlerModule } = entry;
+  if (handlerModule === undefined) return entry.bootstrap === undefined ? {} : `${at}.bootstrap needs a handlerModule that provides it`;
+  if (!isContainedAdminSurfacePath({ value: handlerModule, extensions: ['.mjs'] })) return `${at}.handlerModule must be a plain relative path ending in .mjs`;
+  if (surface.files.includes(handlerModule as string)) return `${at}.handlerModule is server code and may not also be served to the frame`;
+  const unchecked = surface.actions.findIndex((action) => action.result === undefined);
+  if (unchecked !== -1) return `${at}.actions[${unchecked}] must declare a result schema when the surface has a handlerModule`;
+  return parseBootstrap(entry.bootstrap, handlerModule as string, at);
+}
+
+function parseBootstrap(bootstrap: unknown, handlerModule: string, at: string): Parsed<Pick<AdminSurfaceDescriptor, 'handlerModule' | 'bootstrap'>> {
+  if (bootstrap === undefined) return { handlerModule };
+  const reason = checkAdminSurfaceActionSchema({ schema: bootstrap });
+  return reason === null ? { handlerModule, bootstrap: bootstrap as AdminSurfaceActionSchema } : `${at}.bootstrap ${reason}`;
 }
 
 function parseIdentity(entry: Entry, at: string): Parsed<Pick<AdminSurfaceDescriptor, 'id' | 'title' | 'entry'>> {

@@ -9,3 +9,4 @@ export * from './sandbox.js';
 export * from './host-validator.js';
 export * from './action-dispatcher.js';
 export * from './contribution.js';
+export * from './surface-handlers.js';
