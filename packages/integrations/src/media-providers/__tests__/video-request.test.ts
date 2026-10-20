@@ -338,3 +338,113 @@ describe('normalizeVideoResponse', () => {
         expect(normalizeVideoResponse({ raw: { data: [] } })).toEqual({});
     });
 });
+
+describe('buildVideoRequest — refactor pins (exact wire body incl. key order)', () => {
+    const REF = { dataUrl: 'data:image/png;base64,AAAA' };
+    it('seedance: full optional set serializes in a fixed key order', () => {
+        const req = buildVideoRequest({ cap: SEEDANCE, input: { prompt: 'p', durationSeconds: 8, aspectRatio: '16:9', generateAudio: false, seed: 0, size: '1920x1080' } });
+        expect(JSON.stringify(req.body)).toBe(JSON.stringify({ model: 'doubao-seedance-2-0-260128', prompt: 'p', duration: 8, content: [{ type: 'text', text: 'p' }], resolution: '1080p', ratio: '16:9', generate_audio: false, seed: 0 }));
+    });
+    it('seedance: omits ratio/generate_audio/seed when not supplied', () => {
+        const req = buildVideoRequest({ cap: SEEDANCE, input: { prompt: 'p' } });
+        expect(Object.keys(req.body)).toEqual(['model', 'prompt', 'duration', 'content', 'resolution']);
+    });
+    it('wan: full optional set serializes in a fixed key order with an upper-cased resolution', () => {
+        const req = buildVideoRequest({ cap: WAN, input: { prompt: 'p', imageRef: REF, aspectRatio: '9:16', seed: 0, resolution: '480p', generateAudio: true } });
+        expect(JSON.stringify(req.body)).toBe(JSON.stringify({ model: 'wan2.5-t2v-preview', input: { prompt: 'p', media: [{ type: 'first_frame', url: REF.dataUrl }] }, parameters: { resolution: '480P', duration: 5, prompt_extend: true, watermark: false, aspect_ratio: '9:16', seed: 0 } }));
+    });
+    it('wan: ignores generateAudio and omits media/aspect_ratio/seed when not supplied', () => {
+        const req = buildVideoRequest({ cap: WAN, input: { prompt: 'p', generateAudio: true } });
+        expect(req.body).toEqual({ model: 'wan2.5-t2v-preview', input: { prompt: 'p' }, parameters: { resolution: '720P', duration: 5, prompt_extend: true, watermark: false } });
+    });
+    it('veo: generate_audio false and seed 0 are kept, in a fixed key order', () => {
+        const req = buildVideoRequest({ cap: VEO, input: { prompt: 'p', generateAudio: false, seed: 0, aspectRatio: '1:1', resolution: '1080p', imageRef: REF } });
+        expect(JSON.stringify(req.body)).toBe(JSON.stringify({ model: 'veo-3.1-generate-preview', prompt: 'p', seconds: 4, size: '1280x720', generate_audio: false, seed: 0 }));
+        expect(req.hasReference).toBe(true);
+    });
+    it('generic: full optional set serializes in a fixed key order with string seconds', () => {
+        const req = buildVideoRequest({ cap: GENERIC, input: { prompt: 'p', size: '720x1280', resolution: 'hd', imageRef: REF, generateAudio: true, seed: 3, aspectRatio: '1:1', durationSeconds: 20 } });
+        expect(JSON.stringify(req.body)).toBe(JSON.stringify({ model: 'sora-2', prompt: 'p', seconds: '12', size: '720x1280', resolution: 'hd', input_reference: REF.dataUrl, generate_audio: true, seed: 3 }));
+    });
+    it('generic: omits resolution/input_reference/generate_audio/seed when not supplied', () => {
+        const req = buildVideoRequest({ cap: GENERIC, input: { prompt: 'p' } });
+        expect(req.body).toEqual({ model: 'sora-2', prompt: 'p', seconds: '5', size: '1280x720' });
+    });
+    it('an empty-string imageRef dataUrl counts as no reference', () => {
+        const req = buildVideoRequest({ cap: GENERIC, input: { prompt: 'p', imageRef: { dataUrl: '' } } });
+        expect(req.hasReference).toBe(false);
+        expect('input_reference' in req.body).toBe(false);
+    });
+    it('returns the fixed path/content-type envelope', () => {
+        const req = buildVideoRequest({ cap: VEO, input: { prompt: 'p' } });
+        expect(req).toMatchObject({ wireModel: 'veo-3.1-generate-preview', family: 'veo', pathSuffix: '/videos', contentType: 'application/json', hasReference: false });
+    });
+    it('extraBodyDefaults overwrite a builder field in place, skip undefined defaults, and append new keys', () => {
+        const cap: ModelCapability = { ...VEO, extraBodyDefaults: [{ name: 'seconds', type: 'number', default: 99 }, { name: 'skipped', type: 'string' }, { name: 'tail', type: 'string', default: 't' }] };
+        const req = buildVideoRequest({ cap, input: { prompt: 'p' } });
+        expect(JSON.stringify(req.body)).toBe(JSON.stringify({ model: 'veo-3.1-generate-preview', prompt: 'p', seconds: 99, size: '1280x720', tail: 't' }));
+    });
+    it('an allowed passthrough value overrides both a builder field and an extraBodyDefault', () => {
+        const cap: ModelCapability = { ...VEO, extraBodyDefaults: [{ name: 'seed', type: 'number', default: 1 }], allowedPassthroughParameters: ['seed'] };
+        const req = buildVideoRequest({ cap, input: { prompt: 'p', seed: 5, passthrough: { seed: 7 } } });
+        expect(req.body.seed).toBe(7);
+    });
+    it('an empty allowedPassthroughParameters list drops all passthrough', () => {
+        const cap: ModelCapability = { ...VEO, allowedPassthroughParameters: [] };
+        const req = buildVideoRequest({ cap, input: { prompt: 'p', passthrough: { style: 'x' } } });
+        expect('style' in req.body).toBe(false);
+    });
+    it('an allowlist with no passthrough supplied leaves the body untouched', () => {
+        const cap: ModelCapability = { ...VEO, allowedPassthroughParameters: ['style'] };
+        const req = buildVideoRequest({ cap, input: { prompt: 'p' } });
+        expect(Object.keys(req.body)).toEqual(['model', 'prompt', 'seconds', 'size']);
+    });
+});
+
+describe('normalizeVideoResponse — refactor pins', () => {
+    it('prefers top-level id over task_id over data.id over data.task_id', () => {
+        expect(normalizeVideoResponse({ raw: { id: 'a', task_id: 'b', data: { id: 'c', task_id: 'd' } } }).id).toBe('a');
+        expect(normalizeVideoResponse({ raw: { task_id: 'b', data: { id: 'c', task_id: 'd' } } }).id).toBe('b');
+        expect(normalizeVideoResponse({ raw: { data: { id: 'c', task_id: 'd' } } }).id).toBe('c');
+        expect(normalizeVideoResponse({ raw: { data: { task_id: 'd' } } }).id).toBe('d');
+    });
+    it('skips null at one level and falls through to the next', () => {
+        expect(normalizeVideoResponse({ raw: { id: null, task_id: 'b', status: null, data: { status: 'running' } } })).toEqual({ id: 'b', status: 'running' });
+    });
+    it('stringifies non-string values, keeping falsy-but-present ones like 0 and false', () => {
+        expect(normalizeVideoResponse({ raw: { id: 0, status: false, url: 42, error: { message: 0 } } })).toEqual({ id: '0', status: 'false', url: '42', error: '0' });
+    });
+    it('stringifies an object url to "[object Object]" (reported, not fixed)', () => {
+        // A vendor that nests the url one level deeper yields an unusable string, not undefined.
+        expect(normalizeVideoResponse({ raw: { url: { href: 'https://x' } } }).url).toBe('[object Object]');
+    });
+    it('url precedence: video_url, url, output_url, data.video_url, data.url, data[0].url, unsigned_urls[0]', () => {
+        const full = { video_url: 'a', url: 'b', output_url: 'c', unsigned_urls: ['g'] };
+        expect(normalizeVideoResponse({ raw: full }).url).toBe('a');
+        expect(normalizeVideoResponse({ raw: { url: 'b', output_url: 'c' } }).url).toBe('b');
+        expect(normalizeVideoResponse({ raw: { output_url: 'c', data: { video_url: 'd' } } }).url).toBe('c');
+        expect(normalizeVideoResponse({ raw: { data: { video_url: 'd', url: 'e' } } }).url).toBe('d');
+        expect(normalizeVideoResponse({ raw: { data: { url: 'e' } } }).url).toBe('e');
+        expect(normalizeVideoResponse({ raw: { data: [{ url: 'f' }], unsigned_urls: ['g'] } }).url).toBe('f');
+        expect(normalizeVideoResponse({ raw: { unsigned_urls: ['g'] } }).url).toBe('g');
+    });
+    it('ignores a non-array unsigned_urls', () => {
+        expect(normalizeVideoResponse({ raw: { unsigned_urls: 'g' } })).toEqual({});
+    });
+    it('an error object without a message falls through to failure_reason, then message', () => {
+        expect(normalizeVideoResponse({ raw: { error: { code: 1 }, failure_reason: 'fr', message: 'm' } }).error).toBe('fr');
+        expect(normalizeVideoResponse({ raw: { error: { code: 1 }, message: 'm' } }).error).toBe('m');
+    });
+    it('error.message wins over failure_reason and message', () => {
+        expect(normalizeVideoResponse({ raw: { error: { message: 'em' }, failure_reason: 'fr', message: 'm' } }).error).toBe('em');
+    });
+    it('a null error falls through to failure_reason', () => {
+        expect(normalizeVideoResponse({ raw: { error: null, failure_reason: 'fr' } }).error).toBe('fr');
+    });
+    it('a primitive raw yields an empty result', () => {
+        expect(normalizeVideoResponse({ raw: 'not-an-object' })).toEqual({});
+    });
+    it('emits keys in id, status, url, error order', () => {
+        expect(Object.keys(normalizeVideoResponse({ raw: { message: 'e', url: 'u', status: 's', id: 'i' } }))).toEqual(['id', 'status', 'url', 'error']);
+    });
+});
