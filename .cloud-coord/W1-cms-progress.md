@@ -19,4 +19,5 @@ Worktrees: /home/user/wt-<LOT>, branches `cloud/w1-cms-<LOT>`. Brief template: p
 | L176 | forms forms, submission-attempts, submit-service | queued | | | 18/16 → | | |
 
 ## Problems
+- Baseline whole suite on unmodified tree (66 s): 2549/2550 pass; 1 pre-existing FAIL `src/media/__tests__/video-frames.ffmpeg.test.ts > reports temporary files that cannot be removed and still releases the lock` (out of scope; container runs as root).
 ## Next
