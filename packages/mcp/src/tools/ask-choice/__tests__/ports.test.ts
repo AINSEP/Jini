@@ -206,3 +206,81 @@ test.each([
   else expect(result).toMatchObject({ reason: 'invalid-answer' });
   expect(exchanges.size()).toBe(0);
 });
+
+// Characterization pins (before refactor) for the live-exchange answer classification.
+function liveCall(params: Record<string, unknown>, q: Record<string, unknown> = question) {
+  const { exchanges, deps, context } = setup();
+  const tool = createAskChoiceTool(deps);
+  return tool.handler({ ctx: { ...context, input: q, emitSurface: async ({ emission }) => {
+    const form = JSON.parse((emission.payload.resource as { resource: { text: string } }).resource.text) as { baseParams: { __exchangeId: string } };
+    exchanges.deliver({ exchangeId: form.baseParams.__exchangeId, toolId: deps.toolId, principalId: context.principalId, params });
+  } } });
+}
+// Actions are trusted host input: the model-facing handler never forwards them, so these go
+// through askChoice directly, as a host would.
+const withActions = { ...question, actions: [{ id: 'approve', label: 'Approve' }] };
+function hostCall(params: Record<string, unknown>) {
+  const exchanges = createSurfaceExchangeStore();
+  const exchange = exchanges.open({ toolId: 'host_question', principalId: 'human', emit: async () => {
+    exchanges.deliver({ exchangeId: exchange.id, toolId: 'host_question', principalId: 'human', params });
+  } });
+  return askChoice({ exchange, question: withActions, toolId: 'host_question', principalId: 'human', presentation, signal: new AbortController().signal, messages });
+}
+
+test('askChoice called directly with an already-aborted signal closes the exchange without emitting', async () => {
+  const exchanges = createSurfaceExchangeStore();
+  const controller = new AbortController();
+  controller.abort();
+  const emitted: unknown[] = [];
+  const exchange = exchanges.open({ toolId: 'host_question', principalId: 'human', emit: async args => { emitted.push(args); } });
+  const result = await askChoice({ exchange, question, toolId: 'host_question', principalId: 'human', presentation, signal: controller.signal, messages });
+  expect(result).toEqual({ submitted: false, reason: 'abandoned', note: messages.abandoned });
+  expect(emitted).toEqual([]);
+  expect(exchanges.size()).toBe(0);
+});
+
+test('a live answer outside the offered options is refused as invalid-answer', async () => {
+  expect(await liveCall({ choice: 'later' })).toEqual({ submitted: false, reason: 'invalid-answer', note: messages.noAnswer });
+});
+
+test('a live answer carrying an offered host action reports that action', async () => {
+  expect(await hostCall({ choice: 'now', __choiceAction: 'approve' })).toEqual({ submitted: true, choice: 'now', action: 'approve', note: messages.submitted });
+});
+
+test('a live answer carrying an action the host did not offer is refused as invalid-answer', async () => {
+  expect(await hostCall({ choice: 'now', __choiceAction: 'delete-all' })).toEqual({ submitted: false, reason: 'invalid-answer', note: messages.noAnswer });
+});
+
+test('model-supplied actions are ignored, so a live answer carries no action key even if one was posted', async () => {
+  expect(await liveCall({ choice: 'now', __choiceAction: 'approve' }, withActions)).toEqual({ submitted: true, choice: 'now', note: messages.submitted });
+});
+
+test('a live answer with no choice and no selections reports no-answer', async () => {
+  expect(await liveCall({ unrelated: 1 })).toEqual({ submitted: false, reason: 'no-answer', note: messages.noAnswer });
+});
+
+test('an exchange that expires reports the expired note', async () => {
+  const exchanges = createSurfaceExchangeStore({ idleTtlMs: 1 });
+  const { deps, context } = setup();
+  const result = await createAskChoiceTool({ ...deps, surfaceExchanges: exchanges }).handler({ ctx: { ...context, emitSurface: async () => undefined } });
+  expect(result).toEqual({ submitted: false, reason: 'expired', note: messages.expired });
+});
+
+test('a call that carries a title is a question even when it also carries a choice', async () => {
+  const { deps, context } = setup();
+  const result = await createAskChoiceTool({ ...deps, presentation: { ...presentation, buildResult: args => args } })
+    .handler({ ctx: { ...context, input: { ...question, choice: 'now' } } });
+  expect(result).toMatchObject({ modelText: messages.pending });
+});
+
+test('a non-object input is parsed as an empty question and refused through the shape policy', async () => {
+  const { deps, context } = setup();
+  await expect(createAskChoiceTool(deps).handler({ ctx: { ...context, input: 'just text' } })).rejects.toThrow(/title/i);
+});
+
+test('the default ticket store always mints a non-empty string ticket', () => {
+  const store = createAskChoiceAnswerTicketStore({ now: () => 0, newTicketId: () => 'id-1', ttlMs: 10 });
+  const ticket = store.mint({ principalId: 'human', question });
+  expect(typeof ticket).toBe('string');
+  expect(ticket.length).toBeGreaterThan(0);
+});
