@@ -61,6 +61,12 @@ async function currentRecord(deps: ApiConnectionServiceDeps, attempt: ApiConnect
     throw new ApiConnectionError({ code: 'attempt-superseded',
       message: 'A newer sign-in or account change replaced this one. Reload the connection status and start again if needed.' });
   }
+  // Start refuses while a switch is staged; this catches one staged in the meantime. Either intent
+  // would otherwise overwrite (switch) or drop unrevoked (connect) the consented staged credential.
+  if (record.staged !== null) {
+    throw new ApiConnectionError({ code: 'switch-in-progress',
+      message: 'An account switch was staged while this sign-in ran. Confirm or cancel it, then sign in again.' });
+  }
   return record;
 }
 
@@ -88,11 +94,6 @@ async function commitConnect(deps: ApiConnectionServiceDeps, record: ApiConnecti
 
 async function stageSwitch(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, attempt: ApiConnectionAttempt,
   tokens: OAuthTokenSet, account: ApiConnectionAccount, grantedScopes: readonly string[]): Promise<void> {
-  // Start refuses while a switch is staged; this catches one staged in the meantime.
-  if (record.staged !== null) {
-    throw new ApiConnectionError({ code: 'switch-in-progress',
-      message: 'Another account switch was staged while this sign-in ran. Confirm or cancel it, then switch again.' });
-  }
   // The provider usually holds one grant per client and account, so a staged copy of the live
   // account would share its grant: cancelling the switch would then revoke the live credential.
   if (record.account?.accountId === account.accountId) {

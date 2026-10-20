@@ -449,6 +449,14 @@ describe('paths that would discard a consented credential', () => {
     expect([(await h.service.getStatus({ connectionRef: ref, workspaceId: 'ws-1' })).pendingSwitch?.accountId, h.tokens.entries.get(`${ref}#staged`)?.accessToken])
       .toEqual(['bob', 'acme-at-2']);
   });
+  it('refuses a connect that completes after a switch was staged, keeping the staged credential and the live account', async () => {
+    const ref = await connect('alice');
+    const reconnect = await signIn(h, provider, { account: 'alice' });
+    await complete((await signIn(h, provider, { account: 'bob', intent: 'switch-account' })).callbackParams);
+    await expect(complete(reconnect.callbackParams)).rejects.toMatchObject({ code: 'switch-in-progress' });
+    expect([(await h.service.getStatus({ connectionRef: ref, workspaceId: 'ws-1' })).pendingSwitch?.accountId,
+      h.tokens.entries.get(`${ref}#staged`)?.accessToken, h.tokens.entries.get(ref)?.accessToken]).toEqual(['bob', 'acme-at-2', 'acme-at-1']);
+  });
   it('writes no staged tokens when another writer wins the record update', async () => {
     const ref = await connect('alice');
     const { callbackParams } = await signIn(h, provider, { account: 'bob', intent: 'switch-account' });
