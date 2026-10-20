@@ -75,6 +75,10 @@ describe('cursorAgentDef.listModels.parse', () => {
     expect(result).toBeNull();
   });
 
+  it('returns null for a no-models message shaped like an "<id> - <label>" line', () => {
+    expect(cursorAgentDef.listModels.parse({ stdout: 'error - No models available for this account.' })).toBeNull();
+  });
+
   it('returns null for blank stdout', () => {
     expect(cursorAgentDef.listModels!.parse({ stdout: '   ' })).toBeNull();
   });
