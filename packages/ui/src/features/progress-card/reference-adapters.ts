@@ -187,14 +187,14 @@ export function dedupeToolUsesById(events: AgentEventLike[] | undefined): AgentE
   let deduped: AgentEventLike[] | null = null;
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index]!;
-    if (isToolUseEvent(event)) {
-      if (seen.has(event.id)) {
-        if (!deduped) deduped = events.slice(0, index);
-        continue;
-      }
+    if (!isToolUseEvent(event)) {
+      deduped?.push(event);
+    } else if (seen.has(event.id)) {
+      deduped ??= events.slice(0, index);
+    } else {
       seen.add(event.id);
+      deduped?.push(event);
     }
-    if (deduped) deduped.push(event);
   }
   return deduped ?? events;
 }
