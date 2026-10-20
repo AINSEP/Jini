@@ -13,73 +13,138 @@ export type ToolInputNormalizer = (required: { input: Readonly<Record<string, un
 const object = (value: unknown): value is Record<string, unknown> => isNonArrayRecord({ value });
 const keyShape = (key: string) => key.replace(/[_-]/g, '').toLowerCase();
 
-/** Detect one insertion, deletion, substitution or adjacent transposition, for hints only. */
-function nearMiss(left: string, right: string): boolean {
-  if (Math.abs(left.length - right.length) > 1 || left.length > 128 || right.length > 128) return false;
+/** Length of the shared prefix of two strings. */
+function commonPrefixLength({ left, right }: { left: string; right: string }): number {
   let index = 0;
   while (index < left.length && left[index] === right[index]) index++;
-  if (left.length === right.length) return left.slice(index + 1) === right.slice(index + 1)
+  return index;
+}
+
+/** Same-length strings that differ by one substitution or one adjacent transposition at `index`. */
+function sameLengthNearMiss({ left, right, index }: { left: string; right: string; index: number }): boolean {
+  return left.slice(index + 1) === right.slice(index + 1)
     || (left[index] === right[index + 1] && left[index + 1] === right[index] && left.slice(index + 2) === right.slice(index + 2));
+}
+
+/** Detect one insertion, deletion, substitution or adjacent transposition, for hints only. */
+function nearMiss({ left, right }: { left: string; right: string }): boolean {
+  if (Math.abs(left.length - right.length) > 1 || left.length > 128 || right.length > 128) return false;
+  const index = commonPrefixLength({ left, right });
+  if (left.length === right.length) return sameLengthNearMiss({ left, right, index });
   return left.length > right.length ? left.slice(index + 1) === right.slice(index) : left.slice(index) === right.slice(index + 1);
+}
+
+/** Per-walk settings shared by every level: the notes sink and which pass this is. */
+interface Walk {
+  readonly notes: string[];
+  /** Final pass only: refuse keys a closed schema does not declare. */
+  readonly validateClosed: boolean;
+  /** Batch-layer pass: canonicalize keys without coercing values or wrapping items. */
+  readonly keysOnly: boolean;
+}
+interface Step { readonly path: string; readonly depth: number; readonly walk: Walk }
+
+const NUMBER_PATTERN = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+
+/** Number/integer coercion; returns `value` itself when the string is not a representable number. */
+function coerceNumber({ value, types, path, notes }: { value: string; types: readonly unknown[]; path: string; notes: string[] }): unknown {
+  const numeric = types.includes('number');
+  const integer = types.includes('integer');
+  if (!(numeric || integer) || !NUMBER_PATTERN.test(value.trim())) return value;
+  const number = Number(value);
+  if (!Number.isFinite(number) || (integer && !numeric && !Number.isSafeInteger(number))) return value;
+  notes.push(`${path}: string→${numeric ? 'number' : 'integer'}`);
+  return number;
+}
+
+/** Boolean words first, then numbers; any other string is left for the handler's validator. */
+function coerceString({ value, types, path, notes }: { value: string; types: readonly unknown[]; path: string; notes: string[] }): unknown {
+  if (types.includes('boolean') && /^(true|false)$/i.test(value.trim())) {
+    notes.push(`${path}: string→boolean`);
+    return value.trim().toLowerCase() === 'true';
+  }
+  return coerceNumber({ value, types, path, notes });
+}
+
+function normalizeArray({ value, schema, step }: { value: unknown; schema: Record<string, unknown>; step: Step }): unknown {
+  const { path, depth, walk } = step;
+  let list = value;
+  // The single-object shorthand applies to items batching, never arbitrary domain arrays.
+  if (!walk.keysOnly && object(value) && path.split('.').at(-1) === 'items') {
+    walk.notes.push(`${path}: object→one-item array`);
+    list = [value];
+  }
+  if (!Array.isArray(list)) return list;
+  return list.map((item, index) => normalizeValue({ value: item, schema: schema.items, step: { path: `${path}[${index}]`, depth: depth + 1, walk } }));
+}
+
+/** The schema facts every key of one object is checked against. */
+interface ObjectShape {
+  readonly schema: Record<string, unknown>;
+  readonly properties: Record<string, unknown>;
+  readonly names: readonly string[];
+  readonly required: readonly string[];
+}
+
+/** The declared property a supplied key names, or undefined; refuses a key that names two. */
+function canonicalKey({ key, location, shape }: { key: string; location: string; shape: ObjectShape }): string | undefined {
+  const candidates = Object.hasOwn(shape.properties, key) ? [key] : shape.names.filter(name => keyShape(name) === keyShape(key));
+  if (candidates.length > 1) throw new ToolInputError({ message: `Ambiguous input '${location}': matches ${candidates.join(', ')}. Use exactly one canonical property name.` });
+  return candidates[0];
+}
+
+function unknownKeyError({ key, location, required }: { key: string; location: string; required: readonly string[] }): ToolInputError {
+  const hints = required.filter(name => nearMiss({ left: keyShape(key), right: keyShape(name) }));
+  if (hints.length) return new ToolInputError({ message: `Unknown input '${location}'; possible required property: ${hints.join(', ')}. Use the canonical property explicitly; no value was guessed.` });
+  return new ToolInputError({ message: `Unknown input '${location}'. Use only the declared properties; declare target and permission fields in the tool schema before using them.` });
+}
+
+/** One key of an object: canonical rename + recursion, closed-schema refusal, or open pass-through. */
+function normalizeEntry(
+  { key, raw, shape, sources, step }: { key: string; raw: unknown; shape: ObjectShape; sources: Map<string, string>; step: Step },
+): [string, unknown] {
+  const { path, depth, walk } = step;
+  const location = path ? `${path}.${key}` : key;
+  const target = canonicalKey({ key, location, shape });
+  if (target === undefined) {
+    if (walk.validateClosed && shape.schema.additionalProperties === false) throw unknownKeyError({ key, location, required: shape.required });
+    const childSchema = object(shape.schema.additionalProperties) ? shape.schema.additionalProperties : undefined;
+    return [key, normalizeValue({ value: raw, schema: childSchema, step: { path: location, depth: depth + 1, walk } })];
+  }
+  const previous = sources.get(target);
+  if (previous !== undefined) throw new ToolInputError({ message: `Conflicting inputs '${previous}' and '${key}' both name '${target}'. Send only '${target}'.` });
+  sources.set(target, key);
+  if (target !== key) walk.notes.push(`${location}→${target}`);
+  return [target, normalizeValue({ value: raw, schema: shape.properties[target], step: { path: `${path ? `${path}.` : ''}${target}`, depth: depth + 1, walk } })];
+}
+
+function normalizeObject({ value, schema, step }: { value: Record<string, unknown>; schema: Record<string, unknown>; step: Step }): Record<string, unknown> {
+  const properties = object(schema.properties) ? schema.properties : {};
+  const required = Array.isArray(schema.required) ? schema.required.filter((key): key is string => typeof key === 'string') : [];
+  const shape: ObjectShape = { schema, properties, names: Object.keys(properties), required };
+  const sources = new Map<string, string>();
+  return Object.fromEntries(Object.entries(value).map(([key, raw]) => normalizeEntry({ key, raw, shape, sources, step })));
 }
 
 /** Schema-guided copies only: unconstrained data and unsupported schema dialects stay untouched.
  * Cost is O(k*p) per object with k supplied keys and p schema properties; recursion is bounded
  * to 64 levels so a hostile input/schema cannot exhaust the execution gate's stack.
  */
-function normalizeValue(value: unknown, schema: unknown, notes: string[], path: string, validateClosed: boolean, depth = 0, keysOnly = false): unknown {
+function normalizeValue({ value, schema, step }: { value: unknown; schema: unknown; step: Step }): unknown {
   if (!object(schema)) return value;
-  if (depth > 64) throw new ToolInputError({ message: 'Tool input exceeds the 64-level normalization limit. Send a shallower object.' });
-  const types = Array.isArray(schema.type) ? schema.type : [schema.type];
-  if (!keysOnly && typeof value === 'string' && !types.includes('string')) {
-    if (types.includes('boolean') && /^(true|false)$/i.test(value.trim())) {
-      notes.push(`${path}: string→boolean`);
-      return value.trim().toLowerCase() === 'true';
-    }
-    if ((types.includes('number') || types.includes('integer')) && /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value.trim())) {
-      const number = Number(value);
-      if (Number.isFinite(number) && (!types.includes('integer') || types.includes('number') || Number.isSafeInteger(number))) {
-        notes.push(`${path}: string→${types.includes('number') ? 'number' : 'integer'}`);
-        return number;
-      }
-    }
+  if (step.depth > 64) throw new ToolInputError({ message: 'Tool input exceeds the 64-level normalization limit. Send a shallower object.' });
+  const types: readonly unknown[] = Array.isArray(schema.type) ? schema.type : [schema.type];
+  // A string is never an array or object, so it is either coerced here or returned as-is.
+  if (typeof value === 'string') {
+    return step.walk.keysOnly || types.includes('string') ? value : coerceString({ value, types, path: step.path, notes: step.walk.notes });
   }
-  if (types.includes('array')) {
-    // The single-object shorthand applies to items batching, never arbitrary domain arrays.
-    if (!keysOnly && object(value) && path.split('.').at(-1) === 'items') {
-      notes.push(`${path}: object→one-item array`);
-      value = [value];
-    }
-    if (Array.isArray(value)) return value.map((item, index) => normalizeValue(item, schema.items, notes, `${path}[${index}]`, validateClosed, depth + 1, keysOnly));
-    return value;
-  }
-  if (!object(value)) return value;
-  const properties = object(schema.properties) ? schema.properties : {};
-  const names = Object.keys(properties);
-  const required = Array.isArray(schema.required) ? schema.required.filter((key): key is string => typeof key === 'string') : [];
-  const entries: [string, unknown][] = [];
-  const sources = new Map<string, string>();
-  for (const [key, raw] of Object.entries(value)) {
-    const candidates = Object.hasOwn(properties, key) ? [key] : names.filter(name => keyShape(name) === keyShape(key));
-    const location = path ? `${path}.${key}` : key;
-    if (candidates.length > 1) throw new ToolInputError({ message: `Ambiguous input '${location}': matches ${candidates.join(', ')}. Use exactly one canonical property name.` });
-    const target = candidates[0];
-    if (target !== undefined) {
-      const previous = sources.get(target);
-      if (previous !== undefined) throw new ToolInputError({ message: `Conflicting inputs '${previous}' and '${key}' both name '${target}'. Send only '${target}'.` });
-      sources.set(target, key);
-      if (target !== key) notes.push(`${path ? `${path}.` : ""}${key}→${target}`);
-      entries.push([target, normalizeValue(raw, properties[target], notes, `${path ? `${path}.` : ""}${target}`, validateClosed, depth + 1, keysOnly)]);
-    } else if (validateClosed && schema.additionalProperties === false) {
-      const hints = required.filter(name => nearMiss(keyShape(key), keyShape(name)));
-      if (hints.length) throw new ToolInputError({ message: `Unknown input '${location}'; possible required property: ${hints.join(', ')}. Use the canonical property explicitly; no value was guessed.` });
-      throw new ToolInputError({ message: `Unknown input '${location}'. Use only the declared properties; declare target and permission fields in the tool schema before using them.` });
-    } else {
-      const childSchema = object(schema.additionalProperties) ? schema.additionalProperties : undefined;
-      entries.push([key, normalizeValue(raw, childSchema, notes, location, validateClosed, depth + 1, keysOnly)]);
-    }
-  }
-  return Object.fromEntries(entries);
+  if (types.includes('array')) return normalizeArray({ value, schema, step });
+  return object(value) ? normalizeObject({ value, schema, step }) : value;
+}
+
+/** A walk from the root of one input. */
+function walkRoot({ input, schema, notes, validateClosed, keysOnly }: { input: unknown; schema: unknown } & Walk): unknown {
+  return normalizeValue({ value: input, schema, step: { path: '', depth: 0, walk: { notes, validateClosed, keysOnly } } });
 }
 
 /** Canonicalize one batch layer before merging; preserve values and domain aliases for the
@@ -92,7 +157,7 @@ export function canonicalizeToolInputKeys(
   _options: Record<string, never> = {},
 ): { input: Record<string, unknown>; notes: readonly string[] } {
   const notes: string[] = [];
-  return { input: normalizeValue(input, schema, notes, '', false, 0, true) as Record<string, unknown>, notes };
+  return { input: walkRoot({ input, schema, notes, validateClosed: false, keysOnly: true }) as Record<string, unknown>, notes };
 }
 
 /** Normalize before policy, confirmation and handler validation. Domain hooks own semantic aliases.
@@ -105,21 +170,30 @@ export async function normalizeToolInput(
   _options: Record<string, never> = {},
 ): Promise<NormalizedToolInput> {
   try {
-    const schema = registration.descriptor.inputSchema;
-    if (object(schema) && schema.type === 'object' && !object(input)) throw new ToolInputError({ message: `${registration.descriptor.id}: send one input object containing the tool's fields.` });
-    const notes: string[] = [];
-    let normalized = normalizeValue(input, schema, notes, '', false);
-    if (registration.normalizeInput && object(normalized)) {
-      const result = await registration.normalizeInput({ input: normalized });
-      normalized = result.input;
-      notes.push(...result.notes);
-    }
-    if (object(schema) && schema.type === 'object' && !object(normalized)) throw new ToolInputError({ message: `${registration.descriptor.id}: normalization must produce one input object.` });
-    return { input: normalizeValue(normalized, schema, notes, '', true), notes };
+    return await normalizeWithinGate({ input, registration });
   } catch (error) {
     if (error instanceof ToolInputError) throw new ToolInputNormalizationError({ message: error.message });
     throw error;
   }
+}
+
+const isObjectTool = (schema: unknown): boolean => object(schema) && schema.type === 'object';
+
+/** First pass (open), the optional domain hook, then the final closed-schema pass. */
+async function normalizeWithinGate(
+  { input, registration }: { input: unknown; registration: Pick<ToolRegistration, 'descriptor' | 'normalizeInput'> },
+): Promise<NormalizedToolInput> {
+  const schema = registration.descriptor.inputSchema;
+  if (isObjectTool(schema) && !object(input)) throw new ToolInputError({ message: `${registration.descriptor.id}: send one input object containing the tool's fields.` });
+  const notes: string[] = [];
+  let normalized = walkRoot({ input, schema, notes, validateClosed: false, keysOnly: false });
+  if (registration.normalizeInput && object(normalized)) {
+    const result = await registration.normalizeInput({ input: normalized });
+    normalized = result.input;
+    notes.push(...result.notes);
+  }
+  if (isObjectTool(schema) && !object(normalized)) throw new ToolInputError({ message: `${registration.descriptor.id}: normalization must produce one input object.` });
+  return { input: walkRoot({ input: normalized, schema, notes, validateClosed: true, keysOnly: false }), notes };
 }
 
 /** Keep result shapes intact and make rewrite notes visible in plain and MCP tool results. */
