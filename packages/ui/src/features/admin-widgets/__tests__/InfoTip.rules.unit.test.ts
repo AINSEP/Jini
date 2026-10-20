@@ -76,6 +76,56 @@ describe("placeInfoTipBubble", () => {
   });
 });
 
+describe("placeInfoTipBubble boundaries", () => {
+  it("treats a measured zero width as unmeasured and assumes the worst-case 18rem width", () => {
+    expect(placeInfoTipBubble({ anchor: icon(1000), bubble: { width: 0, height: 30 }, viewport: { width: 1024, height: 768 } }).left).toBe(872);
+  });
+
+  it("treats a measured zero height as unmeasured and requires the 176px headroom to open above", () => {
+    expect(placeInfoTipBubble({ anchor: icon(600, 175), bubble: { width: 80, height: 0 }, viewport }).placement).toBe("below");
+    expect(placeInfoTipBubble({ anchor: icon(600, 176), bubble: { width: 80, height: 0 }, viewport }).placement).toBe("above");
+  });
+
+  it("opens above when the anchor's top exactly equals the measured height plus the gap", () => {
+    expect(placeInfoTipBubble({ anchor: icon(600, 56), bubble: { width: 80, height: 40 }, viewport }).placement).toBe("above");
+    expect(placeInfoTipBubble({ anchor: icon(600, 55), bubble: { width: 80, height: 40 }, viewport }).placement).toBe("below");
+  });
+
+  it("a top preference places exactly like no preference", () => {
+    expect(placeInfoTipBubble({ anchor: icon(600, 30), bubble: { width: 80, height: 40 }, viewport }, { preferred: "top" })).toEqual(
+      placeInfoTipBubble({ anchor: icon(600, 30), bubble: { width: 80, height: 40 }, viewport }),
+    );
+  });
+
+  it("a bottom preference stays below when it fits exactly at the viewport's bottom", () => {
+    // 736 + 24 + 16 + 24 = 800: the bubble's bottom touches the viewport's bottom edge.
+    expect(placeInfoTipBubble({ anchor: icon(600, 736), bubble: { width: 80, height: 24 }, viewport }, { preferred: "bottom" }).placement).toBe("below");
+    expect(placeInfoTipBubble({ anchor: icon(600, 737), bubble: { width: 80, height: 24 }, viewport }, { preferred: "bottom" }).placement).toBe("above");
+  });
+
+  it("a bottom preference stays below when it overflows the bottom but does not fit above either", () => {
+    expect(placeInfoTipBubble({ anchor: icon(600, 30), bubble: { width: 80, height: 790 }, viewport }, { preferred: "bottom" })).toMatchObject({ placement: "below", top: 54 });
+  });
+
+  it("clips bounds that extend past the viewport to the viewport before applying the margin", () => {
+    const placed = placeInfoTipBubble({ anchor: icon(1250), bubble: { width: 100, height: 30 }, viewport }, { bounds: { left: -50, right: 2000 } });
+    expect(placed.left).toBe(1280 - 8 - 50);
+  });
+
+  it("uses bounds whose usable span exactly equals the bubble's width", () => {
+    // 1100 + 8 .. 1280 - 8 is 164px: a 164px bubble fits and centres in it.
+    const placed = placeInfoTipBubble({ anchor: icon(1250), bubble: { width: 164, height: 30 }, viewport }, { bounds: { left: 1100, right: 1280 } });
+    expect(placed.left).toBe(1190);
+  });
+
+  it("clamps the arrow to the inset on the right as well as the left", () => {
+    const placed = placeInfoTipBubble({ anchor: icon(-50), bubble: { width: 300, height: 60 }, viewport: { width: 280, height: 600 } });
+    expect(placed.arrowLeft).toBe(10);
+    const right = placeInfoTipBubble({ anchor: icon(290), bubble: { width: 300, height: 60 }, viewport: { width: 280, height: 600 } });
+    expect(right.arrowLeft).toBe(290);
+  });
+});
+
 describe("infoTipBubbleStyle", () => {
   it("passes position through and sets the arrow variable only once measured", () => {
     expect(infoTipBubbleStyle({ top: 1, left: 2 })).toEqual({ top: 1, left: 2 });
