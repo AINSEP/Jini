@@ -12,7 +12,7 @@ import { ApiConnectionError } from './errors.js';
 import { installCredential } from './install-credential.js';
 import { isUnreadableTokenRecord } from './token-store/errors.js';
 import { stagedTokenKey } from './keys.js';
-import { loadOwnedRecord, writeRecord } from './records.js';
+import { loadOwnedRecord, writeRecord, type OwnedRecordArgs } from './records.js';
 import { toStatusView, type ApiConnectionStatusView } from './status.js';
 import type { ApiConnectionRecord } from './types.js';
 
@@ -87,7 +87,7 @@ function combineRevocations(outcomes: readonly CredentialRevocation[]): ApiConne
 
 export async function confirmSwitchAccount(
   deps: ApiConnectionServiceDeps,
-  requiredArgs: { readonly connectionRef: string; readonly actorId: string },
+  requiredArgs: OwnedRecordArgs & { readonly actorId: string },
 ): Promise<ApiConnectionSwitchResult> {
   const record = await loadOwnedRecord(deps, requiredArgs);
   if (!stagedSwitchUsable(record, requiredArgs.actorId, deps.clock.nowMs())) throw switchNotStaged();
@@ -106,7 +106,7 @@ export async function confirmSwitchAccount(
  */
 export async function cancelSwitchAccount(
   deps: ApiConnectionServiceDeps,
-  requiredArgs: { readonly connectionRef: string },
+  requiredArgs: OwnedRecordArgs,
 ): Promise<ApiConnectionDisconnectResult> {
   const record = await loadOwnedRecord(deps, requiredArgs);
   // Without a staged record the slot can only hold a confirmed switch's copy of the live grant
@@ -120,7 +120,7 @@ export async function cancelSwitchAccount(
 /** Disconnect and revoke the live and any staged credential; call again to retry a `pending` revocation. */
 export async function disconnectApiConnection(
   deps: ApiConnectionServiceDeps,
-  requiredArgs: { readonly connectionRef: string },
+  requiredArgs: OwnedRecordArgs,
 ): Promise<ApiConnectionDisconnectResult> {
   const record = await loadOwnedRecord(deps, requiredArgs);
   // Stop use before any network call: no token is served or refreshed once the generation moves.

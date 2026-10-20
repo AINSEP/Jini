@@ -109,7 +109,7 @@ const { authorizationUrl, connectionRef, state, attemptId } = await service.star
   { workspaceId, actorId, intent: 'connect', scopeSetIds: enabledModules, redirectUri });
 // ...the browser returns to redirectUri...
 const done = await service.complete({ workspaceId, actorId, redirectUri, callbackParams }); // done.attemptId === attemptId
-const accessToken = await service.getAccessToken({ connectionRef });
+const accessToken = await service.getAccessToken({ connectionRef, workspaceId });
 ```
 
 Descriptor extension points: `authorizationParams.public` / `.confidential` (fixed extra
@@ -121,6 +121,8 @@ plugin through the provider's API before being trusted).
 
 ## Host responsibilities
 
-Authorize the caller for the `connectionRef`'s workspace before any call (the service checks
-only that the record belongs to its plugin connection), seal tokens at rest, make
+Authorize the caller for a workspace before any call and pass that `workspaceId` with every
+`connectionRef` (`getAccessToken`, `getStatus`, `disconnect`, `confirmSwitchAccount`,
+`cancelSwitchAccount`); the service refuses a ref whose record belongs to another workspace,
+plugin or connection with the same `connection-not-found`. Seal tokens at rest, make
 `compareAndSet` and `takeAttempt` atomic, and pass the exact callback URL a request arrived on.

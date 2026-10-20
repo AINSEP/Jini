@@ -5,7 +5,7 @@
  * chat, logs) without any path from a status object back to a credential.
  */
 import type { ApiConnectionServiceDeps } from './deps.js';
-import { connectionNotFound } from './records.js';
+import { connectionNotFound, isOwnedRecord, type OwnedRecordArgs } from './records.js';
 import type { ApiConnectionAccount, ApiConnectionRecord, ApiConnectionStatus } from './types.js';
 
 export interface ApiConnectionStatusView {
@@ -27,12 +27,12 @@ export function toStatusView(record: ApiConnectionRecord): ApiConnectionStatusVi
 /** A connection that was never created reads as disconnected. */
 export async function getApiConnectionStatus(
   deps: Pick<ApiConnectionServiceDeps, 'records' | 'descriptor'>,
-  requiredArgs: { readonly connectionRef: string },
+  requiredArgs: OwnedRecordArgs,
 ): Promise<ApiConnectionStatusView> {
   const record = await deps.records.read({ key: requiredArgs.connectionRef });
   if (record === null) {
     return { connectionRef: requiredArgs.connectionRef, status: 'disconnected', account: null, grantedScopes: [], pendingSwitch: null };
   }
-  if (record.pluginId !== deps.descriptor.pluginId || record.connectionId !== deps.descriptor.connectionId) throw connectionNotFound();
+  if (!isOwnedRecord(record, deps, requiredArgs.workspaceId)) throw connectionNotFound();
   return toStatusView(record);
 }

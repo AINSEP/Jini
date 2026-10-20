@@ -9,12 +9,12 @@
 import { createTokenRefresher, OAuthError, refreshAccessToken, type TokenRefreshPort } from '@jini-ai/oauth';
 import type { ApiConnectionServiceDeps } from './deps.js';
 import { ApiConnectionError, type ApiConnectionErrorCode } from './errors.js';
-import { loadOwnedRecord, writeRecord } from './records.js';
+import { loadOwnedRecord, writeRecord, type OwnedRecordArgs } from './records.js';
 import type { ApiConnectionRecord, ApiConnectionStatus } from './types.js';
 
 export interface ApiConnectionAccessTokens {
   getAccessToken(
-    requiredArgs: { readonly connectionRef: string },
+    requiredArgs: OwnedRecordArgs,
     optionalArgs?: { readonly expectedAccountId?: string },
   ): Promise<string>;
 }
