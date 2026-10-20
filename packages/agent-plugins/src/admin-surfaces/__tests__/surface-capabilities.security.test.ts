@@ -58,6 +58,10 @@ describe('the surfaces file is the allowlist', () => {
     expect(reasonFor({ connections: [{ id: 'account', startParams: ['a b'] }] })).toBe('surfaces[0].connections[0].startParams[0] must be a unique name matching ^[A-Za-z0-9_.-]{1,64}$');
     expect(reasonFor({ connections: [{ id: 'account', callbackFields: ['x', 'x'] }] })).toBe('surfaces[0].connections[0].callbackFields[1] must be a unique name matching ^[A-Za-z0-9_.-]{1,64}$');
   });
+  test('connections that are not an array of objects are refused', () => {
+    expect(reasonFor({ connections: { id: 'account' } })).toBe('surfaces[0].connections must be an array of at most 4');
+    expect(reasonFor({ connections: ['account'] })).toBe('surfaces[0].connections[0] must be an object');
+  });
   test('declared lists are parsed onto the descriptor', () => {
     const parsed = parseAdminSurfacesFile({ raw: surfaceRaw({ connections: [{ id: 'account', startParams: ['selection-mode'] }], publicConfig: ['ACME_APP_ID'] }) });
     expect(parsed.ok && parsed.descriptors[0]).toMatchObject({ connections: [{ id: 'account', startParams: ['selection-mode'], callbackFields: [] }], publicConfig: ['ACME_APP_ID'] });
@@ -106,6 +110,18 @@ describe('connections: only declared ones, account actions only for an admin', (
     const started = await session.capabilities.connections.begin({ connectionId: 'account', action: 'add-scopes' }, { scopeSetIds: ['files'], startParams: { 'selection-mode': 'one' } });
     expect(started).toStrictEqual({ authorizationUrl: 'https://auth.example.test/authorize?state=s1', attemptId: 'attempt-1', expiresAt: '2026-10-20T00:10:00.000Z' });
     expect(session.log.calls).toEqual([`${PLUGIN}:begin:{"connectionId":"account","action":"add-scopes","scopeSetIds":["files"],"startParams":{"selection-mode":"one"}}`]);
+  });
+  test('confirmSwitch and cancelSwitch answers are cut back to the token-free status fields', async () => {
+    const session = open();
+    const status = { connectionId: 'account', state: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
+    expect(await session.capabilities.connections.confirmSwitch({ connectionId: 'account' })).toStrictEqual(status);
+    expect(await session.capabilities.connections.cancelSwitch({ connectionId: 'account' })).toStrictEqual(status);
+    expect(session.log.calls).toEqual([`${PLUGIN}:confirmSwitch:{"connectionId":"account"}`, `${PLUGIN}:cancelSwitch:{"connectionId":"account"}`]);
+  });
+  test('start parameters that are not an object are refused', async () => {
+    // Malformed input on purpose: plugin code is untyped JavaScript.
+    await expect(open().capabilities.connections.begin({ connectionId: 'account', action: 'connect' }, { startParams: ['selection-mode'] as never }))
+      .rejects.toThrow('Start parameters must be an object of strings.');
   });
   test('status and disconnect answers carry only the token-free status fields and the honest revocation outcome', async () => {
     const session = open();
@@ -173,6 +189,13 @@ describe('plugin state and public config', () => {
     const token = await session.capabilities.connections.getAccessToken({ connectionId: 'account' });
     await expect(session.capabilities.state.set({ key: 'selection', value: { header: `Bearer ${token}` } })).rejects.toThrow(STATE_CREDENTIAL_MESSAGE);
     expect(session.state.size).toBe(0);
+  });
+  test('a token obtained in an EARLIER call is not caught by the per-call state scan (reported, not fixed)', async () => {
+    const earlier = open();
+    const token = await earlier.capabilities.connections.getAccessToken({ connectionId: 'account' });
+    const later = openAdminSurfaceCapabilitySession({ capabilities: earlier.port({ pluginId: PLUGIN, workspaceId: WORKSPACE_ID }), isLive: () => true, declared: DECLARED });
+    await later.capabilities.state.set({ key: 'kept', value: token });
+    expect(await later.capabilities.state.get({ key: 'kept' })).toBe(FAKE_TOKEN);
   });
   test('what is stored is the checked copy: changing the object afterwards changes nothing', async () => {
     const session = open();
