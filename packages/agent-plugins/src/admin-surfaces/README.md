@@ -223,7 +223,9 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 | `state` | `get({ key })`, `set({ key, value })`, `delete({ key })` | key `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}`; value plain JSON (depth ≤ 16, ≤ 16 KiB serialized); a value mentioning a token the call obtained is refused; the host stores a checked copy |
 | `publicConfig` | `get({ name })` → string or `null` | declared name only |
 
-Host duties: key `state` by the scope's plugin and workspace (never shared across plugins); map
+Host duties: key `state` by the scope's plugin and workspace (never shared across plugins), and back
+the plugin's agent tools' read-only `state.get` (`../lifecycle/tools/README.md`) with this same store
+under the same keys, so a setting the surface saves (a product turned off) is what the tools honor; map
 `status` scopes to the plugin's scope-set ids; `disconnect` returns `revoked` only when the provider
 confirmed; never return a refresh token or secret from any port; give `publicConfig` only public values.
 

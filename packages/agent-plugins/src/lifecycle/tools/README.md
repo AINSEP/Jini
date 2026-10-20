@@ -31,6 +31,7 @@ thrown.
 | `createAgentPluginToolProjection({ registry, toolIdFor, capabilities })` | `sync({ loaded, refusals })` and `describeAffectedResources({ toolId, input })` |
 | `AgentPluginToolCapabilities` / `AgentPluginToolCapabilitiesPort` | the host capability ports |
 | `openCapabilitySession` | the per-call revocation + credential gate (used by the projection) |
+| `AgentPluginStateReader` / `AgentPluginStateValue` | the read-only view of a plugin's own state (`get` only) |
 
 ## The contribution file
 
@@ -102,13 +103,23 @@ The host passes `capabilities: ({ pluginId, workspaceId, principalId?, signal? }
 - `limiter.check({ key })` — `{ allowed: true } | { allowed: false, retryAfterSeconds }`, the same shape
   as `@jini-ai/http-kit`'s `RateLimiter.check`.
 - `artifacts.write({ name, mediaType, content })` — returns `{ artifactRef }`.
+- `state.get({ key })` — the plugin's own settings, read-only (`null` when unset). The host backs it with
+  the SAME store the plugin's admin-surface `state` writes, keyed by the same plugin and workspace, so a
+  flag the surface saves (for example "this product is off") is what the tool reads and must honor.
+  The session exposes `get` alone whatever object the host passes, checks the key with the surface's
+  key shape, passes the host `{ key }` only (plugin code cannot add a scope), and revokes it with the
+  other capabilities.
 
 Per call, the projection wraps these so that every capability stops working once the plugin's tools
 are withdrawn, and a result or error that contains a token the call obtained is withheld.
 Those two gates are `openCapabilityGate({ isLive })` in `capabilities.ts`; the admin-surface session
 (`../../admin-surfaces/surface-capabilities.ts`) reuses it, so surface handlers revoke and scan the
-same way. Account actions (connect, switch, disconnect), plugin state and public config exist only on
-the admin-surface port: they are admin actions, never something an agent tool can do.
+same way. Account actions (connect, switch, disconnect), writing plugin state and public config exist
+only on the admin-surface port: they are admin actions, never something an agent tool can do.
+
+Any other context that runs a plugin's code and must honor its settings (form delivery, for example)
+gets the same `AgentPluginStateReader`: the host passes an object with `get` only, never its whole
+store, scoped to that plugin and workspace.
 
 ## Host wiring
 

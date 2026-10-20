@@ -184,6 +184,18 @@ describe('plugin state and public config', () => {
   test.each(['', '../x', 'a b', 'k'.repeat(129)])('a state key %j outside the short-name shape is refused', async (key) => {
     await expect(open().capabilities.state.get({ key })).rejects.toThrow('A settings key must be a short name of at most 128 characters.');
   });
+  test.each(['', '../x', 'a b', 'k'.repeat(129), 7])('set and delete refuse the state key %j before the host sees it', async (key) => {
+    const session = open();
+    await expect(session.capabilities.state.set({ key: key as string, value: 1 })).rejects.toThrow('A settings key must be a short name of at most 128 characters.');
+    await expect(session.capabilities.state.delete({ key: key as string })).rejects.toThrow('A settings key must be a short name of at most 128 characters.');
+    expect(session.log.calls).toEqual([]);
+  });
+  test('a 128-character key with dots, colons, dashes and underscores is accepted', async () => {
+    const session = open();
+    const key = `a.b:c-d_${'k'.repeat(120)}`;
+    await session.capabilities.state.set({ key, value: true });
+    expect(await session.capabilities.state.get({ key })).toBe(true);
+  });
   test('a value that mentions an access token the call obtained is never stored', async () => {
     const session = open();
     const token = await session.capabilities.connections.getAccessToken({ connectionId: 'account' });
