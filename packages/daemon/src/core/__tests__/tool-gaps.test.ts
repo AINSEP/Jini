@@ -266,3 +266,12 @@ describe('createToolGapCollector.observe (characterization)', () => {
     await expect(silent.flush()).resolves.toBeUndefined();
   });
 });
+
+it('an unparseable event timestamp makes observe throw into the run subscription after marking the tool seen (reported, not fixed)', async () => {
+  const { audit, rows } = collector();
+  const bad = { ...event({ type: 'tool_use', id: 'a', name: 'Bash', input: { command: 'ls' } }), ts: Number.NaN };
+  expect(() => audit.observe({ event: bad })).toThrow(RangeError);
+  audit.observe({ event: event({ type: 'tool_use', id: 'a', name: 'Bash', input: { command: 'ls' } }) });
+  await audit.flush();
+  expect(rows).toEqual([]);
+});
