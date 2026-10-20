@@ -60,6 +60,11 @@ function planWith(required: { row: OutboxRecord; retry: OutboxRetryPolicy; rando
  * yields a non-finite or negative delay, falls back to the default plan for the same reason as
  * {@link retryPolicyFor}. The default plan itself is not guarded, so its historical behaviour
  * (including the RangeError for host randomness outside 0..1) is unchanged.
+ *
+ * Why this is a second fallback rather than one shared with {@link retryPolicyFor}: the two run at
+ * different moments with different inputs. The resolver runs once per claim, before publishing,
+ * because the over-cap seal needs the cap; `backoffMs` and `retryable` can only run after a failure,
+ * because they take that failure's error. No single up-front check can validate both.
  */
 function failurePlan<Event extends EventEnvelope>(required: {
   args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; retry: OutboxRetryPolicy; error: unknown;
@@ -145,6 +150,10 @@ async function recordOverrun<Event extends EventEnvelope>(required: {
 }): Promise<void> {
   const { args, row, publishing, policy, retry } = required;
   try {
+    // Only the cap decides this status; `retry.retryable` (consulted by `planWith`) is deliberately
+    // not asked. A timeout is not the handler's error: the handler is still running and may yet
+    // succeed, and its real outcome replaces this record through `recordOutcome`, which does apply
+    // `retryable`. Asking the classifier now would judge an error the handler never produced.
     await args.outbox.markFailed({ ...claim(row),
       error: `delivery of outbox event "${row.event.name}" (${row.id}) timed out after ${policy.deliveryTimeoutMs}ms`,
       nextAttemptAt: addMs(nowIso({ clock: args.clock }), policy.claimLeaseMs), nextStatus: failureStatus({ row, retry }) });
