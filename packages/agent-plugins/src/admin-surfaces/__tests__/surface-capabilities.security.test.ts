@@ -155,16 +155,20 @@ describe('callback fields: once, by their owner, after a completed sign-in, decl
     expect(inbox.take({ ...key, workspaceId: 'other-workspace' })).toBeNull();
     expect(inbox.take(key)).toStrictEqual({ 'picked-id': 'res-1' });
   });
-  test('an expired deposit is gone, and a full inbox drops the oldest first', () => {
+  test('a deposit expires after the ten-minute sign-in attempt lifetime', () => {
     let now = 0;
-    const inbox = createAdminSurfaceCallbackInbox({ now: () => now }, { ttlMs: 100, maxEntries: 2 });
+    const inbox = createAdminSurfaceCallbackInbox({ now: () => now });
+    inbox.deposit({ ...key, attemptId: 'kept', fields: {} });
     inbox.deposit({ ...key, fields: { 'picked-id': 'old' } });
-    now = 100;
+    now = 10 * 60 * 1000 - 1;
+    expect(inbox.take({ ...key, attemptId: 'kept' })).toStrictEqual({});
+    now = 10 * 60 * 1000;
     expect(inbox.take(key)).toBeNull();
-    inbox.deposit({ ...key, attemptId: 'a1', fields: {} });
-    inbox.deposit({ ...key, attemptId: 'a2', fields: {} });
-    inbox.deposit({ ...key, attemptId: 'a3', fields: {} });
-    expect([inbox.take({ ...key, attemptId: 'a1' }), inbox.take({ ...key, attemptId: 'a2' }), inbox.take({ ...key, attemptId: 'a3' })]).toEqual([null, {}, {}]);
+  });
+  test('a full inbox (256 entries) drops the oldest first', () => {
+    const inbox = createAdminSurfaceCallbackInbox({ now: () => 0 });
+    for (let index = 0; index <= 256; index += 1) inbox.deposit({ ...key, attemptId: `a${index}`, fields: {} });
+    expect([inbox.take({ ...key, attemptId: 'a0' }), inbox.take({ ...key, attemptId: 'a1' }), inbox.take({ ...key, attemptId: 'a256' })]).toEqual([null, {}, {}]);
   });
   test('an attempt id outside the opaque-id shape is refused', async () => {
     await expect(open().capabilities.connections.takeCallbackFields({ connectionId: 'account', attemptId: 'a/../b' })).rejects.toThrow('The sign-in attempt id is not valid; start the sign-in again.');

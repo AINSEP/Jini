@@ -25,10 +25,10 @@ export interface LoadedAdminSurface {
  * `loadPluginContributions({ workspaceId, definition })`.
  * @complexity O(1) composition; parsing is O(file size).
  */
-export function defineAdminSurfaceContribution(required: { readonly filename: string }, optional: { readonly contribution?: string } = {}): PluginContributionDefinition<AdminSurfaceDescriptor, LoadedAdminSurface> {
+export function defineAdminSurfaceContribution(required: { readonly filename: string }, _optional: Record<string, never> = {}): PluginContributionDefinition<AdminSurfaceDescriptor, LoadedAdminSurface> {
   return {
     filename: required.filename,
-    contribution: optional.contribution ?? 'admin surfaces',
+    contribution: 'admin surfaces',
     kind: 'data',
     parse: ({ raw }) => parseAdminSurfacesFile({ raw }),
     load: ({ plugin, descriptor }) => ({ plugin, descriptor }),

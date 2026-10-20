@@ -123,8 +123,10 @@ describe('host-page message gate', () => {
   test('a different origin is ignored', () => {
     expect(validateAdminSurfaceMessage({ event: event({ origin: 'https://evil.example.com' }), mount })).toEqual({ ok: false, ignored: 'origin-mismatch' });
   });
-  test('a declared expected origin replaces "null"', () => {
-    expect(validateAdminSurfaceMessage({ event: event(), mount: { ...mount, expectedOrigin: 'https://surfaces.example.com' } })).toEqual({ ok: false, ignored: 'origin-mismatch' });
+  test('a mount record cannot widen the accepted origin beyond "null"', () => {
+    // Malformed input on purpose: a record carrying an extra origin field the gate must ignore.
+    const widened = { ...mount, expectedOrigin: 'https://surfaces.example.com' };
+    expect(validateAdminSurfaceMessage({ event: event({ origin: 'https://surfaces.example.com' }), mount: widened })).toEqual({ ok: false, ignored: 'origin-mismatch' });
   });
   test('another sandboxed frame (same "null" origin, different window) is ignored', () => {
     expect(validateAdminSurfaceMessage({ event: event({ source: {} }), mount })).toEqual({ ok: false, ignored: 'source-mismatch' });
@@ -250,19 +252,20 @@ describe('bootstrap and mount', () => {
   test('bootstrap headers forbid caching', () => {
     expect(adminSurfaceBootstrapHeaders()).toEqual({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Pragma: 'no-cache', 'X-Content-Type-Options': 'nosniff' });
   });
-  test('the bootstrap expires and its lifetime is capped at five minutes', () => {
+  test('the bootstrap expires one minute after issue, and a caller cannot lengthen that', () => {
     const bootstrap = createAdminSurfaceBootstrap({ surfaceId: 's', data: {}, nowMs: 1000 });
     expect(bootstrap).toEqual({ surfaceId: 's', issuedAt: 1000, expiresAt: 61_000, data: {} });
     expect(isAdminSurfaceBootstrapCurrent({ bootstrap, nowMs: 60_999 })).toBe(true);
     expect(isAdminSurfaceBootstrapCurrent({ bootstrap, nowMs: 61_000 })).toBe(false);
-    expect(() => createAdminSurfaceBootstrap({ surfaceId: 's', data: {}, nowMs: 0 }, { ttlMs: 300_001 })).toThrow('Admin surface bootstrap TTL must be between 1 and 300000 ms; pass a shorter ttlMs.');
-    expect(() => createAdminSurfaceBootstrap({ surfaceId: 's', data: {}, nowMs: 0 }, { ttlMs: 0 })).toThrow('Admin surface bootstrap TTL must be between 1 and 300000 ms; pass a shorter ttlMs.');
+    // Malformed input on purpose: the removed ttlMs option, passed untyped, must change nothing.
+    const longer = { ttlMs: 300_001 } as unknown as Record<string, never>;
+    expect(createAdminSurfaceBootstrap({ surfaceId: 's', data: {}, nowMs: 0 }, longer).expiresAt).toBe(60_000);
   });
-  test('each mount gets a fresh 128-bit nonce and expects the opaque "null" origin', () => {
+  test('each mount gets a fresh 128-bit nonce', () => {
     const a = createAdminSurfaceMount({ surfaceId: 's' });
     const b = createAdminSurfaceMount({ surfaceId: 's' });
     expect(a.mountId).toMatch(/^[0-9a-f]{32}$/);
     expect(a.mountId).not.toBe(b.mountId);
-    expect(a.expectedOrigin).toBe('null');
+    expect(Object.keys(a).sort()).toEqual(['mountId', 'surfaceId']);
   });
 });

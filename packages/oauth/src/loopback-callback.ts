@@ -13,7 +13,6 @@ import { MAX_AUTHORIZATION_STATE_LENGTH } from './sealed-state.js';
 export const MAX_CALLBACK_FIELD_LENGTH = 4096;
 export const MAX_CALLBACK_FIELDS = 16;
 const CALLBACK_FIELD_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
-const CALLBACK_PATH = /^(?:\/[A-Za-z0-9._~-]+){1,8}$/;
 // Protocol parameters the receiver interprets itself; a plugin may not re-declare them as data.
 const RESERVED_CALLBACK_PARAMS: ReadonlySet<string> = new Set(['code', 'state', 'error', 'error_description', 'error_uri', 'iss']);
 
@@ -38,7 +37,7 @@ function invalidRequest(message: string): OAuthError {
 }
 
 function invalidConfiguration(message: string): OAuthError {
-    return new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message, operatorAction: "Fix the connection's declared callback path or fields." });
+    return new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message, operatorAction: "Fix the connection's declared callback fields." });
 }
 
 /**
@@ -50,10 +49,8 @@ export function isCallbackFieldName(name: string): boolean {
     return CALLBACK_FIELD_NAME.test(name) && !RESERVED_CALLBACK_PARAMS.has(name);
 }
 
-/** Rejects a callback path or field list a plugin declared wrongly, before any port is opened. */
-export function assertLoopbackConfiguration(requiredArgs: { readonly path: string; readonly callbackFields: readonly string[] }): void {
-    if (!CALLBACK_PATH.test(requiredArgs.path))
-        throw invalidConfiguration('the loopback callback path must be one to eight plain URL path segments');
+/** Rejects a callback field list a plugin declared wrongly, before any port is opened. */
+export function assertLoopbackConfiguration(requiredArgs: { readonly callbackFields: readonly string[] }): void {
     if (requiredArgs.callbackFields.length > MAX_CALLBACK_FIELDS)
         throw invalidConfiguration(`at most ${MAX_CALLBACK_FIELDS} callback fields may be declared`);
     for (const name of requiredArgs.callbackFields) {

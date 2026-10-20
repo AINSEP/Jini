@@ -100,7 +100,7 @@ Every message carries `protocol: 'jini.admin-surface'` and `version: 1`.
 | `action-request` | frame → host page | `mountId`, `requestId` (`[A-Za-z0-9_-]{1,64}`), `action`, `payload` |
 | `action-response` | host page → frame | `mountId`, `requestId`, then `ok: true, result` or `ok: false, error: { code, message, retryable }` |
 
-1. `createAdminSurfaceMount({ surfaceId })` → `{ mountId }` (128-bit random nonce) and `expectedOrigin: 'null'`.
+1. `createAdminSurfaceMount({ surfaceId })` → `{ surfaceId, mountId }` (128-bit random nonce); its messages must come from origin `'null'`.
 2. The host page renders the iframe and, on its first `load`, posts `adminSurfaceInitMessage({ mountId }, { bootstrap })`
    to `frame.contentWindow` with target `'*'` (an opaque origin cannot be targeted by name). If the
    frame fires `load` again it navigated: unmount it and do not re-send init. Because the target is
@@ -130,8 +130,8 @@ The surface client adds `timeout` and `closed`.
 ### Bootstrap data
 
 Data a surface needs to start (for example a short-lived, narrowly scoped access token plus public
-config) is issued by a host server route with `createAdminSurfaceBootstrap({ surfaceId, data, nowMs }, { ttlMs })`
-(default 60 s, at most 5 minutes) and served with `adminSurfaceBootstrapHeaders()`
+config) is issued by a host server route with `createAdminSurfaceBootstrap({ surfaceId, data, nowMs })`
+(a fixed one-minute lifetime) and served with `adminSurfaceBootstrapHeaders()`
 (`Cache-Control: no-store`, `Pragma: no-cache`, `nosniff`). The host page passes it inside `init`;
 the client's `bootstrap()` returns `data` only until `expiresAt`. Never put a refresh token or any
 long-lived secret in bootstrap data.
