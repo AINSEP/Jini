@@ -124,12 +124,36 @@ function evaluateCompile(project: CompileProject, registry: ProcessResult, basel
   return { ...base, status: drift.length ? 'drift' : 'pass', diagnostics: drift };
 }
 
-async function checkCompile(project: CompileProject, manifest: DependencyManifest, deps: Record<string, string>, scope: string, fs: FilesystemPort, runner: ProcessRunnerPort, installer: PackageInstallerPort): Promise<PublishedTypesResult> {
-  if (Object.keys(deps).length === 0) return emptyResult(project.key, 'skipped', 'no registry-resolved scoped dependencies');
+/** Run prerequisites in order; the first failing result stops the sequence. */
+async function failedPrerequisite({ project, runner }: { project: CompileProject; runner: ProcessRunnerPort }): Promise<ProcessResult | undefined> {
   for (const command of project.prerequisites) {
     const result = await runner.run(command);
-    if (result.exitCode !== 0) return emptyResult(project.key, 'prerequisite-error', combined(result));
+    if (result.exitCode !== 0) return result;
   }
+  return undefined;
+}
+
+/** A linked scope or scoped package would let local sources masquerade as registry packages. */
+function assertUnlinkedScope({ source, fs }: { source: string; fs: FilesystemPort }): void {
+  if (fs.isSymbolicLink({ path: source })) throw new Error('installed scope must not be linked');
+  for (const entry of fs.readDirectory({ path: source })) {
+    if (fs.isSymbolicLink({ path: path.join(source, entry) })) throw new Error(`installed scoped package is linked: ${entry}`);
+  }
+}
+
+function installedVersions({ scratch, deps, fs }: { scratch: string; deps: Record<string, string>; fs: FilesystemPort }): Record<string, string> {
+  const versions: Record<string, string> = {};
+  for (const name of Object.keys(deps)) {
+    const pkg = JSON.parse(fs.readText({ path: path.join(scratch, 'node_modules', name, 'package.json') })) as { version: string };
+    versions[name] = pkg.version;
+  }
+  return versions;
+}
+
+async function checkCompile(project: CompileProject, manifest: DependencyManifest, deps: Record<string, string>, scope: string, fs: FilesystemPort, runner: ProcessRunnerPort, installer: PackageInstallerPort): Promise<PublishedTypesResult> {
+  if (Object.keys(deps).length === 0) return emptyResult(project.key, 'skipped', 'no registry-resolved scoped dependencies');
+  const failed = await failedPrerequisite({ project, runner });
+  if (failed) return emptyResult(project.key, 'prerequisite-error', combined(failed));
   const scratch = fs.createTempDirectory({ parent: project.scratchParent, prefix: 'published-types-' });
   try {
     const overrides = Object.fromEntries(Object.entries(manifest.overrides ?? {}).filter(([name]) => name.startsWith(`${scope}/`)));
@@ -137,15 +161,8 @@ async function checkCompile(project: CompileProject, manifest: DependencyManifes
     const installed = await installer.install({ directory: scratch });
     if (installed.exitCode !== 0) return emptyResult(project.key, 'install-error', combined(installed));
     const source = path.join(scratch, 'node_modules', scope);
-    if (fs.isSymbolicLink({ path: source })) throw new Error('installed scope must not be linked');
-    for (const entry of fs.readDirectory({ path: source })) {
-      if (fs.isSymbolicLink({ path: path.join(source, entry) })) throw new Error(`installed scoped package is linked: ${entry}`);
-    }
-    const versions: Record<string, string> = {};
-    for (const name of Object.keys(deps)) {
-      const pkg = JSON.parse(fs.readText({ path: path.join(scratch, 'node_modules', name, 'package.json') })) as { version: string };
-      versions[name] = pkg.version;
-    }
+    assertUnlinkedScope({ source, fs });
+    const versions = installedVersions({ scratch, deps, fs });
     const baseline = project.mode === 'drift' ? await runner.run(project.compiler) : { exitCode: 0, stdout: '', stderr: '' };
     // Copy the entire installed scope, including hoisted transitive packages.
     const cleanup = createShadow(project, source, scope, fs);
