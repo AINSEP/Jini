@@ -56,12 +56,7 @@ export class EnvOrFileKeyring implements KeyringPort {
   private cachedRootKey: Buffer | undefined;
 
   constructor(required: EnvOrFileKeyringRequired, optional: EnvOrFileKeyringOptions = {}) {
-    requireHostOption(required?.envVarName, "envVarName");
-    requireHostOption(required?.keyFilePath, "keyFilePath");
-    requireHostOption(required?.hkdfSalt, "hkdfSalt");
-    if (typeof required.env?.read !== "function") throw new TypeError("env.read is required");
-    if (typeof required.allowFileFallback !== "boolean") throw new TypeError("allowFileFallback must be an explicit boolean");
-    if (typeof required.allowFileAutoGenerate !== "boolean") throw new TypeError("allowFileAutoGenerate must be an explicit boolean");
+    assertEnvOrFileKeyringRequired({ required });
     this.messages = optional.messages ?? defaultPlatformMessages;
     this.env = required.env;
     this.hkdfSalt = required.hkdfSalt;
@@ -236,11 +231,11 @@ function describeRootKeyRejection(parsed: { reason: RootKeyRejection; hexDigits:
   return ROOT_KEY_REJECTION_DETAIL[parsed.reason](parsed.hexDigits);
 }
 
-function unusableRootKeyMessage(input: { subject: string; detail: string; sealedWarningSubject: string | undefined; messages?: PlatformMessages }): string {
+function unusableRootKeyMessage(input: { subject: string; detail: string; sealedWarningSubject: string | undefined; messages: PlatformMessages }): string {
   const refusal = `${input.subject} is not usable as a root key: ${input.detail}. The keyring refuses to derive any key material from it rather than sealing under a shortened or empty key.`;
   if (input.sealedWarningSubject === undefined) return refusal;
   return (
-    `${refusal} ${(input.messages ?? defaultPlatformMessages).rootKeySealedWarning({ subject: input.sealedWarningSubject })}` +
+    `${refusal} ${input.messages.rootKeySealedWarning({ subject: input.sealedWarningSubject })}` +
     `not from a real ${ROOT_KEY_LENGTH_BYTES}-byte key, so those stored credentials are not protected as intended — with empty or very short material the derived key is computable from published constants. ` +
     `Replacing or regenerating the key will NOT restore them; it will make them unreadable. ` +
     `Do not overwrite, delete or regenerate this key until you have decided what to do with the credentials already stored.`
@@ -365,6 +360,16 @@ function isAlreadyExistsError(err: unknown): boolean {
   if (typeof err !== "object" || err === null || !("code" in err)) return false;
   const code = (err as { code?: unknown }).code;
   return code === "EEXIST" || code === "ELOOP";
+}
+
+/** Every source permission is explicit; checked in order so the first missing option is named. */
+function assertEnvOrFileKeyringRequired({ required }: { required: EnvOrFileKeyringRequired }): void {
+  requireHostOption(required?.envVarName, "envVarName");
+  requireHostOption(required?.keyFilePath, "keyFilePath");
+  requireHostOption(required?.hkdfSalt, "hkdfSalt");
+  if (typeof required.env?.read !== "function") throw new TypeError("env.read is required");
+  if (typeof required.allowFileFallback !== "boolean") throw new TypeError("allowFileFallback must be an explicit boolean");
+  if (typeof required.allowFileAutoGenerate !== "boolean") throw new TypeError("allowFileAutoGenerate must be an explicit boolean");
 }
 
 function requireHostOption(value: unknown, name: string): void {
