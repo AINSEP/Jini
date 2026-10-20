@@ -122,8 +122,7 @@
     "yauzl": "^3.4.0",
     "@jini-ai/core": "^0.4.3",
     "@jini-ai/platform": "^0.5.3",
-    "@cfworker/json-schema": "^4.1.1",
-    "@jini-ai/plugins": "^0.5.1"
+    "@cfworker/json-schema": "^4.1.1"
   },
   "peerDependenciesMeta": {
     "yauzl": {
@@ -133,9 +132,6 @@
       "optional": true
     },
     "@cfworker/json-schema": {
-      "optional": true
-    },
-    "@jini-ai/plugins": {
       "optional": true
     }
   }

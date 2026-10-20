@@ -8,8 +8,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createToolRegistry } from '@jini-ai/core';
-import { authorizeToolInvocation } from '@jini-ai/core/composition';
-import { attachPluginContributionTools, createPluginContributionRegistry } from '@jini-ai/plugins/host';
+import { attachPluginContributionTools, buildPluginContributionToolRegistrations, createPluginContributionRegistry, pluginToolIdFor, type PluginToolContributionPorts } from '@jini-ai/plugins/host';
 import { createPluginContributionLoader } from '../../contribution-loader.js';
 import type { AgentPluginArchiveEntry } from '../../install.js';
 import {
@@ -89,9 +88,10 @@ export function createHarness() {
   const contributions = createPluginContributionRegistry({});
   const tools = createToolRegistry({});
   const enabled = new Set<string>();
-  attachPluginContributionTools({ contributions, registry: tools, isEnabled: async ({ pluginId }) => enabled.has(pluginId),
-    resolveAuth: async ({ principalId }) => ({ access: 'member', workspaceId: WORKSPACE_ID, principalId }), metadata: { approval: { class: 'edit', confirmation: 'direct' } } });
-  const projection = createAgentPluginToolProjection({ registry: contributions, capabilities: () => fakeCapabilities(log) });
+  const ports: PluginToolContributionPorts = { contributions, isEnabled: async ({ pluginId }) => enabled.has(pluginId),
+    resolveAuth: async ({ principalId }) => ({ access: 'member', workspaceId: WORKSPACE_ID, principalId }), metadata: { approval: { class: 'edit', confirmation: 'direct' } } };
+  attachPluginContributionTools({ ...ports, registry: tools });
+  const projection = createAgentPluginToolProjection({ registry: contributions, toolIdFor: pluginToolIdFor, capabilities: () => fakeCapabilities(log) });
   /** Loads from the installed packages and projects; returns every refusal line. */
   async function refresh(): Promise<readonly string[]> {
     const load = await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition }, { orderByPluginId: true });
@@ -99,13 +99,14 @@ export function createHarness() {
     for (const item of load.items) enabled.add(item.pluginId);
     return projection.sync({ loaded: load.items, refusals: load.refusals }).refusals;
   }
-  /** Authorizes a call exactly as the executor does (rejects on deny); the returned function runs it. */
+  /** Authorizes a call through the contract's own registration (policy, then handler); rejects on deny. */
   async function authorize(toolId: string, input: unknown): Promise<() => Promise<unknown>> {
     const principal = { id: 'member-1' };
     const run = { id: 'run-1' };
-    const authorized = await authorizeToolInvocation({ registry: tools, toolId, principal, run, input });
-    if (!authorized || authorized.decision !== 'allow') throw new Error(`denied ${toolId}`);
-    return () => authorized.handler({ executionId: 'exec-1', principal, run, input: authorized.input, signal: new AbortController().signal });
+    const registration = buildPluginContributionToolRegistrations(ports).find(candidate => candidate.descriptor.id === toolId);
+    if (!registration) throw new Error(`unknown ${toolId}`);
+    if (await registration.policy.authorize({ principal, run, input, tool: registration.descriptor }) !== 'allow') throw new Error(`denied ${toolId}`);
+    return () => registration.handler({ executionId: 'exec-1', principal, run, input, signal: new AbortController().signal });
   }
   const invoke = async (toolId: string, input: unknown) => (await authorize(toolId, input))();
   return { log, tools, contributions, projection, enabled, refresh, authorize, invoke };

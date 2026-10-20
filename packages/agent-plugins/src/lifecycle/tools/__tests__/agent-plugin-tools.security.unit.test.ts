@@ -6,7 +6,7 @@
  */
 import { expect, test } from 'vitest';
 import { ToolInputError } from '@jini-ai/core';
-import { createPluginContributionRegistry } from '@jini-ai/plugins/host';
+import { createPluginContributionRegistry, pluginToolIdFor } from '@jini-ai/plugins/host';
 import { REVOKED_MESSAGE, WITHHELD_ERROR_MESSAGE, WITHHELD_OUTPUT_MESSAGE, type AgentPluginToolCapabilities } from '../capabilities.js';
 import type { LoadedAgentPluginTool } from '../definition.js';
 import { createAgentPluginToolProjection } from '../projection.js';
@@ -58,7 +58,7 @@ const loaded = (pluginId: string, overrides: Partial<LoadedAgentPluginTool['desc
 });
 function projectionFor(capabilities: AgentPluginToolCapabilities = fakeCapabilities({ tokenRequests: [], requests: [] })) {
   const registry = createPluginContributionRegistry({});
-  return { registry, projection: createAgentPluginToolProjection({ registry, capabilities: () => capabilities }) };
+  return { registry, projection: createAgentPluginToolProjection({ registry, toolIdFor: pluginToolIdFor, capabilities: () => capabilities }) };
 }
 
 test('two plugins whose namespaced ids collide are both refused (ambiguous)', () => {
@@ -164,8 +164,7 @@ test('disabling the plugin removes its tools, refuses authorized and direct call
     expect(await harness.refresh()).toEqual([]);
 
     expect(harness.tools.has({ toolId: 'p_fixture_tools__look' })).toBe(false);
-    // core's revoked closure throws synchronously; normalize to a rejection for the assertion.
-    await expect(Promise.resolve().then(pending)).rejects.toThrow('tool registration was revoked');
+    await expect(pending()).rejects.toThrow('Plugin tool is disabled or was reloaded.');
     await expect(oldGeneration.tools[0]!.handler({ pluginId: 'fixture-tools', sdk: oldGeneration.sdk, auth: { access: 'member', workspaceId: 'w' }, input: { ref: 'r3' } }))
       .rejects.toThrow(REVOKED_MESSAGE);
     await expect(kept.connections.getAccessToken({ connectionRef: 'c1' })).rejects.toThrow(REVOKED_MESSAGE);
