@@ -1,0 +1,10 @@
+{
+  "configs": [
+    "p/typescript",
+    "p/javascript",
+    "p/nodejs",
+    "p/secrets",
+    "p/owasp-top-ten",
+    ".semgrep"
+  ]
+}

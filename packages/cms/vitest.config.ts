@@ -14,7 +14,7 @@ export default defineConfig({
       provider: 'v8',
       // The v8 text table silently drops rows once there are many files — json-summary/json are
       // what a coverage-driven pass should actually read.
-      reporter: ['text', 'json-summary', 'json'],
+      reporter: ['text', 'json-summary', 'json', 'lcov'],
       include: ['src/**'],
       exclude: ['src/**/*.test.ts', 'src/**/__tests__/**'],
       // No thresholds yet, and that is a deliberate omission rather than an oversight: this package

@@ -1,5 +1,6 @@
 import tseslint from 'typescript-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
+import { sonarjsConfig, sonarSourceFiles, sonarTestFiles } from './development/quality/sonarjs.config.mjs';
 
 export default [
   {
@@ -16,7 +17,7 @@ export default [
     // Pre-existing inline `eslint-disable` comments in this repo reference rules
     // from plugins this minimal config intentionally does not load. Without
     // this, ESLint errors with "Definition for rule '...' was not found" on
-    // every such comment, flooding a complexity-only run with unrelated errors.
+    // every such comment, flooding quality reports with unrelated errors.
     linterOptions: { noInlineConfig: true },
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: { parser: tseslint.parser },
@@ -25,6 +26,13 @@ export default [
       complexity: ['warn', 15],
       'sonarjs/cognitive-complexity': ['warn', 15],
     },
+  },
+  {
+    ...sonarjsConfig,
+    files: sonarSourceFiles,
+    ignores: sonarTestFiles,
+    languageOptions: { parser: tseslint.parser },
+    linterOptions: { noInlineConfig: true },
   },
   {
     files: ['packages/*/src/**/*.{ts,tsx,mts,cts}', 'packages/cms/forms/src/**/*.{ts,tsx,mts,cts}'],

@@ -1,0 +1,41 @@
+rules:
+  - id: no-provider-error-echo
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: Caught dependency error text can contain credentials or signed URLs. Return a fixed message and safe status/code instead of provider/importer prose.
+    mode: taint
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  try { ... } catch ($ERROR) { ... }
+              - pattern-inside: |
+                  $PROMISE.catch(($ERROR) => { ... })
+              - pattern-inside: $PROMISE.catch(($ERROR) => $BODY)
+          - pattern-either:
+              - pattern: $ERROR.message
+              - pattern: $ERROR.body
+              - pattern: $ERROR.bodyText
+              - pattern: $ERROR.response.body
+              - pattern: $ERROR.response.data
+              - pattern: String($ERROR)
+        exact: true
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: throw $TEXT;
+              - pattern: return $TEXT;
+          - focus-metavariable: $TEXT
+        exact: true
+      - patterns:
+          - pattern: $LOGGER.$METHOD(..., $TEXT, ...)
+          - metavariable-regex:
+              metavariable: $METHOD
+              regex: ^(?:log|error|warn|info|debug|trace|fatal)$
+          - focus-metavariable: $TEXT
+        exact: true
+    # Known runtime owners, not a permissive /redact.*/ name heuristic.
+    pattern-sanitizers:
+      - pattern: redactSecrets(...)
+      - pattern: redactText(...)
+      - pattern: redactSecretShapes(...)

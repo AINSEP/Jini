@@ -1,0 +1,6 @@
+rules:
+  - id: no-as-any
+    languages: [typescript]
+    severity: WARNING
+    message: An 'as any' assertion bypasses type checking. Narrow unknown or use the real boundary type.
+    pattern: $VALUE as any
