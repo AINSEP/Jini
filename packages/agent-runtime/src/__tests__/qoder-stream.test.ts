@@ -233,6 +233,16 @@ describe('createQoderStreamHandler', () => {
     expect(events).toEqual([{ type: 'usage', usage: { a: 1 }, modelUsage: { m: {} }, costUsd: 2, durationMs: 5, stopReason: 'end', isError: false }]);
   });
 
+  it('marks the usage event as an error for a failed result', () => {
+    const events = feed([{ type: 'result', is_error: true }]);
+    expect(events[0]).toMatchObject({ type: 'usage', isError: true });
+  });
+
+  it('ignores a thinking field on a block that is not thinking-typed', () => {
+    const events = feed([{ type: 'assistant', message: { content: [{ type: 'other', thinking: 'hidden' }] } }]);
+    expect(events).toEqual([]);
+  });
+
   it('nulls a non-numeric result duration', () => {
     const events = feed([{ type: 'result', duration_ms: '5' }]);
     expect(events[0]).toMatchObject({ type: 'usage', durationMs: null });
