@@ -13,9 +13,9 @@ import {
   sortConnectorsForSearch,
 } from './rules.js';
 import type { Connector, ConnectorAuthResultEvent, ProviderTab } from './types.js';
-import { useConnectorCatalog } from './hooks/useConnectorCatalog.js';
-import { useConnectorAuthorization } from './hooks/useConnectorAuthorization.js';
-import { useConnectorDetail } from './hooks/useConnectorDetail.js';
+import type { useConnectorCatalog } from './hooks/useConnectorCatalog.js';
+import type { ConnectorAuthorizationController, useConnectorAuthorization } from './hooks/useConnectorAuthorization.js';
+import type { ConnectorDetailController, useConnectorDetail } from './hooks/useConnectorDetail.js';
 import { useWiredConnectorsBrowser } from './hooks/useWiredConnectorsBrowser.js';
 import { CenteredLoader } from '../../react/components/Loading.js';
 import { ProviderTabBar } from './components/ProviderTabBar.js';
@@ -51,6 +51,62 @@ export interface ConnectorsBrowserProps {
   agentHandle?: string;
 }
 
+/** `{ agentHandle }` for a child derived from the browser's own handle, or `{}` when the host published none. */
+function subHandleProp({ base, action }: { base: string | undefined; action: string }): { agentHandle?: string } {
+  return base ? { agentHandle: agentSubHandle({ base, action }) } : {};
+}
+
+/** The connect/disconnect/cancel/open-url callbacks shared by the grid cards and the detail drawer. */
+interface ConnectorActionCallbacks {
+  onConnect: (connectorId: string) => void;
+  onDisconnect: (connectorId: string) => void;
+  onCancelAuthorization: (connectorId: string) => void;
+  onOpenExternalUrl: (url: string) => void;
+}
+
+interface ConnectorsDetailPaneProps {
+  detail: ConnectorDetailController;
+  authorization: ConnectorAuthorizationController;
+  unlocked: boolean;
+  actions: ConnectorActionCallbacks;
+  getCategoryLabel: ConnectorsBrowserProps['getCategoryLabel'];
+  getDisplayableAccountLabel: ConnectorsBrowserProps['getDisplayableAccountLabel'];
+  agentHandle: string | undefined;
+}
+
+/** The detail drawer for the connector currently opened, or nothing when none is. */
+function ConnectorsDetailPane({
+  detail,
+  authorization,
+  unlocked,
+  actions,
+  getCategoryLabel,
+  getDisplayableAccountLabel,
+  agentHandle,
+}: ConnectorsDetailPaneProps) {
+  const connector = detail.detailConnector;
+  if (!connector) return null;
+  const { pendingConnectorAction } = authorization;
+  return (
+    <ConnectorDetailDrawer
+      connector={connector}
+      disabled={!unlocked}
+      pendingAction={pendingConnectorAction?.connectorId === connector.id ? pendingConnectorAction.action : null}
+      authorizationPending={authorization.pending[connector.id]}
+      authorizationCancelFailed={authorization.cancelFailed[connector.id] === true}
+      authorizationError={authorization.authError[connector.id] ?? null}
+      toolsPreviewLoading={detail.toolPreviewLoading}
+      toolsLoaded={detail.toolsLoaded}
+      onClose={detail.closeDetails}
+      {...actions}
+      onLoadMoreTools={(connectorId, cursor) => void detail.loadMoreTools(connectorId, cursor)}
+      {...(getCategoryLabel ? { getCategoryLabel } : {})}
+      {...(getDisplayableAccountLabel ? { getDisplayableAccountLabel } : {})}
+      {...subHandleProp({ base: agentHandle, action: 'detail' })}
+    />
+  );
+}
+
 /**
  * Connector cards + search — an OAuth integration marketplace UI. Owns its
  * own data lifecycle: fetches the catalog on mount, lazily enriches once
@@ -61,7 +117,7 @@ export interface ConnectorsBrowserProps {
 export function ConnectorsBrowser({
   unlocked,
   providerTabs = DEFAULT_PROVIDER_TABS,
-  catalogRefreshKey = 0,
+  catalogRefreshKey,
   dependencies,
   getCategoryLabel,
   getDisplayableAccountLabel,
@@ -69,9 +125,9 @@ export function ConnectorsBrowser({
   onProviderTabClick,
   onConnectorAuthResult,
   onConnectorsChanged,
-  useConnectorCatalog: useConnectorCatalogHook = useConnectorCatalog,
-  useConnectorAuthorization: useConnectorAuthorizationHook = useConnectorAuthorization,
-  useConnectorDetail: useConnectorDetailHook = useConnectorDetail,
+  useConnectorCatalog,
+  useConnectorAuthorization,
+  useConnectorDetail,
   agentHandle,
 }: ConnectorsBrowserProps) {
   const t = useT();
@@ -87,11 +143,11 @@ export function ConnectorsBrowser({
     dependencies,
     unlocked,
     catalogRefreshKey,
-    ...(onConnectorsChanged ? { onConnectorsChanged } : {}),
-    ...(onConnectorAuthResult ? { onConnectorAuthResult } : {}),
-    useConnectorCatalog: useConnectorCatalogHook,
-    useConnectorAuthorization: useConnectorAuthorizationHook,
-    useConnectorDetail: useConnectorDetailHook,
+    onConnectorsChanged,
+    onConnectorAuthResult,
+    useConnectorCatalog,
+    useConnectorAuthorization,
+    useConnectorDetail,
   });
 
   const providerScopedConnectors = useMemo(
@@ -104,8 +160,7 @@ export function ConnectorsBrowser({
     [providerScopedConnectors, filter],
   );
 
-  const hasQuery = filter.trim().length > 0;
-  const hasNoResults = hasQuery && filteredConnectors.length === 0;
+  const hasNoResults = filter.trim().length > 0 && filteredConnectors.length === 0;
 
   const alerts = useMemo(
     () =>
@@ -132,6 +187,13 @@ export function ConnectorsBrowser({
     gate?.onClick?.();
   }, [onProviderTabClick, gate]);
 
+  const actions: ConnectorActionCallbacks = {
+    onConnect: (connectorId) => void authorization.runConnectorAction(connectorId, 'connect'),
+    onDisconnect: (connectorId) => void authorization.runConnectorAction(connectorId, 'disconnect'),
+    onCancelAuthorization: (connectorId) => void authorization.cancelAuthorization(connectorId),
+    onOpenExternalUrl: (url) => void deps.data.openExternalUrl(url),
+  };
+
   return (
     <div className="tab-panel connectors-panel connectors-panel-embedded">
       <div className="tab-panel-toolbar">
@@ -146,14 +208,14 @@ export function ConnectorsBrowser({
             tabs={providerTabs}
             selectedId={selectedProvider}
             onSelect={handleProviderTabSelect}
-            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'provider' }) } : {})}
+            {...subHandleProp({ base: agentHandle, action: 'provider' })}
           />
           <ConnectorSearchBar
             value={filter}
             onChange={setFilter}
             disabled={!unlocked}
             onFocus={() => onProviderTabClick?.('search_connectors')}
-            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'search' }) } : {})}
+            {...subHandleProp({ base: agentHandle, action: 'search' })}
           />
         </div>
       </div>
@@ -172,43 +234,24 @@ export function ConnectorsBrowser({
           authorizationPending={authorization.pending}
           authorizationCancelFailed={authorization.cancelFailed}
           toolsLoaded={catalog.enriched}
-          onConnect={(connectorId) => void authorization.runConnectorAction(connectorId, 'connect')}
-          onDisconnect={(connectorId) => void authorization.runConnectorAction(connectorId, 'disconnect')}
-          onCancelAuthorization={(connectorId) => void authorization.cancelAuthorization(connectorId)}
+          {...actions}
           onOpenDetails={detail.openDetails}
-          onOpenExternalUrl={(url) => void deps.data.openExternalUrl(url)}
           {...(getCategoryLabel ? { getCategoryLabel } : {})}
           onClearSearch={() => setFilter('')}
           {...(gate ? { gate: { ...gate, onClick: handleGateClick } } : {})}
-          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'connector' }) } : {})}
+          {...subHandleProp({ base: agentHandle, action: 'connector' })}
         />
       )}
 
-      {detail.detailConnector ? (
-        <ConnectorDetailDrawer
-          connector={detail.detailConnector}
-          disabled={!unlocked}
-          pendingAction={
-            authorization.pendingConnectorAction?.connectorId === detail.detailConnector.id
-              ? authorization.pendingConnectorAction.action
-              : null
-          }
-          authorizationPending={authorization.pending[detail.detailConnector.id]}
-          authorizationCancelFailed={authorization.cancelFailed[detail.detailConnector.id] === true}
-          authorizationError={authorization.authError[detail.detailConnector.id] ?? null}
-          toolsPreviewLoading={detail.toolPreviewLoading}
-          toolsLoaded={detail.toolsLoaded}
-          onClose={detail.closeDetails}
-          onConnect={(connectorId) => void authorization.runConnectorAction(connectorId, 'connect')}
-          onDisconnect={(connectorId) => void authorization.runConnectorAction(connectorId, 'disconnect')}
-          onCancelAuthorization={(connectorId) => void authorization.cancelAuthorization(connectorId)}
-          onLoadMoreTools={(connectorId, cursor) => void detail.loadMoreTools(connectorId, cursor)}
-          onOpenExternalUrl={(url) => void deps.data.openExternalUrl(url)}
-          {...(getCategoryLabel ? { getCategoryLabel } : {})}
-          {...(getDisplayableAccountLabel ? { getDisplayableAccountLabel } : {})}
-          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'detail' }) } : {})}
-        />
-      ) : null}
+      <ConnectorsDetailPane
+        detail={detail}
+        authorization={authorization}
+        unlocked={unlocked}
+        actions={actions}
+        getCategoryLabel={getCategoryLabel}
+        getDisplayableAccountLabel={getDisplayableAccountLabel}
+        agentHandle={agentHandle}
+      />
     </div>
   );
 }

@@ -272,10 +272,15 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     if (shippedDigest !== undefined && shippedDigest !== plugin.archiveDigest) {
       return { ok: false, reason: `Agent Plugin '${pluginRefId}' was not loaded: only plugins shipped with ${ports.productName} may add agent guidance under a bundled id (installed digest ${plugin.archiveDigest.slice(0, 12)} is not the one this build shipped)` };
     }
-    const skillPath = `skills/${pluginRefId}/SKILL.md`;
-
     if (deliveryMode === "pointer") return buildPointerSection(pluginRefId, plugin);
+    return buildInjectedSection({ pluginRefId, packagesDir, plugin });
+  }
 
+  /** `inject` mode: the eponymous SKILL.md, the plugin's user notes, and its readable-file inventory. */
+  async function buildInjectedSection(
+    { pluginRefId, packagesDir, plugin }: { readonly pluginRefId: string; readonly packagesDir: string; readonly plugin: InstalledAgentPlugin },
+  ): Promise<{ readonly ok: true; readonly section: string } | { readonly ok: false; readonly reason: string }> {
+    const skillPath = `skills/${pluginRefId}/SKILL.md`;
     let skillMarkdown: string;
     let files: readonly string[];
     let fileNote: string | undefined;

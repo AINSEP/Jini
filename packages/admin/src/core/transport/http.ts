@@ -75,24 +75,60 @@ function unreachableApiMessage({ status }: { readonly status?: number } = {}): s
 }
 
 /** Timeout DOMExceptions can come from another realm; instanceof Error alone is unreliable. */
+function errorName(cause: unknown): unknown {
+  return cause && typeof cause === 'object' && 'name' in cause ? cause.name : undefined;
+}
+
+function requestTimeoutError(
+  { cause, timeoutMs }: { readonly cause: unknown; readonly timeoutMs: number },
+  _optional: Record<string, never> = {},
+): AdminApiError {
+  const message = `the API did not respond within ${timeoutMs / 1000}s — the browser may be out of free connections for this origin (try closing other admin tabs) or the server is unresponsive`;
+  return new AdminApiError({ message, status: 0 }, {
+    code: 'REQUEST_TIMEOUT', body: { cause: cause instanceof Error ? cause.message : String(cause) },
+  });
+}
+
 function throwTranslatedFetchFailure(
   { cause, timeoutMs }: { readonly cause: unknown; readonly timeoutMs: number },
   { isPageUnloading }: Pick<HttpTransportOptions, 'isPageUnloading'> = {},
 ): never {
-  const name = cause && typeof cause === 'object' && 'name' in cause ? cause.name : undefined;
+  const name = errorName(cause);
   if (name === 'AbortError') throw cause;
-  if (name === 'TimeoutError') {
-    const message = `the API did not respond within ${timeoutMs / 1000}s — the browser may be out of free connections for this origin (try closing other admin tabs) or the server is unresponsive`;
-    throw new AdminApiError({ message, status: 0 }, {
-      code: 'REQUEST_TIMEOUT', body: { cause: cause instanceof Error ? cause.message : String(cause) },
-    });
-  }
+  if (name === 'TimeoutError') throw requestTimeoutError({ cause, timeoutMs });
   // Only fetch's TypeError proves a network failure. Adapter bugs retain their original type.
   if (!(cause instanceof TypeError)) throw cause;
   if (isPageUnloading?.()) throw new DOMException('request cancelled: the page is unloading', 'AbortError');
   throw new AdminApiError({ message: unreachableApiMessage(), status: 0 }, {
     code: 'API_UNREACHABLE', body: { cause: cause.message },
   });
+}
+
+/**
+ * Headers normalizes names and accepts every HeadersInit form; object spreads lose
+ * Headers instances and treat tuple arrays as numeric keys instead of header entries.
+ * Later sources win: the JSON default, then the transport's own, then the call's.
+ */
+function mergeHeaders(sources: readonly (HeadersInit | undefined)[]): Headers {
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  for (const source of sources) new Headers(source).forEach((value, name) => headers.set(name, value));
+  return headers;
+}
+
+/** The error a non-2xx response throws, given its parsed (or unparseable) body. */
+function responseError(
+  { res, body, wasUnparseable }: { readonly res: Response; readonly body: Record<string, unknown>; readonly wasUnparseable: boolean },
+  _optional: Record<string, never> = {},
+): AdminApiError {
+  // Valid JSON proves the application answered. Only unparseable 5xx responses indicate
+  // an unreachable upstream or a server crash outside the application's JSON envelope.
+  const noAppEnvelope = wasUnparseable && res.status >= 500;
+  const fallback = noAppEnvelope ? unreachableApiMessage({ status: res.status }) : `request failed (${res.status})`;
+  const serverCode = typeof body?.code === 'string' ? body.code : undefined;
+  return new AdminApiError(
+    { message: String(body?.error ?? fallback), status: res.status },
+    { code: noAppEnvelope ? 'API_UNREACHABLE' : serverCode, body },
+  );
 }
 
 /**
@@ -105,14 +141,10 @@ export function createHttpTransport(
   { baseUrl, fetch: doFetch }: HttpTransportRequiredArgs,
   { headers: baseHeaders, credentials = 'same-origin', timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, isPageUnloading }: HttpTransportOptions = {},
 ): AdminTransport {
+  const unloading = isPageUnloading ? { isPageUnloading } : {};
   return {
     async request<T>({ path }: { readonly path: string }, options: Parameters<AdminTransport['request']>[1] = {}): Promise<T> {
       const { onOk, ...init } = options;
-      // Headers normalizes names and accepts every HeadersInit form; object spreads lose
-      // Headers instances and treat tuple arrays as numeric keys instead of header entries.
-      const headers = new Headers({ 'Content-Type': 'application/json' });
-      new Headers(baseHeaders).forEach((value, name) => headers.set(name, value));
-      new Headers(init.headers).forEach((value, name) => headers.set(name, value));
       // An explicit signal owns cancellation and its deadline; never replace it with ours.
       const signal = init.signal ?? AbortSignal.timeout(timeoutMs);
       const res = await doFetch({ url: `${baseUrl}${path}` }, {
@@ -122,9 +154,8 @@ export function createHttpTransport(
         // Assign last so a per-call header overrides both the JSON default and the transport's
         // own. The reference implementation's original spread `...init` last, which meant a call passing `headers` lost
         // the `Content-Type` default rather than merging with it.
-        headers,
-      }).catch((cause: unknown) => throwTranslatedFetchFailure({ cause, timeoutMs },
-        isPageUnloading ? { isPageUnloading } : {}));
+        headers: mergeHeaders([baseHeaders, init.headers]),
+      }).catch((cause: unknown) => throwTranslatedFetchFailure({ cause, timeoutMs }, unloading));
 
       // A 204 or an empty body is not a JSON parse failure worth surfacing — it is a successful
       // mutation with nothing to return. Same `.catch(() => ({}))` as the original.
@@ -132,15 +163,7 @@ export function createHttpTransport(
       const wasUnparseable = parsed === UNPARSEABLE_BODY;
       const body = (wasUnparseable ? {} : parsed) as Record<string, unknown>;
 
-      if (!res.ok) {
-        // Valid JSON proves the application answered. Only unparseable 5xx responses indicate
-        // an unreachable upstream or a server crash outside the application's JSON envelope.
-        const noAppEnvelope = wasUnparseable && res.status >= 500;
-        throw new AdminApiError(
-          { message: String(body?.error ?? (noAppEnvelope ? unreachableApiMessage({ status: res.status }) : `request failed (${res.status})`)), status: res.status },
-          { code: noAppEnvelope ? 'API_UNREACHABLE' : typeof body?.code === 'string' ? body.code : undefined, body },
-        );
-      }
+      if (!res.ok) throw responseError({ res, body, wasUnparseable });
       onOk?.({ response: res });
       return body as T;
     },

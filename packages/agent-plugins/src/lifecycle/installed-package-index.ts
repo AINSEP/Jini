@@ -26,6 +26,57 @@ export function createInstalledPackageIndex(required: { readonly ports: AgentPlu
     return text ? { [required.key]: text.slice(0, required.maxLength) } : {};
   }
 
+  /** Reads and validates `packageRoot`'s `plugin.json`, refusing a missing, unparseable or invalid one. */
+  async function readInstalledManifest({ packageRoot }: { readonly packageRoot: string }) {
+    let manifestRaw: string;
+    try {
+      manifestRaw = await readFile(path.join(packageRoot, "plugin.json"), "utf8");
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+        throw new AgentPluginInstallError({ code: "MANIFEST_MISSING", message: "the archive does not contain a plugin.json at its root" });
+      }
+      throw error;
+    }
+
+    let manifestValue: unknown;
+    try {
+      manifestValue = JSON.parse(manifestRaw);
+    } catch (error) {
+      throw new AgentPluginInstallError({ code: "MANIFEST_INVALID", message: "plugin.json is not valid JSON" }, { cause: error });
+    }
+
+    const parsed = parseAgentPluginManifest(manifestValue);
+    if (!parsed.ok) {
+      throw new AgentPluginInstallError({ code: "MANIFEST_INVALID", message: `plugin.json failed validation: ${parsed.errors.join("; ")}` });
+    }
+    return parsed;
+  }
+
+  /** Every regular file under `packageRoot` (sorted) and every `skills/<name>/SKILL.md` (sorted by name). */
+  async function walkPackageTree({ packageRoot }: { readonly packageRoot: string }): Promise<{ files: string[]; skills: InstalledAgentPluginSkill[] }> {
+    const files: string[] = [];
+    const skills: InstalledAgentPluginSkill[] = [];
+
+    async function walk(absolute: string, prefix: string): Promise<void> {
+      for (const entry of await readdir(absolute, { withFileTypes: true })) {
+        const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) await walk(path.join(absolute, entry.name), relative);
+        else if (entry.isFile()) files.push(relative);
+        // Anything that is neither a directory nor a regular file (a symlink somehow already present,
+        // a device node) is skipped rather than indexed — extraction itself never creates one, so
+        // encountering one here would mean the filesystem changed out from under an already-published,
+        // supposedly-frozen package, which this function has no business acting on either way.
+      }
+    }
+
+    await walk(packageRoot, "");
+    for (const relative of files) {
+      const match = relative.match(/^skills\/([^/]+)\/SKILL\.md$/);
+      if (match) skills.push({ name: match[1] as string, skillPath: relative });
+    }
+    return { files: files.sort(), skills: skills.sort((a, b) => a.name.localeCompare(b.name)) };
+  }
+
   /**
  * Reads the (already-extracted-and-trusted, or already-published) `plugin.json` at `packageRoot`
  * and walks the tree to build the `files`/`skills` index. Shared between a fresh install and the
@@ -49,50 +100,9 @@ export function createInstalledPackageIndex(required: { readonly ports: AgentPlu
      * a future capability projection pins invocation to (`capability-projection.ts`). */
     readonly archiveDigest: string;
   }, _optional: Record<string, never> = {}): Promise<InstalledAgentPlugin> {
-    let manifestRaw: string;
-    try {
-      manifestRaw = await readFile(path.join(packageRoot, "plugin.json"), "utf8");
-    } catch (error) {
-      if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
-        throw new AgentPluginInstallError({ code: "MANIFEST_MISSING", message: "the archive does not contain a plugin.json at its root" });
-      }
-      throw error;
-    }
-
-    let manifestValue: unknown;
-    try {
-      manifestValue = JSON.parse(manifestRaw);
-    } catch (error) {
-      throw new AgentPluginInstallError({ code: "MANIFEST_INVALID", message: "plugin.json is not valid JSON" }, { cause: error });
-    }
-
-    const parsed = parseAgentPluginManifest(manifestValue);
-    if (!parsed.ok) {
-      throw new AgentPluginInstallError({ code: "MANIFEST_INVALID", message: `plugin.json failed validation: ${parsed.errors.join("; ")}` });
-    }
-
-    const files: string[] = [];
+    const parsed = await readInstalledManifest({ packageRoot });
     for (const message of parsed.warnings) ports.onEvent?.({ event: 'agent-plugin-identity-warning', message });
-    const skills: InstalledAgentPluginSkill[] = [];
-
-    async function walk(absolute: string, prefix: string): Promise<void> {
-      for (const entry of await readdir(absolute, { withFileTypes: true })) {
-        const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-        if (entry.isDirectory()) {
-          await walk(path.join(absolute, entry.name), relative);
-        } else if (entry.isFile()) {
-          files.push(relative);
-          const match = relative.match(/^skills\/([^/]+)\/SKILL\.md$/);
-          if (match) skills.push({ name: match[1] as string, skillPath: relative });
-        }
-        // Anything that is neither a directory nor a regular file (a symlink somehow already present,
-        // a device node) is skipped rather than indexed — extraction itself never creates one, so
-        // encountering one here would mean the filesystem changed out from under an already-published,
-        // supposedly-frozen package, which this function has no business acting on either way.
-      }
-    }
-
-    await walk(packageRoot, "");
+    const { files, skills } = await walkPackageTree({ packageRoot });
 
     return {
       pluginId: parsed.manifest.name,
@@ -119,8 +129,8 @@ parsed.manifest.description !== undefined ? { description: parsed.manifest.descr
       ...readDisplayText({ manifest: parsed.manifest, key: "summary", maxLength: 1200 }),
       archiveDigest,
       packageRoot,
-      files: files.sort(),
-      skills: skills.sort((a, b) => a.name.localeCompare(b.name)),
+      files,
+      skills,
     };
   }
 

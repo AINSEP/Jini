@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '../../../features/connectors/types.js';
+import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '../types.js';
 import {
   applyConnectorStatuses,
   clearConnectorAuthorizationCancelFailuresForConnected,
   clearConnectorAuthorizationErrorsForConnected,
   clearConnectorAuthorizationPending,
+  connectorActionFlags,
   connectorAuthSnapshotChanged,
   connectorPanelAlerts,
   defaultCategoryLabel,
@@ -30,7 +31,7 @@ import {
   toolsBadgeTranslation,
   updateConnectorAuthorizationPendingFromConnectResponse,
   updateConnectorAuthorizationPendingFromStatuses,
-} from '../../../features/connectors/rules.js';
+} from '../rules.js';
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
   return {
@@ -193,6 +194,31 @@ describe('parseConnectorAuthorizationPendingState', () => {
   it('skips an entry with a blank connector id key', () => {
     const raw = JSON.stringify({ '': { expiresAt: '2099-01-01T00:00:00Z' }, kept: {} });
     expect(parseConnectorAuthorizationPendingState(raw)).toEqual({ kept: {} });
+  });
+
+  it('returns {} for a JSON null', () => {
+    expect(parseConnectorAuthorizationPendingState('null')).toEqual({});
+  });
+
+  it('returns {} for a JSON primitive', () => {
+    expect(parseConnectorAuthorizationPendingState('42')).toEqual({});
+  });
+
+  it('treats an array state value as an empty pending entry', () => {
+    const raw = JSON.stringify({ a: [{ expiresAt: '2099-01-01T00:00:00Z' }] });
+    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({ a: {} });
+  });
+
+  it('drops whitespace-only expiresAt and redirectUrl strings', () => {
+    const raw = JSON.stringify({ a: { expiresAt: '   ', redirectUrl: '\t' } });
+    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({ a: {} });
+  });
+
+  it('keeps expiresAt and redirectUrl together', () => {
+    const raw = JSON.stringify({ a: { expiresAt: '2099-01-01T00:00:00Z', redirectUrl: 'https://example.test/x' } });
+    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({
+      a: { expiresAt: '2099-01-01T00:00:00Z', redirectUrl: 'https://example.test/x' },
+    });
   });
 });
 
@@ -600,3 +626,115 @@ describe('fallback logo helpers', () => {
     expect(index).toBeLessThan(6);
   });
 });
+
+describe('rules branch boundaries', () => {
+  it('mergeConnectors falls back to current tool metadata when incoming omits it', () => {
+    const current = [makeConnector({ toolCount: 4, toolsNextCursor: 'c1', toolsHasMore: true })];
+    const merged = mergeConnectors(current, [makeConnector()]);
+    expect(merged[0]).toMatchObject({ toolCount: 4, toolsNextCursor: 'c1', toolsHasMore: true });
+  });
+
+  it('mergeConnectors omits tool metadata keys when neither side has them', () => {
+    const merged = mergeConnectors([makeConnector()], [makeConnector()]);
+    expect(Object.keys(merged[0]!)).not.toEqual(expect.arrayContaining(['toolCount']));
+    expect('toolsNextCursor' in merged[0]!).toBe(false);
+    expect('toolsHasMore' in merged[0]!).toBe(false);
+  });
+
+  it('clearConnectorAuthorizationCancelFailuresForConnected returns the same object when nothing was cleared', () => {
+    const failed = { slack: true };
+    const statuses: ConnectorStatusMap = { slack: { status: 'available' }, other: { status: 'connected' } };
+    expect(clearConnectorAuthorizationCancelFailuresForConnected(failed, statuses)).toBe(failed);
+  });
+
+  it('applyConnectorStatuses leaves a connector without a status entry untouched', () => {
+    const untouched = makeConnector({ id: 'github', name: 'GitHub', accountLabel: 'me' });
+    const result = applyConnectorStatuses([untouched], { slack: { status: 'connected' } });
+    expect(result[0]).toBe(untouched);
+  });
+
+  it('mergeConnectorToolPreview omits toolCount when neither side has one', () => {
+    const merged = mergeConnectorToolPreview(makeConnector(), makeConnector(), false);
+    expect('toolCount' in merged).toBe(false);
+  });
+
+  it('mergeConnectors keeps a current connector that incoming does not mention', () => {
+    const kept = makeConnector({ id: 'github', name: 'GitHub' });
+    const merged = mergeConnectors([kept, makeConnector()], [makeConnector({ status: 'connected' })]);
+    expect(merged[0]).toBe(kept);
+  });
+
+  it('mergeConnectors takes incoming tools when incoming has some', () => {
+    const current = [makeConnector({ tools: [{ name: 'old', safety: { sideEffect: 'no_side_effect' } }] })];
+    const incoming = [makeConnector({ tools: [{ name: 'new', safety: { sideEffect: 'no_side_effect' } }] })];
+    expect(mergeConnectors(current, incoming)[0]!.tools.map((t) => t.name)).toEqual(['new']);
+  });
+
+  it('mergeConnectorToolPreview carries a toolCount forward from current', () => {
+    const merged = mergeConnectorToolPreview(makeConnector({ toolCount: 7 }), makeConnector(), false);
+    expect(merged.toolCount).toBe(7);
+  });
+});
+
+describe('connectorActionFlags', () => {
+  const none = { pendingAction: null, authorizationPending: undefined, disabled: false } as const;
+
+  it('allows connecting an idle available connector', () => {
+    expect(connectorActionFlags({ connector: makeConnector(), ...none })).toEqual({
+      isConnecting: false,
+      isDisconnecting: false,
+      isConnected: false,
+      isAuthorizationPending: false,
+      canConnect: true,
+      canDisconnect: false,
+      redirectUrl: undefined,
+    });
+  });
+
+  it('allows disconnecting an idle connected connector', () => {
+    const flags = connectorActionFlags({ connector: makeConnector({ status: 'connected' }), ...none });
+    expect([flags.canConnect, flags.canDisconnect, flags.isConnected]).toEqual([false, true, true]);
+  });
+
+  it('blocks both actions while disabled', () => {
+    const flags = connectorActionFlags({ connector: makeConnector(), ...none, disabled: true });
+    expect([flags.canConnect, flags.canDisconnect]).toEqual([false, false]);
+  });
+
+  it('blocks connecting a connector whose status is not available', () => {
+    expect(connectorActionFlags({ connector: makeConnector({ status: 'error' }), ...none }).canConnect).toBe(false);
+  });
+
+  it('marks connecting and blocks actions while a connect is in flight', () => {
+    const flags = connectorActionFlags({ connector: makeConnector(), ...none, pendingAction: 'connect' });
+    expect([flags.isConnecting, flags.isDisconnecting, flags.canConnect]).toEqual([true, false, false]);
+  });
+
+  it('marks disconnecting and blocks disconnect while a disconnect is in flight', () => {
+    const flags = connectorActionFlags({ connector: makeConnector({ status: 'connected' }), ...none, pendingAction: 'disconnect' });
+    expect([flags.isDisconnecting, flags.canDisconnect]).toEqual([true, false]);
+  });
+
+  it('reports pending authorization with its redirect URL and blocks connect', () => {
+    const flags = connectorActionFlags({
+      connector: makeConnector(),
+      ...none,
+      authorizationPending: { redirectUrl: 'https://example.test/authorize' },
+    });
+    expect([flags.isAuthorizationPending, flags.canConnect, flags.redirectUrl]).toEqual([
+      true,
+      false,
+      'https://example.test/authorize',
+    ]);
+  });
+
+  it('ignores a pending authorization once the connector is connected', () => {
+    const flags = connectorActionFlags({
+      connector: makeConnector({ status: 'connected' }),
+      ...none,
+      authorizationPending: { redirectUrl: 'https://example.test/authorize' },
+    });
+    expect([flags.isAuthorizationPending, flags.redirectUrl, flags.canDisconnect]).toEqual([false, undefined, true]);
+  });
+});
+

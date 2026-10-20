@@ -46,3 +46,18 @@ it('uses declared deployment capabilities and vendor identity rather than plugin
   expect(rank('Deploy to Aurora', [deployment, alternative], 12, true).map(match => match.pluginId)).toEqual(['aurora-host']);
   expect(rank('Deploy my site', [deployment, alternative], 12, true)).toEqual([]);
 });
+
+it('a dedicated deployment provider takes its vendor from the display name', () => {
+  const provider = { ...candidate('opaque-host', ['hosting']), displayName: 'Zephyr Cloud', provides: ['deploy-target', 'credential-scheme:token'] };
+  expect(rank('Deploy to zephyr', [provider], 12, true).map(match => match.pluginId)).toEqual(['opaque-host']);
+});
+
+it('a dedicated deployment provider without a display name or vendor suffix takes its vendor from its id', () => {
+  const provider = { ...candidate('zephyr', ['hosting']), provides: ['deploy-target'] };
+  expect(rank('Deploy to zephyr', [provider], 12, true).map(match => match.pluginId)).toEqual(['zephyr']);
+});
+
+it('a mixed-purpose plugin with a deployment capability is not held to the vendor gate', () => {
+  const mixed = { ...candidate('repo-tools', ['git']), provides: ['deploy-target:zephyr', 'source-control'] };
+  expect(rank('git', [mixed], 12, true).map(match => match.pluginId)).toEqual(['repo-tools']);
+});

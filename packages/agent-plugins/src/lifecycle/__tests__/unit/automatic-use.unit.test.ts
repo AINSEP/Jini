@@ -267,3 +267,74 @@ it('shuffled equal-score catalogs produce the same ranked ids and relevance note
   }
   expect(new Set(notes).size).toBe(1);
 });
+
+it('describes a plugin without provides or summary by its keywords', async () => {
+  const f = fixture();
+  f.ports.list = async () => [{ pluginId: 'bare', enabled: true, keywords: ['alpha', 'beta'], skills: [], mcpServerIds: [] }];
+  expect(await f.controller.prepare({ query: 'bare' })).toContain('bare (bare) — Provides alpha, beta');
+});
+
+it('readChatAgentPluginState treats non-object input as no previous decision', () => {
+  expect(readChatAgentPluginState({ value: 'nope' })).toEqual({ decision: null, excluded: [] });
+});
+
+it('readChatAgentPluginState rejects a malformed exclusion list', () => {
+  expect(readChatAgentPluginState({ value: { decision: null, excluded: [''] } })).toEqual({ decision: null, excluded: [] });
+});
+
+it('readChatAgentPluginState rejects a decision without a valid selection', () => {
+  expect(readChatAgentPluginState({ value: { decision: { selected: [1] }, excluded: ['a'] } })).toEqual({ decision: null, excluded: [] });
+});
+
+it('readChatAgentPluginState rejects an undefined decision', () => {
+  expect(readChatAgentPluginState({ value: { excluded: ['a'] } })).toEqual({ decision: null, excluded: [] });
+});
+
+it('readChatAgentPluginState drops a non-boolean asked flag and de-duplicates ids', () => {
+  expect(readChatAgentPluginState({ value: { decision: { selected: ['a', 'a'], asked: 'yes' }, excluded: ['b', 'b'] } }))
+    .toEqual({ decision: { selected: ['a'] }, excluded: ['b'] });
+});
+
+it('plugins the caller reports as already loaded are not resolved again', async () => {
+  const f = fixture();
+  expect(await f.controller.prepare({ capabilities: ['theme-authoring'], loaded: ['synthetic'] })).toBe('');
+  expect(f.resolve).not.toHaveBeenCalled();
+});
+
+it('a preflight without a query ranks against the empty query', async () => {
+  const f = fixture();
+  const rank = vi.fn(f.ports.rank);
+  f.ports.rank = rank;
+  await f.controller.prepare({});
+  expect(rank.mock.calls[0]?.[0].query).toBe('');
+});
+
+it('Ask forwards the caller signal to the consent question', async () => {
+  const f = fixture('ask');
+  const signal = new AbortController().signal;
+  await f.controller.prepare({ query: 'synthetic', signal });
+  expect(f.ask.mock.calls[0]?.[0].signal).toBe(signal);
+});
+
+it('an abort during resolution stops before the next provider', async () => {
+  const f = fixture();
+  const controller = new AbortController();
+  f.ports.list = async () => [plugin('first'), plugin('second')];
+  f.resolve.mockImplementation(async ({ pluginId }) => { controller.abort(); return `Guidance for ${pluginId}`; });
+  expect(await f.controller.prepare({ capabilities: ['theme-authoring'], signal: controller.signal })).toBe('Guidance for first');
+  expect(f.resolve).toHaveBeenCalledTimes(1);
+});
+
+it('blank guidance is not delivered, so a later load retries it', async () => {
+  const f = fixture();
+  f.resolve.mockResolvedValueOnce('   ');
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toBe('');
+  expect(f.publish).not.toHaveBeenCalled();
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toBe('Guidance for synthetic');
+});
+
+it('Auto records delivered plugins as selected in the published state, keeping earlier selections', async () => {
+  const f = fixture('auto', { decision: { selected: ['earlier'], asked: true }, excluded: [] });
+  await f.controller.load({ pluginId: 'synthetic' });
+  expect(f.publish.mock.calls.at(-1)?.[0].state.decision).toEqual({ selected: ['earlier', 'synthetic'], asked: true });
+});

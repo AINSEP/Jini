@@ -363,3 +363,46 @@ test("the fetch module's byte cap is pinned to install.ts's own archive cap", ()
   assert.equal(maxAgentPluginArchiveBytes(), maxAgentPluginInstallArchiveBytes());
   assert.equal(maxAgentPluginArchiveBytes(), 32 * 1024 * 1024);
 });
+
+for (const maxBytes of [0, 1.5]) {
+  test(`fetchAgentPluginArchive refuses maxBytes ${maxBytes} before any request`, async () => {
+    await assert.rejects(
+      () => fetchAgentPluginArchive({ url: "https://plugins.example/archive.zip" }, { maxBytes, fetchImpl: async () => { throw new Error("unexpected request"); } }),
+      { name: "RangeError", message: "maxBytes must be a positive integer" },
+    );
+  });
+}
+
+test("fetchAgentPluginArchive reports a status with no standard label as a bare HTTP_ERROR code", async () => {
+  const fetchImpl: typeof fetch = async () => new Response("nope", { status: 599 });
+  await assert.rejects(
+    () => fetchAgentPluginArchive({ url: "https://plugins.example/archive.zip" }, { fetchImpl }),
+    { code: "HTTP_ERROR", message: "'https://plugins.example/archive.zip' returned HTTP 599" },
+  );
+});
+
+test("fetchAgentPluginArchive follows a bodiless redirect", async () => {
+  const fetchImpl: typeof fetch = async (input) => String(input).endsWith("/start")
+    ? new Response(null, { status: 302, headers: { location: "/archive.zip" } })
+    : new Response(new Uint8Array([1, 2, 3]));
+  const fetched = await fetchAgentPluginArchive({ url: "https://plugins.example/start" }, { fetchImpl });
+  assert.deepEqual([...fetched.archive], [1, 2, 3]);
+});
+
+test("fetchAgentPluginArchive reports more than ten redirects as REQUEST_FAILED", async () => {
+  let requests = 0;
+  const fetchImpl: typeof fetch = async () => { requests++; return new Response(null, { status: 302, headers: { location: "/again" } }); };
+  await assert.rejects(
+    () => fetchAgentPluginArchive({ url: "https://plugins.example/start" }, { fetchImpl }),
+    { code: "REQUEST_FAILED", message: "could not fetch 'https://plugins.example/start': archive request failed" },
+  );
+  assert.equal(requests, 11);
+});
+
+test("fetchAgentPluginArchive reports a redirect without a Location header as REQUEST_FAILED", async () => {
+  const fetchImpl: typeof fetch = async () => new Response(null, { status: 302 });
+  await assert.rejects(
+    () => fetchAgentPluginArchive({ url: "https://plugins.example/start" }, { fetchImpl }),
+    { code: "REQUEST_FAILED", message: "could not fetch 'https://plugins.example/start': archive request failed" },
+  );
+});

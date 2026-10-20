@@ -52,6 +52,35 @@ function findRealOpen(content: string, fromIndex: number, ranges: ReadonlyArray<
   }
 }
 
+// For complete (non-streaming) content, an unclosed fence renders as a code
+// block extending to end of input — the stripper mirrors that, otherwise a
+// literal `<artifact …>` tucked into a trailing code example (no trailing
+// newline) gets treated as a real protocol tag and eaten.
+function completeContentSkipRanges({ content }: { content: string }): Range[] {
+  const { ranges, unclosedFenceStart } = computeSkipRanges({ buffer: content });
+  return unclosedFenceStart !== null ? [...ranges, [unclosedFenceStart, content.length]] : ranges;
+}
+
+/** Positions of a complete real block: its `<artifact`, the open tag's `>`, and its `</artifact>`. */
+type ArtifactBlock = { open: number; openEnd: number; close: number };
+
+/**
+ * The first complete real `<artifact …>…</artifact>` block at or after
+ * `fromIndex`, or `null` when there is no real open, the open tag never
+ * terminates with `>`, or no real close follows it.
+ */
+function findCompleteArtifactBlock(
+  { content, ranges }: { content: string; ranges: ReadonlyArray<Range> },
+  { fromIndex = 0 }: { fromIndex?: number } = {},
+): ArtifactBlock | null {
+  const open = findRealOpen(content, fromIndex, ranges);
+  if (open === -1) return null;
+  const openEnd = content.indexOf('>', open);
+  if (openEnd === -1) return null;
+  const close = findUnskipped(content, CLOSE, openEnd, ranges);
+  return close === -1 ? null : { open, openEnd, close };
+}
+
 /**
  * Remove the first real `<artifact …>…</artifact>` block from `content`.
  *
@@ -69,19 +98,9 @@ function findRealOpen(content: string, fromIndex: number, ranges: ReadonlyArray<
  *   pair of linear scans for the open/close tags.
  */
 export function stripArtifact({ content }: { content: string }): string {
-  const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges({ buffer: content });
-  // For complete (non-streaming) content, an unclosed fence renders as a code
-  // block extending to end of input — the stripper mirrors that, otherwise a
-  // literal `<artifact …>` tucked into a trailing code example (no trailing
-  // newline) gets treated as a real protocol tag and eaten.
-  const ranges: Range[] = unclosedFenceStart !== null ? [...baseRanges, [unclosedFenceStart, content.length]] : baseRanges;
-  const open = findRealOpen(content, 0, ranges);
-  if (open === -1) return content;
-  const closeTag = content.indexOf('>', open);
-  if (closeTag === -1) return content;
-  const end = findUnskipped(content, CLOSE, closeTag, ranges);
-  if (end === -1) return content;
-  return (content.slice(0, open) + content.slice(end + CLOSE.length)).trim();
+  const block = findCompleteArtifactBlock({ content, ranges: completeContentSkipRanges({ content }) });
+  if (!block) return content;
+  return (content.slice(0, block.open) + content.slice(block.close + CLOSE.length)).trim();
 }
 
 function findSingleRecoverableHtmlFence(content: string): MarkdownFenceRange | null {
@@ -101,32 +120,25 @@ function findSingleRecoverableHtmlFence(content: string): MarkdownFenceRange | n
 }
 
 function findRecoverablePrecedingHtmlArtifact(sourceText: string): string | null {
-  const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges({ buffer: sourceText });
-  const ranges: Range[] = unclosedFenceStart !== null ? [...baseRanges, [unclosedFenceStart, sourceText.length]] : baseRanges;
+  const ranges = completeContentSkipRanges({ content: sourceText });
 
   let from = 0;
   // `findRealOpen` already returns -1 once `from` runs past `sourceText.length`
   // (it inherits the same `indexOf`-based bound safety), so this loop also
   // always exits through an inner return — no trailing fallback needed.
   for (;;) {
-    const open = findRealOpen(sourceText, from, ranges);
-    if (open === -1) return null;
+    const block = findCompleteArtifactBlock({ content: sourceText, ranges }, { fromIndex: from });
+    if (!block) return null;
 
-    const closeTag = sourceText.indexOf('>', open);
-    if (closeTag === -1) return null;
-
-    const end = findUnskipped(sourceText, CLOSE, closeTag, ranges);
-    if (end === -1) return null;
-
-    const attrs = parseQuotedAttrs({ raw: sourceText.slice(open, closeTag) });
+    const attrs = parseQuotedAttrs({ raw: sourceText.slice(block.open, block.openEnd) });
     const recovered = recoverHtmlArtifactFromPrecedingDocument({
-      artifactHtml: sourceText.slice(closeTag + 1, end),
+      artifactHtml: sourceText.slice(block.openEnd + 1, block.close),
       identifier: attrs['identifier'],
       sourceText,
     });
     if (recovered) return recovered;
 
-    from = end + CLOSE.length;
+    from = block.close + CLOSE.length;
   }
 }
 
@@ -176,16 +188,25 @@ export interface PersistedArtifactFileRef {
   identifier?: string;
 }
 
+type ArtifactFileExt = '.html' | '.jsx' | '.tsx' | '.css' | '.svg' | '.md';
+
+// Checked in order; the first rule whose identifier suffix, exact type, or type substring matches wins.
+const EXTENSION_RULES: ReadonlyArray<{ ext: ArtifactFileExt; typeIncludes: readonly string[]; typeEquals?: string }> = [
+  { ext: '.tsx', typeIncludes: ['tsx'] },
+  { ext: '.jsx', typeIncludes: ['jsx', 'react'] },
+  { ext: '.css', typeIncludes: ['css'] },
+  { ext: '.svg', typeIncludes: ['svg'] },
+  { ext: '.md', typeIncludes: ['markdown'], typeEquals: 'md' },
+];
+
 // The on-disk extension a persist path would pick from the artifact's type/identifier.
-function artifactExtensionForAttrs(attrs: Record<string, string>): '.html' | '.jsx' | '.tsx' | '.css' | '.svg' | '.md' {
+function artifactExtensionForAttrs(attrs: Record<string, string>): ArtifactFileExt {
   const type = (attrs['type'] || '').toLowerCase();
   const identifier = (attrs['identifier'] || '').toLowerCase();
-  if (type.includes('tsx') || identifier.endsWith('.tsx')) return '.tsx';
-  if (type.includes('jsx') || type.includes('react') || identifier.endsWith('.jsx')) return '.jsx';
-  if (type.includes('css') || identifier.endsWith('.css')) return '.css';
-  if (type.includes('svg') || identifier.endsWith('.svg')) return '.svg';
-  if (type.includes('markdown') || type === 'md' || identifier.endsWith('.md')) return '.md';
-  return '.html';
+  const rule = EXTENSION_RULES.find(
+    (r) => identifier.endsWith(r.ext) || r.typeEquals === type || r.typeIncludes.some((hint) => type.includes(hint)),
+  );
+  return rule?.ext ?? '.html';
 }
 
 // The slug a persist path would derive the file name from.
@@ -253,38 +274,25 @@ export function summarizeArtifactsForTranscript({ content, persistedFiles }: { c
   let result = '';
   let cursor = 0;
   // Recompute skip ranges per iteration against the remaining tail so indices
-  // stay valid as we consume the string left to right.
-  while (cursor <= content.length) {
+  // stay valid as we consume the string left to right. Each iteration either
+  // returns or consumes at least one whole block, so the loop terminates.
+  for (;;) {
     const tail = content.slice(cursor);
-    const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges({ buffer: tail });
-    const ranges: Range[] = unclosedFenceStart !== null ? [...baseRanges, [unclosedFenceStart, tail.length]] : baseRanges;
-    const open = findRealOpen(tail, 0, ranges);
-    if (open === -1) {
-      result += tail;
-      break;
-    }
-    const gt = tail.indexOf('>', open);
-    if (gt === -1) {
-      result += tail;
-      break;
-    }
-    const end = findUnskipped(tail, CLOSE, gt, ranges);
-    if (end === -1) {
-      // Real open but no real close — refuse to summarize (safer than eating
-      // to end-of-string on a malformed/streaming tag). Keep the rest as-is.
-      result += tail;
-      break;
-    }
-    const attrs = parseQuotedAttrs({ raw: tail.slice(open, gt) });
+    const block = findCompleteArtifactBlock({ content: tail, ranges: completeContentSkipRanges({ content: tail }) });
+    // No real open, an open tag that never terminates, or a real open but no
+    // real close — refuse to summarize (safer than eating to end-of-string on
+    // a malformed/streaming tag). Keep the rest as-is.
+    if (!block) return result + tail;
+    const afterBlock = block.close + CLOSE.length;
+    const attrs = parseQuotedAttrs({ raw: tail.slice(block.open, block.openEnd) });
     const persisted = matchPersistedArtifactFile({ attrs: attrs, persistedFiles: persistedFiles });
     result += persisted
-      ? tail.slice(0, open) + artifactTranscriptSummary(attrs, persisted)
+      ? tail.slice(0, block.open) + artifactTranscriptSummary(attrs, persisted)
       : // Unconfirmed save — the transcript copy may be the only surviving
         // body. Keep the block verbatim and keep scanning past it.
-        tail.slice(0, end + CLOSE.length);
-    cursor += end + CLOSE.length;
+        tail.slice(0, afterBlock);
+    cursor += afterBlock;
   }
-  return result;
 }
 
 function artifactTranscriptSummary(attrs: Record<string, string>, persisted: PersistedArtifactFileRef): string {
@@ -324,8 +332,7 @@ export interface StreamingArtifact {
  * @complexity O(n) in `content.length`.
  */
 export function splitStreamingArtifact({ content }: { content: string }): { head: string; live: StreamingArtifact | null } {
-  const { ranges: baseRanges, unclosedFenceStart } = computeSkipRanges({ buffer: content });
-  const ranges: Range[] = unclosedFenceStart !== null ? [...baseRanges, [unclosedFenceStart, content.length]] : baseRanges;
+  const ranges = completeContentSkipRanges({ content });
   const open = findRealOpen(content, 0, ranges);
   if (open === -1) return { head: content, live: null };
   const gt = content.indexOf('>', open);

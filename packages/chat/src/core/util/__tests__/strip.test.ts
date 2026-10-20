@@ -6,7 +6,7 @@ import {
   stripArtifact,
   stripRecoveredHtmlFallbackForDisplay,
   summarizeArtifactsForTranscript,
-} from '../../util/index.js';
+} from '../index.js';
 
 const HTML_DOC = '<!doctype html><html><head></head><body><h1>Hello there, world</h1></body></html>';
 
@@ -265,5 +265,50 @@ describe('artifacts/strip', () => {
     const content = '<artifact identifier="a" type="text/html" title="t">body with ```\nunclosed code fence inside';
     const { live } = splitStreamingArtifact({ content: content });
     expect(live).toMatchObject({ identifier: 'a', artifactType: 'text/html', title: 't' });
+  });
+
+  it('maps a "react" type and a bare "md" type to their extensions', () => {
+    expect(matchPersistedArtifactFile({ attrs: { title: 'C', type: 'react' }, persistedFiles: [{ name: 'c.jsx' }] })).toEqual({ name: 'c.jsx' });
+    expect(matchPersistedArtifactFile({ attrs: { title: 'N', type: 'md' }, persistedFiles: [{ name: 'n.md' }] })).toEqual({ name: 'n.md' });
+  });
+
+  it('derives .jsx/.css/.svg/.md from the identifier suffix when the type is absent', () => {
+    for (const ext of ['jsx', 'css', 'svg', 'md']) {
+      const name = `x-${ext}.${ext}`;
+      expect(matchPersistedArtifactFile({ attrs: { identifier: `x.${ext}` }, persistedFiles: [{ name }] })).toEqual({ name });
+    }
+  });
+
+  it('checks the tsx rule before the jsx rule when a type mentions both', () => {
+    expect(matchPersistedArtifactFile({ attrs: { title: 'B', type: 'jsx+tsx' }, persistedFiles: [{ name: 'b.jsx' }, { name: 'b.tsx' }] })).toEqual({ name: 'b.tsx' });
+  });
+
+  it('defaults to .html for an unrecognized type and returns null when no persisted name matches', () => {
+    expect(matchPersistedArtifactFile({ attrs: { title: 'P', type: 'application/x-thing' }, persistedFiles: [{ name: 'p.html' }] })).toEqual({ name: 'p.html' });
+    expect(matchPersistedArtifactFile({ attrs: { title: 'P', type: 'text/html' }, persistedFiles: [{ name: 'p.jsx' }] })).toBeNull();
+  });
+
+  it('matches by manifest identifier ahead of a name match', () => {
+    const files = [{ name: 'a.html' }, { name: 'other.html', identifier: 'a' }];
+    expect(matchPersistedArtifactFile({ attrs: { identifier: 'a' }, persistedFiles: files })).toEqual({ name: 'other.html', identifier: 'a' });
+  });
+
+  it('summarizeArtifactsForTranscript returns content unchanged when nothing is persisted', () => {
+    const content = '<artifact identifier="a">x</artifact>';
+    expect(summarizeArtifactsForTranscript({ content, persistedFiles: [] })).toBe(content);
+  });
+
+  it('summarizeArtifactsForTranscript summarizes back-to-back persisted blocks and keeps the trailing text', () => {
+    const content = 'A<artifact identifier="a" title="T" type="t">x</artifact>B<artifact identifier="b">y</artifact>C';
+    const result = summarizeArtifactsForTranscript({ content, persistedFiles: [{ name: 'a.html', identifier: 'a' }, { name: 'b.html', identifier: 'b' }] });
+    expect(result).toBe(
+      'A[artifact emitted on a prior turn — identifier="a", title="T", type="t". Its full content was saved to the file "a.html" and is NOT repeated here. Read or modify that file on disk (list/grep the workspace directory if it was since renamed); do not rely on this transcript for its contents.]' +
+        'B[artifact emitted on a prior turn — identifier="b", type="text/html". Its full content was saved to the file "b.html" and is NOT repeated here. Read or modify that file on disk (list/grep the workspace directory if it was since renamed); do not rely on this transcript for its contents.]C',
+    );
+  });
+
+  it('leaves content unchanged when an unterminated open tag follows a stray earlier close tag', () => {
+    const content = 'stray </artifact> then <artifact identifier="a"';
+    expect(stripArtifact({ content })).toBe(content);
   });
 });

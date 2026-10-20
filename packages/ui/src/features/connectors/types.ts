@@ -95,3 +95,15 @@ export interface ConnectorAuthResultEvent {
   result: 'success' | 'failed' | 'cancelled';
   errorCode?: string;
 }
+
+/** Derived connect/disconnect state shared by the connector card and detail drawer. */
+export interface ConnectorActionFlags {
+  isConnecting: boolean;
+  isDisconnecting: boolean;
+  isConnected: boolean;
+  isAuthorizationPending: boolean;
+  canConnect: boolean;
+  canDisconnect: boolean;
+  /** The pending authorization's redirect URL — only set while authorization is pending. */
+  redirectUrl: string | undefined;
+}

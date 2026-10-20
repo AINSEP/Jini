@@ -95,6 +95,19 @@ const DEPLOYMENT_TERMS = new Set('deploy deployment deploying deployed publish p
 function automaticTerms(query: string): string[] {
   return [...new Set((query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(term => !INCIDENTAL_TERMS.has(term)))];
 }
+/** A dedicated deployment provider (only `deploy-*` and `credential-scheme:*` capabilities) matches only a
+ * query naming both a deployment action and one of its vendor terms; any other plugin passes. */
+function passesDeploymentGate(
+  { candidate, capabilities, terms }: { candidate: AgentPluginSearchCandidate; capabilities: readonly string[]; terms: readonly string[] },
+  _options = {},
+): boolean {
+  const deployment = capabilities.filter(capability => capability.startsWith('deploy-'));
+  const dedicatedDeployment = deployment.length > 0 && capabilities.every(capability => capability.startsWith('deploy-') || capability.startsWith('credential-scheme:'));
+  if (!dedicatedDeployment) return true;
+  const vendors = automaticTerms([candidate.pluginId, candidate.displayName ?? '', ...deployment.map(capability => capability.split(':')[1] ?? '')].join(' '))
+    .filter(term => !DEPLOYMENT_TERMS.has(term));
+  return terms.some(term => DEPLOYMENT_TERMS.has(term)) && terms.some(term => vendors.includes(term));
+}
 /** Score complete authored terms only: long descriptions must not manufacture relevance.
  * Dedicated deployment providers additionally need both the action and their declared vendor.
  * Mixed-purpose plugins can still match their other capabilities (for example source control).
@@ -102,13 +115,7 @@ function automaticTerms(query: string): string[] {
 function automaticScore({ candidate, terms }: { candidate: AgentPluginSearchCandidate; terms: readonly string[] }, _options = {}): number {
   if (!candidate.enabled) return 0;
   const capabilities = candidate.provides ?? [];
-  const deployment = capabilities.filter(capability => capability.startsWith('deploy-'));
-  const dedicatedDeployment = deployment.length > 0 && capabilities.every(capability => capability.startsWith('deploy-') || capability.startsWith('credential-scheme:'));
-  if (dedicatedDeployment) {
-    const vendors = automaticTerms([candidate.pluginId, candidate.displayName ?? '', ...deployment.map(capability => capability.split(':')[1] ?? '')].join(' '))
-      .filter(term => !DEPLOYMENT_TERMS.has(term));
-    if (!terms.some(term => DEPLOYMENT_TERMS.has(term)) || !terms.some(term => vendors.includes(term))) return 0;
-  }
+  if (!passesDeploymentGate({ candidate, capabilities, terms })) return 0;
   const fields = [
     { terms: automaticTerms(capabilities.join(' ')), weight: 6 },
     { terms: automaticTerms(`${candidate.pluginId} ${candidate.id ?? ''} ${candidate.displayName ?? ''}`), weight: 5 },

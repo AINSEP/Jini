@@ -153,42 +153,48 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     const installed = allInstalled.filter((plugin) => plugin.pluginId === pluginId);
     const hasRecord = Object.hasOwn((await readAgentPluginActivations(workspaceRoot)).plugins, pluginId);
 
-    if (installed.length === 0 && !hasRecord) {
-      const ledgerEntryRemoved = await removeBundledAgentPluginDigest({ workspaceRoot, pluginId });
-      if (!ledgerEntryRemoved) return { pluginId, ...ids, status: "absent" };
-      return { pluginId, ...ids, status: "retired", removedDigests: [], activationRemoved: false, ledgerEntryRemoved, successor: "not-needed", ...(ids.successorIds ? { successors: {} } : {}) };
-    }
+    if (installed.length === 0 && !hasRecord) return dropLeftoverLedgerEntry({ workspaceRoot, pluginId, ids });
 
     const unusable = await unusableSuccessor(workspaceRoot, allInstalled, successorIds);
     if (unusable !== undefined) {
       return { pluginId, ...ids, status: "failed", reason: `'${pluginId}' is kept until every successor is usable: ${unusable}` };
     }
 
-    const successors: Record<string, RetiredAgentPluginSuccessorOutcome> = {};
-    for (const successorId of successorIds) {
-      successors[successorId] =
-        verdict.verdict === "active"
-          ? await enableBundledAgentPluginUnlessOperatorDisabled({
-              workspaceRoot,
-              pluginId: successorId,
-              actor: `system:retire-${pluginId}`,
-              ...(optional.now !== undefined ? { now: optional.now } : {}),
-            })
-          : "not-needed";
-    }
+    const successors = await switchOnSuccessors({ workspaceRoot, pluginId, successorIds, wasActive: verdict.verdict === "active" }, { now: optional.now });
     const successor = successors[ids.successorId] ?? "not-needed";
 
     let removedDigests: readonly string[] = [];
     if (installed.length > 0) {
-      removedDigests = (
-        await uninstallAgentPlugin({ layout: required.layout, workspaceId: required.workspaceId, pluginId }, { retiredBundled: true })
-      ).removedDigests;
+      removedDigests = (await uninstallAgentPlugin({ layout: required.layout, workspaceId: required.workspaceId, pluginId }, { retiredBundled: true })).removedDigests;
     } else {
       await deleteAgentPluginActivation({ workspaceRoot, pluginId });
     }
 
     const ledgerEntryRemoved = await removeBundledAgentPluginDigest({ workspaceRoot, pluginId });
     return { pluginId, ...ids, status: "retired", removedDigests, activationRemoved: hasRecord, ledgerEntryRemoved, successor, ...(ids.successorIds ? { successors } : {}) };
+  }
+
+  /** Step 1: nothing installed and no record — only a leftover ledger entry can remain to drop. */
+  async function dropLeftoverLedgerEntry(
+    { workspaceRoot, pluginId, ids }: { readonly workspaceRoot: string; readonly pluginId: string; readonly ids: RetiredAgentPluginSuccessors },
+  ): Promise<RetiredAgentPluginOutcome> {
+    const ledgerEntryRemoved = await removeBundledAgentPluginDigest({ workspaceRoot, pluginId });
+    if (!ledgerEntryRemoved) return { pluginId, ...ids, status: "absent" };
+    return { pluginId, ...ids, status: "retired", removedDigests: [], activationRemoved: false, ledgerEntryRemoved, successor: "not-needed", ...(ids.successorIds ? { successors: {} } : {}) };
+  }
+
+  /** Step 2: each successor's outcome — switched on only when the retired plugin was active. */
+  async function switchOnSuccessors(
+    { workspaceRoot, pluginId, successorIds, wasActive }: { readonly workspaceRoot: string; readonly pluginId: string; readonly successorIds: readonly string[]; readonly wasActive: boolean },
+    { now }: { readonly now?: RetireBundledAgentPluginsOptional["now"] } = {},
+  ): Promise<Record<string, RetiredAgentPluginSuccessorOutcome>> {
+    const successors: Record<string, RetiredAgentPluginSuccessorOutcome> = {};
+    for (const successorId of successorIds) {
+      successors[successorId] = wasActive
+        ? await enableBundledAgentPluginUnlessOperatorDisabled({ workspaceRoot, pluginId: successorId, actor: `system:retire-${pluginId}`, ...(now !== undefined ? { now } : {}) })
+        : "not-needed";
+    }
+    return successors;
   }
 
   /** Why one of `successorIds` cannot take over yet, or `undefined` when every one is installed at the

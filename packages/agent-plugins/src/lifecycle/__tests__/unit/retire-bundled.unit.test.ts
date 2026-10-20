@@ -472,3 +472,78 @@ test("R6: a plugin split across several successors is kept while ANY of them is 
     await forceRemove(cwd);
   }
 });
+
+test("an empty successor list retires the plugin with no successor to switch on", async () => {
+  const { cwd, layout, workspaceLayout } = await freshLayout();
+  try {
+    const fly = await installPackage(layout, RETIRED, "archive-fly");
+
+    const outcomes = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { retired: new Map([[RETIRED, []]]) });
+
+    assert.deepEqual(outcomes, [{
+      pluginId: RETIRED, successorId: "", successorIds: [], status: "retired", removedDigests: [fly.archiveDigest],
+      activationRemoved: false, ledgerEntryRemoved: false, successor: "not-needed", successors: {},
+    }]);
+  } finally {
+    await forceRemove(cwd);
+  }
+});
+
+test("a split plugin with only a leftover ledger entry reports an empty successors map", async () => {
+  const { cwd, layout, workspaceLayout } = await freshLayout();
+  try {
+    await mkdir(workspaceLayout.root, { recursive: true });
+    await recordBundledAgentPluginDigests({ workspaceRoot: workspaceLayout.root, seeded: [{ pluginId: RETIRED, archiveDigest: "a".repeat(64) }] });
+
+    const outcomes = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { retired: new Map([[RETIRED, [SUCCESSOR, "other"]]]) });
+
+    assert.deepEqual(outcomes, [{
+      pluginId: RETIRED, successorId: SUCCESSOR, successorIds: [SUCCESSOR, "other"], status: "retired", removedDigests: [],
+      activationRemoved: false, ledgerEntryRemoved: true, successor: "not-needed", successors: {},
+    }]);
+  } finally {
+    await forceRemove(cwd);
+  }
+});
+
+test("the injected clock stamps the successor record the retirement writes", async () => {
+  const { cwd, layout, workspaceLayout } = await freshLayout();
+  try {
+    await installPackage(layout, RETIRED, "archive-fly");
+    await seedSuccessor(layout, workspaceLayout.root);
+
+    await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { now: () => new Date("2026-01-02T03:04:05.000Z") });
+
+    assert.equal((await readAgentPluginActivations(workspaceLayout.root)).plugins[SUCCESSOR]?.updatedAt, "2026-01-02T03:04:05.000Z");
+  } finally {
+    await forceRemove(cwd);
+  }
+});
+
+test("a step that throws an Error is reported as that id's failed outcome", async () => {
+  const { cwd, layout, workspaceLayout } = await freshLayout();
+  try {
+    await installPackage(layout, RETIRED, "archive-fly");
+    await seedSuccessor(layout, workspaceLayout.root);
+
+    const outcomes = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { now: () => { throw new Error("clock unavailable"); } });
+
+    assert.deepEqual(outcomes, [{ pluginId: RETIRED, successorId: SUCCESSOR, status: "failed", reason: "clock unavailable" }]);
+  } finally {
+    await forceRemove(cwd);
+  }
+});
+
+test("a step that throws a non-Error is reported by its string form", async () => {
+  const { cwd, layout, workspaceLayout } = await freshLayout();
+  try {
+    await installPackage(layout, RETIRED, "archive-fly");
+    await seedSuccessor(layout, workspaceLayout.root);
+
+    const outcomes = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { now: () => { throw "clock gone"; } });
+
+    assert.deepEqual(outcomes, [{ pluginId: RETIRED, successorId: SUCCESSOR, status: "failed", reason: "clock gone" }]);
+  } finally {
+    await forceRemove(cwd);
+  }
+});

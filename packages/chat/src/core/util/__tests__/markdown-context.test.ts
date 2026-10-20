@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeSkipRanges, isRealArtifactOpenAt, rangeContains } from '../../util/markdown-context.js';
+import { computeSkipRanges, isRealArtifactOpenAt, rangeContains } from '../markdown-context.js';
 
 // Not part of the artifacts barrel (see artifacts/markdown-context.ts's own module doc: it's an
 // internal detail shared by parser.ts/strip.ts), so this describe block imports the module
@@ -37,5 +37,43 @@ describe('artifacts/markdown-context (internal, direct import)', () => {
     expect(isRealArtifactOpenAt({ content: '<artifact identifier="a">', idx: 0 })).toBe(true);
     expect(isRealArtifactOpenAt({ content: '<artifactual', idx: 0 })).toBe(false);
     expect(isRealArtifactOpenAt({ content: '<artifact', idx: 0 })).toBe(false);
+  });
+
+  it('records a closed fence (with info string) as one range and still scans the paragraph after it', () => {
+    expect(computeSkipRanges({ buffer: 'a\n```html\n<x>\n```\nb `c`' })).toEqual({ ranges: [[2, 18], [20, 23]], unclosedFenceStart: null });
+  });
+
+  it('reports the start of a fence with no close and ignores inline code inside it', () => {
+    expect(computeSkipRanges({ buffer: 'x\n```\n`a`\n' })).toEqual({ ranges: [], unclosedFenceStart: 2 });
+  });
+
+  it('only closes a fence on a bare ``` line, not on one carrying an info string', () => {
+    expect(computeSkipRanges({ buffer: '```\na\n```js\nb\n```\n' })).toEqual({ ranges: [[0, 18]], unclosedFenceStart: null });
+  });
+
+  it('does not treat an unterminated trailing ``` line as a fence opener', () => {
+    expect(computeSkipRanges({ buffer: 'p\n```' })).toEqual({ ranges: [], unclosedFenceStart: null });
+  });
+
+  it('does not treat an indented ``` line as a fence (its backticks pair as paragraph inline code instead)', () => {
+    expect(computeSkipRanges({ buffer: '   ```\n<x>\n   ```\n' })).toEqual({ ranges: [[5, 15]], unclosedFenceStart: null });
+  });
+
+  it('pairs inline-code backticks across lines of one paragraph', () => {
+    expect(computeSkipRanges({ buffer: 'a `b\nc` d' }).ranges).toEqual([[2, 7]]);
+  });
+
+  it('never pairs inline-code backticks across a blank line, a heading, or adjacent list items', () => {
+    expect(computeSkipRanges({ buffer: 'a `b\n\nc` d' }).ranges).toEqual([]);
+    expect(computeSkipRanges({ buffer: 'a `b\n# c` d' }).ranges).toEqual([]);
+    expect(computeSkipRanges({ buffer: '- a `b\n- c` d' }).ranges).toEqual([]);
+  });
+
+  it('returns no ranges for an empty buffer', () => {
+    expect(computeSkipRanges({ buffer: '' })).toEqual({ ranges: [], unclosedFenceStart: null });
+  });
+
+  it('does not close a fence on an unterminated trailing ``` line', () => {
+    expect(computeSkipRanges({ buffer: '```\na\n```' })).toEqual({ ranges: [], unclosedFenceStart: 0 });
   });
 });

@@ -63,61 +63,80 @@ export function computeSkipRanges({ buffer }: { buffer: string }): {
   ranges: Range[];
   unclosedFenceStart: number | null;
 } {
-  const ranges: Range[] = [];
+  const scan: LineScan = { ranges: [], blockRegions: [], fenceStart: -1, blockStart: -1 };
+  for (const line of linesOf(buffer)) {
+    if (scan.fenceStart === -1) visitLineOutsideFence(scan, line);
+    else visitLineInsideFence(scan, line);
+  }
+  const unclosedFenceStart = scan.fenceStart === -1 ? null : scan.fenceStart;
+  if (unclosedFenceStart === null) closeBlockBefore(scan, buffer.length); // flush an open paragraph region at end-of-buffer
+
+  for (const [s, e] of scan.blockRegions) {
+    for (const m of buffer.slice(s, e).matchAll(INLINE_CODE_RE)) {
+      scan.ranges.push([s + m.index, s + m.index + m[0].length]);
+    }
+  }
+  return { ranges: scan.ranges, unclosedFenceStart };
+}
+
+interface LineScan {
+  ranges: Range[];
   // Paragraph-block regions are contiguous spans of paragraph lines outside
   // any fenced code block; inline-code scanning is restricted to one block at
   // a time so backticks never pair across a block boundary.
-  const blockRegions: Range[] = [];
+  blockRegions: Range[];
+  /** Start of the currently open fence, or -1 when outside a fence. */
+  fenceStart: number;
+  /** Start of the currently open paragraph block, or -1 when none is open. */
+  blockStart: number;
+}
 
+interface Line {
+  start: number;
+  end: number;
+  text: string;
+  hasNewline: boolean;
+}
+
+function* linesOf(buffer: string): Generator<Line> {
   let pos = 0;
-  let inFence = false;
-  let fenceStart = -1;
-  let blockStart = -1;
-  const closeBlockBefore = (idx: number) => {
-    if (blockStart !== -1 && idx > blockStart) blockRegions.push([blockStart, idx]);
-    blockStart = -1;
-  };
   while (pos < buffer.length) {
     const eol = buffer.indexOf('\n', pos);
-    const lineEnd = eol === -1 ? buffer.length : eol;
-    const line = buffer.slice(pos, lineEnd);
-    const lineHasNewline = eol !== -1;
-    if (!inFence) {
-      if (lineHasNewline && FENCE_OPEN_RE.test(line)) {
-        closeBlockBefore(pos);
-        inFence = true;
-        fenceStart = pos;
-      } else if (line.trim() === '') {
-        closeBlockBefore(pos);
-      } else if (HEADING_RE.test(line) || UL_ITEM_RE.test(line) || OL_ITEM_RE.test(line)) {
-        // Each heading/list-item line is its own inline-scan region rather
-        // than joining adjacent paragraphs.
-        closeBlockBefore(pos);
-        blockRegions.push([pos, lineEnd]);
-      } else {
-        if (blockStart === -1) blockStart = pos;
-      }
-    } else if (lineHasNewline && FENCE_CLOSE_RE.test(line)) {
-      inFence = false;
-      ranges.push([fenceStart, eol + 1]);
-      fenceStart = -1;
+    if (eol === -1) {
+      // trailing partial line — classified like any other, but never as a fence delimiter
+      yield { start: pos, end: buffer.length, text: buffer.slice(pos), hasNewline: false };
+      return;
     }
-    if (!lineHasNewline) break; // trailing partial line — already accounted for above
+    yield { start: pos, end: eol, text: buffer.slice(pos, eol), hasNewline: true };
     pos = eol + 1;
   }
-  if (!inFence) closeBlockBefore(buffer.length); // flush an open paragraph region at end-of-buffer
+}
 
-  for (const [s, e] of blockRegions) {
-    INLINE_CODE_RE.lastIndex = 0;
-    const segment = buffer.slice(s, e);
-    let m: RegExpExecArray | null = INLINE_CODE_RE.exec(segment);
-    while (m !== null) {
-      ranges.push([s + m.index, s + m.index + m[0].length]);
-      m = INLINE_CODE_RE.exec(segment);
-    }
+function closeBlockBefore(scan: LineScan, idx: number): void {
+  if (scan.blockStart !== -1 && idx > scan.blockStart) scan.blockRegions.push([scan.blockStart, idx]);
+  scan.blockStart = -1;
+}
+
+function visitLineInsideFence(scan: LineScan, line: Line): void {
+  if (!line.hasNewline || !FENCE_CLOSE_RE.test(line.text)) return;
+  scan.ranges.push([scan.fenceStart, line.end + 1]);
+  scan.fenceStart = -1;
+}
+
+function visitLineOutsideFence(scan: LineScan, line: Line): void {
+  if (line.hasNewline && FENCE_OPEN_RE.test(line.text)) {
+    closeBlockBefore(scan, line.start);
+    scan.fenceStart = line.start;
+  } else if (line.text.trim() === '') {
+    closeBlockBefore(scan, line.start);
+  } else if (HEADING_RE.test(line.text) || UL_ITEM_RE.test(line.text) || OL_ITEM_RE.test(line.text)) {
+    // Each heading/list-item line is its own inline-scan region rather
+    // than joining adjacent paragraphs.
+    closeBlockBefore(scan, line.start);
+    scan.blockRegions.push([line.start, line.end]);
+  } else if (scan.blockStart === -1) {
+    scan.blockStart = line.start;
   }
-
-  return { ranges, unclosedFenceStart: inFence ? fenceStart : null };
 }
 
 /** `true` when position `p` falls inside one of `ranges` (half-open intervals). */

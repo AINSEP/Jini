@@ -7,7 +7,7 @@
  * consumers don't need to rewrite their reducer if this parser is later
  * swapped for a fuller one.
  */
-import { computeSkipRanges, FENCE_OPEN_RE, isRealArtifactOpenAt, rangeContains } from './markdown-context.js';
+import { computeSkipRanges, FENCE_OPEN_RE, isRealArtifactOpenAt, rangeContains, type Range } from './markdown-context.js';
 import { parseQuotedAttrs } from './markup-attributes.js';
 
 export type ArtifactEvent =
@@ -30,6 +30,14 @@ interface ParserState {
 
 type OpenTagMatch = { kind: 'complete'; start: number; end: number; attrs: string } | { kind: 'partial'; start: number } | { kind: 'none' };
 
+const NO_OPEN: OpenTagMatch = { kind: 'none' };
+const SKIP = { kind: 'skip' } as const;
+
+interface SkipContext {
+  buffer: string;
+  ranges: ReadonlyArray<Range>;
+}
+
 // Scan the buffer for `<artifact …>` while skipping any positions that a
 // Markdown renderer would render as a fenced code block or inline code span
 // — see markdown-context.ts for the shared classification used by both this
@@ -42,102 +50,98 @@ type OpenTagMatch = { kind: 'complete'; start: number; end: number; attrs: strin
 //   * Unmatched opening backtick after the last \n → hold back from it; a
 //     future chunk may turn it into an inline code span.
 function findOpenTag(buffer: string): OpenTagMatch {
-  const len = buffer.length;
   const { ranges, unclosedFenceStart } = computeSkipRanges({ buffer: buffer });
+  const ctx: SkipContext = { buffer, ranges };
 
   // Pass 1: scan for the earliest *complete* real `<artifact …>` open outside
   // any skip range, before any hold-back decision — otherwise a stray
   // backtick or fence-opener prefix on a tail line would suppress an
   // already self-contained artifact earlier in the buffer.
-  let earliestPartialOpen = -1;
-  let from = 0;
-  while (from < len) {
-    const idx = buffer.indexOf(OPEN_PREFIX, from);
-    if (idx === -1) break;
-    if (rangeContains({ ranges: ranges, p: idx })) {
-      from = idx + OPEN_PREFIX.length;
-      continue;
-    }
-    if (unclosedFenceStart !== null && idx >= unclosedFenceStart) {
-      // Anything past an unclosed fence opener is inside a code block that
-      // will close in a later chunk; treat as skip range, not a real tag.
-      break;
-    }
-    const after = idx + OPEN_PREFIX.length;
-    const next = buffer.charAt(after);
-    if (next === '') {
-      // `<artifact` at very end of buffer — could become real with the next
-      // chunk. Remember the earliest one and keep looking for a complete tag.
-      if (earliestPartialOpen === -1) earliestPartialOpen = idx;
-      break;
-    }
-    if (!isRealArtifactOpenAt({ content: buffer, idx: idx })) {
-      from = after; // e.g. "<artifactual" — not a real open, keep scanning
-      continue;
-    }
-    let j = after;
-    let quote: '"' | "'" | null = null;
-    while (j < len) {
-      const c = buffer.charAt(j);
-      if (quote !== null) {
-        if (c === quote) quote = null;
-      } else if (c === '"' || c === "'") {
-        quote = c;
-      } else if (c === '>') {
-        return { kind: 'complete', start: idx, end: j + 1, attrs: buffer.slice(after, j) };
-      }
-      j++;
-    }
-    // Ran out of buffer before the closing `>` arrived — an open tag mid-stream.
-    if (earliestPartialOpen === -1) earliestPartialOpen = idx;
-    break;
-  }
+  const open = scanForOpen(ctx, { unclosedFenceStart });
+  if (open.kind === 'complete') return open;
 
   // Pass 2: no complete open found. Decide whether to hold back, and if so,
   // from which position. Earliest hold-back wins so the text-flush boundary
   // never crosses something that might still resolve into a tag/fence/span.
-  let holdback = -1;
-  const note = (pos: number | null) => {
-    if (pos !== null && pos !== -1 && (holdback === -1 || pos < holdback)) holdback = pos;
-  };
-  note(earliestPartialOpen);
-  note(unclosedFenceStart);
+  const holdbacks = [
+    open.kind === 'partial' ? open.start : -1,
+    unclosedFenceStart ?? -1,
+    tailFenceHoldback(ctx),
+    unmatchedBacktickHoldback(ctx),
+    tailPrefixHoldback(ctx),
+  ].filter((pos) => pos !== -1);
+  if (holdbacks.length === 0) return NO_OPEN;
+  return { kind: 'partial', start: Math.min(...holdbacks) };
+}
 
-  const lastNl = buffer.lastIndexOf('\n');
-  if (lastNl < len - 1) {
-    const tailLineStart = lastNl + 1;
-    const tail = buffer.slice(tailLineStart);
-    if (FENCE_OPEN_RE.test(tail) || /^`{1,2}$/.test(tail)) {
-      note(tailLineStart);
+function scanForOpen(ctx: SkipContext, { unclosedFenceStart }: { unclosedFenceStart: number | null }): OpenTagMatch {
+  let idx = ctx.buffer.indexOf(OPEN_PREFIX);
+  while (idx !== -1) {
+    const found = classifyOpenAt(ctx, { idx, unclosedFenceStart });
+    if (found.kind !== 'skip') return found;
+    idx = ctx.buffer.indexOf(OPEN_PREFIX, idx + OPEN_PREFIX.length);
+  }
+  return NO_OPEN;
+}
+
+function classifyOpenAt(
+  { buffer, ranges }: SkipContext,
+  { idx, unclosedFenceStart }: { idx: number; unclosedFenceStart: number | null },
+): OpenTagMatch | typeof SKIP {
+  if (rangeContains({ ranges: ranges, p: idx })) return SKIP;
+  // Anything past an unclosed fence opener is inside a code block that
+  // will close in a later chunk; treat as skip range, not a real tag.
+  if (unclosedFenceStart !== null && idx >= unclosedFenceStart) return NO_OPEN;
+  const after = idx + OPEN_PREFIX.length;
+  // `<artifact` at very end of buffer — could become real with the next
+  // chunk. Remember the earliest one and keep looking for a complete tag.
+  if (after === buffer.length) return { kind: 'partial', start: idx };
+  if (!isRealArtifactOpenAt({ content: buffer, idx: idx })) return SKIP; // e.g. "<artifactual" — not a real open, keep scanning
+  const close = findTagEnd({ buffer, from: after });
+  // Ran out of buffer before the closing `>` arrived — an open tag mid-stream.
+  if (close === -1) return { kind: 'partial', start: idx };
+  return { kind: 'complete', start: idx, end: close + 1, attrs: buffer.slice(after, close) };
+}
+
+/** Index of the open tag's closing `>`, ignoring any `>` inside a quoted attribute value; -1 if not yet arrived. */
+function findTagEnd({ buffer, from }: { buffer: string; from: number }): number {
+  let quote: string | null = null;
+  for (let j = from; j < buffer.length; j++) {
+    const c = buffer.charAt(j);
+    if (quote !== null) {
+      if (c === quote) quote = null;
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === '>') {
+      return j;
     }
   }
+  return -1;
+}
 
+/** Start of an unterminated tail line that could still resolve into a fence delimiter; -1 otherwise. */
+function tailFenceHoldback({ buffer }: SkipContext): number {
+  const tailLineStart = buffer.lastIndexOf('\n') + 1;
+  const tail = buffer.slice(tailLineStart);
+  return FENCE_OPEN_RE.test(tail) || /^`{1,2}$/.test(tail) ? tailLineStart : -1;
+}
+
+/** Position of an unmatched opening backtick after the last `\n` (outside skip ranges); -1 otherwise. */
+function unmatchedBacktickHoldback({ buffer, ranges }: SkipContext): number {
   let firstUnmatched = -1;
-  let parity = 0;
-  for (let k = lastNl + 1; k < len; k++) {
-    if (buffer.charAt(k) !== '`') continue;
-    if (rangeContains({ ranges: ranges, p: k })) continue;
-    if (parity === 0) {
-      firstUnmatched = k;
-      parity = 1;
-    } else {
-      firstUnmatched = -1;
-      parity = 0;
-    }
+  for (let k = buffer.lastIndexOf('\n') + 1; k < buffer.length; k++) {
+    if (buffer.charAt(k) !== '`' || rangeContains({ ranges: ranges, p: k })) continue;
+    firstUnmatched = firstUnmatched === -1 ? k : -1;
   }
-  note(firstUnmatched);
+  return firstUnmatched;
+}
 
-  // Strict prefix at the tail (e.g. "<art") — hold back.
+// Strict prefix at the tail (e.g. "<art") — hold back.
+function tailPrefixHoldback({ buffer, ranges }: SkipContext): number {
   const tailLt = buffer.lastIndexOf('<');
-  if (tailLt !== -1 && !rangeContains({ ranges: ranges, p: tailLt })) {
-    const slice = buffer.slice(tailLt);
-    if (OPEN_PREFIX.startsWith(slice) && slice.length < OPEN_PREFIX.length) {
-      note(tailLt);
-    }
-  }
-
-  if (holdback !== -1) return { kind: 'partial', start: holdback };
-  return { kind: 'none' };
+  if (tailLt === -1 || rangeContains({ ranges: ranges, p: tailLt })) return -1;
+  const slice = buffer.slice(tailLt);
+  return OPEN_PREFIX.startsWith(slice) && slice.length < OPEN_PREFIX.length ? tailLt : -1;
 }
 
 /**
@@ -165,66 +169,61 @@ export function createArtifactParser(_requiredArgs: Record<string, never>): {
 
   function* feed({ delta }: { delta: string }): Generator<ArtifactEvent> {
     state.buffer += delta;
-
-    while (state.buffer.length > 0) {
-      if (!state.inside) {
-        const open = findOpenTag(state.buffer);
-        if (open.kind === 'none') {
-          yield { type: 'text', delta: state.buffer };
-          state.buffer = '';
-          return;
-        }
-        if (open.kind === 'partial') {
-          if (open.start > 0) {
-            yield { type: 'text', delta: state.buffer.slice(0, open.start) };
-            state.buffer = state.buffer.slice(open.start);
-          }
-          return;
-        }
-        if (open.start > 0) {
-          yield { type: 'text', delta: state.buffer.slice(0, open.start) };
-        }
-        const attrs = parseQuotedAttrs({ raw: open.attrs });
-        state.inside = true;
-        state.identifier = attrs['identifier'] ?? '';
-        state.artifactType = attrs['type'] ?? '';
-        state.title = attrs['title'] ?? '';
-        state.content = '';
-        state.buffer = state.buffer.slice(open.end);
-        yield {
-          type: 'artifact:start',
-          identifier: state.identifier,
-          artifactType: state.artifactType,
-          title: state.title,
-        };
-        continue;
-      }
-
-      const closeIdx = state.buffer.indexOf(CLOSE_TAG);
-      if (closeIdx === -1) {
-        // Hold back enough bytes to detect a partial close tag at the tail.
-        const flushUpTo = state.buffer.length - (CLOSE_TAG.length - 1);
-        if (flushUpTo > 0) {
-          const chunk = state.buffer.slice(0, flushUpTo);
-          state.content += chunk;
-          state.buffer = state.buffer.slice(flushUpTo);
-          yield { type: 'artifact:chunk', identifier: state.identifier, delta: chunk };
-        }
-        return;
-      }
-      const finalChunk = state.buffer.slice(0, closeIdx);
-      if (finalChunk.length > 0) {
-        state.content += finalChunk;
-        yield { type: 'artifact:chunk', identifier: state.identifier, delta: finalChunk };
-      }
-      yield { type: 'artifact:end', identifier: state.identifier, fullContent: state.content };
-      state.buffer = state.buffer.slice(closeIdx + CLOSE_TAG.length);
-      state.inside = false;
-      state.identifier = '';
-      state.artifactType = '';
-      state.title = '';
-      state.content = '';
+    let progressed = true;
+    while (progressed && state.buffer.length > 0) {
+      progressed = state.inside ? yield* drainInside() : yield* drainOutside();
     }
+  }
+
+  /** Emit text up to the next open tag; `true` when an artifact was opened and draining should continue. */
+  function* drainOutside(): Generator<ArtifactEvent, boolean> {
+    const open = findOpenTag(state.buffer);
+    const textEnd = open.kind === 'none' ? state.buffer.length : open.start;
+    if (textEnd > 0) {
+      yield { type: 'text', delta: state.buffer.slice(0, textEnd) };
+      state.buffer = state.buffer.slice(textEnd);
+    }
+    if (open.kind !== 'complete') return false;
+    const attrs = parseQuotedAttrs({ raw: open.attrs });
+    Object.assign(state, {
+      inside: true,
+      identifier: attrs['identifier'] ?? '',
+      artifactType: attrs['type'] ?? '',
+      title: attrs['title'] ?? '',
+      content: '',
+      buffer: state.buffer.slice(open.end - open.start),
+    });
+    yield {
+      type: 'artifact:start',
+      identifier: state.identifier,
+      artifactType: state.artifactType,
+      title: state.title,
+    };
+    return true;
+  }
+
+  /** Emit body up to the close tag; `true` when the artifact closed and draining should continue. */
+  function* drainInside(): Generator<ArtifactEvent, boolean> {
+    const closeIdx = state.buffer.indexOf(CLOSE_TAG);
+    // Hold back enough bytes to detect a partial close tag at the tail.
+    const chunkEnd = closeIdx === -1 ? state.buffer.length - (CLOSE_TAG.length - 1) : closeIdx;
+    if (chunkEnd > 0) {
+      const chunk = state.buffer.slice(0, chunkEnd);
+      state.content += chunk;
+      state.buffer = state.buffer.slice(chunkEnd);
+      yield { type: 'artifact:chunk', identifier: state.identifier, delta: chunk };
+    }
+    if (closeIdx === -1) return false;
+    yield { type: 'artifact:end', identifier: state.identifier, fullContent: state.content };
+    Object.assign(state, {
+      inside: false,
+      identifier: '',
+      artifactType: '',
+      title: '',
+      content: '',
+      buffer: state.buffer.slice(CLOSE_TAG.length),
+    });
+    return true;
   }
 
   function* flush(_requiredArgs: Record<string, never>): Generator<ArtifactEvent> {
