@@ -39,6 +39,27 @@ function failed(stage: Tier2FailureStage, error: unknown): Tier2Reply {
   return { ok: false, stage, error: error instanceof Error ? error.message : String(error) };
 }
 
+async function runBeforeSave(
+  { pluginId, request, filter }: { pluginId: string; request: Extract<Tier2Request, { kind: "beforeSave" }>; filter: BeforeSaveFilter | null },
+  _optional: Record<string, never> = {},
+): Promise<Tier2Reply> {
+  if (!filter) return failed("hook", `plugin '${pluginId}' attached no beforeSave filter`);
+
+  let patch: unknown;
+  try {
+    patch = await filter(request.entry, request.ctx);
+  } catch (error) {
+    return failed("hook", error);
+  }
+  try {
+    // postMessage would otherwise throw a DataCloneError outside any reply, which the server can
+    // only see as a crashed worker; checking here keeps it a plugin-attributed hook failure.
+    return { ok: true, kind: "beforeSave", patch: structuredClone(patch) };
+  } catch (error) {
+    return failed("hook", `plugin '${pluginId}' returned a value that cannot cross the worker boundary: ${(error as Error).message}`);
+  }
+}
+
 /**
  * Runs one Tier-2 request against the plugin's code in the current thread.
  *
@@ -75,19 +96,5 @@ export async function runTier2Call(required: RunTier2CallRequired, _optional: Ru
   if (request.kind === "probe") {
     return { ok: true, kind: "probe", hooks: filter ? [HOOK_CONTENT_ENTRY_BEFORE_SAVE] : [] };
   }
-  if (!filter) return failed("hook", `plugin '${pluginId}' attached no beforeSave filter`);
-
-  let patch: unknown;
-  try {
-    patch = await filter(request.entry, request.ctx);
-  } catch (error) {
-    return failed("hook", error);
-  }
-  try {
-    // postMessage would otherwise throw a DataCloneError outside any reply, which the server can
-    // only see as a crashed worker; checking here keeps it a plugin-attributed hook failure.
-    return { ok: true, kind: "beforeSave", patch: structuredClone(patch) };
-  } catch (error) {
-    return failed("hook", `plugin '${pluginId}' returned a value that cannot cross the worker boundary: ${(error as Error).message}`);
-  }
+  return runBeforeSave({ pluginId, request, filter });
 }

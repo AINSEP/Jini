@@ -51,6 +51,16 @@ function invalidReply(): Error {
   return new Error("invalid tier-2 worker reply");
 }
 
+function decodeFailureReply(
+  { reply }: { reply: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): Extract<Tier2Reply, { ok: false }> {
+  if (typeof reply.stage !== "string" || !FAILURE_STAGES.has(reply.stage) || typeof reply.error !== "string") {
+    throw invalidReply();
+  }
+  return { ok: false, stage: reply.stage as Tier2FailureStage, error: reply.error };
+}
+
 /**
  * Validates an untrusted worker message as the reply to a request of `expectedKind`. The worker
  * runs plugin code, so its message is checked like any other external input.
@@ -64,12 +74,7 @@ export function decodeTier2Reply(
 ): Tier2Reply {
   if (typeof message !== "object" || message === null) throw invalidReply();
   const reply = message as Record<string, unknown>;
-  if (reply.ok === false) {
-    if (typeof reply.stage !== "string" || !FAILURE_STAGES.has(reply.stage) || typeof reply.error !== "string") {
-      throw invalidReply();
-    }
-    return { ok: false, stage: reply.stage as Tier2FailureStage, error: reply.error };
-  }
+  if (reply.ok === false) return decodeFailureReply({ reply });
   if (reply.ok !== true || reply.kind !== expectedKind) throw invalidReply();
   if (expectedKind === "beforeSave") return { ok: true, kind: "beforeSave", patch: reply.patch };
   const { hooks } = reply;
