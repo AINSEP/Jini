@@ -618,6 +618,26 @@ describe('ChatPane', () => {
     }
   });
 
+  it('shows a rescan failure as an alert while keeping the last good inventory on screen', async () => {
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        runtimeAccess={{
+          listAgents: async () => agents,
+          rescanAgents: async () => {
+            throw new Error('rescan answered 503');
+          },
+          daemonOnline: async () => true,
+        }}
+      />,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Choose AI runtime' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Rescan PATH' }));
+    expect(await screen.findByText('rescan answered 503')).toHaveAttribute('role', 'alert');
+    expect(screen.queryByText('Connecting to the assistant…')).not.toBeInTheDocument();
+  });
+
   it('delegates an explicit rescan to runtimeAccess and reflects the refreshed inventory', async () => {
     const transport = createFakeChatTransport();
     const rescanAgents = vi.fn(async () => [
@@ -1058,6 +1078,29 @@ describe('ChatPane', () => {
       expect(cancelRule).toMatch(/font-size:\s*\S+/);
       expect(cancelRule).toMatch(/font-weight:\s*\S+/);
     });
+  });
+
+  it('explains a failed typed-answer delivery without offering to send it as a new message', async () => {
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        agents={agents}
+        initialDraft="ship the post"
+        deliverTypedAnswer={Object.assign(async () => 'failed' as const, { toolName: 'assistant_ask_choice' })}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    act(() => {
+      transport.emit({ kind: 'tool_use', id: 'ask-1', name: 'assistant_ask_choice', input: {} });
+      transport.emit({ kind: 'ext', name: 'unregistered-question', data: {} });
+    });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'publish it' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Your answer could not be delivered. Try sending it again.');
+    expect(screen.queryByRole('button', { name: 'Send as a new message' })).toBeNull();
   });
 
   it('hands text typed while the agent waits on a question to deliverTypedAnswer, and shows why it was not sent', async () => {
