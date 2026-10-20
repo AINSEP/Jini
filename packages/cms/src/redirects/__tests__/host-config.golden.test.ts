@@ -110,3 +110,41 @@ test("host export preserves pre-content precedence and refuses a literal displac
     emitted: "", refused: [{ redirectId: "nested-post", reason: "shadowed-rule" }, { redirectId: "dynamic", reason: "dynamic-target-requires-runtime-oracle" }],
   });
 });
+
+test("export refuses exact targets that would be read as host template syntax", async () => {
+  const rules = [
+    rule({ id: "named-token", fromPattern: "/a", toTarget: "/new/:id" }),
+    rule({ id: "capture-token", fromPattern: "/b", toTarget: "/new/$1" }),
+    rule({ id: "bare-relative", fromPattern: "/c", toTarget: "new" }),
+    rule({ id: "absolute-token", fromPattern: "/d", toTarget: "https://partner.example/:slug" }),
+    rule({ id: "absolute-port", fromPattern: "/e", toTarget: "https://partner.example:8443/x" }),
+  ];
+  assert.deepEqual(await toNetlifyRedirects({ rules, oracle, reservedSegments }, {}), { emitted: "", refused: [
+    { redirectId: "named-token", reason: "host-template-syntax" },
+    { redirectId: "capture-token", reason: "host-template-syntax" },
+    { redirectId: "bare-relative", reason: "host-template-syntax" },
+    { redirectId: "absolute-token", reason: "host-template-syntax" },
+    { redirectId: "absolute-port", reason: "host-template-syntax" },
+  ] });
+});
+
+test("an interpolated relative wildcard target is refused as a widened host match, not as an absolute template", async () => {
+  const result = await toVercelRedirects({ rules: [rule({ id: "relative", matchType: "wildcard", fromPattern: "/w/*", toTarget: "/$1" })], oracle, reservedSegments }, {});
+  assert.deepEqual(result.refused, [{ redirectId: "relative", reason: "host-match-would-widen" }]);
+});
+
+test("Netlify keeps a post-content literal without a force marker even beside a non-override dynamic rule", async () => {
+  const literal = rule({ id: "literal", fromPattern: "/old", override: false, toTarget: "/post" });
+  const dynamic = rule({ id: "dynamic", matchType: "prefix", fromPattern: "/old", override: false, toTarget: "/elsewhere" });
+  assert.deepEqual(await toNetlifyRedirects({ rules: [literal, dynamic], oracle, reservedSegments }, {}), {
+    emitted: "/old /post 301\n", refused: [{ redirectId: "dynamic", reason: "shadowed-rule" }],
+  });
+});
+
+test("export keeps source-path order when the input is already sorted", async () => {
+  const result = await toNetlifyRedirects({ oracle, reservedSegments, rules: [
+    rule({ id: "first", fromPattern: "/a", toTarget: "/new-a" }),
+    rule({ id: "second", fromPattern: "/b", toTarget: "/new-b" }),
+  ] }, {});
+  assert.equal(result.emitted, "/a /new-a 301!\n/b /new-b 301!\n");
+});
