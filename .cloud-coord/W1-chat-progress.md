@@ -17,9 +17,10 @@ Baseline (unmodified tree): `tsc --noEmit -p packages/chat` clean; temp eslint (
 | L150 | react/hooks | 15/17 | | | | running |
 | L168 | core/run-events | 18/16 (chunkEvent) | 10/10 | 100/100/100 (was 95/81/96) | cb7789da | merged ✓ (eslint 0, tsc ok, 11 files/182 tests) |
 | L184 | server | 14/13 (recover decide) | | | | running |
-| L185 | chat-pane (files) | 17/12 (uploadAttachments) | | | | running |
+| L185 | chat-pane (files) | 17/12 (uploadAttachments) | 8/6 | 100/100/100 | fbc0eed7, 7a10af80 | merged ✓ (eslint 0, tsc ok, 3 files/91 tests) |
 
 ## Problems / notes
+- L185 (out of scope, flagged): `rules.ts findMidRunMessageRunId` accepts an `attachmentCount` it never uses; only caller `hooks/useChatPane.hooks.ts`. Pinned (not a bug): selected-but-unavailable agent returns `agent-unavailable` even when API mode is configured.
 - L081: removed unused `conversationError` prop of internal ChatPaneStatusMessages and never-passed `useTip` prop of internal RuntimeDropUp. Markup proven identical with temp old-vs-new tests (deleted).
 - L120: `getConversation` now reuses the list summary SQL filtered by id (1 query instead of 3); output values identical, object key order now `totalDurationMs` before `latestRun` (same as list).
 - L072: older history-tools tests still use bare `rejects.toThrow()`; specific-message versions were added beside them (old ones left, not weakened). bf899b33 message says cog 25→8, measured 6.
