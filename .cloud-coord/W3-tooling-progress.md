@@ -21,13 +21,13 @@ Coordinator loaded: software-architect, code-inspection, security (AI-Dev-Shop c
 | L060a | devops | dispatched | | | 25/30 → | | |
 | L047 | devops | dispatched | | | 27/42 → | | |
 | L090 | devops | dispatched | | | 17/27 → | | |
-| L159 | devops | dispatched | | | 20/19 → | | |
+| L159 | devops | MERGED a02e83fb | 139k tok / 28 calls | 576a72bc pins, c5c63f02 refactor | 20/19 → 9/8 | reachability.ts 100/100/100/100 (coord re-run, 15 files 135 tests, no Errors line) | eslint 0, tsc 0, guard = base |
 | L035b | cli | dispatched | | | 27/30 → | | |
-| L060b | devops | queued | | | 15/13 → | | |
+| L060b | devops | dispatched | | | 15/13 → | | |
 | L124-L158-L252 | devops | queued | | | 26/24 → | | |
 | L035a | cli | queued | | | 15/21 → | | |
 
 ## Findings (bugs / security / cross-package)
-(none yet)
+- L159 SEC (pinned, reported not fixed): reachability.ts `classifyProbeResponse` reads 401 / GET-error bodies in full with no size cap (only the probe timeout bounds it); any 3xx counts as reachable without checking Location (not followed, so not SSRF); reachable response body never read/cancelled (connection held until GC).
 
 ## Next
