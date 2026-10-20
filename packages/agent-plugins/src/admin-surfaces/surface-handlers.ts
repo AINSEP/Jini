@@ -14,6 +14,7 @@
  * one); it must match the surface's declared `bootstrap` schema and is never cached by the host.
  */
 import { defineExecutablePluginContribution, type LoadedPluginContribution, type PluginContributionDefinition } from '../lifecycle/contribution-loader.js';
+import type { IssuedTokenMemory } from '../lifecycle/tools/capabilities.js';
 import { openAdminSurfaceCapabilitySession, type AdminSurfaceCapabilities, type AdminSurfaceCapabilitiesPort } from './surface-capabilities.js';
 import { AdminSurfaceActionError, type AdminSurfaceActionHandler } from './action-dispatcher.js';
 import { validateAdminSurfaceActionValue, type AdminSurfaceActionSchema } from './action-schema.js';
@@ -113,6 +114,8 @@ interface AdmittedSurface {
   readonly loaded: LoadedAdminSurfaceHandlers;
   readonly handlers: Readonly<Record<string, AdminSurfaceActionHandler<AdminSurfaceHandlerContext>>>;
   readonly isLive: () => boolean;
+  /** Tokens this generation's calls obtained; module state can carry one from call to call. */
+  readonly issued: IssuedTokenMemory;
 }
 
 /** Plugin and surface ids cannot contain NUL, so the key is unambiguous. */
@@ -134,7 +137,7 @@ export function createAdminSurfaceHandlerHost(required: { readonly capabilities:
     const { pluginId, descriptor } = self.loaded;
     const principal = context.principalId === undefined ? {} : { principalId: context.principalId };
     const capabilities = required.capabilities({ pluginId, workspaceId: context.workspaceId, ...principal });
-    const session = openAdminSurfaceCapabilitySession({ capabilities, isLive: self.isLive, declared: descriptor }, { ...(principal.principalId !== undefined && { actorId: principal.principalId }) });
+    const session = openAdminSurfaceCapabilitySession({ capabilities, isLive: self.isLive, declared: descriptor, issued: self.issued }, { ...(principal.principalId !== undefined && { actorId: principal.principalId }) });
     const connectionIds = (descriptor.connections ?? []).map((connection) => connection.id);
     return { session, context: { workspaceId: context.workspaceId, ...principal, pluginId, surfaceId: descriptor.id, connectionIds } };
   }
@@ -151,7 +154,7 @@ export function createAdminSurfaceHandlerHost(required: { readonly capabilities:
   /** A generation for one surface; live only while `admitted` holds this exact object. */
   function admit(key: string, loaded: LoadedAdminSurfaceHandlers): AdmittedSurface {
     const declared = loaded.descriptor.actions.filter((action) => Object.hasOwn(loaded.module.actions, action.name));
-    const self: AdmittedSurface = { loaded, handlers: {}, isLive: () => admitted.get(key) === self };
+    const self: AdmittedSurface = { loaded, handlers: {}, isLive: () => admitted.get(key) === self, issued: new Set() };
     Object.assign(self.handlers, Object.fromEntries(declared.map((action) => [action.name, actionHandler(self, loaded.module.actions[action.name]!)])));
     return Object.freeze(self);
   }

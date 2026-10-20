@@ -13,7 +13,7 @@
  */
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { requireInputRecord, ToolInputError } from '@jini-ai/core';
-import { openCapabilitySession, REVOKED_MESSAGE, type AgentPluginToolCapabilitiesPort } from './capabilities.js';
+import { openCapabilitySession, REVOKED_MESSAGE, type AgentPluginToolCapabilitiesPort, type IssuedTokenMemory } from './capabilities.js';
 import type { LoadedAgentPluginTool } from './definition.js';
 import type { AgentPluginToolEffect } from './manifest.js';
 
@@ -151,7 +151,8 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
   let byToolId = new Map<string, { readonly tool: AdmittedTool; readonly snapshot: AgentPluginToolSnapshot }>();
 
   /** One contract tool whose handler validates, scopes capabilities and gates the result. */
-  function contractTool(tool: AdmittedTool, isLive: () => boolean): AgentPluginContractTool {
+  function contractTool(tool: AdmittedTool, generationOf: { readonly isLive: () => boolean; readonly issued: IssuedTokenMemory }): AgentPluginContractTool {
+    const { isLive, issued } = generationOf;
     const { descriptor, module } = tool.loaded;
     const contribution: AgentPluginContractTool = {
       name: descriptor.name, description: descriptor.description, inputSchema: descriptor.inputSchema, effect: descriptor.effect,
@@ -161,7 +162,7 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
         const checked = validatedInput(tool, input);
         const host = required.capabilities({ pluginId, workspaceId: auth.workspaceId,
           ...(auth.principalId === undefined ? {} : { principalId: auth.principalId }), ...(signal === undefined ? {} : { signal }) });
-        const session = openCapabilitySession({ capabilities: host, isLive });
+        const session = openCapabilitySession({ capabilities: host, isLive, issued });
         try {
           const value = await module.invoke({ input: checked, capabilities: session.capabilities, ...(signal === undefined ? {} : { signal }) });
           return session.release({ value });
@@ -175,8 +176,9 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
   function generation(pluginId: string, tools: readonly AdmittedTool[]): ProjectedPlugin {
     let snapshot: AgentPluginToolSnapshot | undefined;
     const isLive = () => snapshot !== undefined && registry.list({}).includes(snapshot);
+    const issued: IssuedTokenMemory = new Set();
     snapshot = Object.freeze({ pluginId, sdk: INERT_SDK, routes: Object.freeze([]), widgets: Object.freeze([]),
-      tools: Object.freeze(tools.map(tool => contractTool(tool, isLive))) });
+      tools: Object.freeze(tools.map(tool => contractTool(tool, { isLive, issued }))) });
     return { snapshot, tools };
   }
 

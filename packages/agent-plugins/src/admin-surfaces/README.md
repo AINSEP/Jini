@@ -181,8 +181,9 @@ export default {
 - Calls: `capabilities` is the admin-surface port (next section), built per call for the LOADED
   plugin id and the route's workspace/principal; `context.pluginId`/`surfaceId` are the loaded
   module's own, whatever the caller passed, and `context.connectionIds` lists the surface's declared
-  connection ids (never refs). A result or error that mentions a token the call obtained is withheld
-  (`action-failed`). `fail({ code, message }, { retryable })` builds a surface-safe
+  connection ids (never refs). A result or error that mentions a token the surface generation obtained
+  (in this call or an earlier one; the newest 64 are remembered) is withheld (`action-failed`), and
+  such a token is never saved to state. `fail({ code, message }, { retryable })` builds a surface-safe
   failure; a code that is not lowercase hyphenated becomes `action-failed`, messages are cut at 300 characters.
 - Bootstrap: `bootstrapData({ context })` returns the provider's data (or `null`), refused when it does not
   match the declared `bootstrap` schema. Wrap it with `createAdminSurfaceBootstrap` and serve it with

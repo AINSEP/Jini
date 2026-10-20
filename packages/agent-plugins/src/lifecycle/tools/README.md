@@ -111,7 +111,8 @@ The host passes `capabilities: ({ pluginId, workspaceId, principalId?, signal? }
   other capabilities.
 
 Per call, the projection wraps these so that every capability stops working once the plugin's tools
-are withdrawn, and a result or error that contains a token the call obtained is withheld.
+are withdrawn, and a result or error that contains a token the plugin generation obtained (in this
+call or an earlier one; the newest 64 are remembered) is withheld.
 Those two gates are `openCapabilityGate({ isLive })` in `capabilities.ts`; the admin-surface session
 (`../../admin-surfaces/surface-capabilities.ts`) reuses it, so surface handlers revoke and scan the
 same way. Account actions (connect, switch, disconnect), writing plugin state and public config exist

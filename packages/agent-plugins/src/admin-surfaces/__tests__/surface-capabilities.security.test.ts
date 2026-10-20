@@ -26,7 +26,7 @@ function open(optional: { readonly actorId?: string | null; readonly pluginId?: 
   const fake = createFakeSurfaceHost({ config: { ACME_APP_ID: 'app-123', ACME_OTHER: 'not-declared' }, status: { connectionRef: 'ref-must-not-leak' } });
   const actorId = optional.actorId === undefined ? 'admin-1' : optional.actorId;
   const session = openAdminSurfaceCapabilitySession(
-    { capabilities: fake.port({ pluginId: optional.pluginId ?? PLUGIN, workspaceId: WORKSPACE_ID }), isLive: optional.live ?? (() => true), declared: DECLARED },
+    { capabilities: fake.port({ pluginId: optional.pluginId ?? PLUGIN, workspaceId: WORKSPACE_ID }), isLive: optional.live ?? (() => true), declared: DECLARED, issued: new Set() },
     actorId === null ? {} : { actorId },
   );
   return { ...fake, ...session };
@@ -205,12 +205,13 @@ describe('plugin state and public config', () => {
     await expect(session.capabilities.state.set({ key: 'selection', value: { header: `Bearer ${token}` } })).rejects.toThrow(STATE_CREDENTIAL_MESSAGE);
     expect(session.state.size).toBe(0);
   });
-  test('a token obtained in an EARLIER call is not caught by the per-call state scan (reported, not fixed)', async () => {
-    const earlier = open();
-    const token = await earlier.capabilities.connections.getAccessToken({ connectionId: 'account' });
-    const later = openAdminSurfaceCapabilitySession({ capabilities: earlier.port({ pluginId: PLUGIN, workspaceId: WORKSPACE_ID }), isLive: () => true, declared: DECLARED });
-    await later.capabilities.state.set({ key: 'kept', value: token });
-    expect(await later.capabilities.state.get({ key: 'kept' })).toBe(FAKE_TOKEN);
+  test('a token obtained in an EARLIER call of the same generation is never stored (was reported, now fixed)', async () => {
+    const issued = new Set<string>();
+    const fake = createFakeSurfaceHost({ config: {}, status: {} });
+    const session = () => openAdminSurfaceCapabilitySession({ capabilities: fake.port({ pluginId: PLUGIN, workspaceId: WORKSPACE_ID }), isLive: () => true, declared: DECLARED, issued });
+    const token = await session().capabilities.connections.getAccessToken({ connectionId: 'account' });
+    await expect(session().capabilities.state.set({ key: 'kept', value: token })).rejects.toThrow(STATE_CREDENTIAL_MESSAGE);
+    expect(fake.state.size).toBe(0);
   });
   test('what is stored is the checked copy: changing the object afterwards changes nothing', async () => {
     const session = open();

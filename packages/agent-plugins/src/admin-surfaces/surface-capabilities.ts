@@ -12,11 +12,13 @@
  * the host sees it, and a host that answers with more than the port promises (a connection ref, raw
  * scopes, undeclared callback fields) is cut back to the declared shape. Like the tool session it
  * revokes everything once the plugin is disabled and withholds results and errors that mention a
- * token the call obtained; it also refuses to persist such a token in plugin state.
+ * token the surface generation obtained (in this call or an earlier one); it also refuses to persist
+ * such a token in plugin state.
  */
 import {
   checkedStateKey, guardSharedCapabilities, guardStateReader, openCapabilityGate, PLUGIN_STATE_MAX_KEY_LENGTH,
   type AgentPluginCapabilityGate, type AgentPluginStateReader, type AgentPluginStateValue, type AgentPluginToolCapabilities, type AgentPluginToolCapabilityScope,
+  type IssuedTokenMemory,
 } from '../lifecycle/tools/capabilities.js';
 import type { AdminSurfaceCapabilityDeclarations, AdminSurfaceConnectionDeclaration } from './capability-declarations.js';
 
@@ -236,16 +238,20 @@ function guardPublicConfig(gate: AgentPluginCapabilityGate, host: AdminSurfacePu
  * @param required.capabilities - The host's ports for this call (already scoped to plugin, workspace, principal).
  * @param required.isLive - False once the plugin's surface handlers are revoked.
  * @param required.declared - The surface's own capability declarations (the allowlists).
+ * @param required.issued - The surface generation's token memory, shared by all its calls.
  * @param optional.actorId - The signed-in admin; account actions are refused without one.
  * @returns Wrapped capabilities plus the shared `release` (result) and `sanitize` (error) gates.
  * @complexity O(1) to open; each check is bounded by the declared lists and the value caps.
  */
 export function openAdminSurfaceCapabilitySession(
-  required: { readonly capabilities: AdminSurfaceCapabilities; readonly isLive: () => boolean; readonly declared: AdminSurfaceCapabilityDeclarations },
+  required: {
+    readonly capabilities: AdminSurfaceCapabilities; readonly isLive: () => boolean; readonly declared: AdminSurfaceCapabilityDeclarations;
+    readonly issued: IssuedTokenMemory;
+  },
   optional: { readonly actorId?: string } = {},
 ) {
-  const { capabilities: host, isLive, declared } = required;
-  const gate = openCapabilityGate({ isLive });
+  const { capabilities: host, isLive, declared, issued } = required;
+  const gate = openCapabilityGate({ isLive, issued });
   const input: ConnectionsInput = { gate, host: host.connections, declared: declared.connections ?? [], actorId: optional.actorId };
   const capabilities: AdminSurfaceCapabilities = Object.freeze({
     ...guardSharedCapabilities({ gate, host }),
