@@ -289,7 +289,7 @@ export interface RunCopyInput {
   readonly marker: CopyMarker;
   readonly replaceExisting: boolean;
 }
-export async function runCopy(input: RunCopyInput, _optional: { messages?: Pick<DbMessages, "missingSourceTable" | "missingSourceColumn"> } = {}): Promise<CopyResult> {
+function prepareCopy(input: Pick<RunCopyInput, "sources" | "naming" | "schema">, _optional: { messages?: Pick<DbMessages, "missingSourceTable" | "missingSourceColumn"> } = {}) {
   if (!/^[a-z_][a-z0-9_]*$/.test(input.naming.sqlTag ?? "transfer")) throw new Error("invalid SQL dollar-quote tag");
   const { sources } = planTransfer({ sources: input.sources });
   const counted = sources.map(entry => {
@@ -307,6 +307,12 @@ export async function runCopy(input: RunCopyInput, _optional: { messages?: Pick<
   if (schema === "public" || !/^[a-z_][a-z0-9_]*$/.test(schema) || Buffer.byteLength(schema) > MAX_IDENTIFIER_BYTES) {
     throw new Error(`runCopy: '${schema}' is not a schema this copier may write`);
   }
+  return { counted, counts };
+}
+
+export async function runCopy(input: RunCopyInput, _optional: { messages?: Pick<DbMessages, "missingSourceTable" | "missingSourceColumn"> } = {}): Promise<CopyResult> {
+  const { counted, counts } = prepareCopy(input, _optional);
+  const { schema } = input;
   let result;
   try {
     result = await input.target.runScript(copyScript(counted, input.naming, schema, counts, input.marker, input.replaceExisting));

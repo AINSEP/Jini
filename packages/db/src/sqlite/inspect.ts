@@ -88,18 +88,8 @@ function readSqliteTableCounts({ db }: { db: SqliteDb }, { strict = false }: { s
     const names = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as { name: string }[];
     for (const { name } of names) {
       if (strict ? name.startsWith('sqlite_') : isSystemTable(name)) continue;
-      try {
-        const safe = strict ? name : sanitizeTableName(name);
-        if (!safe) continue;
-        const quoted = '"' + safe.replaceAll('"', '""') + '"';
-        const row = db.prepare(`SELECT count(*) AS c FROM ${quoted}`).get() as { c: number } | undefined;
-        if (strict && (!row || !Number.isSafeInteger(row.c) || row.c < 0)) throw new Error(`Could not count table ${name}.`);
-        tables.push({ name: safe, rowCount: row?.c ?? 0 });
-      } catch (error) {
-        if (strict) throw error;
-        // A malformed view / corrupted table shouldn't fail the whole report; record 0 rows.
-        tables.push({ name, rowCount: 0 });
-      }
+      const count = readSqliteTableCount({ db, name, strict });
+      if (count) tables.push(count);
     }
   } catch (error) {
     if (strict) throw error;
@@ -107,6 +97,25 @@ function readSqliteTableCounts({ db }: { db: SqliteDb }, { strict = false }: { s
     // which is itself a useful signal).
   }
   return tables;
+}
+
+function requireValidCount({ row, name }: { row: { c: number } | undefined; name: string }, _options = {}): void {
+  if (!row || !Number.isSafeInteger(row.c) || row.c < 0) throw new Error(`Could not count table ${name}.`);
+}
+
+function readSqliteTableCount({ db, name, strict }: { db: SqliteDb; name: string; strict: boolean }, _options = {}): DaemonDbTableInfo | null {
+  try {
+    const safe = strict ? name : sanitizeTableName(name);
+    if (!safe) return null;
+    const quoted = '"' + safe.replaceAll('"', '""') + '"';
+    const row = db.prepare(`SELECT count(*) AS c FROM ${quoted}`).get() as { c: number } | undefined;
+    if (strict) requireValidCount({ row, name });
+    return { name: safe, rowCount: row?.c ?? 0 };
+  } catch (error) {
+    if (strict) throw error;
+    // A malformed view / corrupted table shouldn't fail the whole report; record 0 rows.
+    return { name, rowCount: 0 };
+  }
 }
 
 async function sumFileSizes(paths: ReadonlyArray<string>): Promise<number> {
@@ -152,26 +161,15 @@ export interface VerifyDbOptions {
   quick?: boolean;
 }
 
-/**
- * Runs `PRAGMA integrity_check` (or `quick_check`) plus `PRAGMA foreign_key_check`
- * against an open database and returns a structured report so a CLI can
- * pretty-print it and automation can parse the JSON.
- *
- * @param opts - The open database handle and whether to use the faster `quick_check` variant.
- * @returns `{ ok: true }` when both pragmas report clean; otherwise the list of issues found.
- *   A pragma that throws is itself recorded as one `integrity`/`foreign_key` issue rather than
- *   propagating — a caller polling DB health should always get a report, not an exception.
- */
-export function verifySqliteIntegrity(opts: VerifyDbOptions, { includeRowCounts = false }: { includeRowCounts?: boolean } = {}): DbIntegrityReport {
-  const { db, quick = false } = opts;
-  const startedAt = Date.now();
-  const issues: DbIntegrityIssue[] = [];
+function hasSuccessfulIntegrityResult({ rows, pragma }: { rows: Array<Record<string, unknown>>; pragma: string }, _options = {}): boolean {
+  return rows.length === 1 && String(rows[0]?.[pragma] ?? Object.values(rows[0] ?? {})[0]).toLowerCase() === 'ok';
+}
 
-  // 1. integrity_check / quick_check.
-  const pragma = quick ? 'quick_check' : 'integrity_check';
+function readIntegrityIssues({ db, pragma }: { db: SqliteDb; pragma: string }, { strict = false }: { strict?: boolean } = {}): DbIntegrityIssue[] {
+  const issues: DbIntegrityIssue[] = [];
   try {
     const rows = db.pragma(pragma) as Array<Record<string, unknown>>;
-    if (includeRowCounts && (rows.length !== 1 || String(rows[0]?.[pragma] ?? Object.values(rows[0] ?? {})[0]).toLowerCase() !== 'ok')) {
+    if (strict && !hasSuccessfulIntegrityResult({ rows, pragma })) {
       issues.push({ kind: 'integrity', message: 'A stopped transfer requires exactly one successful integrity result.' });
     }
     for (const row of rows) {
@@ -185,8 +183,11 @@ export function verifySqliteIntegrity(opts: VerifyDbOptions, { includeRowCounts 
   } catch (err) {
     issues.push({ kind: 'integrity', message: `pragma ${pragma} threw: ${(err as Error).message}` });
   }
+  return issues;
+}
 
-  // 2. foreign_key_check.
+function readForeignKeyIssues({ db }: { db: SqliteDb }, _options = {}): DbIntegrityIssue[] {
+  const issues: DbIntegrityIssue[] = [];
   try {
     const rows = db.pragma('foreign_key_check') as Array<{
       table?: string;
@@ -207,6 +208,29 @@ export function verifySqliteIntegrity(opts: VerifyDbOptions, { includeRowCounts 
   } catch (err) {
     issues.push({ kind: 'foreign_key', message: `pragma foreign_key_check threw: ${(err as Error).message}` });
   }
+  return issues;
+}
+
+/**
+ * Runs `PRAGMA integrity_check` (or `quick_check`) plus `PRAGMA foreign_key_check`
+ * against an open database and returns a structured report so a CLI can
+ * pretty-print it and automation can parse the JSON.
+ *
+ * @param opts - The open database handle and whether to use the faster `quick_check` variant.
+ * @returns `{ ok: true }` when both pragmas report clean; otherwise the list of issues found.
+ *   A pragma that throws is itself recorded as one `integrity`/`foreign_key` issue rather than
+ *   propagating — a caller polling DB health should always get a report, not an exception.
+ */
+export function verifySqliteIntegrity(opts: VerifyDbOptions, { includeRowCounts = false }: { includeRowCounts?: boolean } = {}): DbIntegrityReport {
+  const { db, quick = false } = opts;
+  const startedAt = Date.now();
+
+  // 1. integrity_check / quick_check.
+  const pragma = quick ? 'quick_check' : 'integrity_check';
+  const integrityIssues = readIntegrityIssues({ db, pragma }, { strict: includeRowCounts });
+
+  // 2. foreign_key_check.
+  const issues = integrityIssues.concat(readForeignKeyIssues({ db }));
 
   let rowCounts: DaemonDbTableInfo[] | undefined;
   if (includeRowCounts && issues.length === 0) {
@@ -216,7 +240,7 @@ export function verifySqliteIntegrity(opts: VerifyDbOptions, { includeRowCounts 
   return {
     ...(includeRowCounts ? { rowCounts } : {}),
     ok: issues.length === 0,
-    mode: quick ? 'quick_check' : 'integrity_check',
+    mode: pragma,
     issues,
     elapsedMs: Date.now() - startedAt,
     generatedAt: Date.now(),

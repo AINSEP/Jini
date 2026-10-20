@@ -40,12 +40,7 @@ interface ParsedConnection {
   readonly env: Readonly<Record<string, string>>;
 }
 
-/**
- * Splits a `postgres://` / `postgresql://` URL into libpq environment variables.
- *
- * @throws {InvalidConnectionStringError} With a message that never quotes the string itself.
- */
-export function parseConnectionString({ raw }: { raw: string }, { applicationName = "database-transfer" }: { applicationName?: string } = {}): ParsedConnection {
+function parsePostgresUrl({ raw }: { raw: string }, _options = {}): URL {
   let url: URL;
   try {
     url = new URL(raw.trim());
@@ -55,6 +50,16 @@ export function parseConnectionString({ raw }: { raw: string }, { applicationNam
   if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
     throw new InvalidConnectionStringError("the connection string must start with postgres:// or postgresql://");
   }
+  return url;
+}
+
+/**
+ * Splits a `postgres://` / `postgresql://` URL into libpq environment variables.
+ *
+ * @throws {InvalidConnectionStringError} With a message that never quotes the string itself.
+ */
+export function parseConnectionString({ raw }: { raw: string }, { applicationName = "database-transfer" }: { applicationName?: string } = {}): ParsedConnection {
+  const url = parsePostgresUrl({ raw });
   const host = url.searchParams.get("host") ?? decodeURIComponent(url.hostname);
   const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
   const user = decodeURIComponent(url.username);
