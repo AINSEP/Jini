@@ -256,6 +256,26 @@ describe('AssetTreeBrowser', () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
+  it('shows each kind section\'s file count next to its label (root counts nested files too)', () => {
+    render(<AssetTreeBrowser {...baseProps()} />);
+    const textLabel = screen.getByText('Text file', { selector: '.asset-tree-section-label' });
+    const imageLabel = screen.getByText('Image', { selector: '.asset-tree-section-label' });
+    expect(textLabel.querySelector('.asset-tree-section-count')).toHaveTextContent('2');
+    expect(imageLabel.querySelector('.asset-tree-section-count')).toHaveTextContent('1');
+  });
+
+  it('keeps the preview thumbnail\'s click-to-open overlay by default', () => {
+    const selectInitialPreviewFile = (files: TestFile[]) => files[0] ?? null;
+    render(<AssetTreeBrowser {...baseProps({ selectInitialPreviewFile })} />);
+    expect(screen.getByTestId('asset-tree-preview').querySelector('.asset-tree-preview-thumb-open')).not.toBeNull();
+  });
+
+  it('drops the preview thumbnail\'s click-to-open overlay when thumbnailIsInteractive is true', () => {
+    const selectInitialPreviewFile = (files: TestFile[]) => files[0] ?? null;
+    render(<AssetTreeBrowser {...baseProps({ selectInitialPreviewFile, thumbnailIsInteractive: true })} />);
+    expect(screen.getByTestId('asset-tree-preview').querySelector('.asset-tree-preview-thumb-open')).toBeNull();
+  });
+
   it('renders a host-supplied footer', () => {
     render(<AssetTreeBrowser {...baseProps({ footer: <div data-testid="host-footer">footer</div> })} />);
     expect(screen.getByTestId('host-footer')).toBeInTheDocument();
