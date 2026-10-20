@@ -2,7 +2,8 @@ import { sign } from 'node:crypto';
 import type { RegistryManifest } from '@jini-ai/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { GithubRegistryBackend, type GithubRegistryClient } from '../github-backend.js';
+import type { Clock } from '@jini-ai/core/primitives';
+import { GithubRegistryBackend, type GithubPublishMutation, type GithubRegistryClient } from '../github-backend.js';
 import { canonicalRegistrySigningPayload, type RegistryTrustRoot } from '../trust.js';
 
 // Self-signed test CA (chains to itself), matching `trust.test.ts`'s fixture.
@@ -265,6 +266,83 @@ describe('GithubRegistryBackend', () => {
       await expect(
         backend.publish?.({ entry: { name: 'vendor/example', version: '1.0.0', source: 's', tags: 'not-an-array' } as never }),
       ).rejects.toThrow(/invalid registry publish request/i);
+    });
+  });
+
+  describe('publish/yank PR payload rendering (pinned before refactor)', () => {
+    const fixedClock: Clock = { nowMs: () => Date.UTC(2026, 0, 2, 3, 4, 5) };
+
+    function capturingClient(entries: RegistryManifest['entries']): { client: GithubRegistryClient; seen: GithubPublishMutation[] } {
+      const seen: GithubPublishMutation[] = [];
+      const client: GithubRegistryClient = {
+        async readManifest() {
+          return { ...manifest, entries };
+        },
+        async createPublishPullRequest(mutation) {
+          seen.push(mutation);
+          return { url: 'https://github.com/acme/registry/pull/42' };
+        },
+      };
+      return { client, seen };
+    }
+
+    it('renders the exact body with description, top-level integrity/digest, capabilities and changelog (blank separator lines are filtered out)', async () => {
+      const { client, seen } = capturingClient(manifest.entries);
+      const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
+      await backend.publish?.({ entry: { ...manifest.entries[0]!, capabilitiesSummary: ['prompt:inject', 'fs:read'], dist: { integrity: 'sha256:dist', manifestDigest: 'sha256:distdigest' } } }, { changelog: 'Initial release' });
+      expect(seen[0]?.title).toBe('Add vendor/example@1.1.0');
+      expect(seen[0]?.body).toBe([
+        'Publish vendor/example@1.1.0',
+        'Searchable fixture entry',
+        '## Registry metadata',
+        '- source: github:vendor/example@v1.1.0/entry',
+        '- integrity: sha256:top',
+        '- manifestDigest: sha256:digest',
+        '- capabilities: prompt:inject, fs:read',
+        '\n## Changelog\n\nInitial release',
+      ].join('\n'));
+    });
+
+    it('renders the exact body for a bare entry: no description, no changelog, empty capabilities list, dist integrity only', async () => {
+      const bareEntry = { name: 'vendor/bare', version: '1.0.0', source: 's', capabilitiesSummary: [], dist: { integrity: 'sha256:d' } };
+      const { client, seen } = capturingClient([bareEntry]);
+      const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
+      await backend.publish?.({ entry: bareEntry });
+      expect(seen[0]?.body).toBe([
+        'Publish vendor/bare@1.0.0',
+        '## Registry metadata',
+        '- source: s',
+        '- integrity: sha256:d',
+        '- manifestDigest: (pending)',
+        '- capabilities: (none declared)',
+      ].join('\n'));
+    });
+
+    it('stamps publishedAt from the injected clock and defaults the tag to latest', async () => {
+      const { client, seen } = capturingClient(manifest.entries);
+      const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client }, { clock: fixedClock });
+      await backend.publish?.({ entry: manifest.entries[0]! });
+      expect(JSON.parse(seen[0]!.files[1]!.content)).toMatchObject({ publishedAt: '2026-01-02T03:04:05.000Z', tag: 'latest' });
+    });
+
+    it('stamps publishedAt from the system clock when no clock is injected', async () => {
+      const { client, seen } = capturingClient(manifest.entries);
+      const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client });
+      const before = Date.now();
+      await backend.publish?.({ entry: manifest.entries[0]! }, { tag: 'beta' });
+      const stamped = Date.parse(JSON.parse(seen[0]!.files[1]!.content).publishedAt);
+      expect(stamped).toBeGreaterThanOrEqual(before);
+      expect(stamped).toBeLessThanOrEqual(Date.now());
+      expect(JSON.parse(seen[0]!.files[1]!.content).tag).toBe('beta');
+    });
+
+    it('renders the exact yank title, body and file content with yankedAt from the injected clock', async () => {
+      const { client, seen } = capturingClient(manifest.entries);
+      const backend = await GithubRegistryBackend.create({ id: 'official', owner: 'acme', repo: 'registry', client }, { clock: fixedClock });
+      const outcome = await backend.yank({ name: 'vendor/example', version: '1.1.0', reason: 'broken build' });
+      expect(outcome).toEqual({ ok: true, dryRun: false, name: 'vendor/example', version: '1.1.0', reason: 'broken build', pullRequestUrl: 'https://github.com/acme/registry/pull/42', warnings: [] });
+      expect(seen[0]).toMatchObject({ title: 'Yank vendor/example@1.1.0', body: 'Yank vendor/example@1.1.0\n\nReason: broken build\n', branchName: 'yank/vendor-example-1.1.0' });
+      expect(JSON.parse(seen[0]!.files[0]!.content)).toEqual({ name: 'vendor/example', version: '1.1.0', yanked: true, yankedAt: '2026-01-02T03:04:05.000Z', yankReason: 'broken build' });
     });
   });
 

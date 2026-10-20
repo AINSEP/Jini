@@ -12,10 +12,10 @@ export function createSearchEnricher(required: {
   if (!marker) throw new Error('search vocabulary marker must not be empty');
   return {
     indexedDescription({ id, description, metadata }, { includeDoc2query }) {
-      const vocabulary = metadata?.search?.keywords ?? (Object.hasOwn(keywords, id) ? keywords[id] : undefined);
-      const queries = metadata?.search?.queries ?? (Object.hasOwn(questions, id) ? questions[id] : undefined);
-      const tail = [vocabulary, includeDoc2query ? queries?.join(' ') : undefined]
-        .filter(part => Boolean(part?.length)).join(' ');
+      const search = metadata?.search;
+      const vocabulary = search?.keywords ?? ownValue(keywords, id);
+      const queries = includeDoc2query ? (search?.queries ?? ownValue(questions, id))?.join(' ') : undefined;
+      const tail = [vocabulary, queries].filter(Boolean).join(' ');
       if (!tail) return description;
       return description ? `${description}${marker}${tail}` : tail;
     },
@@ -24,6 +24,11 @@ export function createSearchEnricher(required: {
       return boundary < 0 ? description : description.slice(0, boundary);
     },
   };
+}
+
+/** Own-property lookup: inherited object keys (`toString`, `__proto__`) never count as host vocabulary. */
+function ownValue<T>(record: Readonly<Record<string, T>>, id: string): T | undefined {
+  return Object.hasOwn(record, id) ? record[id] : undefined;
 }
 
 /** Source naming conventions are supplied by the host, including the orphan-ID fallback. */
