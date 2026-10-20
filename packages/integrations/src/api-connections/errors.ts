@@ -11,7 +11,8 @@ export type ApiConnectionErrorCode =
   | 'descriptor-invalid' | 'configuration-invalid' | 'request-invalid' | 'connection-not-found' | 'not-connected'
   | 'reconnect-required' | 'revocation-pending' | 'invalid-attempt' | 'attempt-superseded'
   | 'access-denied' | 'authorization-failed' | 'scope-not-granted' | 'account-mismatch'
-  | 'account-changed' | 'account-identity-invalid' | 'switch-not-staged' | 'switch-in-progress' | 'storage-conflict';
+  | 'account-changed' | 'account-unchanged' | 'account-identity-invalid' | 'switch-not-staged' | 'switch-in-progress'
+  | 'offline-access-required' | 'storage-conflict';
 
 export class ApiConnectionError extends IntegrationError {
   readonly code: ApiConnectionErrorCode;

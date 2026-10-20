@@ -150,3 +150,12 @@ const VALIDATORS: { readonly [T in AdminSurfaceActionSchema['type']]: (schema: E
   boolean: (_schema, value, path) => (typeof value === 'boolean' ? null : `${path} must be a boolean`),
   null: (_schema, value, path) => (value === null ? null : `${path} must be null`),
 };
+
+/** One request-size cap for the browser-side host check and the server-side dispatcher (the
+ * authoritative one: string schemas carry no default maxLength). */
+const MAX_PAYLOAD_CHARS = 64 * 1024;
+
+/** True when `payload` serializes to more than 64 KiB of JSON text, or cannot be serialized. @complexity O(payload size). */
+export function exceedsAdminSurfacePayloadLimit(required: { readonly payload: unknown }, _optional: Record<string, never> = {}): boolean {
+  try { return (JSON.stringify(required.payload)?.length ?? Infinity) > MAX_PAYLOAD_CHARS; } catch { return true; }
+}

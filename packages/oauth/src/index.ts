@@ -52,4 +52,5 @@ export type { PendingAuthorizationCache, PendingAuthorizationScheduler, PendingA
 export type { OAuthCodeExchangeInput } from './authorization-code.js';
 export type { DnsPinnedOAuthTransport } from './dns-pinned-transport.js';
 export { startLoopbackAuthorizationReceiver, MAX_CALLBACK_FIELDS, MAX_CALLBACK_FIELD_LENGTH } from './loopback-receiver.js';
+export { isCallbackFieldName } from './loopback-callback.js';
 export type { LoopbackAuthorizationReceiver, LoopbackAuthorizationResult, LoopbackReceiverOptions, LoopbackReceiverTimers } from './loopback-receiver.js';

@@ -16,16 +16,26 @@ export type RecordPatch = Partial<Pick<ApiConnectionRecord, 'status' | 'generati
 export function connectionNotFound(): ApiConnectionError {
   return new ApiConnectionError({
     code: 'connection-not-found',
-    message: 'This connection does not exist for this plugin. Connect the account first.',
+    message: 'This connection does not exist for this plugin in this workspace. Connect the account first.',
   });
 }
 
-/** Load a record owned by this service's plugin connection, or throw `connection-not-found`. */
-export async function loadOwnedRecord(deps: RecordDeps, requiredArgs: { readonly connectionRef: string }): Promise<ApiConnectionRecord> {
+/** The ref a caller passes plus the workspace its host authorized it for. */
+export interface OwnedRecordArgs { readonly connectionRef: string; readonly workspaceId: string }
+
+/**
+ * A service bound to one plugin connection must never act on another plugin's record, and a ref
+ * from another workspace is refused here too, so a host cannot serve one by forgetting to check.
+ */
+export function isOwnedRecord(record: ApiConnectionRecord, deps: Pick<RecordDeps, 'descriptor'>, workspaceId: string): boolean {
+  return record.pluginId === deps.descriptor.pluginId && record.connectionId === deps.descriptor.connectionId
+    && record.workspaceId === workspaceId;
+}
+
+/** Load a record owned by this service's plugin connection in `workspaceId`, or throw `connection-not-found`. */
+export async function loadOwnedRecord(deps: RecordDeps, requiredArgs: OwnedRecordArgs): Promise<ApiConnectionRecord> {
   const record = await deps.records.read({ key: requiredArgs.connectionRef });
-  // A service bound to one plugin connection must never act on another plugin's record.
-  if (record === null || record.pluginId !== deps.descriptor.pluginId
-    || record.connectionId !== deps.descriptor.connectionId) throw connectionNotFound();
+  if (record === null || !isOwnedRecord(record, deps, requiredArgs.workspaceId)) throw connectionNotFound();
   return record;
 }
 

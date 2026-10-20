@@ -73,7 +73,11 @@ export interface Harness<Tokens extends ApiConnectionTokenStore = ReturnType<typ
   clock: { now: number; nowMs(): number };
 }
 
-interface HarnessOptions { client?: OAuthClient; clientKind?: 'public' | 'confidential'; pluginId?: string }
+interface HarnessOptions {
+  client?: OAuthClient; clientKind?: 'public' | 'confidential'; pluginId?: string;
+  /** Reuse another harness's record store, e.g. to model a host restarted with another client. */
+  records?: ReturnType<typeof memoryRecordStore>;
+}
 
 function buildWith<Tokens extends ApiConnectionTokenStore>(provider: AcmeProvider, options: HarnessOptions,
   makeTokens: (required: { records: ApiConnectionRecordStore; clock: Harness['clock'] }) => Tokens): Harness<Tokens> {
@@ -90,7 +94,7 @@ function buildWith<Tokens extends ApiConnectionTokenStore>(provider: AcmeProvide
     return fetch(url, init);
   };
   const clock = { now: Date.parse('2026-10-20T10:00:00.000Z'), nowMs() { return this.now; } };
-  const records = memoryRecordStore();
+  const records = options.records ?? memoryRecordStore();
   const tokens = makeTokens({ records, clock });
   const service = createApiConnectionService({
     descriptor, client, clientKind, hooks: acmeHooks(provider), records, tokens, fetchFn, clock,
@@ -105,19 +109,25 @@ export function buildHarness(provider: AcmeProvider, options: HarnessOptions = {
   return buildWith(provider, options, () => memoryTokenStore());
 }
 
-/** The same service over the real vault-backed token store (real sealing, lease and generation fencing). */
-export function buildVaultHarness(provider: AcmeProvider, options: HarnessOptions = {}): Harness<VaultOAuthTokenStore> {
+export const VAULT_SCOPE = { workspaceId: 'ws-1', kind: 'mcp-auth', ownerKey: 'acme-office', principalId: null, binding: null } as const;
+
+export function memoryVault(): SecretsVaultService {
   const repo = new InMemoryVaultRepo({});
   const keyring = new InMemoryKeyring({ hkdfSalt: 'api-connection-tests' });
-  const vault = new SecretsVaultService({ repo, keyring, sealer: new AesGcmSecretSealer({ keyring }),
+  return new SecretsVaultService({ repo, keyring, sealer: new AesGcmSecretSealer({ keyring }),
     metaParsers: createVaultMetaParsers({}, { parsers: { 'mcp-auth': parseOAuthTokenVaultMeta } }),
     authorize: async () => {}, now: () => '2026-10-20T10:00:00.000Z', newId: () => 'unused-id' });
-  return buildWith(provider, options, ({ records, clock }) => createVaultOAuthTokenStore({
-    vault, clock, readGeneration: createApiConnectionGenerationReader({ records }),
-    vaultScope: { workspaceId: 'ws-1', kind: 'mcp-auth', ownerKey: 'acme-office', principalId: null, binding: null },
+}
+
+/** The same service over the real vault-backed token store (real sealing, lease and generation fencing). */
+export function buildVaultHarness(provider: AcmeProvider, options: HarnessOptions = {},
+  vault: SecretsVaultService = memoryVault()): Harness<VaultOAuthTokenStore> & { vault: SecretsVaultService } {
+  const harness = buildWith(provider, options, ({ records, clock }) => createVaultOAuthTokenStore({
+    vault, clock, readGeneration: createApiConnectionGenerationReader({ records }), vaultScope: VAULT_SCOPE,
     owner: { workspaceId: 'ws-1', pluginId: options.pluginId ?? 'acme-office', connectionId: 'account',
       clientId: options.client?.clientId ?? 'acme-desktop' },
   }));
+  return { ...harness, vault };
 }
 
 /** Start a connect for `actor` in workspace ws-1 and approve it at the fake provider. */

@@ -15,7 +15,6 @@ const entries = {
   './testing': 'testing/index',
   './discovery-policy': 'discovery-policy',
   './dns-pinned-transport': 'dns-pinned-transport',
-  './loopback-receiver': 'loopback-receiver',
 } as const;
 
 describe('merged package entries', () => {

@@ -73,6 +73,8 @@ export interface ApiConnectionRecord {
  */
 export interface ApiConnectionAttempt {
   readonly state: string;
+  /** Random id plugin code and frames may hold; unlike `state` it is no CSRF binding. */
+  readonly attemptId: string;
   readonly key: string;
   readonly ownerKey: string;
   readonly workspaceId: string;

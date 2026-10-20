@@ -22,12 +22,12 @@ function toolPort(fake: ReturnType<typeof createFakeSurfaceHost>) {
 }
 
 function session(state: AgentPluginToolCapabilities['state'], live: () => boolean = () => true) {
-  return openCapabilitySession({ capabilities: { ...fakeCapabilities({ tokenRequests: [], requests: [] }), state }, isLive: live });
+  return openCapabilitySession({ capabilities: { ...fakeCapabilities({ tokenRequests: [], requests: [] }), state }, isLive: live, issued: new Set() });
 }
 
 test('a tool\'s state port has get only, frozen, even when the host passes its full store', () => {
   const fake = createFakeSurfaceHost();
-  const { state } = openCapabilitySession({ capabilities: toolPort(fake)({ pluginId: 'acme-office', workspaceId: WORKSPACE_ID }), isLive: () => true }).capabilities;
+  const { state } = openCapabilitySession({ capabilities: toolPort(fake)({ pluginId: 'acme-office', workspaceId: WORKSPACE_ID }), isLive: () => true, issued: new Set() }).capabilities;
   expect(Object.keys(state)).toEqual(['get']);
   expect(Object.isFrozen(state)).toBe(true);
   expect('set' in state || 'delete' in state).toBe(false);

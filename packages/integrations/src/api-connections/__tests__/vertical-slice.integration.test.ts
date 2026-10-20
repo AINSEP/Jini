@@ -21,17 +21,17 @@ it('connects, serves and refreshes an access token, then disconnects with confir
   const callback = provider.approve({ authorizationUrl: started.authorizationUrl, account: 'alice' });
   const completed = await h.service.complete({ workspaceId: 'ws-1', actorId: 'actor-1', redirectUri: CALLBACK,
     callbackParams: { ...callback, picked: 'file-7', undeclared: 'dropped' } });
-  expect(completed).toEqual({ connectionRef: started.connectionRef, outcome: 'connected',
+  expect(completed).toEqual({ connectionRef: started.connectionRef, attemptId: started.attemptId, outcome: 'connected',
     account: { accountId: 'alice', displayName: 'alice at acme' }, grantedScopes: ['acme.files'], callbackFields: { picked: 'file-7' } });
-  expect(await h.service.getStatus({ connectionRef: started.connectionRef })).toEqual({ connectionRef: started.connectionRef,
+  expect(await h.service.getStatus({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).toEqual({ connectionRef: started.connectionRef,
     status: 'connected', account: completed.account, grantedScopes: ['acme.files'], pendingSwitch: null });
 
-  expect(await h.service.getAccessToken({ connectionRef: started.connectionRef })).toBe('acme-at-1');
+  expect(await h.service.getAccessToken({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).toBe('acme-at-1');
   h.clock.now += 3600_000;
-  expect(await h.service.getAccessToken({ connectionRef: started.connectionRef })).toBe('acme-at-2');
+  expect(await h.service.getAccessToken({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).toBe('acme-at-2');
 
-  const disconnected = await h.service.disconnect({ connectionRef: started.connectionRef });
+  const disconnected = await h.service.disconnect({ connectionRef: started.connectionRef, workspaceId: 'ws-1' });
   expect([disconnected.status, disconnected.remoteRevocation, provider.revoked]).toEqual(['disconnected', 'confirmed', ['acme-rt-1']]);
   expect(h.tokens.entries.size).toBe(0);
-  await expect(h.service.getAccessToken({ connectionRef: started.connectionRef })).rejects.toMatchObject({ code: 'not-connected' });
+  await expect(h.service.getAccessToken({ connectionRef: started.connectionRef, workspaceId: 'ws-1' })).rejects.toMatchObject({ code: 'not-connected' });
 });

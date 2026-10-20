@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 import { REVOKED_MESSAGE } from '../../lifecycle/tools/capabilities.js';
 import { FAKE_TOKEN, WORKSPACE_ID } from '../../lifecycle/tools/__tests__/support.js';
 import {
-  ADMIN_SURFACE_STATE_LIMITS, createAdminSurfaceActionDispatcher, createAdminSurfaceCallbackInbox, createAdminSurfaceHandlerHost, openAdminSurfaceCapabilitySession,
+  ADMIN_SURFACE_ACTION_INTENTS, ADMIN_SURFACE_STATE_LIMITS, createAdminSurfaceActionDispatcher, createAdminSurfaceCallbackInbox, createAdminSurfaceHandlerHost, openAdminSurfaceCapabilitySession,
   parseAdminSurfacesFile, STATE_CREDENTIAL_MESSAGE, type AdminSurfaceCapabilityDeclarations, type AdminSurfaceDescriptor, type AdminSurfaceHandlerModule,
 } from '../index.js';
 import { createFakeSurfaceHost } from './surface-support.js';
@@ -26,7 +26,7 @@ function open(optional: { readonly actorId?: string | null; readonly pluginId?: 
   const fake = createFakeSurfaceHost({ config: { ACME_APP_ID: 'app-123', ACME_OTHER: 'not-declared' }, status: { connectionRef: 'ref-must-not-leak' } });
   const actorId = optional.actorId === undefined ? 'admin-1' : optional.actorId;
   const session = openAdminSurfaceCapabilitySession(
-    { capabilities: fake.port({ pluginId: optional.pluginId ?? PLUGIN, workspaceId: WORKSPACE_ID }), isLive: optional.live ?? (() => true), declared: DECLARED },
+    { capabilities: fake.port({ pluginId: optional.pluginId ?? PLUGIN, workspaceId: WORKSPACE_ID }), isLive: optional.live ?? (() => true), declared: DECLARED, issued: new Set() },
     actorId === null ? {} : { actorId },
   );
   return { ...fake, ...session };
@@ -56,7 +56,10 @@ describe('the surfaces file is the allowlist', () => {
     expect(reasonFor({ connections: [{ id: '../account' }] })).toBe('surfaces[0].connections[0].id must be a short connection id');
     expect(reasonFor({ connections: [{ id: 'account' }, { id: 'account' }] })).toBe("surfaces[0].connections[1].id 'account' is declared twice");
     expect(reasonFor({ connections: [{ id: 'account', startParams: ['a b'] }] })).toBe('surfaces[0].connections[0].startParams[0] must be a unique name matching ^[A-Za-z0-9_.-]{1,64}$');
-    expect(reasonFor({ connections: [{ id: 'account', callbackFields: ['x', 'x'] }] })).toBe('surfaces[0].connections[0].callbackFields[1] must be a unique name matching ^[A-Za-z0-9_.-]{1,64}$');
+    expect(reasonFor({ connections: [{ id: 'account', callbackFields: ['x', 'x'] }] })).toBe('surfaces[0].connections[0].callbackFields[1] must be a unique name matching ^[A-Za-z][A-Za-z0-9_.-]{0,63}$');
+  });
+  test('a callback field the loopback receiver would refuse (not starting with a letter) is refused', () => {
+    expect(reasonFor({ connections: [{ id: 'account', callbackFields: ['_picked'] }] })).toBe('surfaces[0].connections[0].callbackFields[0] must be a unique name matching ^[A-Za-z][A-Za-z0-9_.-]{0,63}$');
   });
   test('connections that are not an array of objects are refused', () => {
     expect(reasonFor({ connections: { id: 'account' } })).toBe('surfaces[0].connections must be an array of at most 4');
@@ -111,9 +114,12 @@ describe('connections: only declared ones, account actions only for an admin', (
     expect(started).toStrictEqual({ authorizationUrl: 'https://auth.example.test/authorize?state=s1', attemptId: 'attempt-1', expiresAt: '2026-10-20T00:10:00.000Z' });
     expect(session.log.calls).toEqual([`${PLUGIN}:begin:{"connectionId":"account","action":"add-scopes","scopeSetIds":["files"],"startParams":{"selection-mode":"one"}}`]);
   });
+  test('every account action maps explicitly onto an API-connection start intent', () => {
+    expect(ADMIN_SURFACE_ACTION_INTENTS).toStrictEqual({ connect: 'connect', reconnect: 'connect', 'add-scopes': 'connect', switch: 'switch-account' });
+  });
   test('confirmSwitch and cancelSwitch answers are cut back to the token-free status fields', async () => {
     const session = open();
-    const status = { connectionId: 'account', state: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
+    const status = { connectionId: 'account', status: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
     expect(await session.capabilities.connections.confirmSwitch({ connectionId: 'account' })).toStrictEqual(status);
     expect(await session.capabilities.connections.cancelSwitch({ connectionId: 'account' })).toStrictEqual(status);
     expect(session.log.calls).toEqual([`${PLUGIN}:confirmSwitch:{"connectionId":"account"}`, `${PLUGIN}:cancelSwitch:{"connectionId":"account"}`]);
@@ -125,9 +131,9 @@ describe('connections: only declared ones, account actions only for an admin', (
   });
   test('status and disconnect answers carry only the token-free status fields and the honest revocation outcome', async () => {
     const session = open();
-    const status = { connectionId: 'account', state: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
+    const status = { connectionId: 'account', status: 'connected', accountLabel: 'person@example.test', grantedScopeSetIds: ['files'], pendingSwitchAccountLabel: null };
     expect(await session.capabilities.connections.status({ connectionId: 'account' })).toStrictEqual(status);
-    expect(await session.capabilities.connections.disconnect({ connectionId: 'account' })).toStrictEqual({ ...status, state: 'revocation-pending', revocation: 'revocation-pending' });
+    expect(await session.capabilities.connections.disconnect({ connectionId: 'account' })).toStrictEqual({ ...status, status: 'revocation-pending', revocation: 'pending' });
   });
 });
 
@@ -202,12 +208,13 @@ describe('plugin state and public config', () => {
     await expect(session.capabilities.state.set({ key: 'selection', value: { header: `Bearer ${token}` } })).rejects.toThrow(STATE_CREDENTIAL_MESSAGE);
     expect(session.state.size).toBe(0);
   });
-  test('a token obtained in an EARLIER call is not caught by the per-call state scan (reported, not fixed)', async () => {
-    const earlier = open();
-    const token = await earlier.capabilities.connections.getAccessToken({ connectionId: 'account' });
-    const later = openAdminSurfaceCapabilitySession({ capabilities: earlier.port({ pluginId: PLUGIN, workspaceId: WORKSPACE_ID }), isLive: () => true, declared: DECLARED });
-    await later.capabilities.state.set({ key: 'kept', value: token });
-    expect(await later.capabilities.state.get({ key: 'kept' })).toBe(FAKE_TOKEN);
+  test('a token obtained in an EARLIER call of the same generation is never stored (was reported, now fixed)', async () => {
+    const issued = new Set<string>();
+    const fake = createFakeSurfaceHost({ config: {}, status: {} });
+    const session = () => openAdminSurfaceCapabilitySession({ capabilities: fake.port({ pluginId: PLUGIN, workspaceId: WORKSPACE_ID }), isLive: () => true, declared: DECLARED, issued });
+    const token = await session().capabilities.connections.getAccessToken({ connectionId: 'account' });
+    await expect(session().capabilities.state.set({ key: 'kept', value: token })).rejects.toThrow(STATE_CREDENTIAL_MESSAGE);
+    expect(fake.state.size).toBe(0);
   });
   test('what is stored is the checked copy: changing the object afterwards changes nothing', async () => {
     const session = open();

@@ -67,6 +67,52 @@ describe("owner binding on read", () => {
   });
 });
 
+describe("rows a host can no longer open (changed OAuth client, malformed payload)", () => {
+  it("install replaces a row sealed for another client id of the same connection", async () => {
+    const f = createFixture();
+    await seed({ store: f.store(), tokens: tokenSet({ label: "old-client" }) });
+    const moved = f.store({ owner: { ...OWNER, clientId: "client-2" } });
+    await moved.install({ key: KEY, tokens: tokenSet({ label: "new-client" }), generation: 1 });
+    expect(await moved.load({ key: KEY })).toEqual(tokenSet({ label: "new-client" }));
+  });
+  it("install still refuses a row sealed for another connection and leaves it untouched", async () => {
+    const f = createFixture();
+    await seed({ store: f.store(), tokens: tokenSet({ label: "one" }) });
+    const other = f.store({ owner: { ...OWNER, connectionId: "conn-2" } });
+    const error = await refusal(other.install({ key: KEY, tokens: tokenSet({ label: "two" }), generation: 1 }));
+    expect([error.code, await f.store().load({ key: KEY })]).toEqual(["owner-mismatch", tokenSet({ label: "one" })]);
+  });
+  it("install still refuses a row whose payload is sealed for another connection key", async () => {
+    const f = createFixture();
+    await f.vault.put({ ...SCOPE, id: KEY, expectedRevision: null, provider: null, label: KEY,
+      meta: buildRecordMeta({ meta: { status: "active", leaseHolder: null, leaseExpiresAtMs: null } }),
+      payload: buildTokenPayload({ key: "connection-key-2", owner: OWNER, generation: 1, tokens: tokenSet({ label: "one" }) }) });
+    const error = await refusal(f.store().install({ key: KEY, tokens: tokenSet({ label: "two" }), generation: 1 }));
+    expect(error.code).toBe("owner-mismatch");
+  });
+  it("install replaces a malformed row", async () => {
+    const f = createFixture();
+    await f.vault.put({ ...SCOPE, id: KEY, expectedRevision: null, provider: null, label: KEY,
+      meta: buildRecordMeta({ meta: { status: "active", leaseHolder: null, leaseExpiresAtMs: null } }),
+      payload: { format: "oauth-token-set", version: 99 } }); // malformed on purpose
+    await f.store().install({ key: KEY, tokens: tokenSet({ label: "fresh" }), generation: 1 });
+    expect(await f.store().load({ key: KEY })).toEqual(tokenSet({ label: "fresh" }));
+  });
+  it("delete removes a row sealed for another client id", async () => {
+    const f = createFixture();
+    await seed({ store: f.store(), tokens: tokenSet({ label: "old-client" }) });
+    await f.store({ owner: { ...OWNER, clientId: "client-2" } }).delete({ key: KEY });
+    expect(await f.repo.find({ workspaceId: SCOPE.workspaceId, id: KEY })).toBeNull();
+  });
+  it("load and loadForRevocation still refuse a row sealed for another client id", async () => {
+    const f = createFixture();
+    await seed({ store: f.store(), tokens: tokenSet({ label: "old-client" }) });
+    const moved = f.store({ owner: { ...OWNER, clientId: "client-2" } });
+    const codes = [(await refusal(moved.load({ key: KEY }))).code, (await refusal(moved.loadForRevocation({ key: KEY }))).code];
+    expect(codes).toEqual(["owner-mismatch", "owner-mismatch"]);
+  });
+});
+
 describe("durable refresh lease (CAS)", () => {
   it("lets only one of two processes hold the lease until it is released", async () => {
     const f = createFixture();

@@ -6,7 +6,11 @@
  */
 import type { PluginContributionParseResult } from '../contribution-loader.js';
 
-/** Declared change class; `write` and `destructive` tools must also disclose affected resources. */
+/**
+ * Declared change class; `write` and `destructive` tools must also disclose affected resources.
+ * The mirror of `PluginToolEffect` in `@jini-ai/plugins/host` (agent-plugins may not import it); the
+ * projection's contract tool reuses this type, so these two are the only declarations.
+ */
 export type AgentPluginToolEffect = 'read' | 'write' | 'destructive';
 
 /** One declared tool. `name` is local; the host namespaces it as `p_<plugin>__<name>`. */

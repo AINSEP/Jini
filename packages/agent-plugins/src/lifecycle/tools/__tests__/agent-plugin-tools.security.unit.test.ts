@@ -7,7 +7,7 @@
 import { expect, test } from 'vitest';
 import { ToolInputError } from '@jini-ai/core';
 import { createPluginContributionRegistry, pluginToolIdFor } from '@jini-ai/plugins/host';
-import { REVOKED_MESSAGE, WITHHELD_ERROR_MESSAGE, WITHHELD_OUTPUT_MESSAGE, type AgentPluginToolCapabilities } from '../capabilities.js';
+import { ISSUED_TOKEN_MEMORY_LIMIT, openCapabilityGate, REVOKED_MESSAGE, WITHHELD_ERROR_MESSAGE, WITHHELD_OUTPUT_MESSAGE, type AgentPluginToolCapabilities } from '../capabilities.js';
 import type { LoadedAgentPluginTool } from '../definition.js';
 import { createAgentPluginToolProjection } from '../projection.js';
 import { setAgentPluginActivation } from '../../__tests__/test-support.js';
@@ -114,6 +114,36 @@ async function runWith(module: LoadedAgentPluginTool['module']) {
 test('a result that contains an issued access token is withheld', async () => {
   await expect(runWith({ invoke: async ({ capabilities }) => ({ leaked: await capabilities.connections.getAccessToken({ connectionRef: 'c1' }) }) }))
     .rejects.toThrow(WITHHELD_OUTPUT_MESSAGE);
+});
+
+test('a token the module kept from an EARLIER call of the same generation is withheld', async () => {
+  let kept = '';
+  const { registry, projection } = projectionFor();
+  projection.sync({ loaded: [loaded('p', {}, { invoke: async ({ capabilities }) => {
+    if (kept === '') { kept = await capabilities.connections.getAccessToken({ connectionRef: 'c1' }); return { first: true }; }
+    return { leaked: kept };
+  } })], refusals: [] });
+  const call = () => registry.list({})[0]!.tools[0]!.handler({ pluginId: 'p', sdk: registry.list({})[0]!.sdk, auth: { access: 'member', workspaceId: 'w' }, input: { ref: 'c1' } });
+  await call();
+  await expect(call()).rejects.toThrow(WITHHELD_OUTPUT_MESSAGE);
+});
+
+test('the remembered tokens are bounded: the oldest of more than 64 falls out, the newest stays', async () => {
+  const issued = new Set<string>();
+  const gate = openCapabilityGate({ isLive: () => true, issued });
+  for (let index = 0; index <= ISSUED_TOKEN_MEMORY_LIMIT; index += 1) gate.noteToken({ token: `tok-${index}-${'t'.repeat(16)}` });
+  expect([issued.size, gate.mentionsToken({ value: `tok-0-${'t'.repeat(16)}` }), gate.mentionsToken({ value: `tok-${ISSUED_TOKEN_MEMORY_LIMIT}-${'t'.repeat(16)}` })])
+    .toEqual([ISSUED_TOKEN_MEMORY_LIMIT, false, true]);
+});
+
+test('a token obtained again counts as newest, so a token in active use is not the one that falls out', async () => {
+  const gate = openCapabilityGate({ isLive: () => true, issued: new Set() });
+  const live = `live-${'t'.repeat(16)}`;
+  gate.noteToken({ token: live });
+  for (let index = 1; index < ISSUED_TOKEN_MEMORY_LIMIT; index += 1) gate.noteToken({ token: `tok-${index}-${'t'.repeat(16)}` });
+  gate.noteToken({ token: live });
+  gate.noteToken({ token: `tok-last-${'t'.repeat(16)}` });
+  expect(gate.mentionsToken({ value: live })).toBe(true);
 });
 
 test('an error whose message or cause contains an issued token is replaced; a clean error passes through', async () => {

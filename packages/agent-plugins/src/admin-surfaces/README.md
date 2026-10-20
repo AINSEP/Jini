@@ -103,7 +103,11 @@ Every message carries `protocol: 'jini.admin-surface'` and `version: 1`.
 1. `createAdminSurfaceMount({ surfaceId })` → `{ mountId }` (128-bit random nonce) and `expectedOrigin: 'null'`.
 2. The host page renders the iframe and, on its first `load`, posts `adminSurfaceInitMessage({ mountId }, { bootstrap })`
    to `frame.contentWindow` with target `'*'` (an opaque origin cannot be targeted by name). If the
-   frame fires `load` again it navigated: unmount it and do not re-send init.
+   frame fires `load` again it navigated: unmount it and do not re-send init. Because the target is
+   `'*'`, whatever document the frame holds when init is posted receives it, bootstrap access token
+   included: the mount nonce protects only the inbound direction. That is why init goes out exactly
+   once, on the frame's FIRST `load` (when it can only hold the host-served, CSP-locked entry page),
+   and why bootstrap data carries only a short-lived access token and public config.
 3. The surface client accepts the first init whose `source` is its parent, remembers the host's
    origin from it, and from then on posts only to that origin.
 4. The host page passes every `message` event to `validateAdminSurfaceMessage({ event, mount })`
@@ -181,8 +185,9 @@ export default {
 - Calls: `capabilities` is the admin-surface port (next section), built per call for the LOADED
   plugin id and the route's workspace/principal; `context.pluginId`/`surfaceId` are the loaded
   module's own, whatever the caller passed, and `context.connectionIds` lists the surface's declared
-  connection ids (never refs). A result or error that mentions a token the call obtained is withheld
-  (`action-failed`). `fail({ code, message }, { retryable })` builds a surface-safe
+  connection ids (never refs). A result or error that mentions a token the surface generation obtained
+  (in this call or an earlier one; the newest 64 are remembered) is withheld (`action-failed`), and
+  such a token is never saved to state. `fail({ code, message }, { retryable })` builds a surface-safe
   failure; a code that is not lowercase hyphenated becomes `action-failed`, messages are cut at 300 characters.
 - Bootstrap: `bootstrapData({ context })` returns the provider's data (or `null`), refused when it does not
   match the declared `bootstrap` schema. Wrap it with `createAdminSurfaceBootstrap` and serve it with
@@ -216,9 +221,9 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 | port | methods | Jini checks |
 |---|---|---|
 | `http`, `limiter`, `artifacts` | as for executable tools | revocation |
-| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, state, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel }` | declared connection; token noted for the result/error scans |
-| | `begin({ connectionId, action: 'connect' \| 'reconnect' \| 'switch' \| 'add-scopes' }, { scopeSetIds?, startParams? })` → `{ authorizationUrl, attemptId, expiresAt }` | declared connection and start parameters, string values ≤ 2048, ≤ 16 scope-set ids, a signed-in admin (`principalId`) |
-| | `confirmSwitch`, `cancelSwitch` → status; `disconnect` → status + `revocation: 'revoked' \| 'revocation-pending' \| 'not-needed'` | declared connection, a signed-in admin |
+| `connections` | `getAccessToken({ connectionId })`, `status({ connectionId })` → `{ connectionId, status, accountLabel, grantedScopeSetIds, pendingSwitchAccountLabel }` | declared connection; token noted for the result/error scans |
+| | `begin({ connectionId, action: 'connect' \| 'reconnect' \| 'switch' \| 'add-scopes' }, { scopeSetIds?, startParams? })` → `{ authorizationUrl, attemptId, expiresAt }`; the host starts the API connection with intent `ADMIN_SURFACE_ACTION_INTENTS[action]` | declared connection and start parameters, string values ≤ 2048, ≤ 16 scope-set ids, a signed-in admin (`principalId`) |
+| | `confirmSwitch`, `cancelSwitch` → status; `disconnect` → status + `revocation: 'confirmed' \| 'pending' \| 'not-needed'` | declared connection, a signed-in admin |
 | | `takeCallbackFields({ connectionId, attemptId })` → declared fields or `null` | declared connection, opaque attempt id, undeclared fields dropped |
 | `state` | `get({ key })`, `set({ key, value })`, `delete({ key })` | key `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}`; value plain JSON (depth ≤ 16, ≤ 16 KiB serialized); a value mentioning a token the call obtained is refused; the host stores a checked copy |
 | `publicConfig` | `get({ name })` → string or `null` | declared name only |
@@ -226,15 +231,18 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 Host duties: key `state` by the scope's plugin and workspace (never shared across plugins), and back
 the plugin's agent tools' read-only `state.get` (`../lifecycle/tools/README.md`) with this same store
 under the same keys, so a setting the surface saves (a product turned off) is what the tools honor; map
-`status` scopes to the plugin's scope-set ids; `disconnect` returns `revoked` only when the provider
-confirmed; never return a refresh token or secret from any port; give `publicConfig` only public values.
+`status` scopes to the plugin's scope-set ids; `disconnect` returns `confirmed` only when the provider
+confirmed (`revocation` uses the API-connection values `confirmed | pending | not-needed`, and
+`status` its four lifecycle values, so the host passes both through); never return a refresh token or secret from any port; give `publicConfig` only public values.
 
 Callback fields: when a sign-in started by `begin` completes successfully, the host's callback route
 deposits the provider's extra fields into `createAdminSurfaceCallbackInbox({ now })` (in-process,
 consume-once, 10-minute expiry, 256 entries) under `{ workspaceId, pluginId, connectionId, attemptId }`,
 and backs `takeCallbackFields` with its `take` for the scope's workspace and plugin. The `attemptId`
-must be unguessable and known at both ends (for example a digest of the authorization `state`, never
-the state itself). The plugin must still verify the fields through the provider's API before saving.
+is the API-connection service's own: `begin` returns `start(...).attemptId` and the callback route
+deposits under `complete(...).attemptId`. Never hand the authorization `state` to the frame or the
+plugin (it is the callback's CSRF binding; `start(...).state` is for the host's own routing only).
+The plugin must still verify the fields through the provider's API before saving.
 
 ## Extension points
 

@@ -162,6 +162,13 @@ describe('server-side dispatcher', () => {
     const { dispatch } = createAdminSurfaceActionDispatcher({ descriptor: { id: 's', actions: [{ name: action, input }] }, handlers: {} });
     expect(await dispatch({ action, payload: { name: 'x' }, context: {} })).toMatchObject({ ok: false, error: { code: 'action-unavailable' } });
   });
+  test('an oversized payload is refused server-side too and never reaches the handler', async () => {
+    const handler = vi.fn(async () => ({ saved: true }));
+    const { dispatch } = createAdminSurfaceActionDispatcher({ descriptor, handlers: { save: handler } });
+    expect(await dispatch({ action: 'save', payload: { name: 'x'.repeat(70_000) }, context: {} }))
+      .toEqual({ ok: false, error: { code: 'invalid-payload', message: 'The request is too large.', retryable: false } });
+    expect(handler).not.toHaveBeenCalled();
+  });
   test('an invalid payload never reaches the handler', async () => {
     const handler = vi.fn(async () => ({ saved: true }));
     const { dispatch } = createAdminSurfaceActionDispatcher({ descriptor, handlers: { save: handler } });

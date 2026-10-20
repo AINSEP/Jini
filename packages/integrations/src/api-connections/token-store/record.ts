@@ -76,8 +76,8 @@ export function buildTokenPayload(
       tokenType: tokens.tokenType, scopes: [...tokens.scopes], expiresAt: tokens.expiresAt } };
 }
 
-function ownerMatches(value: unknown, owner: OAuthConnectionOwner): boolean {
-  return isRecord(value) && Object.keys(value).length === OWNER_KEYS.length && OWNER_KEYS.every(name => value[name] === owner[name]);
+function ownerMatches(value: unknown, owner: OAuthConnectionOwner, names: readonly (keyof OAuthConnectionOwner)[] = OWNER_KEYS): boolean {
+  return isRecord(value) && Object.keys(value).length === OWNER_KEYS.length && names.every(name => value[name] === owner[name]);
 }
 function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(item => typeof item === "string");
@@ -107,4 +107,19 @@ export function parseTokenPayload(
   if (!Number.isSafeInteger(payload.generation)) throw invalid();
   return { generation: payload.generation as number,
     tokens: payload.tokens === null ? null : parseTokenSet({ value: payload.tokens }) };
+}
+
+/** Generation of the row an install is about to replace, or null when its payload is malformed.
+ * An install may overwrite a malformed row or one sealed for another client id of the same
+ * key and connection (the host changed its OAuth client): refusing either would lock the
+ * connection out for good, since only a new sign-in can produce a readable credential.
+ * @throws `owner-mismatch` when the row is sealed for another key, workspace, plugin or connection. */
+export function readReplaceableGeneration(required: { payload: unknown; key: string; owner: OAuthConnectionOwner }): number | null {
+  const { payload, key, owner } = required;
+  if (!isRecord(payload) || payload.format !== OAUTH_TOKEN_RECORD_FORMAT || payload.version !== PAYLOAD_VERSION
+    || !Number.isSafeInteger(payload.generation)) return null;
+  if (payload.key !== key || !ownerMatches(payload.owner, owner, ["workspaceId", "pluginId", "connectionId"])) {
+    throw new OAuthTokenStoreError({ code: "owner-mismatch" });
+  }
+  return payload.generation as number;
 }

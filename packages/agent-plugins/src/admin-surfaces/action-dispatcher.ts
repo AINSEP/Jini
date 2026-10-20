@@ -6,7 +6,7 @@
  * check (the browser-side gate can be bypassed by calling the route directly): only declared actions
  * run, only with schema-valid input, and a handler's raw error never reaches the surface.
  */
-import { validateAdminSurfaceActionValue } from './action-schema.js';
+import { exceedsAdminSurfacePayloadLimit, validateAdminSurfaceActionValue } from './action-schema.js';
 import type { AdminSurfaceDescriptor } from './descriptor.js';
 import type { AdminSurfaceActionFailure, AdminSurfaceActionOutcome } from './protocol.js';
 
@@ -40,6 +40,13 @@ function handlerFailure(error: unknown): AdminSurfaceActionFailure {
  * @param optional.onHandlerError - Hears every handler throw (with its cause) for server-side logging.
  * @complexity O(p) per dispatch in the payload and result sizes, plus the handler's own cost.
  */
+/** Why `payload` cannot reach the handler (too large, or outside the action's input), or null. @complexity O(payload size). */
+function payloadRefusal(schema: AdminSurfaceDescriptor['actions'][number]['input'], payload: unknown): AdminSurfaceActionOutcome | null {
+  if (exceedsAdminSurfacePayloadLimit({ payload })) return failure('invalid-payload', 'The request is too large.');
+  const violation = validateAdminSurfaceActionValue({ schema, value: payload });
+  return violation === null ? null : failure('invalid-payload', `The request does not match the action's input: ${violation}.`);
+}
+
 export function createAdminSurfaceActionDispatcher<C>(
   required: { readonly descriptor: Pick<AdminSurfaceDescriptor, 'id' | 'actions'>; readonly handlers: Readonly<Record<string, AdminSurfaceActionHandler<C>>> },
   optional: { readonly onHandlerError?: (input: { readonly surfaceId: string; readonly action: string; readonly error: unknown }) => void } = {},
@@ -51,8 +58,8 @@ export function createAdminSurfaceActionDispatcher<C>(
     if (action === undefined) return failure('action-undeclared', 'This surface did not declare that action.');
     const handler = Object.hasOwn(handlers, action.name) ? handlers[action.name] : undefined;
     if (handler === undefined) return failure('action-unavailable', 'This action is not available on this host.');
-    const violation = validateAdminSurfaceActionValue({ schema: action.input, value: input.payload });
-    if (violation !== null) return failure('invalid-payload', `The request does not match the action's input: ${violation}.`);
+    const refused = payloadRefusal(action.input, input.payload);
+    if (refused !== null) return refused;
     let result: unknown;
     try { result = await handler({ payload: input.payload, context: input.context }); }
     catch (error) {

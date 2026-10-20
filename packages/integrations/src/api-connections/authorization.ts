@@ -6,7 +6,7 @@
  * callback URI and credential generation; complete redeems it exactly once, exchanges the code,
  * and hands the token set to `finishAuthorization` for the grant, identity and commit checks.
  */
-import { beginAuthorizationCode, completeAuthorizationCode, OAuthError, type OAuthProviderDescriptor,
+import { beginAuthorizationCode, completeAuthorizationCode, generateOAuthState, OAuthError, type OAuthProviderDescriptor,
   type OAuthTokenSet } from '@jini-ai/oauth';
 import type { ApiConnectionServiceDeps } from './deps.js';
 import { ApiConnectionError, invalidAttempt } from './errors.js';
@@ -20,8 +20,18 @@ export interface StartApiConnectionResult {
   /** Stable reference to this connection; the same value on every reconnect. */
   readonly connectionRef: string;
   readonly authorizationUrl: string;
+  /**
+   * Host-only: the callback's CSRF binding, for the host's own routing (e.g. arming a loopback
+   * receiver). Never hand it to plugin code or a frame; give them `attemptId` instead.
+   */
+  readonly state: string;
+  /** Opaque, random id of this sign-in; `complete` returns the same id (e.g. to key callback fields). */
+  readonly attemptId: string;
   readonly expiresAt: string;
 }
+
+/** Same encoding as `state`, half the entropy: it names an attempt, it does not guard one. */
+const ATTEMPT_ID_BYTES = 16;
 
 function providerFor(deps: ApiConnectionServiceDeps): OAuthProviderDescriptor {
   const { descriptor } = deps;
@@ -79,14 +89,15 @@ export async function startApiConnectionAuthorization(
   assertStartAllowed(record, intent);
   const requestedScopes = checkScopes(await deps.hooks.resolveScopes({ scopeSetIds: [...requiredArgs.scopeSetIds] }));
   const ownerKey = ownerKeyFor(deps, { workspaceId, actorId });
-  const draft = { key, ownerKey, workspaceId, actorId, pluginId: deps.descriptor.pluginId, connectionId: deps.descriptor.connectionId,
-    intent, requestedScopes, generation: record?.generation ?? 0 };
+  const attemptId = generateOAuthState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: ATTEMPT_ID_BYTES });
+  const draft = { key, attemptId, ownerKey, workspaceId, actorId, pluginId: deps.descriptor.pluginId,
+    connectionId: deps.descriptor.connectionId, intent, requestedScopes, generation: record?.generation ?? 0 };
   const begun = await beginAuthorizationCode({
     provider: providerFor(deps), stateless: attemptSealer(deps, { draft }), randomBytesFn: deps.randomBytesFn, guard: deps.guard,
     options: deps.appOptions, ownerKey, client: deps.client, redirectUri: requiredArgs.redirectUri,
   }, { scopes: requestedScopes, extraAuthorizationParams: { ...deps.descriptor.authorizationParams[deps.clientKind], ...startParams } })
     .catch((error: unknown) => { throw toConnectionError(error); });
-  return { connectionRef: key, authorizationUrl: begun.authorizationUrl, expiresAt: begun.expiresAt };
+  return { connectionRef: key, authorizationUrl: begun.authorizationUrl, state: begun.state, attemptId, expiresAt: begun.expiresAt };
 }
 
 /**

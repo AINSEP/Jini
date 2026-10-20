@@ -5,12 +5,11 @@
  * allowlist, size bounds) is a plain function of its inputs.
  */
 import { OAuthError } from './errors.js';
-import { toCallbackError } from './authorization-code.js';
+import { MAX_CODE_LENGTH, toCallbackError } from './authorization-code.js';
 import { invalidState, secureEquals } from './pending-authorizations.js';
 import { MAX_AUTHORIZATION_STATE_LENGTH } from './sealed-state.js';
 
-/** Matches `completeAuthorizationCode`'s code bound so an oversized code fails at the edge. */
-const MAX_CODE_LENGTH = 2048;
+// `completeAuthorizationCode`'s code bound (MAX_CODE_LENGTH), applied here so an oversized code fails at the edge.
 export const MAX_CALLBACK_FIELD_LENGTH = 4096;
 export const MAX_CALLBACK_FIELDS = 16;
 const CALLBACK_FIELD_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
@@ -42,6 +41,15 @@ function invalidConfiguration(message: string): OAuthError {
     return new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message, operatorAction: "Fix the connection's declared callback path or fields." });
 }
 
+/**
+ * The name rule for a provider callback field a plugin may declare: a short identifier that is not
+ * a protocol parameter the receiver reads itself. API-connection descriptors apply this same check
+ * (and admin-surface declarations copy it), so a declaration valid on hosted is valid on desktop.
+ */
+export function isCallbackFieldName(name: string): boolean {
+    return CALLBACK_FIELD_NAME.test(name) && !RESERVED_CALLBACK_PARAMS.has(name);
+}
+
 /** Rejects a callback path or field list a plugin declared wrongly, before any port is opened. */
 export function assertLoopbackConfiguration(requiredArgs: { readonly path: string; readonly callbackFields: readonly string[] }): void {
     if (!CALLBACK_PATH.test(requiredArgs.path))
@@ -49,7 +57,7 @@ export function assertLoopbackConfiguration(requiredArgs: { readonly path: strin
     if (requiredArgs.callbackFields.length > MAX_CALLBACK_FIELDS)
         throw invalidConfiguration(`at most ${MAX_CALLBACK_FIELDS} callback fields may be declared`);
     for (const name of requiredArgs.callbackFields) {
-        if (!CALLBACK_FIELD_NAME.test(name) || RESERVED_CALLBACK_PARAMS.has(name))
+        if (!isCallbackFieldName(name))
             throw invalidConfiguration(`'${name.slice(0, 64)}' cannot be declared as a callback field`);
     }
 }

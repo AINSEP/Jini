@@ -17,7 +17,7 @@ error mapping, code exchange), `createTokenRefresher` and `refreshAccessToken`.
 | Export | What it is |
 |---|---|
 | `parseApiConnectionDescriptor({ value })` | Validates and freezes a plugin's untrusted declaration (ids, endpoints, bounded extra params, allowlisted start params and callback fields; OAuth parameter names are reserved). |
-| `createApiConnectionService(deps)` | One service per declared connection. Returns `start`, `complete`, `confirmSwitchAccount`, `cancelSwitchAccount`, `disconnect`, `getStatus`, `getAccessToken`, `connectionRefFor`, `readGeneration`. |
+| `createApiConnectionService(deps)` | One service per declared connection. Returns `start`, `complete`, `confirmSwitchAccount`, `cancelSwitchAccount`, `disconnect`, `getStatus`, `getAccessToken`. The connectionRef for a workspace is `deriveApiConnectionKey({ workspaceId, pluginId, connectionId })`, before or after it ever connected. |
 | `deriveApiConnectionKey({ workspaceId, pluginId, connectionId })` | The opaque key. It is also the public `connectionRef` and the token-store key. |
 | `createApiConnectionGenerationReader({ records })` | `readGeneration({ key })` for a generation-fenced token store (main and staged keys). |
 | `ApiConnectionError` | Every refusal; branch on `code`, show `message` (it says what to do next and never carries tokens). |
@@ -67,16 +67,20 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
   `reconnect-required`, then tokens are written, then the record becomes `connected`. A crash in
   between leaves "reconnect required", never a record that disagrees with its token.
 - **Reconnect** (`intent: 'connect'`) keeps the same `connectionRef` and must sign in as the same
-  account (`account-mismatch` otherwise). A `confidential` (hosted) client keeps the stored refresh
-  token when a same-account exchange omits one; a `public` (installed) client replaces the set.
+  account (`account-mismatch` otherwise). A same-account exchange that omits a refresh token keeps
+  the stored one; every other part of the set is replaced. A `public` (installed) client that would
+  end up with no refresh token (first connect, switch, or nothing valid stored) is refused with
+  `offline-access-required`: it could not renew access once the access token expires.
 - **Switch account** (`intent: 'switch-account'`) stages the new tokens and identity; nothing
   changes until the same actor calls `confirmSwitchAccount`. Bindings that froze an account pass
   `getAccessToken({ connectionRef }, { expectedAccountId })` and get `account-changed` instead of
   silently using the new account. While a switch is staged every new sign-in is refused
   (`switch-in-progress`), so a consented staged credential is never overwritten or orphaned
-  unrevoked; the record claims the staged slot before its tokens are written.
-- **Confirmed switch** returns `previousAccountRevocation: 'not-attempted'`: the previous account's
-  grant is left at the provider (revoking it could cut off the same account connected elsewhere
+  unrevoked; the record claims the staged slot before its tokens are written. Signing in as the
+  account already connected is refused (`account-unchanged`, "use reconnect"): the staged copy
+  would share the live grant, so cancelling it would revoke the live credential.
+- **Confirmed switch** returns the new status view and never revokes the previous account's
+  grant at the provider (revoking it could cut off the same account connected elsewhere
   through the same client) and its local tokens are replaced. Hosts say so and link the provider's
   account-access page. A same-account reconnect never revokes either: the new tokens share the grant.
 - **Cancel switch** revokes the staged credential; when the provider does not confirm, the switch
@@ -87,7 +91,10 @@ client with `authMethod: 'none'` is refused at construction (`configuration-inva
   Any failure → stays `revocation-pending` with the disabled credential kept, `remoteRevocation:
   'pending'` (show "Disconnected locally; revocation pending" and the provider's account-access
   page); calling `disconnect` again retries. `not-needed` means no credential was stored. A sign-in
-  is refused while revocation is pending.
+  is refused while revocation is pending. A stored credential this host can no longer read (it was
+  sealed for another OAuth client id, or is malformed) is deleted locally and reported `pending`
+  with status `disconnected`: nothing is left to retry with, so the person removes the access on
+  the provider's account page, and a new sign-in is allowed.
 - **Access tokens** are served only for `connected` records; a rejected refresh moves the record
   to `reconnect-required`.
 
@@ -99,11 +106,12 @@ const service = createApiConnectionService({
   descriptor, client, clientKind: runtime === 'desktop' ? 'public' : 'confidential', appOptions: { clientDisplayName, softwareId, redirectUris },
   hooks: plugin.connectionHooks, records, tokens, fetchFn, guard, clock, randomBytesFn, sleep,
 });
-const { authorizationUrl, connectionRef } = await service.start(
+// `state` is host-only (e.g. arming a loopback receiver); `attemptId` is what plugin code may hold.
+const { authorizationUrl, connectionRef, state, attemptId } = await service.start(
   { workspaceId, actorId, intent: 'connect', scopeSetIds: enabledModules, redirectUri });
 // ...the browser returns to redirectUri...
-const done = await service.complete({ workspaceId, actorId, redirectUri, callbackParams });
-const accessToken = await service.getAccessToken({ connectionRef });
+const done = await service.complete({ workspaceId, actorId, redirectUri, callbackParams }); // done.attemptId === attemptId
+const accessToken = await service.getAccessToken({ connectionRef, workspaceId });
 ```
 
 Descriptor extension points: `authorizationParams.public` / `.confidential` (fixed extra
@@ -115,6 +123,8 @@ plugin through the provider's API before being trusted).
 
 ## Host responsibilities
 
-Authorize the caller for the `connectionRef`'s workspace before any call (the service checks
-only that the record belongs to its plugin connection), seal tokens at rest, make
+Authorize the caller for a workspace before any call and pass that `workspaceId` with every
+`connectionRef` (`getAccessToken`, `getStatus`, `disconnect`, `confirmSwitchAccount`,
+`cancelSwitchAccount`); the service refuses a ref whose record belongs to another workspace,
+plugin or connection with the same `connection-not-found`. Seal tokens at rest, make
 `compareAndSet` and `takeAttempt` atomic, and pass the exact callback URL a request arrived on.

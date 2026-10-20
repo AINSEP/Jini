@@ -13,12 +13,15 @@ import { ApiConnectionError } from './errors.js';
 import { installCredential } from './install-credential.js';
 import { stagedTokenKey } from './keys.js';
 import { blankRecord, writeRecord } from './records.js';
+import { isUnreadableTokenRecord } from './token-store/errors.js';
 import type { ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionRecord } from './types.js';
 
 const MAX_IDENTITY_LENGTH = 256;
 
 export interface CompletedAuthorization {
   readonly connectionRef: string;
+  /** The `attemptId` `start` returned for this sign-in. */
+  readonly attemptId: string;
   /** `staged` means a switch-account result awaits `confirmSwitchAccount`. */
   readonly outcome: 'connected' | 'staged';
   readonly account: ApiConnectionAccount;
@@ -58,15 +61,36 @@ async function currentRecord(deps: ApiConnectionServiceDeps, attempt: ApiConnect
     throw new ApiConnectionError({ code: 'attempt-superseded',
       message: 'A newer sign-in or account change replaced this one. Reload the connection status and start again if needed.' });
   }
+  // Start refuses while a switch is staged; this catches one staged in the meantime. Either intent
+  // would otherwise overwrite (switch) or drop unrevoked (connect) the consented staged credential.
+  if (record.staged !== null) {
+    throw new ApiConnectionError({ code: 'switch-in-progress',
+      message: 'An account switch was staged while this sign-in ran. Confirm or cancel it, then sign in again.' });
+  }
   return record;
 }
 
-/** Hosted re-consent for the same account may omit a refresh token; the stored one stays valid. */
+/** Re-consent for the same account may omit a refresh token; the stored one stays valid. */
 async function keepRefreshToken(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, tokens: OAuthTokenSet,
   account: ApiConnectionAccount): Promise<OAuthTokenSet> {
-  if (tokens.refreshToken !== null || deps.clientKind === 'public' || record.account?.accountId !== account.accountId) return tokens;
-  const existing = await deps.tokens.load({ key: record.key });
+  if (tokens.refreshToken !== null || record.account?.accountId !== account.accountId) return tokens;
+  // A row sealed for another client (the host changed its OAuth client) has no usable refresh token.
+  const existing = await deps.tokens.load({ key: record.key }).catch((error: unknown) => {
+    if (isUnreadableTokenRecord(error)) return null;
+    throw error;
+  });
   return existing?.refreshToken ? { ...tokens, refreshToken: existing.refreshToken } : tokens;
+}
+
+/**
+ * An installed app has no other way to renew access: without a refresh token the credential would
+ * stop working, silently, when its access token expires. Refuse before anything is written.
+ */
+function assertRenewable(deps: ApiConnectionServiceDeps, tokens: OAuthTokenSet): void {
+  if (deps.clientKind === 'public' && tokens.refreshToken === null) {
+    throw new ApiConnectionError({ code: 'offline-access-required',
+      message: 'The account did not grant offline access, so this connection would stop working within the hour. Connect again and allow offline access.' });
+  }
 }
 
 async function commitConnect(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, tokens: OAuthTokenSet,
@@ -76,16 +100,19 @@ async function commitConnect(deps: ApiConnectionServiceDeps, record: ApiConnecti
       message: 'A different account signed in than the one connected. Use "switch account" to change accounts.' });
   }
   const kept = await keepRefreshToken(deps, record, tokens, account);
+  assertRenewable(deps, kept);
   await installCredential(deps, { current: record, tokens: kept, account, grantedScopes });
 }
 
 async function stageSwitch(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, attempt: ApiConnectionAttempt,
   tokens: OAuthTokenSet, account: ApiConnectionAccount, grantedScopes: readonly string[]): Promise<void> {
-  // Start refuses while a switch is staged; this catches one staged in the meantime.
-  if (record.staged !== null) {
-    throw new ApiConnectionError({ code: 'switch-in-progress',
-      message: 'Another account switch was staged while this sign-in ran. Confirm or cancel it, then switch again.' });
+  // The provider usually holds one grant per client and account, so a staged copy of the live
+  // account would share its grant: cancelling the switch would then revoke the live credential.
+  if (record.account?.accountId === account.accountId) {
+    throw new ApiConnectionError({ code: 'account-unchanged',
+      message: 'This is the account already connected. Use reconnect instead of switching accounts.' });
   }
+  assertRenewable(deps, tokens);
   const expiresAt = new Date(Date.parse(nowIso({ clock: deps.clock })) + ATTEMPT_TTL_MS).toISOString();
   // Claim the staged slot on the record first: of two concurrent switches only the compare-and-set
   // winner writes tokens, so the slot can never hold one account while the record names another.
@@ -107,6 +134,6 @@ export async function finishAuthorization(
   const staged = attempt.intent === 'switch-account';
   await (staged ? stageSwitch(deps, record, attempt, tokens, account, grantedScopes)
     : commitConnect(deps, record, tokens, account, grantedScopes));
-  return { connectionRef: attempt.key, outcome: staged ? 'staged' : 'connected', account, grantedScopes,
+  return { connectionRef: attempt.key, attemptId: attempt.attemptId, outcome: staged ? 'staged' : 'connected', account, grantedScopes,
     callbackFields: requiredArgs.callbackFields };
 }
