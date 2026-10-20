@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "../support/test-runner.js";
 
-import { validateWidgetConfig } from "../../config-validation.js";
+import { collectWidgetConfigStrings, validateWidgetConfig } from "../../config-validation.js";
 import { getWidgetTypeRegistration } from "../support/compat/registry.js";
 
 /**
@@ -250,4 +250,63 @@ test("recent-entries schema: where, sort and columns reject wrong types", () => 
       valid: false, fieldErrors: [{ field: `config.${field}`, reason }],
     });
   }
+});
+
+const linkSchema = {
+  type: "object",
+  properties: {
+    body: { type: "string" },
+    menuRef: { type: "string", "x-ref-target": "menu" },
+    count: { type: "integer" },
+    links: { type: "array", items: { type: "object", properties: { url: { type: "string" } } } },
+    tags: { type: "array" },
+  },
+};
+
+test("collectWidgetConfigStrings: collects declared strings depth-first, recursing into array items and object properties", () => {
+  const strings = collectWidgetConfigStrings({
+    schema: linkSchema,
+    config: { body: "hi", links: [{ url: "/a" }, { url: "/b" }] },
+  });
+  assert.deepEqual(strings, ["hi", "/a", "/b"]);
+});
+
+test("collectWidgetConfigStrings: leaves out ref-target strings", () => {
+  assert.deepEqual(collectWidgetConfigStrings({ schema: linkSchema, config: { menuRef: "m1" } }), []);
+});
+
+test("collectWidgetConfigStrings: leaves out keys the schema does not declare", () => {
+  assert.deepEqual(collectWidgetConfigStrings({ schema: linkSchema, config: { where: "x" } }), []);
+});
+
+test("collectWidgetConfigStrings: skips a value whose runtime type does not match its declared string type", () => {
+  assert.deepEqual(collectWidgetConfigStrings({ schema: linkSchema, config: { body: 5 } }), []);
+});
+
+test("collectWidgetConfigStrings: skips an array-declared field holding a non-array", () => {
+  assert.deepEqual(collectWidgetConfigStrings({ schema: linkSchema, config: { links: "nope" } }), []);
+});
+
+test("collectWidgetConfigStrings: skips an array schema with no declared items", () => {
+  assert.deepEqual(collectWidgetConfigStrings({ schema: linkSchema, config: { tags: ["a"] } }), []);
+});
+
+test("collectWidgetConfigStrings: skips an object-declared field holding an array", () => {
+  assert.deepEqual(
+    collectWidgetConfigStrings({ schema: { type: "object", properties: { list: { type: "array", items: linkSchema } } }, config: { list: [["hi"]] } }),
+    [],
+  );
+});
+
+test("collectWidgetConfigStrings: an object schema with no declared properties yields nothing", () => {
+  assert.deepEqual(collectWidgetConfigStrings({ schema: { type: "object" }, config: { body: "hi" } }), []);
+});
+
+test("collectWidgetConfigStrings: an integer-typed field yields nothing", () => {
+  assert.deepEqual(collectWidgetConfigStrings({ schema: linkSchema, config: { count: 3 } }), []);
+});
+
+test("validateWidgetConfig: an x-gallery-config schema also reports the shared gallery parser's errors at the config path", () => {
+  const result = validateWidgetConfig({ schema: { type: "object", "x-gallery-config": true }, config: { layout: "spiral", images: [] } });
+  assert.deepEqual(result, { valid: false, fieldErrors: [{ field: "config", reason: "layout must be grid, carousel or masonry" }] });
 });
