@@ -129,3 +129,9 @@ test("parse: the first failing field is reported when several fields are bad", (
 test("parse: a refusal in a later entry rejects the whole file atomically, naming that entry's index", () => {
   assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: "a", prefix: "P", scheme: "P" }, { id: "b", prefix: "Q", scheme: "Q y" }])), { ok: false, reason: "schemes[1].scheme must be an HTTP auth-scheme name" });
 });
+
+test("parse: a one-element array is refused for every field even though RegExp.test would coerce it to a matching string", () => {
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: ["a"], prefix: "P", scheme: "P" }])), { ok: false, reason: "schemes[0].id must be a lowercase hyphenated id" });
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: "a", prefix: ["P"], scheme: "P" }])), { ok: false, reason: "schemes[0].prefix must be a non-empty run of HTTP token characters" });
+  assert.deepEqual(parseCredentialSchemesFile(fileWith([{ id: "a", prefix: "P", scheme: ["P"] }])), { ok: false, reason: "schemes[0].scheme must be an HTTP auth-scheme name" });
+});
