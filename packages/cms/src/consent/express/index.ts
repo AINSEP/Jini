@@ -24,6 +24,8 @@ function isPublicPage(request: Request): boolean {
 }
 
 /** Missing/malformed IDs never reach storage. Changed policy versions require another choice.
+ * Only a visitor without a receipt cookie is new: a cookie whose receipt is missing (evicted,
+ * deleted, another store) is failed proof, so opt-out regions cannot turn a lost rejection into a grant.
  * @complexity O(1) and at most one bounded record read. */
 async function currentRecord({ request, ports, config }: { request: Request; ports: ConsentHttpPorts; config: ConsentConfig }): Promise<{ record: ConsentRecord | null; failed: boolean }> {
   try {
@@ -31,8 +33,8 @@ async function currentRecord({ request, ports, config }: { request: Request; por
     if (!id || !/^[a-zA-Z0-9_-]{16,128}$/.test(id)) return { record: null, failed: false };
     const value = await ports.records.read({ id });
     const record = readConsentRecord({ value, policyVersion: config.policyVersion, nowMs: ports.clock.nowMs() });
-    if (value !== null && record === null) {
-      ports.reportError({ operation: 'read', error: new Error('Invalid consent receipt.') });
+    if (record === null) {
+      ports.reportError({ operation: 'read', error: new Error(value === null || value === undefined ? 'The consent receipt named by the visitor cookie is unavailable; optional content stays denied until the visitor chooses again.' : 'Invalid consent receipt.') });
       return { record: null, failed: true };
     }
     return { record, failed: false };

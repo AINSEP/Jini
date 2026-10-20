@@ -141,6 +141,15 @@ describe('availability and delivery regressions', () => {
     const html = await response.text();
     expect(response.status).toBe(200); expect(html).toContain('"hasRecord":false'); expect(html).toContain('"marketing":false'); expect(failures.map(entry => entry.operation)).toEqual(['read']);
   });
+  it('a cookie whose receipt is unavailable is denied in opt-out regions, unlike a new visitor', async () => {
+    const { base, ports, failures } = await site();
+    ports.config.get = async () => ({ ...config, regionMode: 'opt-out' });
+    const fresh = await (await fetch(base)).text();
+    expect(fresh).toContain('"optOut":true'); expect(fresh).toContain('"marketing":true'); expect(failures).toEqual([]);
+    const evicted = await (await fetch(base, { headers: { cookie: `jini_consent=${accepted.id}` } })).text();
+    expect(evicted).toContain('"hasRecord":false'); expect(evicted).toContain('"optOut":false'); expect(evicted).toContain('"marketing":false');
+    expect(failures.map(entry => (entry.error as Error).message)).toEqual(['The consent receipt named by the visitor cookie is unavailable; optional content stays denied until the visitor chooses again.']);
+  });
   it('gates Buffer, end, streaming and sendFile HTML while preserving status and length correctness', async () => {
     const { base } = await site();
     for (const route of ['/buffer', '/end', '/stream', '/file', '/headerless']) {
