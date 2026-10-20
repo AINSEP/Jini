@@ -10,7 +10,7 @@
  * multi-process races and are deliberately avoided. Atomic file replacement independently prevents
  * torn content. Hosts whose operations can legitimately exceed the stale budget use staleMs: Infinity.
  */
-import { readBootIdentity, type BootIdentity } from "./boot-identity.js";
+import { fromEarlierBoot, readBootIdentity, type BootIdentity } from "./boot-identity.js";
 import fs from "node:fs";
 import * as asyncFs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -118,14 +118,10 @@ type Settings = ReturnType<typeof settings>;
 function ownership(s: Settings, options: FileLockOptions): string {
   return options.format === "token" ? `${s.processPort.pid}:${s.token}${s.boot ? ":" + s.boot.id : ""}` : JSON.stringify({ pid: s.processPort.pid, hostname: s.hostname, token: s.token, acquiredAt: new Date(s.clock.nowMs()).toISOString(), ...(s.boot ? { bootId: s.boot.id } : {}) });
 }
-/** A recorded boot id decides; without one, only an acquisition before this boot proves a restart. */
-function fromEarlierBoot(boot: BootIdentity | undefined, recorded: { bootId: string | undefined; atMs: number }): boolean {
-  if (!boot) return false;
-  return recorded.bootId !== undefined ? recorded.bootId !== boot.id : recorded.atMs < boot.startedAtMs;
-}
 function holderAlive(holder: FileLockHolder, s: Settings): boolean | undefined {
   if (holder.hostname !== s.hostname) return undefined;
-  if (fromEarlierBoot(s.boot, { bootId: holder.bootId, atMs: Date.parse(holder.acquiredAt) })) return false;
+  // A recorded boot id decides; without one, only an acquisition before this boot proves a restart.
+  if (fromEarlierBoot({ boot: s.boot, bootId: holder.bootId, atMs: Date.parse(holder.acquiredAt) })) return false;
   return s.processPort.isAlive({ pid: holder.pid });
 }
 // Legacy synchronous stores wrote pid:random rather than JSON. Malformed pids remain unknown.
@@ -134,7 +130,7 @@ function legacyOwnerAlive(snapshot: LockSnapshot, s: Settings): boolean | undefi
   const parts = snapshot.raw.split(":");
   const pid = Number(parts[0]);
   if (!validPid(pid)) return undefined;
-  if (fromEarlierBoot(s.boot, { bootId: parts[2] || undefined, atMs: snapshot.mtimeMs })) return false;
+  if (fromEarlierBoot({ boot: s.boot, bootId: parts[2] || undefined, atMs: snapshot.mtimeMs })) return false;
   return s.processPort.isAlive({ pid });
 }
 function ownerAlive(snapshot: LockSnapshot, s: Settings): boolean | undefined {

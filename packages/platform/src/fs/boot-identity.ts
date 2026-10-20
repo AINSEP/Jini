@@ -28,3 +28,20 @@ export function readBootIdentity(_required: Record<string, never>, _options = {}
   } catch { /* Permission/OS failure is unknown identity, never proof of death. */ }
   return cached ?? undefined;
 }
+
+/** Darwin/Windows identities are wall-clock boot times the OS re-derives when it steps the clock, so
+ * processes that cached the same boot at different times can disagree by seconds (kern.boottime drops
+ * usec, so a sub-second step flips the id). Exact comparison let a long-lived observer delete a live
+ * owner's lease. Two real boots are separated by the earlier boot's uptime plus a restart, so only a gap
+ * beyond this tolerance proves an earlier boot; shorter gaps fall back to the PID probe.
+ */
+export const BOOT_CLOCK_TOLERANCE_MS = 10 * 60_000;
+/** True only when a recorded holder provably predates this boot. Linux boot_id is a random UUID and is
+ * compared exactly; numeric (time-derived) ids and legacy timestamps get the tolerance above. A record
+ * from a "later" boot is clock skew, never proof of death. @complexity O(1).
+ */
+export function fromEarlierBoot({ boot, bootId, atMs }: { boot: BootIdentity | undefined; bootId: string | undefined; atMs: number }, _options = {}): boolean {
+  if (!boot) return false;
+  const recordedAtMs = bootId === undefined ? atMs : /^\d+$/.test(bootId) ? Number(bootId) : undefined;
+  return recordedAtMs === undefined ? bootId !== boot.id : recordedAtMs < boot.startedAtMs - BOOT_CLOCK_TOLERANCE_MS;
+}

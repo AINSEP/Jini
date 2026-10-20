@@ -1,4 +1,4 @@
-import type { BootIdentity } from "./boot-identity.js";
+import { fromEarlierBoot, type BootIdentity } from "./boot-identity.js";
 import type { DurableJsonFile } from "./durable-json.js";
 
 export interface DirectoryRunningRecord {
@@ -22,15 +22,20 @@ export function createDirectoryRunningLock(
     file: DurableJsonFile; isAlive: (required: { pid: number }) => boolean; remove: () => void;
   }, { bootIdentity }: { bootIdentity?: () => BootIdentity | undefined } = {},
 ): DirectoryRunningLock {
-  function readLive(cleanup = true): DirectoryRunningRecord | null {
+  /** Validate before any mutation; corrupt or unreadable records fail closed. O(1) JSON I/O. */
+  function readRecord(): DirectoryRunningRecord | null {
     const result = file.read({});
     if (result.state === "missing") return null;
     if (result.state !== "ok") throw new Error("The running lock is unreadable; refusing to open this directory's database.");
     const record = result.value as DirectoryRunningRecord | null;
     if (!validRunningRecord(record)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
-    const boot = bootIdentity?.();
-    const sameBoot = !boot || (record.bootId !== undefined ? record.bootId === boot.id : Date.parse(record.started) >= boot.startedAtMs);
-    if (sameBoot && isAlive({ pid: record.pid })) return record;
+    return record;
+  }
+  function readLive(cleanup = true): DirectoryRunningRecord | null {
+    const record = readRecord();
+    if (!record) return null;
+    const earlierBoot = fromEarlierBoot({ boot: bootIdentity?.(), bootId: record.bootId, atMs: Date.parse(record.started) });
+    if (!earlierBoot && isAlive({ pid: record.pid })) return record;
     if (cleanup) remove(); return null;
   }
   return {
@@ -56,7 +61,8 @@ export function createDirectoryRunningLock(
     },
     release({ token }, _optional = {}) {
       if (file.read({}).state === "missing") return;
-      file.withLock({ critical: () => { if (readLive()?.token === token) remove(); } });
+      // Release removes only its own record; stale cleanup of a different owner belongs to read/claim.
+      file.withLock({ critical: () => { if (readRecord()?.token === token) remove(); } });
     },
   };
 }

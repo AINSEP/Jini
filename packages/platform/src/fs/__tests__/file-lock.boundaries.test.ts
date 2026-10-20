@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 import { defaultPlatformMessages, type PlatformMessages } from "../../messages.js";
 import { FileLockLostError, FileLockTimeoutError, withFileLock, withFileLockSync } from "../file-lock.js";
+import { BOOT_CLOCK_TOLERANCE_MS } from "../boot-identity.js";
 
 /** Boundary pins for both lock adapters: failure classification, cleanup ownership and defaults. */
 const roots: string[] = [];
@@ -53,8 +54,10 @@ test("legacy holders: boot id suffix decides, otherwise lock mtime against boot 
   expect(withFileLockSync({ lockPath, run: () => "reclaimed" }, { ...boot(0), timeoutMs: 100 })).toBe("reclaimed");
   fs.writeFileSync(lockPath, "42:x");
   expect(() => withFileLockSync({ lockPath, run: () => undefined }, boot(0))).toThrow(FileLockTimeoutError);
+  // A boot start a minute after the lock's mtime is clock-step noise, not a reboot.
   fs.writeFileSync(lockPath, "42:x");
-  expect(withFileLockSync({ lockPath, run: () => "reclaimed" }, { ...boot(Date.now() + 60_000), timeoutMs: 100 })).toBe("reclaimed");
+  expect(() => withFileLockSync({ lockPath, run: () => undefined }, boot(Date.now() + 60_000))).toThrow(FileLockTimeoutError);
+  expect(withFileLockSync({ lockPath, run: () => "reclaimed" }, { ...boot(Date.now() + BOOT_CLOCK_TOLERANCE_MS + 60_000), timeoutMs: 100 })).toBe("reclaimed");
 });
 
 test("without a boot identity, a live owner is never treated as restarted", () => {

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { withFileLock, withFileLockSync } from '../file-lock.js';
+import { FileLockTimeoutError, withFileLock, withFileLockSync } from '../file-lock.js';
 const roots: string[] = [];
 function makeTemporaryDirectory(): string { const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shared-sync-lock-')); roots.push(root); return root; }
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -142,4 +142,16 @@ it("the async migration lane also reclaims a previous-boot PID with Infinity sta
   } }, { staleMs: Infinity, timeoutMs: 10, pollMs: 1, clock: { nowMs: () => now }, sleep: () => { now++; }, hostname: () => "fixture",
     process: { pid: 20, isAlive: () => true, bootIdentity: () => ({ id: "current", startedAtMs: 500 }) } });
   expect(value).toBe("acquired"); expect(fs.existsSync(lockPath)).toBe(false);
+});
+
+for (const format of ["json", "token"] as const) it(`preserves a live ${format} owner whose time-derived boot id differs by a clock step`, async () => {
+  const lockPath = path.join(makeTemporaryDirectory(), "migration.lock");
+  const raw = format === "token" ? "10:live:1791872794000"
+    : JSON.stringify({ pid: 10, token: "live", hostname: "fixture", acquiredAt: "2026-10-12T23:30:00Z", bootId: "1791872794000" });
+  fs.writeFileSync(lockPath, raw);
+  await expect(withFileLock({ lockPath, run: () => { throw new Error("must not enter a live owner's critical section"); } }, {
+    format, staleMs: Infinity, timeoutMs: 0, hostname: () => "fixture",
+    process: { pid: 20, isAlive: () => true, bootIdentity: () => ({ id: "1791872795000", startedAtMs: 1_791_872_795_000 }) },
+  })).rejects.toThrow(FileLockTimeoutError);
+  expect(fs.readFileSync(lockPath, "utf8")).toBe(raw);
 });

@@ -1,8 +1,9 @@
 import { expect, it } from "vitest";
 import { createDirectoryRunningLock, type DirectoryRunningRecord } from "../directory-running-lock.js";
 import type { DurableJsonFile, JsonFileRead } from "../durable-json.js";
+import { BOOT_CLOCK_TOLERANCE_MS, type BootIdentity } from "../boot-identity.js";
 
-function fixture() {
+function fixture(_required = {}, { bootIdentity }: { bootIdentity?: () => BootIdentity | undefined } = {}) {
   let stored: JsonFileRead = { state: "missing" }, locked = false;
   const alive = new Set<number>([10, 20]);
   const file: DurableJsonFile = {
@@ -10,7 +11,7 @@ function fixture() {
     write: ({ value }) => { expect(locked).toBe(true); stored = { state: "ok", value }; },
     withLock: ({ critical }) => { expect(locked).toBe(false); locked = true; try { return critical(); } finally { locked = false; } },
   };
-  const lock = createDirectoryRunningLock({ file, isAlive: ({ pid }) => alive.has(pid), remove: () => { expect(locked).toBe(true); stored = { state: "missing" }; } });
+  const lock = createDirectoryRunningLock({ file, isAlive: ({ pid }) => alive.has(pid), remove: () => { expect(locked).toBe(true); stored = { state: "missing" }; } }, bootIdentity ? { bootIdentity } : {});
   const record: DirectoryRunningRecord = { pid: 10, port: 0, app: "Desktop", started: "2000-01-01T00:00:00.000Z", token: "first", scheme: "http" };
   return { lock, alive, record, storedValue: () => stored, corrupt: () => { stored = { state: "unreadable" }; } };
 }
@@ -59,4 +60,47 @@ it("a previous-boot lease with a recycled live PID is ignored, while this boot r
   // Legacy leases predate boot IDs; their timestamp also proves they cannot own this boot's PID.
   stored = { state: "ok", value: { ...next, started: "2000-01-01T00:00:00Z" } };
   expect(lock.peek({})).toBeNull();
+});
+
+// macOS/Windows ids are String(boot ms); the OS shifts that reading when it steps the clock.
+const timeBoot = (startedAtMs: number): BootIdentity => ({ id: String(startedAtMs), startedAtMs });
+
+it("an observer whose cached time-derived boot id drifted cannot delete the server's live lease", () => {
+  let boot = timeBoot(1_791_872_795_000);
+  const { lock, record, storedValue } = fixture({}, { bootIdentity: () => boot });
+  const claimed = lock.claim({ record }).record;
+  boot = timeBoot(1_791_872_796_000);
+  expect(lock.read({})).toEqual(claimed);
+  boot = timeBoot(1_791_872_794_000);
+  expect(lock.read({})).toEqual(claimed);
+  expect(lock.claim({ record: { ...record, pid: 20, token: "second" } })).toEqual({ acquired: false, record: claimed });
+  lock.update({ token: record.token, port: 3000 });
+  expect(storedValue()).toEqual({ state: "ok", value: { ...claimed, port: 3000 } });
+});
+
+it("only a boot gap beyond the tolerance proves an earlier boot, for legacy timestamps and time-derived ids alike", () => {
+  let boot: BootIdentity | undefined;
+  const { lock, record } = fixture({}, { bootIdentity: () => boot });
+  const start = Date.parse(record.started);
+  lock.claim({ record }); // no boot identity yet: a legacy lease judged by its start time
+  boot = timeBoot(start + BOOT_CLOCK_TOLERANCE_MS);
+  expect(lock.peek({})?.token).toBe("first");
+  boot = timeBoot(start + BOOT_CLOCK_TOLERANCE_MS + 1);
+  expect(lock.peek({})).toBeNull();
+  const claimed = lock.claim({ record: { ...record, pid: 20, token: "second" } }).record;
+  expect(claimed.bootId).toBe(String(start + BOOT_CLOCK_TOLERANCE_MS + 1));
+  boot = timeBoot(start + 2 * BOOT_CLOCK_TOLERANCE_MS + 1);
+  expect(lock.peek({})?.token).toBe("second");
+  boot = timeBoot(start + 2 * BOOT_CLOCK_TOLERANCE_MS + 2);
+  expect(lock.peek({})).toBeNull();
+});
+
+it("release with a different token never cleans up even a dead owner's record", () => {
+  const { lock, record, alive, storedValue } = fixture();
+  lock.claim({ record });
+  alive.delete(record.pid);
+  lock.release({ token: "old-process-token" });
+  expect(storedValue()).toEqual({ state: "ok", value: record });
+  lock.release({ token: record.token });
+  expect(storedValue()).toEqual({ state: "missing" });
 });
