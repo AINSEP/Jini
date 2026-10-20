@@ -14,6 +14,26 @@ export interface UseAssetGridKeyboardShortcutsParams {
   onRequestDeleteSelected: () => void;
 }
 
+function handleSelectionKey(
+  { event, typing, hasSelection, isPreviewOpen, onClearSelection, onRequestDeleteSelected }: Pick<
+    UseAssetGridKeyboardShortcutsParams,
+    'hasSelection' | 'isPreviewOpen' | 'onClearSelection' | 'onRequestDeleteSelected'
+  > & {
+    event: KeyboardEvent;
+    typing: boolean;
+  },
+  _options: Record<string, never> = {},
+): void {
+  if (event.key === 'Escape') {
+    if (isPreviewOpen) return; // the preview surface owns Escape while it's open
+    if (hasSelection) onClearSelection();
+  } else if (event.key === 'Delete' || event.key === 'Backspace') {
+    if (typing || isPreviewOpen || !hasSelection) return;
+    event.preventDefault();
+    onRequestDeleteSelected();
+  }
+}
+
 /** Cmd/Ctrl+A select-all, Escape clear-selection, Delete/Backspace triggers the bulk-delete confirm flow. */
 export function useAssetGridKeyboardShortcuts(params: UseAssetGridKeyboardShortcutsParams): void {
   const {
@@ -35,13 +55,8 @@ export function useAssetGridKeyboardShortcuts(params: UseAssetGridKeyboardShortc
         if (typing || !hasAssets) return;
         e.preventDefault();
         onSelectAll();
-      } else if (e.key === 'Escape') {
-        if (isPreviewOpen) return; // the preview surface owns Escape while it's open
-        if (hasSelection) onClearSelection();
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (typing || isPreviewOpen || !hasSelection) return;
-        e.preventDefault();
-        onRequestDeleteSelected();
+      } else {
+        handleSelectionKey({ event: e, typing, hasSelection, isPreviewOpen, onClearSelection, onRequestDeleteSelected });
       }
     },
   }, { enabled: active });
