@@ -1,7 +1,8 @@
 /**
  * @file Parses a plugin's admin-surface contribution file: which surfaces it ships, the contained
- * files each one serves, the actions it may ask the host to run (with their schemas) and the few
- * extra Content-Security-Policy sources it needs.
+ * files each one serves, the actions it may ask the host to run (with their schemas), the few
+ * extra Content-Security-Policy sources it needs and, optionally, the server-side handler module that
+ * answers those actions (`./surface-handlers.ts`) with the schema of the bootstrap data it provides.
  *
  * Why parsing is strict: everything here is later trusted by the host. A file path that is not a
  * plain relative path, an action schema outside the supported subset, or a CSP source that is not a

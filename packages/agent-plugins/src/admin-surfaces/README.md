@@ -4,7 +4,8 @@ A plugin can ship its own small admin UI (a settings screen, a resource chooser,
 without getting any access to the host's pages, cookies or server. The host renders the plugin's
 static files in a sandboxed iframe, and the plugin asks the host to do things through a small
 `postMessage` protocol. The host decides what runs: only actions the plugin declared, only with
-input that matches the declared schema, and only through handlers the host itself provides.
+input that matches the declared schema, and only through handlers the host provides or the
+plugin's own handler module admitted through the executable trust gate (see below).
 
 ## How it fits
 
@@ -19,7 +20,8 @@ plugin package (bundled, trusted)          host page (admin)                    
 
 - Loading reuses the plugin contribution loader (`../lifecycle/contribution-loader.ts`) and its trust
   gate (`../lifecycle/trusted-plugin-files.ts`): the plugin must be active and be the build's own
-  shipped digest. Surfaces are a **data** contribution: nothing is imported into the server process.
+  shipped digest. Surfaces themselves are a **data** contribution; only an optional `handlerModule`
+  is imported, through the separate executable contribution described below.
 - File reads reuse the lifecycle's `readTrustedPluginFile`, which resolves symlinks and refuses any
   path outside the package root.
 - The host owns routes, authentication and the action handlers. Jini owns the values that form the
@@ -60,6 +62,8 @@ Rules (any violation refuses the whole file, reported in the loader's `refusals`
 | `entry` | plain relative path ending in `.html`; no `..`, `.`, leading `/`, `\`, `%`, empty or dot-leading segments |
 | `files` | same path rule, ending in `.mjs`, `.js`, `.css` or `.json`; only `entry` and `files` are ever served |
 | `input`, `result` | the closed schema subset below |
+| `handlerModule` | optional; same path rule ending in `.mjs`; must not also be listed in `files` (it is server code, never served); requires every action to declare `result` |
+| `bootstrap` | optional schema (same subset) the handler module's bootstrap data must match; only with `handlerModule` |
 | `csp` | keys only `script-src`, `style-src`, `img-src`, `font-src`, `connect-src`, `frame-src`; values only bare `https://host[:port]` origins with a DNS name (no wildcard, path, IP, keyword, `data:`/`blob:`) |
 
 Action schemas are a small closed subset of JSON Schema: every node declares `type` (`object`,
@@ -142,9 +146,67 @@ const result = await client.call({ action: 'save-selection', payload: { resource
 
 `call` rejects with `AdminSurfaceCallError` (`code`, `message`, `retryable`).
 
+## Plugin-supplied handlers (`handlerModule`)
+
+A host can answer a surface's actions with its own code (`handlers` above), or let the plugin answer
+them: a surface that names a `handlerModule` ships a server-side `.mjs` whose default export is
+
+```js
+export default {
+  actions: {
+    // input already matched the action's input schema; the result must match its result schema.
+    async 'save-selection'({ input, capabilities, context, fail }) {
+      const token = await capabilities.connections.getAccessToken({ connectionRef: input.connectionRef });
+      const response = await capabilities.http.fetch({ url: '…' }, { headers: { authorization: `Bearer ${token}` } });
+      if (response.status === 401) throw fail({ code: 'reconnect-required', message: 'Reconnect the account and retry.' });
+      return { saved: true };                                  // never the token
+    },
+  },
+  // Optional; needs a `bootstrap` schema on the surface. The one answer that may carry a short-lived access token.
+  async bootstrap({ capabilities, context }) { return { accessToken: '…', appId: 'public-config' }; },
+};
+```
+
+- Loading: `defineAdminSurfaceHandlerContribution({ filename })` reads the SAME surfaces file and is an
+  executable contribution (`../lifecycle/contribution-loader.ts`'s `defineExecutablePluginContribution`,
+  the loader executable tools use): the plugin must be active, be the build's shipped digest, and the
+  module must resolve inside the package root on disk. Refusals are lines in the load's `refusals`.
+- Admission: `createAdminSurfaceHandlerHost({ capabilities }).sync({ loaded, refusals })` refuses a module
+  that exports a handler for an undeclared action, a `bootstrap()` the surface has no schema for, or a
+  surface two loaded modules claim. Call it on boot and on every activation change; a surface missing
+  from a load loses its handlers, a handler a route already holds answers `plugin-disabled`, and
+  capabilities the module kept are revoked.
+- Calls: `capabilities` is the executable-tool port (`../lifecycle/tools/capabilities.ts`:
+  `connections.getAccessToken`, guarded `http.fetch`, `limiter.check`, `artifacts.write`), built per
+  call for the LOADED plugin id and the route's workspace/principal; `context.pluginId`/`surfaceId` are
+  the loaded module's own, whatever the caller passed. A result or error that mentions a token the call
+  obtained is withheld (`action-failed`). `fail({ code, message }, { retryable })` builds a surface-safe
+  failure; a code that is not lowercase hyphenated becomes `action-failed`, messages are cut at 300 characters.
+- Bootstrap: `bootstrapData({ context })` returns the provider's data (or `null`), refused when it does not
+  match the declared `bootstrap` schema. Wrap it with `createAdminSurfaceBootstrap` and serve it with
+  `adminSurfaceBootstrapHeaders()`; never include a refresh token or a long-lived secret.
+
+Host wiring:
+
+```ts
+const handlerDefinition = defineAdminSurfaceHandlerContribution({ filename: '<product>-admin-surfaces.json' });
+const surfaceHandlers = createAdminSurfaceHandlerHost({ capabilities });          // same port as executable tools
+const load = await lifecycle.loadPluginContributions({ workspaceId, definition: handlerDefinition });
+surfaceHandlers.sync({ loaded: load.items, refusals: load.refusals });           // boot + every activation change
+// action route
+createAdminSurfaceActionDispatcher({ descriptor, handlers: surfaceHandlers.handlersFor({ pluginId, surfaceId }) }).dispatch({ action, payload, context });
+// bootstrap route
+createAdminSurfaceBootstrap({ surfaceId, data: await surfaceHandlers.bootstrapData({ context }), nowMs });
+```
+
+The host still owns authentication, the workspace and principal in `context`, and the rule that a
+`connectionRef` must belong to the calling plugin and workspace (its capability port enforces it).
+
 ## Extension points
 
 - A second provider plugin adds a surface by shipping the host's surfaces file and static files;
   no Jini change is needed.
 - A host adds an action by implementing a handler for a name a plugin declared; undeclared names
   never run, even with a handler.
+- A provider plugin answers its own actions by shipping a `handlerModule`; a second provider uses the
+  same seam with its own module and `connectionRef` values and needs no Jini change.
