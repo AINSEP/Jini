@@ -50,8 +50,13 @@ export type AnalyticsPermission =
   | "analytics.goals.manage"
   | "analytics.export";
 
-/** Which sink adapter a site routes ingest through (ADR-006 rule-of-two — see ports.ts). */
-export type AnalyticsSinkKind = "local" | "forwarding";
+/**
+ * Which sink adapter a site routes ingest through (ADR-006 rule-of-two — see ports.ts).
+ * Which sink a site routes through: `"local"` = the host's built-in sink only (default); any other
+ * value is the id of a registered vendor forwarder that receives hits IN ADDITION to the built-in
+ * sink (see forwarding.ts). Widened from `"local" | "forwarding"`; `"forwarding"` was never produced.
+ */
+export type AnalyticsSinkKind = "local" | (string & {});
 
 /** Opaque, mergeable unique-visitor sketch (HyperLogLog). Serialized bytes, no per-visitor rows. */
 export type VisitorSketch = Uint8Array;
