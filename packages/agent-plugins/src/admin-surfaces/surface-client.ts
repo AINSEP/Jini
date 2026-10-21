@@ -44,6 +44,28 @@ export interface AdminSurfaceThemeRoot {
  * function. The host sizes the frame to it, so a surface never scrolls inside the admin page.
  */
 export type AdminSurfaceSizePort = (onHeight: (height: number) => void) => () => void;
+/** The body element the default size source measures and listens on (in a browser, `document.body`). */
+export interface AdminSurfaceSizedBody {
+  readonly scrollHeight: number;
+  getBoundingClientRect(): { readonly height: number };
+  addEventListener(type: 'mouseover' | 'focusin', listener: () => void): void;
+  removeEventListener(type: 'mouseover' | 'focusin', listener: () => void): void;
+}
+/** An observer constructor the default size source re-measures from (Resize/MutationObserver). */
+export type AdminSurfaceObserverConstructor = new (callback: () => void) => {
+  observe(target: AdminSurfaceSizedBody, options?: Readonly<Record<string, boolean>>): void;
+  disconnect(): void;
+};
+/**
+ * The browser globals the default theme root and size source read. Injectable so the defaults are
+ * testable without a DOM; `globalThis` is wired in at the client's composition edge.
+ */
+export interface AdminSurfaceBrowserScope {
+  readonly document?: { readonly documentElement?: AdminSurfaceThemeRoot; readonly body?: AdminSurfaceSizedBody | null };
+  readonly ResizeObserver?: AdminSurfaceObserverConstructor;
+  readonly MutationObserver?: AdminSurfaceObserverConstructor;
+  readonly getComputedStyle?: (element: AdminSurfaceSizedBody) => { readonly marginTop: string; readonly marginBottom: string };
+}
 /** The host's design tokens as the client accepted them. */
 export interface AdminSurfaceClientTheme {
   readonly scheme: 'light' | 'dark';
@@ -91,23 +113,21 @@ function acceptedTheme(value: unknown): AdminSurfaceClientTheme | undefined {
   return { scheme, tokens: Object.fromEntries(safe) as Record<string, string> };
 }
 /** The browser root when there is a document (none in a server-side test). */
-function documentRoot(): AdminSurfaceThemeRoot | null {
-  const doc = (globalThis as { document?: { documentElement?: AdminSurfaceThemeRoot } }).document;
-  return doc?.documentElement ?? null;
+function documentRoot(scope: AdminSurfaceBrowserScope): AdminSurfaceThemeRoot | null {
+  return scope.document?.documentElement ?? null;
 }
 
 /**
  * The browser's size source: the body's height including what overflows it (an open toggletip), re-read
  * on resize, DOM changes, hover and focus (hover/focus can show a CSS-only tooltip). Null without a DOM.
  */
-function documentSize(): AdminSurfaceSizePort | null {
-  const scope = globalThis as { document?: Document; ResizeObserver?: typeof ResizeObserver; MutationObserver?: typeof MutationObserver };
+function documentSize(scope: AdminSurfaceBrowserScope): AdminSurfaceSizePort | null {
   const body = scope.document?.body;
-  if (!body || !scope.ResizeObserver || !scope.MutationObserver) return null;
-  const { ResizeObserver: Resize, MutationObserver: Mutation } = scope;
+  if (!body || !scope.ResizeObserver || !scope.MutationObserver || !scope.getComputedStyle) return null;
+  const { ResizeObserver: Resize, MutationObserver: Mutation, getComputedStyle: computedStyle } = scope;
   return (onHeight) => {
     const measure = () => {
-      const style = getComputedStyle(body);
+      const style = computedStyle(body);
       // scrollHeight is rounded to whole pixels; the box height keeps the fraction, which would
       // otherwise leave a 1px inner scrollbar.
       const content = Math.max(body.scrollHeight, body.getBoundingClientRect().height);
@@ -137,7 +157,7 @@ function isWellFormedResponse(message: Message): boolean {
  */
 export function createAdminSurfaceClient(
   required: { readonly parent: AdminSurfaceParentPort; readonly listen: AdminSurfaceListenPort },
-  optional: { readonly timeoutMs?: number; readonly nowMs?: () => number; readonly themeRoot?: AdminSurfaceThemeRoot | null; readonly size?: AdminSurfaceSizePort | null } = {},
+  optional: { readonly timeoutMs?: number; readonly nowMs?: () => number; readonly themeRoot?: AdminSurfaceThemeRoot | null; readonly size?: AdminSurfaceSizePort | null; readonly browser?: AdminSurfaceBrowserScope } = {},
 ) {
   const timeoutMs = optional.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const nowMs = optional.nowMs ?? Date.now;
@@ -147,9 +167,11 @@ export function createAdminSurfaceClient(
   // The Promise executor runs synchronously, so `resolveReady` is assigned before anything can call it.
   let resolveReady!: () => void;
   const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
-  const themeRoot = optional.themeRoot === undefined ? documentRoot() : optional.themeRoot;
+  // The DOM's own observer/element types are wider than the structural subset this client reads.
+  const browser = optional.browser ?? (globalThis as unknown as AdminSurfaceBrowserScope);
+  const themeRoot = optional.themeRoot === undefined ? documentRoot(browser) : optional.themeRoot;
   let currentTheme: AdminSurfaceClientTheme | undefined;
-  const size = optional.size === undefined ? documentSize() : optional.size;
+  const size = optional.size === undefined ? documentSize(browser) : optional.size;
   let stopSize: (() => void) | undefined;
   let lastHeight = -1;
 
