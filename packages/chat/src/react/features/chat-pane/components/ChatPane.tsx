@@ -259,29 +259,26 @@ function ChatPaneWorkingDirectoryStatus({
   );
 }
 
+/**
+ * The typed-answer delivery notice. Only `'failed'` ever reaches it: `useChatPane` queues a
+ * `'not-pending'` refusal as one ordinary message itself (`answerWaitingQuestion`), without a notice.
+ *
+ * MOVE (from the retired "Send as a new message" button this notice once rendered for
+ * `'not-pending'`): the held answer's only way into a new run besides clearing the draft — an
+ * explicit choice, so a closed question never turns an answer into a paid run on a second Enter.
+ * The hook's automatic one-time fallback now owns that guarantee, which left the button unreachable.
+ */
 function ChatPaneTypedAnswerNotice({
   typedAnswerNotice,
-  onSendAsNewMessage,
   t,
 }: {
   typedAnswerNotice: TypedAnswerNotice | null;
-  onSendAsNewMessage: () => void;
   t: (key: string) => string;
 }): ReactNode {
   if (!typedAnswerNotice) return null;
   return (
     <div className="jini-chat-pane__error" role="alert">
       {t(describeTypedAnswerNotice({ notice: typedAnswerNotice }))}
-      {/* The held answer's only way into a new run besides clearing the draft — an explicit
-          choice, so a closed question never turns an answer into a paid run on a second Enter. */}
-      {typedAnswerNotice === 'not-pending' ? (
-        <>
-          {' '}
-          <button type="button" className="jini-chat-pane__error-action" onClick={onSendAsNewMessage}>
-            {t('Send as a new message')}
-          </button>
-        </>
-      ) : null}
     </div>
   );
 }
@@ -294,7 +291,6 @@ interface ChatPaneStatusMessagesProps extends ChatPaneAvailabilityStatusProps {
   workingDirectoryInvalid: boolean;
   runtimeInventoryError: Error | null;
   typedAnswerNotice: TypedAnswerNotice | null;
-  onSendAsNewMessage: () => void;
 }
 
 /** The pane's stack of mutually-independent error/status banners — each condition is its own
@@ -307,7 +303,6 @@ function ChatPaneStatusMessages({
   workingDirectoryInvalid,
   runtimeInventoryError,
   typedAnswerNotice,
-  onSendAsNewMessage,
   ...availability
 }: ChatPaneStatusMessagesProps): ReactNode {
   const { t } = availability;
@@ -336,7 +331,7 @@ function ChatPaneStatusMessages({
           {runtimeInventoryError.message}
         </div>
       ) : null}
-      <ChatPaneTypedAnswerNotice typedAnswerNotice={typedAnswerNotice} onSendAsNewMessage={onSendAsNewMessage} t={t} />
+      <ChatPaneTypedAnswerNotice typedAnswerNotice={typedAnswerNotice} t={t} />
     </>
   );
 }
@@ -868,7 +863,6 @@ export function ChatPane(props: ChatPaneProps) {
             workingDirectoryInvalid={pane.workingDirectoryInvalid}
             runtimeInventoryError={inventory.runtimeInventoryError}
             typedAnswerNotice={pane.typedAnswerNotice}
-            onSendAsNewMessage={() => void pane.sendAsNewMessage()}
             t={t}
           />
           <ChatPaneComposerArea

@@ -10,7 +10,6 @@ import {
   findChatPaneSendBlocker,
   findMidRunMessageRunId,
   isChatPaneQueueableBlocker,
-  isTypedAnswerTurn,
   resolveChatPaneSelection,
   type ChatPaneSendBlocker,
 } from '../rules.js';
@@ -157,6 +156,12 @@ export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
   reset: () => void;
 }
 
+/**
+ * A queued message. Every path into the queue (`enqueueTurn`) records the files it took from the
+ * composer, even when there were none, so a queued input's `attachments` is always present.
+ */
+type QueuedChatInput = AcceptedChatInput & { attachments: ChatAttachment[] };
+
 /** The stand-in prompt for a turn that carries only attachments. */
 const ATTACHMENTS_ONLY_PROMPT = 'Review the attached file(s).';
 
@@ -269,21 +274,24 @@ function findMidRunTarget(
 }
 
 /**
- * The host's typed-answer delivery when this send answers the question the run is waiting on
- * ({@link isTypedAnswerTurn}), else `null`.
+ * The host's typed-answer delivery and the id of the question it answers when this send answers
+ * the question the run is waiting on, else `null`. The same test as `isTypedAnswerTurn` in
+ * `rules.ts`, unfolded so the awaited question's id comes back with the deliverer — a typed answer
+ * therefore always carries the id of the question it answers.
  *
  * @complexity O(m) over the messages scanned for the open question.
  */
-function findTypedAnswerDeliverer(
+function findTypedAnswerTarget(
   { deliver, blocker, attachmentCount, messages }: {
     deliver: DeliverTypedAnswer | undefined;
     blocker: ChatPaneSendBlocker | null;
     attachmentCount: number;
     messages: readonly ChatMessage[];
   },
-): DeliverTypedAnswer | null {
-  if (deliver === undefined) return null;
-  return isTypedAnswerTurn({ blocker, attachmentCount, messages, toolName: deliver.toolName }) ? deliver : null;
+): { deliver: DeliverTypedAnswer; questionId: string } | null {
+  if (deliver === undefined || !isChatPaneQueueableBlocker({ blocker }) || attachmentCount !== 0) return null;
+  const questionId = findAwaitedTypedAnswerId({ messages, toolName: deliver.toolName });
+  return questionId === null ? null : { deliver, questionId };
 }
 
 /**
@@ -344,7 +352,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
   // MOVE: Keep the signal with each sanitized input; re-redaction cannot detect the original paste.
-  const [queuedInputs, setQueuedInputs] = useState<AcceptedChatInput[]>([]);
+  const [queuedInputs, setQueuedInputs] = useState<QueuedChatInput[]>([]);
   const queuedTurn = useMemo(() => queuedInputs.reduce<UserTextRedaction | null>((queued, input) => appendQueuedTurn({
     queued, next: { text: input.text, secretRedacted: input.secretRedaction?.secretRedacted ?? false,
       count: input.secretRedaction?.count ?? 0 },
@@ -494,9 +502,6 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   latestDraftRef.current = composer.draft;
   const latestAttachmentsRef = useRef(composer.attachments);
   latestAttachmentsRef.current = composer.attachments;
-  const awaitedQuestionId = options.deliverTypedAnswer === undefined
-    ? null
-    : findAwaitedTypedAnswerId({ messages: conversation.messages, toolName: options.deliverTypedAnswer.toolName });
 
   useEffect(() => {
     const previous = typedAnswerConversationRef.current;
@@ -555,7 +560,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
           const inputId = queuedUploadOwnersRef.current.get(controller);
           if (inputId === undefined) composer.addAttachment(attachment);
           else setQueuedInputs(inputs => inputs.map(input => input.id === inputId
-            ? { ...input, attachments: [...(input.attachments ?? []), attachment] } : input));
+            ? { ...input, attachments: [...input.attachments, attachment] } : input));
           if (file) cacheAttachmentPreviewSource({ path: attachment.path, file });
         },
         onError: setAttachmentError,
@@ -663,10 +668,10 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   // A turn queued against another conversation is not joined — it would never be flushed there anyway.
   const enqueueTurn = useCallback((
     { turn, inputs, attachments = composer.attachments }: {
-      turn: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[];
+      turn: UserTextRedaction; inputs?: QueuedChatInput[]; attachments?: ChatAttachment[];
     }, _options = {},
   ) => {
-    const accepted = inputs ?? [{ id: createChatLocalId({}), text: turn.text, attachments,
+    const accepted: QueuedChatInput[] = inputs ?? [{ id: createChatLocalId({}), text: turn.text, attachments,
       ...(turn.secretRedacted ? { secretRedaction: { secretRedacted: true as const, count: turn.count } } : {}) }];
     const sameConversation = queuedConversationIdRef.current === options.conversationId;
     queuedConversationIdRef.current = options.conversationId;
@@ -680,12 +685,11 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   }, [composer.attachments, options.conversationId, recordAcceptedInput]);
 
   const answerWaitingQuestion = useCallback(async (
-    { deliver, text }: { deliver: DeliverTypedAnswer; text: string },
+    { deliver, questionId, text }: { deliver: DeliverTypedAnswer; questionId: string; text: string },
   ) => {
     const safeText = guard.redactText(text);
     const generation = typedAnswerGenerationRef.current;
     const submittedDraft = latestDraftRef.current;
-    const questionId = awaitedQuestionId;
     deliveringTypedAnswerRef.current = true;
     const outcome = await deliverTypedAnswerSafely({ deliver, text: safeText });
     deliveringTypedAnswerRef.current = false;
@@ -699,13 +703,13 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       enqueueTurn({ turn: guard.redact({ text: safeText }, {}), attachments: [] });
     } else {
       recordAcceptedInput({ inputs: [{ id: `answer:${questionId}`, text: safeText }],
-        bubble: { text: safeText, ...(questionId === null ? {} : { toolUseId: questionId }) } });
+        bubble: { text: safeText, toolUseId: questionId } });
     }
     answeredQuestionIdRef.current = questionId;
     // The textarea stays editable during delivery: clear only the text that went out, never a
     // correction or next message typed while the host answered.
     if (latestDraftRef.current === submittedDraft) latestComposerRef.current.setDraft('');
-  }, [awaitedQuestionId, enqueueTurn, guard.redact, guard.redactText, recordAcceptedInput]);
+  }, [enqueueTurn, guard.redact, guard.redactText, recordAcceptedInput]);
 
   const clearDeliveredDraft = useCallback((
     { inputs, submittedDraft }: { inputs: AcceptedChatInput[] | undefined; submittedDraft: string }, _options = {},
@@ -715,7 +719,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
 
   const finishMidRunSend = useCallback((
     { outcome, inputs, turn, attachments, afterInputId, submittedDraft }: {
-      outcome: MidRunMessageDelivery; inputs: AcceptedChatInput[] | undefined; turn: UserTextRedaction;
+      outcome: MidRunMessageDelivery; inputs: QueuedChatInput[] | undefined; turn: UserTextRedaction;
       attachments: ChatAttachment[]; afterInputId: string | undefined; submittedDraft: string;
     }, _options = {},
   ) => {
@@ -740,7 +744,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   // A failed delivery keeps the working draft so retry cannot silently become another run.
   const sendIntoRunningTurn = useCallback(async (
     { deliver, runId, turn, inputs, attachments = composer.attachments }: {
-      deliver: DeliverMidRunMessage; runId: string; turn: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[];
+      deliver: DeliverMidRunMessage; runId: string; turn: UserTextRedaction; inputs?: QueuedChatInput[]; attachments?: ChatAttachment[];
     },
     _options = {},
   ) => {
@@ -807,20 +811,19 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       await sendOrdinaryTurn(prompt);
       return;
     }
-    const deliver = findTypedAnswerDeliverer({
+    const typedAnswer = findTypedAnswerTarget({
       deliver: options.deliverTypedAnswer,
       blocker: sendBlocker,
       attachmentCount: composer.attachments.length,
       messages: conversation.messages,
     });
-    if (deliver !== null && awaitedQuestionId !== answeredQuestionIdRef.current) {
-      await answerWaitingQuestion({ deliver, text: prompt });
+    if (typedAnswer !== null && typedAnswer.questionId !== answeredQuestionIdRef.current) {
+      await answerWaitingQuestion({ ...typedAnswer, text: prompt });
       return;
     }
     await sendOrdinaryTurn(prompt);
   }, [
     answerWaitingQuestion,
-    awaitedQuestionId,
     composer,
     conversation.isStreaming,
     conversation.messages,
@@ -886,12 +889,12 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     if (activeUploadCount > 0 || attachmentError !== null) return;
     const target = queuedForUploadRef.current ? findMidRunTarget({
       deliver: options.deliverMidRunMessage,
-      blocker: sendBlocker, attachmentCount: queuedInputs.flatMap(input => input.attachments ?? []).length, messages: conversation.messages,
+      blocker: sendBlocker, attachmentCount: queuedInputs.flatMap(input => input.attachments).length, messages: conversation.messages,
     }) : null;
     if (sendBlocker !== null && target === null) return;
     queuedForUploadRef.current = false;
     const inputs = queuedInputs;
-    const attachments = inputs.flatMap(input => input.attachments ?? []);
+    const attachments = inputs.flatMap(input => input.attachments);
     setQueuedInputs([]);
     if (target !== null) {
       void sendIntoRunningTurn({ ...target, turn: queuedTurn, inputs, attachments });

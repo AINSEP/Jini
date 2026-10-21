@@ -8,7 +8,7 @@ describe('useChatPaneSurface', () => {
     const composerSlots = { footerLeadingAccessory: null };
     const uploadAttachments = vi.fn(async () => []);
     const { result } = renderHook(() => useChatPaneSurface({
-      variant: undefined, composerSlots, workingDirectoryControlPlacement: undefined, uploadAttachments,
+      composerSlots, workingDirectoryControlPlacement: undefined, uploadAttachments,
     }));
     expect(result.current).toEqual({
       embed: false, composerSlots, workingDirectoryControlPlacement: 'below', uploadAttachments,
@@ -17,7 +17,7 @@ describe('useChatPaneSurface', () => {
 
   it('honors an explicit placement on the workspace surface', () => {
     const { result } = renderHook(() => useChatPaneSurface({
-      variant: undefined, composerSlots: undefined, workingDirectoryControlPlacement: 'composer', uploadAttachments: undefined,
+      composerSlots: undefined, workingDirectoryControlPlacement: 'composer', uploadAttachments: undefined,
     }));
     expect(result.current.workingDirectoryControlPlacement).toBe('composer');
   });
