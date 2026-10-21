@@ -12,7 +12,7 @@
  * contract, and a provider that throws anyway is treated as an indeterminate (`unknown`) outcome.
  */
 import { providerUnknown, type ProviderRegistry, type ProviderResult } from '@jini-ai/core/provider-registry';
-import { encodeSearchKey, type SearchDocument, type SearchProvider, type SearchProviderContext, type SearchTombstone, type SearchWriteResult, type SearchWriteStatus } from './contract.js';
+import { encodeSearchKey, type SearchDocument, type SearchProvider, type SearchProviderContext, type SearchRevisionState, type SearchTombstone, type SearchWriteResult, type SearchWriteStatus } from './contract.js';
 import type { SearchIndexer } from './api.js';
 import type { SearchDocumentSource, SearchIndexStatePort, SearchIndexStateRow, SearchIndexStatus, SearchSiteTargets, SearchSourceEvent, SearchSourceRecord, SearchTarget, SearchTargetPort } from './ports.js';
 
@@ -213,15 +213,23 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     let settled = 0;
     const rewrite: SearchIndexStateRow[] = [];
     for (const chunk of chunks(rows, Math.max(1, resolved.provider.capabilities.maxBatch))) {
-      const result = await guarded(() => resolved.provider.revisionOf(resolved.ctx, { keys: chunk.map(row => row.key) }));
-      if (result.status !== 'ok') continue;
-      const held = new Map(result.value.map(entry => [encodeSearchKey({ key: entry.key }), entry]));
-      for (const row of chunk) {
-        const entry = held.get(encodeSearchKey({ key: row.key }));
-        const landed = entry !== undefined && entry.revision !== null && entry.revision >= row.revision && entry.deleted === row.deleted;
-        if (!landed) { rewrite.push(row); continue; }
-        if (await settleObserved(row, settledRow(row, { status: 'indexed' }))) settled += 1;
-      }
+      const checked = await checkChunk(chunk, resolved);
+      settled += checked.settled;
+      rewrite.push(...checked.rewrite);
+    }
+    return { settled, rewrite };
+  };
+
+  /** One `revisionOf` call's worth of {@link checkRevisions}; an indeterminate answer leaves the rows as they are. */
+  const checkChunk = async (chunk: readonly SearchIndexStateRow[], resolved: Resolved): Promise<{ settled: number; rewrite: SearchIndexStateRow[] }> => {
+    const result = await guarded(() => resolved.provider.revisionOf(resolved.ctx, { keys: chunk.map(row => row.key) }));
+    if (result.status !== 'ok') return { settled: 0, rewrite: [] };
+    const held = new Map(result.value.map(entry => [encodeSearchKey({ key: entry.key }), entry]));
+    let settled = 0;
+    const rewrite: SearchIndexStateRow[] = [];
+    for (const row of chunk) {
+      if (!hasLanded(held.get(encodeSearchKey({ key: row.key })), row)) { rewrite.push(row); continue; }
+      if (await settleObserved(row, settledRow(row, { status: 'indexed' }))) settled += 1;
     }
     return { settled, rewrite };
   };
@@ -394,6 +402,11 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
       return targets.get({ siteId });
     },
   };
+}
+
+/** Whether the provider holds this row's write: its revision or a newer one, with the same deletion state. */
+function hasLanded(entry: SearchRevisionState | undefined, row: SearchIndexStateRow): boolean {
+  return entry !== undefined && entry.revision !== null && entry.revision >= row.revision && entry.deleted === row.deleted;
 }
 
 /** One plan's row outcome from its write call's result. */
