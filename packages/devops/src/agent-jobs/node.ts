@@ -43,8 +43,18 @@ export function createNodeJobFilesystem(_required: Record<string, never>): JobFi
     remove: async ({ path }) => { await rm(path, { force: true }); },
   };
 }
+/** The prompt directory as `readPromptJobs` sees it; the default reads the real filesystem. */
+export interface PromptDirectoryPort {
+  list(required: { directory: string }): Promise<readonly { readonly name: string; isFile(): boolean }[]>;
+  read(required: { path: string }): Promise<string>;
+}
+const nodePromptDirectory: PromptDirectoryPort = {
+  list: ({ directory }) => readdir(directory, { withFileTypes: true }),
+  read: ({ path: file }) => readFile(file, 'utf8'),
+};
 /** Read regular prompt files in stable order; duplicate basename IDs are rejected by runAgentJobs. */
-export async function readPromptJobs({ directory }: { directory: string }): Promise<AgentJob[]> {
-  const entries = (await readdir(directory, { withFileTypes: true })).filter(entry => entry.isFile()).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
-  return Promise.all(entries.map(async entry => ({ id: path.parse(entry.name).name, prompt: await readFile(path.join(directory, entry.name), 'utf8') })));
+export async function readPromptJobs({ directory }: { directory: string }, { files = nodePromptDirectory }: { files?: PromptDirectoryPort } = {}): Promise<AgentJob[]> {
+  // Names within one directory are unique, so no two entries compare equal: the former `: 0` arm was unreachable.
+  const entries = (await files.list({ directory })).filter(entry => entry.isFile()).sort((a, b) => a.name < b.name ? -1 : 1);
+  return Promise.all(entries.map(async entry => ({ id: path.parse(entry.name).name, prompt: await files.read({ path: path.join(directory, entry.name) }) })));
 }
