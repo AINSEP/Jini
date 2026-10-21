@@ -80,7 +80,7 @@ describe("helpers", () => {
       { ...base, attachments: [{ ...attachment, contentType: "text/plain" }] },
       { ...base, replyTo: { email: "other@example.com", name: "Help" } },
       { ...base, replyTo: { email: "help@example.com", name: "Support" } },
-      { ...base, replyTo: undefined },
+      (({ replyTo: _replyTo, ...rest }) => rest)(base),
       { ...base, from: { email: "news@example.com", name: "Newsroom" } },
       { ...base, to: { email: MESSAGE.to.email, name: "Reader" } },
     ];
