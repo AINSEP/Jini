@@ -148,16 +148,26 @@ export function ExternalMcpTab({
         </div>
       )}
 
-      {saveStatusLabel ? (
-        <div className="external-mcp-footer">
-          <span className="external-mcp-save-pill">{t(saveStatusLabel)}</span>
-          {configPath ? (
-            <span className="external-mcp-stored-at">
-              {t('Stored at')} <code>{configPath}</code>
-            </span>
-          ) : null}
-        </div>
-      ) : null}
+      <ExternalMcpFooter saveStatusLabel={saveStatusLabel} configPath={configPath} />
     </section>
+  );
+}
+
+/** Renders the save-status footer as one unit; a path alone does not show it. */
+function ExternalMcpFooter({ saveStatusLabel, configPath }: {
+  saveStatusLabel: string | undefined;
+  configPath: string | undefined;
+}) {
+  const t = useT();
+  if (!saveStatusLabel) return null;
+  return (
+    <div className="external-mcp-footer">
+      <span className="external-mcp-save-pill">{t(saveStatusLabel)}</span>
+      {configPath ? (
+        <span className="external-mcp-stored-at">
+          {t('Stored at')} <code>{configPath}</code>
+        </span>
+      ) : null}
+    </div>
   );
 }

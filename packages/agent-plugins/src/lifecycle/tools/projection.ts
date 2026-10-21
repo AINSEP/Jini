@@ -152,6 +152,45 @@ function checkedResources(toolId: string, value: unknown, scan: AgentPluginCrede
   return Object.freeze([...value]);
 }
 
+/** Groups admitted tools and additional contributions in declaration order.
+ * Mutates only the local groups and appends admission failures to refusals. @complexity O(t) plus schema compilation. */
+function groupProjectionTools({ loaded, additionalTools, refusals, toolIdFor }: {
+  loaded: readonly LoadedAgentPluginTool[];
+  additionalTools: readonly AgentPluginAdditionalTool[] | undefined;
+  refusals: string[];
+  toolIdFor: AgentPluginToolProjectionPorts['toolIdFor'];
+}, _options: Record<string, never> = {}) {
+  const grouped = new Map<string, AdmittedTool[]>();
+  for (const tool of admitAll(loaded, refusals, toolIdFor)) {
+    const group = grouped.get(tool.loaded.pluginId);
+    if (group) group.push(tool); else grouped.set(tool.loaded.pluginId, [tool]);
+  }
+  const additional = new Map<string, AgentPluginAdditionalTool[]>();
+  for (const entry of additionalTools ?? []) {
+    const group = additional.get(entry.pluginId);
+    if (group) group.push(entry); else additional.set(entry.pluginId, [entry]);
+    if (!grouped.has(entry.pluginId)) grouped.set(entry.pluginId, []);
+  }
+  return { grouped, additional };
+}
+
+/** Counts all declarations, including refused tools, and appends ambiguous-id refusals.
+ * @complexity O(t) time and space for t declarations. */
+function countProjectionClaims({ loaded, additionalTools, refusals, idFor }: {
+  loaded: readonly LoadedAgentPluginTool[];
+  additionalTools: readonly AgentPluginAdditionalTool[] | undefined;
+  refusals: string[];
+  idFor: AgentPluginToolProjectionPorts['toolIdFor'];
+}, _options: Record<string, never> = {}) {
+  // All claimants lose an ambiguous id, including collisions between executable and surface tools.
+  const counts = new Map<string, number>();
+  const claimedIds = [...loaded.map(tool => idFor({ pluginId: tool.pluginId, name: tool.descriptor.name })),
+    ...(additionalTools ?? []).map(entry => idFor({ pluginId: entry.pluginId, name: entry.tool.name }))];
+  for (const id of claimedIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const [id, count] of counts) if (count > 1) refusals.push(`agent tool '${id}' was not loaded: more than one contribution declares it`);
+  return counts;
+}
+
 /**
  * Creates the projection for one dedicated contribution registry (keyed by plugin id, so it must not
  * be shared with site plugins whose ids could match). Call `sync` after every load: on boot and on
@@ -223,24 +262,11 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
     /** Projects one load result. @returns The loader's refusals plus this seam's own, in order. */
     sync(input: { readonly loaded: readonly LoadedAgentPluginTool[]; readonly refusals: readonly string[]; readonly additionalTools?: readonly AgentPluginAdditionalTool[] }, _options: Record<string, never> = {}): { readonly refusals: readonly string[] } {
       const refusals = [...input.refusals];
-      const grouped = new Map<string, AdmittedTool[]>();
-      for (const tool of admitAll(input.loaded, refusals, required.toolIdFor)) {
-        const group = grouped.get(tool.loaded.pluginId);
-        if (group) group.push(tool); else grouped.set(tool.loaded.pluginId, [tool]);
-      }
-      const additional = new Map<string, AgentPluginAdditionalTool[]>();
-      for (const entry of input.additionalTools ?? []) {
-        const group = additional.get(entry.pluginId);
-        if (group) group.push(entry); else additional.set(entry.pluginId, [entry]);
-        if (!grouped.has(entry.pluginId)) grouped.set(entry.pluginId, []);
-      }
-      // All claimants lose an ambiguous id, including collisions between executable and surface tools.
-      const counts = new Map<string, number>();
+      const { grouped, additional } = groupProjectionTools({
+        loaded: input.loaded, additionalTools: input.additionalTools, refusals, toolIdFor: required.toolIdFor,
+      });
       const idFor = required.toolIdFor;
-      const claimedIds = [...input.loaded.map(tool => idFor({ pluginId: tool.pluginId, name: tool.descriptor.name })),
-        ...(input.additionalTools ?? []).map(entry => idFor({ pluginId: entry.pluginId, name: entry.tool.name }))];
-      for (const id of claimedIds) counts.set(id, (counts.get(id) ?? 0) + 1);
-      for (const [id, count] of counts) if (count > 1) refusals.push(`agent tool '${id}' was not loaded: more than one contribution declares it`);
+      const counts = countProjectionClaims({ loaded: input.loaded, additionalTools: input.additionalTools, refusals, idFor });
       const nextProjected = new Map<string, ProjectedPlugin>();
       for (const [pluginId, tools] of grouped) {
         const unique = tools.filter(tool => counts.get(tool.toolId) === 1);

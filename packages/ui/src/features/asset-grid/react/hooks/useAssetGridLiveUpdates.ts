@@ -16,6 +16,22 @@ export interface UseAssetGridLiveUpdatesParams<TAsset extends AssetGridItem> {
   coalesceMs?: number | undefined;
 }
 
+/** Drains pending deletes and cancels matching ingests before the pass can fetch.
+ * Mutates the pending sets and schedules the asset update. @complexity O(d + a) deletes and assets. */
+function applyPendingDeletes<TAsset extends AssetGridItem>({ pendingDelete, pendingIngest, setAssets }: {
+  pendingDelete: Set<string>;
+  pendingIngest: Set<string>;
+  setAssets: UseAssetGridLiveUpdatesParams<TAsset>['setAssets'];
+}, _options: Record<string, never> = {}): void {
+  // Deletes are free (no fetch); apply them first.
+  if (pendingDelete.size) {
+    const del = new Set(pendingDelete);
+    pendingDelete.clear();
+    for (const id of del) pendingIngest.delete(id);
+    setAssets((prev) => prev.filter((a) => !del.has(a.id)));
+  }
+}
+
 /**
  * Subscribes to a live-update transport and reconciles incremental
  * ingest/delete events into the current asset list. Events are coalesced
@@ -61,13 +77,7 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
 
     const runFlushPass = async () => {
       if (disposed) return;
-      // Deletes are free (no fetch); apply them first.
-      if (pendingDelete.size) {
-        const del = new Set(pendingDelete);
-        pendingDelete.clear();
-        for (const id of del) pendingIngest.delete(id);
-        setAssets((prev) => prev.filter((a) => !del.has(a.id)));
-      }
+      applyPendingDeletes({ pendingDelete, pendingIngest, setAssets });
       if (pendingFull || filtersActiveRef.current) {
         pendingFull = false;
         pendingIngest.clear();

@@ -32,8 +32,6 @@ export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5 }: Prog
   const title = data.title ?? t(defaultProgressCardTitle(data.status));
   const detail = data.detail ?? t(defaultProgressCardDetail(data.status));
   const secondaryHeading = t(data.secondaryItemsLabel ?? 'Files touched');
-  const widthPercent = progressBarWidthPercent(data.progress);
-  const ariaValueNow = progressBarAriaValueNow(data.progress);
   const visibleSteps = data.steps.slice(0, maxSteps);
   const visibleSecondaryItems = (data.secondaryItems ?? []).slice(0, maxSecondaryItems);
 
@@ -46,16 +44,7 @@ export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5 }: Prog
           <small>{detail}</small>
         </span>
       </div>
-      <div
-        className={`progress-card-bar${widthPercent === null ? ' is-indeterminate' : ''}`}
-        role="progressbar"
-        aria-label={t('{title} progress', { title })}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={ariaValueNow}
-      >
-        <span style={widthPercent === null ? undefined : { width: `${widthPercent}%` }} />
-      </div>
+      <ProgressCardBar progress={data.progress} label={t('{title} progress', { title })} />
       {visibleSteps.length > 0 ? <ProgressCardItemList items={visibleSteps} className="progress-card-steps" /> : null}
       {visibleSecondaryItems.length > 0 ? (
         <div className="progress-card-secondary-items">
@@ -64,6 +53,24 @@ export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5 }: Prog
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** Presents the existing progress rules as a determinate or indeterminate accessible bar. */
+function ProgressCardBar({ progress, label }: { progress: ProgressCardData['progress']; label: string }) {
+  const widthPercent = progressBarWidthPercent(progress);
+  const ariaValueNow = progressBarAriaValueNow(progress);
+  return (
+    <div
+      className={`progress-card-bar${widthPercent === null ? ' is-indeterminate' : ''}`}
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={ariaValueNow}
+    >
+      <span style={widthPercent === null ? undefined : { width: `${widthPercent}%` }} />
+    </div>
   );
 }
 
