@@ -11,7 +11,7 @@ Setup: node 24.22.0, pnpm install --frozen-lockfile OK (27s), pnpm -r build OK. 
 | subagent D | 010,011,012-remotion,020(-visual-diff),021(cap-prov,charts) | cloud/cov-J1-010-011-020-021 | MERGED 16:52 — all testable files 100%; Remotion template not testable in place (remotion unresolvable); build-artifact.mjs excluded (build script); merged-branch rerun: 34/34 measured files 100%, all 6 package suites green |
 | coordinator (self) | 021(chat),022-026 | cloud/cov-J1-021-026-chat | MERGED 17:02 — 25/25 files 100%; merged rerun with 027-033: 49/49 chat files 100%, chat 225 files/3364 tests pass |
 
-DONE 17:30 UTC — see cov-J1-REPORT.md
+DONE 17:12 UTC — see cov-J1-REPORT.md
 | subagent C | 007-009 | cloud/cov-J1-007-009 | MERGED 16:32 — all testable files 100%; 3 shadcn example .tsx not testable in place (import @/components/ui/* absent from repo); merged-branch rerun: 43/43 testable files 100%; agent-plugins 87/1278, agent-runtime 155/3805 pass |
 | subagent W1 | 012(asset-harvest),013,014,015 | cloud/cov-J1-012-015-wc | MERGED 16:45 — 5/5 scripts + new lib/script-cli.mjs 100%; agent-runtime 160/3849 pass |
 | subagent W2 | 016-019, visual-diff | cloud/cov-J1-016-019-wc | MERGED 17:00 — 9/9 scripts + lib/cli-args, lib/main-guard 100%; merged rerun agent-runtime 170 files/4090 tests pass |

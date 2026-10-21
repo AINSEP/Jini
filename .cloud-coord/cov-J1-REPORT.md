@@ -1,7 +1,7 @@
 # cov-J1 REPORT — Jini lots 001..033
 
 Wave J1, unattended. Base `b3c4144b` (cloud/integration-2026-10-21); result branch **`cloud/cov-J1`**.
-Started 15:37 UTC, finished ~17:30 UTC (well inside the 4 h cap).
+Started 15:37 UTC, finished ~17:12 UTC (well inside the 4 h cap).
 
 ## Outcome
 - **All 33 lots done.** All 296 lot files are at 100% lines, branches and functions, except the 11 below.
@@ -109,16 +109,7 @@ Started 15:37 UTC, finished ~17:30 UTC (well inside the 4 h cap).
 ## Caps used
 - 6 subagent sessions out of 15. At most 3 ran at once (4 workers counting the coordinator).
 - The coordinator did lots 021 (chat files) to 033 itself.
-- Wall clock was about 1 h 45 m of the 4 h cap.
+- Wall clock was about 1 h 35 m of the 4 h cap.
 
 ## Branches (all pushed)
-- `cloud/cov-J1` (merged result).
-- Lot branches:
-  - `cloud/cov-J1-001-003`
-  - `-004-006`
-  - `-007-009`
-  - `-010-011-020-021`
-  - `-012-015-wc`
-  - `-016-019-wc`
-  - `-021-026-chat`
-  - `-027-033`
+- `cloud/cov-J1` (merged result). Lot branches: `cloud/cov-J1-{001-003,004-006,007-009,010-011-020-021,012-015-wc,016-019-wc,021-026-chat,027-033}`.
