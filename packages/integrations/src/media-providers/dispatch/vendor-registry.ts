@@ -53,7 +53,7 @@ class BuiltinVendorAdapterRegistry extends VendorAdapterRegistry {
     this.initialize();
     return super.list();
   }
-/** @deprecated Build one createMediaProviderRegistry() per host composition and inject it instead. */
+}
 
-/** @deprecated Construct and inject createBuiltinVendorAdapterRegistry() per host instead. */
+/** @deprecated Build one createMediaProviderRegistry() per host composition and inject it instead. */
 export const mediaVendorRegistry: VendorAdapterRegistry = new BuiltinVendorAdapterRegistry();
