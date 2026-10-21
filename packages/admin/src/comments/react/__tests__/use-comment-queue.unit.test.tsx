@@ -473,6 +473,25 @@ describe("cursor pages share the query cache", () => {
 describe("queue cache scope isolation", () => {
   afterEach(() => resetContentRefreshBus());
 
+  it('preserves rows for fresh grant arrays and immediately applies grant revocation', async () => {
+    const port = createFakeCommentQueuePort({ items: [COMMENT] });
+    const api = commentQueueApi({ port });
+    const scope = { workspaceId: 'w1', principalId: 'operator' };
+    const { result, rerender } = renderHook(({ permissions }) =>
+      useCoreCommentQueue({ api, scope, permissions }),
+    { initialProps: { permissions: ['comments.moderate'] }, wrapper });
+    await waitFor(() => expect(result.current.items).toEqual([COMMENT]));
+    const rows = result.current.items;
+
+    rerender({ permissions: ['comments.moderate'] });
+    expect(result.current.items).toBe(rows);
+    rerender({ permissions: [] });
+    expect(result.current.items).toBe(rows);
+    await act(async () => result.current.onModerate(COMMENT, 'approve'));
+    expect(port.moderateCalls).toEqual([]);
+    expect(port.listCalls).toHaveLength(1);
+  });
+
   it.each(['workspace', 'principal'])('isolates a %s switch while the API and cache provider stay mounted', async changed => {
     const scopeA = { workspaceId: 'w1', principalId: 'operator-a' };
     const scopeB = { workspaceId: changed === 'workspace' ? 'w2' : 'w1', principalId: changed === 'principal' ? 'operator-b' : 'operator-a' };
@@ -506,9 +525,10 @@ describe("queue cache scope isolation", () => {
       return queue;
     }, { initialProps: { scope: scopeA }, wrapper: sessionWrapper });
     await waitFor(() => expect(result.current.items).toEqual([a]));
-    act(() => result.current.loadMore());
+    // loadMore now returns the controller promise; keep deferred reads outside async act scopes.
+    act(() => { void result.current.loadMore(); });
     await waitFor(() => expect(result.current.items).toEqual([a, aMore]));
-    act(() => result.current.loadMore());
+    act(() => { void result.current.loadMore(); });
     await waitFor(() => expect(port.listCommentsQueue).toHaveBeenCalledTimes(3));
 
     currentScope = scopeB;
@@ -521,7 +541,7 @@ describe("queue cache scope isolation", () => {
       completeB({ items: [b], nextCursor: 'shared-cursor' });
     });
     await waitFor(() => expect(result.current.items).toEqual([b]));
-    act(() => result.current.loadMore());
+    act(() => { void result.current.loadMore(); });
     await waitFor(() => expect(result.current.items).toEqual([b, bMore]));
     expect(port.listCommentsQueue).toHaveBeenCalledTimes(5);
     expect(bRenders.flatMap(items => items ?? [])).not.toContainEqual(a);

@@ -66,6 +66,7 @@ export function createCommentQueueController(
   ) {
     if (store.signal.aborted) return;
     permissions = nextPermissions;
+    if (t === nextTranslator) return;
     t = nextTranslator;
     publishPages();
   }

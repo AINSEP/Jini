@@ -60,8 +60,9 @@ async function checkSubmissions(
   check('submission detail is scoped', (await api.getFormSubmission(submission)).formDefinitionId === submission.formId);
   check('a submission of another form is unavailable', await rejects({ operation: () => api.getFormSubmission(crossForm) }));
   const wrongFormDeleteRejected = await rejects({ operation: () => api.deleteFormSubmission(crossForm) });
-  check('cross-form trash is rejected without removing the submission', wrongFormDeleteRejected && (await api.getFormSubmission(submission)).id === submission.submissionId);
-  await api.deleteFormSubmission(submission);
+  const submissionRetained = await api.getFormSubmission(submission).then(item => item.id === submission.submissionId, () => false);
+  check('cross-form trash is rejected without removing the submission', wrongFormDeleteRejected && submissionRetained);
+  if (submissionRetained) await api.deleteFormSubmission(submission);
   check('trashed submission detail is unavailable', await rejects({ operation: () => api.getFormSubmission(submission) }));
   check('trashed submission is absent from active pages', !(await api.listFormSubmissions({ formId: submission.formId })).items.some(item => item.id === submission.submissionId));
 }

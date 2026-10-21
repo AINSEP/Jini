@@ -118,12 +118,24 @@ it('reports submission reads that ignore the form scope', async () => {
     'submission page is form scoped', 'submission detail is scoped', 'a submission of another form is unavailable',
   ]);
 });
-it('crashes instead of reporting a failure when a cross-form trash is accepted (reported, not fixed)', async () => {
+it('reports a failure when a cross-form trash is accepted without crashing on the removed seed', async () => {
   const api = deviant(base => ({
     async deleteFormSubmission({ submissionId }) { await base.deleteFormSubmission({ formId: 'f1', submissionId }); },
   }));
-  // The accepted cross-form call already trashed s1, so the harness's own unguarded trash finds nothing.
-  await expect(runFormsApiConformance({ api }, { submission })).rejects.toThrow("form definition 's1' was not found");
+  expect(await runFormsApiConformance({ api }, { submission })).toEqual({
+    passed: 19, failures: ['cross-form trash is rejected without removing the submission'],
+  });
+});
+it('reports a cross-form trash that removes the submission before rejecting', async () => {
+  const api = deviant(base => ({
+    async deleteFormSubmission({ submissionId }) {
+      await base.deleteFormSubmission({ formId: 'f1', submissionId });
+      throw new Error('rejected after deletion');
+    },
+  }));
+  expect(await runFormsApiConformance({ api }, { submission })).toEqual({
+    passed: 19, failures: ['cross-form trash is rejected without removing the submission'],
+  });
 });
 it('reports a trash that leaves the submission readable and listed', async () => {
   const api = deviant(base => ({
