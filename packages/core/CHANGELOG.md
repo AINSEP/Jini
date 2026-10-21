@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- New `./provider-registry` (also on the root): `createProviderRegistry<T>()` — keyed register/get/has/list/getDefault, frozen entries, core registrations throw while plugin contributions are recorded in `refusals()` — plus shared `ProviderResult<T>`, `ProviderContext` and `DomainRequirement` types. Frozen contract: `docs/provider-registry.md`.
+- New `./provider-registry` (also on the root): `createProviderRegistry<T>()` — keyed register/get/has/list/getDefault, frozen entries, core registrations throw while plugin contributions are recorded in `refusals()` — plus shared `ProviderResult<T>`, `ProviderContext` and `DomainRequirement` types. Frozen contract: `docs/provider-registry.md`. `contribute()` turns a throwing validator or provider/id getter into an `invalid_provider` refusal; every public method and the `providerOk`/`providerRejected`/`providerUnknown` factories take the reserved optional object.
 
 ## 0.4.8 — 2026-10-16
 

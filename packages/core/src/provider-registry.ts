@@ -43,17 +43,18 @@ export interface ProviderRefusal {
 export interface ProviderRegistry<T> {
   readonly contract: string;
   /** Core/built-in registration. @throws {ProviderRegistryError} on a bad id, invalid provider or duplicate. */
-  register(required: { readonly definition: ProviderDefinition<T> }): void;
-  /** Plugin registration. Never throws; returns false and records a refusal instead. */
-  contribute(required: { readonly definition: ProviderDefinition<T>; readonly pluginId: string; readonly contract?: string }): boolean;
-  get(required: { readonly id: string }): RegisteredProvider<T> | undefined;
-  has(required: { readonly id: string }): boolean;
+  register(required: { readonly definition: ProviderDefinition<T> }, _optional?: Record<string, never>): void;
+  /** Plugin registration. Never throws (a throwing validator or provider getter is an `invalid_provider`
+   * refusal); returns false and records a refusal instead. */
+  contribute(required: { readonly definition: ProviderDefinition<T>; readonly pluginId: string; readonly contract?: string }, _optional?: Record<string, never>): boolean;
+  get(required: { readonly id: string }, _optional?: Record<string, never>): RegisteredProvider<T> | undefined;
+  has(required: { readonly id: string }, _optional?: Record<string, never>): boolean;
   /** Frozen snapshot in registration order. */
-  list(_required?: Record<string, never>): readonly RegisteredProvider<T>[];
+  list(_required?: Record<string, never>, _optional?: Record<string, never>): readonly RegisteredProvider<T>[];
   /** The configured default provider, if one was named and is registered. */
-  getDefault(_required?: Record<string, never>): RegisteredProvider<T> | undefined;
+  getDefault(_required?: Record<string, never>, _optional?: Record<string, never>): RegisteredProvider<T> | undefined;
   /** Frozen snapshot of every refused plugin contribution, in refusal order. */
-  refusals(_required?: Record<string, never>): readonly ProviderRefusal[];
+  refusals(_required?: Record<string, never>, _optional?: Record<string, never>): readonly ProviderRefusal[];
 }
 
 export class ProviderRegistryError extends Error {
@@ -79,6 +80,11 @@ function definitionFault<T>(
   const reason = optional.validate?.({ provider: definition.provider });
   if (reason !== undefined) return { code: 'invalid_provider', message: `${contract} provider '${definition.id}' is invalid: ${reason}` };
   return undefined;
+}
+
+/** The id for a refusal line; a hostile definition whose id cannot even be read is recorded as ''. */
+function safeId<T>(required: { readonly definition: ProviderDefinition<T> }, _optional: Record<string, never> = {}): string {
+  try { return String(required.definition.id); } catch { return ''; }
 }
 
 function frozenEntry<T>(required: { readonly definition: ProviderDefinition<T>; readonly origin: ProviderOrigin }, optional: { readonly pluginId?: string } = {}): RegisteredProvider<T> {
@@ -137,20 +143,11 @@ export function createProviderRegistry<T>(
       }
       providers.set(definition.id, frozenEntry({ definition, origin: 'core' }));
     },
-    contribute({ definition, pluginId, contract: declared }) {
-      const providerId = String(definition.id);
-      if (declared !== undefined && declared !== contract) {
-        return refuse({ fault: { code: 'contract_mismatch', message: `plugin '${pluginId}' contributed provider '${providerId}' for contract '${declared}', not '${contract}'` }, pluginId, providerId });
-      }
-      const fault = definitionFault({ contract, definition }, { ...(validate ? { validate } : {}) });
-      if (fault) return refuse({ fault, pluginId, providerId });
-      const existing = providers.get(providerId);
-      if (existing) {
-        const owner = existing.pluginId === undefined ? 'the built-in provider' : `plugin '${existing.pluginId}'`;
-        return refuse({ fault: { code: 'duplicate', message: `${contract} provider '${providerId}' from plugin '${pluginId}' was not loaded: already registered by ${owner}` }, pluginId, providerId });
-      }
-      providers.set(providerId, frozenEntry({ definition, origin: 'plugin' }, { pluginId }));
-      return true;
+    contribute(input) {
+      // Third-party input: a throwing validator, id or provider getter is refused, never propagated
+      // (core registrations keep the throwing policy above).
+      try { return contributeChecked(input); }
+      catch { return refuse({ fault: { code: 'invalid_provider', message: `${contract} provider from plugin '${input.pluginId}' was not loaded: its definition could not be validated` }, pluginId: input.pluginId, providerId: safeId({ definition: input.definition }) }); }
     },
     get({ id }) { return providers.get(id); },
     has({ id }) { return providers.has(id); },
@@ -158,6 +155,21 @@ export function createProviderRegistry<T>(
     getDefault() { return defaultProviderId === undefined ? undefined : providers.get(defaultProviderId); },
     refusals() { return Object.freeze([...refused]); },
   };
+  function contributeChecked({ definition, pluginId, contract: declared }: Parameters<ProviderRegistry<T>['contribute']>[0]): boolean {
+    const providerId = String(definition.id);
+    if (declared !== undefined && declared !== contract) {
+      return refuse({ fault: { code: 'contract_mismatch', message: `plugin '${pluginId}' contributed provider '${providerId}' for contract '${declared}', not '${contract}'` }, pluginId, providerId });
+    }
+    const fault = definitionFault({ contract, definition }, { ...(validate ? { validate } : {}) });
+    if (fault) return refuse({ fault, pluginId, providerId });
+    const existing = providers.get(providerId);
+    if (existing) {
+      const owner = existing.pluginId === undefined ? 'the built-in provider' : `plugin '${existing.pluginId}'`;
+      return refuse({ fault: { code: 'duplicate', message: `${contract} provider '${providerId}' from plugin '${pluginId}' was not loaded: already registered by ${owner}` }, pluginId, providerId });
+    }
+    providers.set(providerId, frozenEntry({ definition, origin: 'plugin' }, { pluginId }));
+    return true;
+  }
   for (const definition of optional.seed ?? []) registry.register({ definition });
   return registry;
 }
@@ -197,15 +209,15 @@ export type ProviderResult<T> =
   | { readonly status: 'rejected'; readonly error: ProviderError<ProviderRejectedCode> }
   | { readonly status: 'unknown'; readonly error: ProviderError<ProviderUnknownCode> };
 
-export function providerOk<T>(required: { readonly value: T }): ProviderResult<T> {
+export function providerOk<T>(required: { readonly value: T }, _optional: Record<string, never> = {}): ProviderResult<T> {
   return { status: 'ok', value: required.value };
 }
 
-export function providerRejected<T = never>(required: ProviderError<ProviderRejectedCode>): ProviderResult<T> {
+export function providerRejected<T = never>(required: ProviderError<ProviderRejectedCode>, _optional: Record<string, never> = {}): ProviderResult<T> {
   return { status: 'rejected', error: { ...required } };
 }
 
-export function providerUnknown<T = never>(required: ProviderError<ProviderUnknownCode>): ProviderResult<T> {
+export function providerUnknown<T = never>(required: ProviderError<ProviderUnknownCode>, _optional: Record<string, never> = {}): ProviderResult<T> {
   return { status: 'unknown', error: { ...required } };
 }
 
