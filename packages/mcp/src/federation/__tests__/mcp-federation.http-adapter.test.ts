@@ -560,3 +560,48 @@ test("the fetch exchange sends no body on a DELETE", async () => {
   assert.equal(seenInit?.method, "DELETE");
   assert.equal(seenInit?.body, undefined);
 });
+
+test("a JSON-RPC error frame missing its code and message still becomes a protocol error, with placeholders", async () => {
+  const exchange = new ScriptedMcpHttpExchange({
+    respond: ({ request }) =>
+      request.message?.method === "tools/call"
+        ? { body: { jsonrpc: "2.0", id: request.message.id, error: {} } }
+        : politeServer()(request),
+  });
+  const session = await connect(exchange);
+
+  await assert.rejects(session.callTool({ name: "nope", arguments: {} }), { message: "mcp-federation: remote returned JSON-RPC error ?: (no message)" });
+});
+
+test("an SSE body whose final event is not followed by a blank line is still read", async () => {
+  const exchange = new ScriptedMcpHttpExchange({
+    respond: ({ request }) => {
+      if (request.message?.method !== "tools/list") return politeServer()(request);
+      const frame = JSON.stringify({ jsonrpc: "2.0", id: request.message.id, result: { tools: ONE_TOOL } });
+      return { contentType: "text/event-stream", body: `event: message\ndata: ${frame}` };
+    },
+  });
+  const session = await connect(exchange);
+
+  assert.deepEqual((await session.listTools()).map((tool) => tool.name), ["generate_image"]);
+});
+
+// A credential port that answers only after the close deadline must not get a DELETE dispatched
+// late, after close() has already returned to a caller that is shutting down.
+test("close never sends the DELETE when credential lookup outlasts the close deadline", async () => {
+  let slowCredentials = false;
+  const exchange = new ScriptedMcpHttpExchange({ respond: ({ request }) => (politeServer())(request) });
+  const session = await connectMcpHttpSession({
+    messages: defaultFederationMessages, clientInfo, exchange, spec: SPEC, requestTimeoutMs: 20,
+    bearerToken: async () => {
+      if (slowCredentials) await new Promise((resolve) => setTimeout(resolve, 60));
+      return undefined;
+    },
+  });
+  slowCredentials = true;
+
+  await session.close({});
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  assert.equal(exchange.sent.some((request) => request.method === "DELETE"), false);
+});
