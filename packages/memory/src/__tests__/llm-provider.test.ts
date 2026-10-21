@@ -453,6 +453,14 @@ describe('callLlmProviderForJson', () => {
     expect(result).toEqual({ ok: true });
   });
 
+  it('fails closed before any request when a plain-JS caller supplies no endpoint anywhere', async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => jsonResponse({}));
+    const { baseUrl: _omitted, ...withoutEndpoint } = openaiConfig().config;
+    const config = withoutEndpoint as unknown as LlmProviderConfig;
+    await expect(callLlmProviderForJson({ config, systemPrompt: 's', userPrompt: 'u' }, { fetchFn })).rejects.toThrow('llm-provider: baseUrl is required for the "openai" provider');
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   it('propagates a parseStrictJson failure when the model output is not valid JSON', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ content: [{ type: 'text', text: 'not json at all' }] })));
     await expect(callLlmProviderForJson({ config: anthropicConfig().config, systemPrompt: 's', userPrompt: 'u' }, anthropicConfig().options)).rejects.toThrow(/response was not valid JSON/);
