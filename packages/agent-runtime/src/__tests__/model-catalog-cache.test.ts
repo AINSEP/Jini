@@ -115,3 +115,7 @@ test('per-call discovery accepts resolved credentials without an ambient credent
   expect(resolvedCredentialDiscovery).toHaveBeenCalledTimes(1);
   expect(defaultDiscovery).not.toHaveBeenCalled();
 });
+test.each([-1, Number.NaN, Number.POSITIVE_INFINITY])("refuses a ttlMs of %s at construction", (ttlMs) => {
+    const required = { clock: { nowMs: () => 0 }, discover: async () => null, merge: unionModels };
+    expect(() => new ModelCatalogCache<{ id: string; label: string }>(required, { ttlMs })).toThrow(new RangeError("ttlMs must be finite and non-negative"));
+});

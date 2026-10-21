@@ -81,3 +81,22 @@ describe('aiderAgentDef.buildArgs', () => {
     expect(args.slice(-2)).toEqual(['--message', 'hi']);
   });
 });
+
+describe('aiderAgentDef.buildArgs trusted CLI parity', () => {
+  const suppressions = ['--no-git', '--no-auto-commits', '--no-suggest-shell-commands'];
+  const build = (options: Record<string, unknown>) => aiderAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options });
+  it('leaves git and shell to Aider\'s own settings only for bypass parity with native tools allowed', () => {
+    const trusted = build({ cliParity: true, permissionMode: 'bypass' });
+    for (const flag of suppressions) expect(trusted).not.toContain(flag);
+    expect(trusted).toContain('--yes-always');
+  });
+  it.each([
+    ['native tool access is off', { cliParity: true, permissionMode: 'bypass', nativeToolAccess: false }],
+    ['the run is restricted', { cliParity: true, permissionMode: 'restricted' }],
+    ['parity is not requested', { permissionMode: 'bypass' }],
+  ])('keeps the managed-workspace suppressions when %s', (_label, options) => {
+    const args = build(options);
+    for (const flag of suppressions) expect(args).toContain(flag);
+  });
+});
+

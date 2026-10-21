@@ -264,7 +264,8 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
     if (tree) {
       input.signal.addEventListener('abort', killTree, { once: true });
       treeTimer = setTimeout(killTree, input.timeoutMs);
-      if (input.signal.aborted) killTree();
+      // No already-aborted check here: the probe scheduler refuses a cancelled signal immediately
+      // before running this executor, and nothing between that check and this line yields.
     }
     if (input.complete) child.stdout?.on('data', (chunk) => {
       captured += String(chunk);
@@ -280,12 +281,16 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
  * @throws An actionable load error retaining the original import failure as its cause.
  * @complexity O(1) lookup after Node's cached module load.
  */
+type ProviderCatalogModule = typeof import('@jini-ai/integrations/media-providers/catalog');
+/** The module-loading port for the optional catalog peer; Node's dynamic import by default. */
+export type ProviderCatalogImport = () => Promise<{ readonly VENDOR_API_BASE_URLS: Readonly<Record<keyof ProviderCatalogModule['VENDOR_API_BASE_URLS'], string>> }>;
+const importProviderCatalog: ProviderCatalogImport = () => import('@jini-ai/integrations/media-providers/catalog');
 async function defaultProviderBaseUrl(
-  { provider }: { provider: keyof typeof import('@jini-ai/integrations/media-providers/catalog').VENDOR_API_BASE_URLS },
-  _optional: Record<string, never> = {},
+  { provider }: { provider: keyof ProviderCatalogModule['VENDOR_API_BASE_URLS'] },
+  { importCatalog = importProviderCatalog }: { importCatalog?: ProviderCatalogImport } = {},
 ): Promise<string> {
   try {
-    const { VENDOR_API_BASE_URLS } = await import('@jini-ai/integrations/media-providers/catalog');
+    const { VENDOR_API_BASE_URLS } = await importCatalog();
     return VENDOR_API_BASE_URLS[provider];
   } catch (cause) {
     throw new Error('Could not load @jini-ai/integrations/media-providers/catalog. Install the optional peer @jini-ai/integrations or inject ModelDiscoveryDeps.credential to discover models with default provider URLs.', { cause });
@@ -307,22 +312,29 @@ const ENV_CONNECTIONS: readonly EnvConnection[] = [
     matches: (selected, agentId, env) => /^(openai\/|gpt-|o\d)/.test(selected) || agentId === 'qwen' && Boolean(env.OPENAI_MODEL || env.OPENAI_BASE_URL),
     baseUrl: (env) => env.OPENAI_BASE_URL || env.OPENAI_API_BASE },
 ];
-async function envConnection(rule: EnvConnection, env: ModelDiscoveryContext['env']): Promise<ProviderModelsInput> {
-  return { protocol: rule.protocol, baseUrl: rule.baseUrl(env) || await defaultProviderBaseUrl({ provider: rule.provider }), apiKey: env[rule.key]! };
+async function envConnection(rule: EnvConnection, env: ModelDiscoveryContext['env'], importCatalog: ProviderCatalogImport): Promise<ProviderModelsInput> {
+  return { protocol: rule.protocol, baseUrl: rule.baseUrl(env) || await defaultProviderBaseUrl({ provider: rule.provider }, { importCatalog }), apiKey: env[rule.key]! };
 }
 function selectedModelFromEnv(agentId: string, env: ModelDiscoveryContext['env']): string | undefined {
   if (agentId === 'aider') return env.AIDER_MODEL;
   return agentId === 'qwen' ? env.QWEN_MODEL || env.OPENAI_MODEL : undefined;
 }
-async function connectionFromEnv({ agentId, context }: { agentId: string; context: ModelDiscoveryContext }): Promise<ProviderModelsInput | null> {
-  // Deliberately do not steal tokens from another CLI's store. Hosts can inject keychain/OAuth
-  // handles. BYOK env is usable only when it identifies this CLI's effective provider.
-  const env = context.env;
-  if (agentId === 'claude' && env.ANTHROPIC_API_KEY) return envConnection(ENV_CONNECTIONS[0]!, env);
-  const selected = context.model || selectedModelFromEnv(agentId, env);
-  if (!selected) return null;
-  const rule = ENV_CONNECTIONS.find((candidate) => candidate.matches(selected, agentId, env) && env[candidate.key]);
-  return rule ? envConnection(rule, env) : null;
+/** The env-backed credential port. `importCatalog` loads the optional provider-catalog peer for
+ * default base URLs; injectable so a missing peer is testable without uninstalling it. */
+export function createEnvCredentialPort(
+  _required: Record<string, never> = {},
+  { importCatalog = importProviderCatalog }: { importCatalog?: ProviderCatalogImport } = {},
+): ModelDiscoveryDeps['credential'] {
+  return { async connection({ agentId, context }) {
+    // Deliberately do not steal tokens from another CLI's store. Hosts can inject keychain/OAuth
+    // handles. BYOK env is usable only when it identifies this CLI's effective provider.
+    const env = context.env;
+    if (agentId === 'claude' && env.ANTHROPIC_API_KEY) return envConnection(ENV_CONNECTIONS[0]!, env, importCatalog);
+    const selected = context.model || selectedModelFromEnv(agentId, env);
+    if (!selected) return null;
+    const rule = ENV_CONNECTIONS.find((candidate) => candidate.matches(selected, agentId, env) && env[candidate.key]);
+    return rule ? envConnection(rule, env, importCatalog) : null;
+  } };
 }
 export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
   process: { run: runProcess },
@@ -338,7 +350,7 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
     },
   },
   http: { list: (input) => { const { protocol, baseUrl, apiKey, ...optional } = input; return listProviderModels({ protocol, baseUrl, apiKey }, optional); } },
-  credential: { connection: connectionFromEnv },
+  credential: createEnvCredentialPort(),
   acp: createAcpDiscoveryAdapter({ probe: nativeAcpModelProbe }),
   rpc: { async probe({ agentId, context, signal }) {
     // UNVERIFIED locally: use official prompt-free SDK interfaces, not invented CLI flags.

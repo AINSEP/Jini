@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { defaultModelDiscoveryDeps, modelProbeTimeoutMs, parseClaudeInitializeMetadata, parsePiRpcMetadata, probeAgentCatalog, probeClaudeInitialize, probeCliCache, probeCliSubcommand, probeProviderApi } from '../model-discovery-adapters.js';
+import { createEnvCredentialPort, defaultModelDiscoveryDeps, modelProbeTimeoutMs, parseClaudeInitializeMetadata, parsePiRpcMetadata, probeAgentCatalog, probeClaudeInitialize, probeCliCache, probeCliSubcommand, probeProviderApi } from '../model-discovery-adapters.js';
 import { ModelProbeError } from '../model-discovery-shared.js';
 import type { AgentDiscoveryConfiguration, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from '../model-discovery-types.js';
 
@@ -400,5 +400,66 @@ describe('default process port (real node child processes)', () => {
     const controller = new AbortController(); setTimeout(() => controller.abort(), 300);
     const error = await run({ context: node, args: ['-e', 'setTimeout(() => {}, 10_000)'], stdin: '', signal: controller.signal, timeoutMs: 10_000, terminateProcessTree: true }).catch((caught: unknown) => caught);
     expect(error).toMatchObject({ name: 'AbortError' });
+  });
+  it('never leaves a CLI running when the probe was cancelled before it started', async () => {
+    const controller = new AbortController(); controller.abort();
+    const started = Date.now();
+    const error = await run({ context: node, args: ['-e', 'setTimeout(() => {}, 10_000)'], stdin: '', signal: controller.signal, timeoutMs: 10_000, terminateProcessTree: true }).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ message: 'Probe cancelled' });
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
+describe('default RPC port over real child processes', () => {
+  let rpcDir: string;
+  beforeAll(() => { rpcDir = mkdtempSync(join(tmpdir(), 'rpc-port-')); });
+  afterAll(() => { rmSync(rpcDir, { recursive: true, force: true }); });
+  function script(name: string, body: string): string {
+    const file = join(rpcDir, name);
+    writeFileSync(file, `#!${process.execPath}\n${body}\n`);
+    chmodSync(file, 0o755);
+    return file;
+  }
+  const scope = (executable: string): ModelDiscoveryContext => ({ executable, cwd: rpcDir, env: { PATH: process.env.PATH ?? '' } });
+
+  it('reads Pi\'s catalog and current model over --mode rpc, stopping the CLI once both arrived', async () => {
+    const pi = script('pi', [
+      'if (process.argv.slice(2).join(" ") !== "--mode rpc") process.exit(9);',
+      // State first: until the catalog arrives the partial output cannot be parsed, so the probe keeps reading.
+      'process.stdout.write(JSON.stringify({ type: "response", success: true, command: "get_state", data: { model: { provider: "p", id: "m1" } } }) + "\\n");',
+      'setTimeout(() => process.stdout.write(JSON.stringify({ type: "response", success: true, command: "get_available_models", data: { models: [{ provider: "p", id: "m1", name: "M One" }] } }) + "\\n"), 50);',
+      'setTimeout(() => {}, 10_000);',
+    ].join('\n'));
+    const result = await defaultModelDiscoveryDeps.rpc.probe({ agentId: 'pi', context: scope(pi), signal });
+    expect(result).toEqual({ models: [{ id: 'p/m1', label: 'M One', provider: 'p', identityKind: 'concrete' }], source: 'rpc', coverage: 'account', defaultSelectionId: 'p/m1' });
+  }, 15_000);
+
+  it('refuses Droid metadata when the Python SDK prints no catalog', async () => {
+    // The fake "executable" is irrelevant: python3 runs the bridge, and without droid_sdk installed
+    // (this sandbox) or with a broken one, the bridge yields no JSON and the probe refuses it.
+    const outcome = await probeError(defaultModelDiscoveryDeps.rpc.probe({ agentId: 'droid', context: scope(join(rpcDir, 'droid')), signal }));
+    expect(outcome).not.toBe('resolved');
+  }, 30_000);
+
+  it('refuses Copilot metadata when the CLI the SDK would start does not exist', async () => {
+    const outcome = await probeError(defaultModelDiscoveryDeps.rpc.probe({ agentId: 'copilot', context: scope(join(rpcDir, 'missing-copilot')), signal }));
+    expect(outcome).not.toBe('resolved');
+  }, 30_000);
+});
+
+describe('env credential port default base URLs', () => {
+  const key = ['sk', 'ant', 'env', 'fixture'].join('-');
+  const claude = { agentId: 'claude', context: { executable: '/cli', cwd: '/w', env: { ANTHROPIC_API_KEY: key } }, signal };
+  it('takes the default base URL from the injected provider catalog', async () => {
+    const { VENDOR_API_BASE_URLS } = await import('@jini-ai/integrations/media-providers/catalog');
+    const port = createEnvCredentialPort({}, { importCatalog: async () => ({ VENDOR_API_BASE_URLS: { ...VENDOR_API_BASE_URLS, anthropic: 'https://catalog.example/anthropic' } }) });
+    expect(await port.connection(claude)).toEqual({ protocol: 'anthropic', baseUrl: 'https://catalog.example/anthropic', apiKey: key });
+  });
+  it('explains how to fix a missing optional catalog peer, keeping the load failure as the cause', async () => {
+    const missing = new Error('Cannot find module');
+    const port = createEnvCredentialPort({}, { importCatalog: async () => { throw missing; } });
+    const error = await port.connection(claude).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ message: expect.stringContaining('Install the optional peer @jini-ai/integrations or inject ModelDiscoveryDeps.credential') });
+    expect((error as Error).cause).toBe(missing);
   });
 });

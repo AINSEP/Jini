@@ -548,3 +548,24 @@ describe('applyAgentLaunchEnv characterization', () => {
     expect(result).toEqual({ PATH: '/tool' });
   });
 });
+
+describe('resolveAgentLaunch with a relative packaged resource root', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(path.join(tmpdir(), 'agent-launch-relative-root-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  it('launches the packaged vela as given and prepends no PATH directory for a non-absolute path', () => {
+    const companion = path.join(dir, 'bin', 'libexec', 'opencode');
+    mkdirSync(companion, { recursive: true });
+    makeExecutable(path.join(companion, 'opencode'));
+    makeExecutable(path.join(dir, 'bin', 'vela'));
+    // The host supplies the resource root relative to the process cwd, so the selected path stays relative.
+    const relativeRoot = path.relative(process.cwd(), dir);
+    expect(path.isAbsolute(relativeRoot)).toBe(false);
+    const def = makeDef({ id: 'amr', bin: 'vela-not-on-path-fixture' });
+    const launch = resolveAgentLaunch({ def }, { env: { PATH: '', AGENT_RUNTIME_RESOURCE_ROOT: relativeRoot }, configuredEnv: {} });
+    expect(launch.selectedPath).toBe(path.join(relativeRoot, 'bin', 'vela'));
+    expect(launch.launchPath).toBe(path.join(relativeRoot, 'bin', 'vela'));
+    expect(launch.childPathPrepend).toEqual([]);
+  });
+});

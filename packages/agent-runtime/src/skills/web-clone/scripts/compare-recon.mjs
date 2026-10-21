@@ -1,42 +1,45 @@
 #!/usr/bin/env node
+// Module shape: importing this file has no side effects. The CLI edge at the
+// bottom runs `main` only when the file is executed directly; `main` takes fs,
+// console and cwd as an optional ports object and returns the exit code.
 import fs from "node:fs";
 import path from "node:path";
+import { flag, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
 
-function usage() {
-  console.log(`Usage:
+export function usage(log) {
+  log(`Usage:
   node scripts/compare-recon.mjs --original <original-recon.json> --clone <clone-recon.json> [--visual-diff visual-diff.json] [--original-routes route-map.json] [--clone-routes route-map.json] [--original-interactions interactions.json] [--clone-interactions interactions.json] [--out CLONE_REPORT.md]
 `);
 }
 
-function parseArgs(argv) {
-  const out = {
+const EVIDENCE_FLAGS = {
+  "--visual-diff": "visualDiff",
+  "--original-routes": "originalRoutes",
+  "--clone-routes": "cloneRoutes",
+  "--original-interactions": "originalInteractions",
+  "--clone-interactions": "cloneInteractions",
+};
+
+const ARG_SPEC = {
+  defaults: {
     original: "",
     clone: "",
-    visualDiff: "",
-    originalRoutes: "",
-    cloneRoutes: "",
-    originalInteractions: "",
-    cloneInteractions: "",
+    ...Object.fromEntries(Object.values(EVIDENCE_FLAGS).map((key) => [key, ""])),
     out: "CLONE_REPORT.md",
-  };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--help" || arg === "-h") out.help = true;
-    else if (arg === "--original") out.original = argv[++i] || "";
-    else if (arg === "--clone") out.clone = argv[++i] || "";
-    else if (arg === "--visual-diff") out.visualDiff = argv[++i] || "";
-    else if (arg === "--original-routes") out.originalRoutes = argv[++i] || "";
-    else if (arg === "--clone-routes") out.cloneRoutes = argv[++i] || "";
-    else if (arg === "--original-interactions") out.originalInteractions = argv[++i] || "";
-    else if (arg === "--clone-interactions") out.cloneInteractions = argv[++i] || "";
-    else if (arg === "--out") out.out = argv[++i] || "CLONE_REPORT.md";
-    else throw new Error(`Unexpected argument: ${arg}`);
-  }
-  return out;
-}
+  },
+  flags: {
+    "--help": flag("help"),
+    "-h": flag("help"),
+    "--original": { key: "original", read: text() },
+    "--clone": { key: "clone", read: text() },
+    ...Object.fromEntries(Object.entries(EVIDENCE_FLAGS).map(([arg, key]) => [arg, { key, read: text() }])),
+    "--out": { key: "out", read: text("CLONE_REPORT.md") },
+  },
+  onOther: rejectUnknown,
+};
 
-function readJson(file) {
-  return JSON.parse(fs.readFileSync(file, "utf8"));
+export function parseArgs(argv) {
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
 function firstSignals(recon) {
@@ -47,18 +50,22 @@ function boolList(flags = {}) {
   return Object.entries(flags).filter(([, value]) => value).map(([key]) => key);
 }
 
-function ratioScore(a, b) {
+/** A signal count, 0 when absent. */
+const countOf = (signals, key) => signals.counts?.[key] || 0;
+
+const RATIO_STEPS = [[0.9, 5], [0.75, 4], [0.55, 3], [0.3, 2]];
+
+/** 1..5 closeness of two counts; both zero is a perfect match, one zero the worst. */
+export function ratioScore(a, b) {
   if (a === 0 && b === 0) return 5;
   if (a === 0 || b === 0) return 1;
   const ratio = Math.min(a, b) / Math.max(a, b);
-  if (ratio > 0.9) return 5;
-  if (ratio > 0.75) return 4;
-  if (ratio > 0.55) return 3;
-  if (ratio > 0.3) return 2;
-  return 1;
+  const step = RATIO_STEPS.find(([floor]) => ratio > floor);
+  return step ? step[1] : 1;
 }
 
-function sequenceSimilarity(a, b) {
+/** Share of `tag:text` heading keys present on both sides (1 when both are empty). */
+export function sequenceSimilarity(a, b) {
   const left = a.map((item) => `${item.tag}:${item.text}`).filter(Boolean);
   const right = b.map((item) => `${item.tag}:${item.text}`).filter(Boolean);
   if (!left.length && !right.length) return 1;
@@ -68,34 +75,38 @@ function sequenceSimilarity(a, b) {
   return hits / Math.max(left.length, right.length);
 }
 
-function inferComplexity(signals) {
-  const frameworks = boolList(signals.frameworks);
-  const counts = signals.counts || {};
-  if ((counts.forms || 0) > 2 && (counts.inputs || 0) > 10) return "L6";
-  if ((counts.canvas || 0) > 0 || signals.frameworks?.three) return "L5";
-  if (signals.frameworks?.gsap || signals.frameworks?.lenis || (counts.video || 0) > 2) return "L4";
-  if (frameworks.some((name) => ["react", "next", "vue", "nuxt", "svelte", "astro"].includes(name))) return "L3";
-  if ((counts.links || 0) > 80 || (counts.images || 0) > 40) return "L2";
-  return "L1";
+const SPA_FRAMEWORKS = ["react", "next", "vue", "nuxt", "svelte", "astro"];
+
+// First matching level wins, most demanding first.
+const COMPLEXITY_RULES = [
+  ["L6", (s) => countOf(s, "forms") > 2 && countOf(s, "inputs") > 10],
+  ["L5", (s) => countOf(s, "canvas") > 0 || Boolean(s.frameworks?.three)],
+  ["L4", (s) => Boolean(s.frameworks?.gsap || s.frameworks?.lenis) || countOf(s, "video") > 2],
+  ["L3", (s) => boolList(s.frameworks).some((name) => SPA_FRAMEWORKS.includes(name))],
+  ["L2", (s) => countOf(s, "links") > 80 || countOf(s, "images") > 40],
+];
+
+export function inferComplexity(signals) {
+  const rule = COMPLEXITY_RULES.find(([, test]) => test(signals));
+  return rule ? rule[0] : "L1";
 }
 
-function score(original, clone, visualDiff) {
+function averageRatio(o, c, keys) {
+  const scores = keys.map((key) => ratioScore(countOf(o, key), countOf(c, key)));
+  return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
+}
+
+export function score(original, clone, visualDiff) {
   const o = firstSignals(original);
   const c = firstSignals(clone);
   const structureSimilarity = sequenceSimilarity(o.headings || [], c.headings || []);
-  const structure = Math.max(1, Math.round(structureSimilarity * 5));
-  const responsive = original.captures?.length === clone.captures?.length ? 4 : 2;
-  const functionCounts = ["links", "forms", "buttons", "inputs"].map((key) => ratioScore(o.counts?.[key] || 0, c.counts?.[key] || 0));
-  const functional = Math.round(functionCounts.reduce((sum, value) => sum + value, 0) / functionCounts.length);
-  const motionCounts = ["canvas", "video"].map((key) => ratioScore(o.counts?.[key] || 0, c.counts?.[key] || 0));
-  const interaction = Math.round(motionCounts.reduce((sum, value) => sum + value, 0) / motionCounts.length);
   return {
     sourceEvidence: 3,
-    structure,
+    structure: Math.max(1, Math.round(structureSimilarity * 5)),
     visual: visualDiff ? `${visualDiff.visualScore}/5` : "需人工看截图或传 --visual-diff",
-    interaction,
-    responsive,
-    functional,
+    interaction: averageRatio(o, c, ["canvas", "video"]),
+    responsive: original.captures?.length === clone.captures?.length ? 4 : 2,
+    functional: averageRatio(o, c, ["links", "forms", "buttons", "inputs"]),
     contentReplacement: "需人工看文案残留",
     legalRisk: "需人工核查 license / 素材",
   };
@@ -115,7 +126,7 @@ function routePath(url) {
   }
 }
 
-function routesSection(files, evidence) {
+export function routesSection(files, evidence) {
   if (!evidence.originalRoutes || !evidence.cloneRoutes) {
     return `## 路由覆盖
 - 未提供 route-crawl 结果。多页面站需要传 --original-routes / --clone-routes。
@@ -138,45 +149,68 @@ function routesSection(files, evidence) {
 `;
 }
 
-function changedActionCount(interactions) {
-  return (interactions?.actions || []).filter((action) => action.changed).length;
+function interactionStats(probe) {
+  const actions = probe.actions || [];
+  return {
+    actions: actions.length,
+    changed: actions.filter((action) => action.changed).length,
+    canvas: probe.discovered?.canvases?.length || 0,
+    interactive: probe.discovered?.interactive?.length || 0,
+  };
 }
 
-function interactionSection(files, evidence) {
+export function interactionSection(files, evidence) {
   if (!evidence.originalInteractions || !evidence.cloneInteractions) {
     return `## 交互覆盖
 - 未提供 interaction-probe 结果。交互站需要传 --original-interactions / --clone-interactions。
 `;
   }
-  const originalActions = evidence.originalInteractions.actions || [];
-  const cloneActions = evidence.cloneInteractions.actions || [];
-  const originalChanged = changedActionCount(evidence.originalInteractions);
-  const cloneChanged = changedActionCount(evidence.cloneInteractions);
-  const originalCanvas = evidence.originalInteractions.discovered?.canvases?.length || 0;
-  const cloneCanvas = evidence.cloneInteractions.discovered?.canvases?.length || 0;
-  const originalInteractive = evidence.originalInteractions.discovered?.interactive?.length || 0;
-  const cloneInteractive = evidence.cloneInteractions.discovered?.interactive?.length || 0;
+  const o = interactionStats(evidence.originalInteractions);
+  const c = interactionStats(evidence.cloneInteractions);
+  const close = o.changed === c.changed && o.canvas === c.canvas;
   return `## 交互覆盖
-- 原站可见交互目标: ${originalInteractive}
-- 克隆可见交互目标: ${cloneInteractive}
-- 原站 canvas 目标: ${originalCanvas}
-- 克隆 canvas 目标: ${cloneCanvas}
-- 原站 changed actions: ${originalChanged}/${originalActions.length}
-- 克隆 changed actions: ${cloneChanged}/${cloneActions.length}
+- 原站可见交互目标: ${o.interactive}
+- 克隆可见交互目标: ${c.interactive}
+- 原站 canvas 目标: ${o.canvas}
+- 克隆 canvas 目标: ${c.canvas}
+- 原站 changed actions: ${o.changed}/${o.actions}
+- 克隆 changed actions: ${c.changed}/${c.actions}
 - 原站 interaction probe: ${files.originalInteractions}
 - 克隆 interaction probe: ${files.cloneInteractions}
-- 判断: ${originalChanged === cloneChanged && originalCanvas === cloneCanvas ? "交互数量信号接近，仍需看截图确认状态质量。" : "交互数量信号不一致，需要检查缺失状态或过度实现。"}
+- 判断: ${close ? "交互数量信号接近，仍需看截图确认状态质量。" : "交互数量信号不一致，需要检查缺失状态或过度实现。"}
 `;
 }
 
-function report(files, original, clone, evidence) {
+const MODE_BY_COMPLEXITY = { L5: "技术拆解 / 忠实复刻优先", L6: "展示层视觉复刻" };
+const COUNT_KEYS = ["sections", "links", "images", "video", "canvas", "forms", "buttons", "inputs", "interactive", "scripts"];
+
+function techSignalsTable(o, c) {
+  return `| 项目 | 原站 | 克隆站 |
+|---|---|---|
+| title | ${o.title || ""} | ${c.title || ""} |
+| lang | ${o.lang || ""} | ${c.lang || ""} |
+| frameworks | ${line(boolList(o.frameworks))} | ${line(boolList(c.frameworks))} |
+| scrollHeight | ${o.scrollHeight || 0} | ${c.scrollHeight || 0} |
+| h1 | ${line(o.h1)} | ${line(c.h1)} |`;
+}
+
+function countRows(o, c) {
+  return COUNT_KEYS.map((key) => `| ${key} | ${countOf(o, key)} | ${countOf(c, key)} | ${ratioScore(countOf(o, key), countOf(c, key))}/5 |`).join("\n");
+}
+
+function consoleCounts(recon) {
+  return { errors: recon.console?.errors?.length || 0, pageErrors: recon.console?.pageErrors?.length || 0 };
+}
+
+const screenshots = (recon) => (recon.captures || []).map((capture) => capture.screenshot).join(", ");
+
+export function report(files, original, clone, evidence) {
   const o = firstSignals(original);
   const c = firstSignals(clone);
   const scores = score(original, clone, evidence.visualDiff);
   const complexity = inferComplexity(o);
-  const originalFlags = boolList(o.frameworks);
-  const cloneFlags = boolList(c.frameworks);
-  const counts = ["sections", "links", "images", "video", "canvas", "forms", "buttons", "inputs", "interactive", "scripts"];
+  const oc = consoleCounts(original);
+  const cc = consoleCounts(clone);
 
   return `# ${original.label || "original"} vs ${clone.label || "clone"} · 克隆评估报告
 
@@ -184,22 +218,16 @@ function report(files, original, clone, evidence) {
 - 原站 URL: ${original.url}
 - 克隆 URL: ${clone.url}
 - 自动推断复杂度: ${complexity}
-- 复刻模式建议: ${complexity === "L5" ? "技术拆解 / 忠实复刻优先" : complexity === "L6" ? "展示层视觉复刻" : "视觉复刻 / 内容爆改"}
+- 复刻模式建议: ${MODE_BY_COMPLEXITY[complexity] || "视觉复刻 / 内容爆改"}
 - 自动报告边界: 结构、数量、框架、console 可自动比；传入 visual-diff 后可纳入像素差异分。内容残留和法务仍需审计。
 
 ## 技术信号
-| 项目 | 原站 | 克隆站 |
-|---|---|---|
-| title | ${o.title || ""} | ${c.title || ""} |
-| lang | ${o.lang || ""} | ${c.lang || ""} |
-| frameworks | ${line(originalFlags)} | ${line(cloneFlags)} |
-| scrollHeight | ${o.scrollHeight || 0} | ${c.scrollHeight || 0} |
-| h1 | ${line(o.h1)} | ${line(c.h1)} |
+${techSignalsTable(o, c)}
 
 ## 数量对比
 | 指标 | 原站 | 克隆站 | 自动评分 |
 |---|---:|---:|---:|
-${counts.map((key) => `| ${key} | ${o.counts?.[key] || 0} | ${c.counts?.[key] || 0} | ${ratioScore(o.counts?.[key] || 0, c.counts?.[key] || 0)}/5 |`).join("\n")}
+${countRows(o, c)}
 
 ## 复刻评分
 - 源证据: ${scores.sourceEvidence}/5
@@ -212,10 +240,10 @@ ${counts.map((key) => `| ${key} | ${o.counts?.[key] || 0} | ${c.counts?.[key] ||
 - 法务/部署风险: ${scores.legalRisk}
 
 ## Console
-- 原站 console errors: ${original.console?.errors?.length || 0}
-- 克隆 console errors: ${clone.console?.errors?.length || 0}
-- 原站 page errors: ${original.console?.pageErrors?.length || 0}
-- 克隆 page errors: ${clone.console?.pageErrors?.length || 0}
+- 原站 console errors: ${oc.errors}
+- 克隆 console errors: ${cc.errors}
+- 原站 page errors: ${oc.pageErrors}
+- 克隆 page errors: ${cc.pageErrors}
 
 ${routesSection(files, evidence)}
 
@@ -226,8 +254,8 @@ ${interactionSection(files, evidence)}
 - 克隆侦察: ${files.clone}
 - 像素差异: ${files.visualDiff || "未提供"}
 - 像素差异率: ${evidence.visualDiff ? evidence.visualDiff.diffPixelRatio : "未提供"}
-- 原站截图: ${(original.captures || []).map((capture) => capture.screenshot).join(", ")}
-- 克隆截图: ${(clone.captures || []).map((capture) => capture.screenshot).join(", ")}
+- 原站截图: ${screenshots(original)}
+- 克隆截图: ${screenshots(clone)}
 
 ## 已知缺口
 - 未传入 visual-diff 时，视觉保真需要打开截图人工确认。
@@ -235,31 +263,36 @@ ${interactionSection(files, evidence)}
 `;
 }
 
-try {
-  const args = parseArgs(process.argv.slice(2));
+function compare(argv, io) {
+  const args = parseArgs(argv);
   if (args.help || !args.original || !args.clone) {
-    usage();
-    process.exit(args.help ? 0 : 1);
+    usage(io.log);
+    return args.help ? 0 : 1;
   }
-
+  // Optional evidence files are read only when their flag was given.
+  const readJson = (file) => (file ? JSON.parse(io.fs.readFileSync(path.resolve(io.cwd(), file), "utf8")) : null);
   const original = readJson(args.original);
   const clone = readJson(args.clone);
-  const visualDiff = args.visualDiff ? readJson(args.visualDiff) : null;
-  const originalRoutes = args.originalRoutes ? readJson(args.originalRoutes) : null;
-  const cloneRoutes = args.cloneRoutes ? readJson(args.cloneRoutes) : null;
-  const originalInteractions = args.originalInteractions ? readJson(args.originalInteractions) : null;
-  const cloneInteractions = args.cloneInteractions ? readJson(args.cloneInteractions) : null;
-  const output = path.resolve(args.out);
-  fs.mkdirSync(path.dirname(output), { recursive: true });
-  fs.writeFileSync(output, report(args, original, clone, {
-    visualDiff,
-    originalRoutes,
-    cloneRoutes,
-    originalInteractions,
-    cloneInteractions,
-  }));
-  console.log(output);
-} catch (error) {
-  console.error(`compare-recon failed: ${error.message}`);
-  process.exit(1);
+  const evidence = Object.fromEntries(Object.values(EVIDENCE_FLAGS).map((key) => [key, readJson(args[key])]));
+  const output = path.resolve(io.cwd(), args.out);
+  io.fs.mkdirSync(path.dirname(output), { recursive: true });
+  io.fs.writeFileSync(output, report(args, original, clone, evidence));
+  io.log(output);
+  return 0;
 }
+
+const DEFAULT_DEPS = { fs, log: console.log, error: console.error, cwd: process.cwd };
+
+/** CLI entry: writes the comparison report; returns 0 ok/help, 1 on usage error or failure. */
+export function main({ argv }, deps = {}) {
+  const io = { ...DEFAULT_DEPS, ...deps };
+  let code = 1;
+  try {
+    code = compare(argv, io);
+  } catch (error) {
+    io.error(`compare-recon failed: ${error.message}`);
+  }
+  return code;
+}
+
+await runIfMain({ moduleUrl: import.meta.url, main });

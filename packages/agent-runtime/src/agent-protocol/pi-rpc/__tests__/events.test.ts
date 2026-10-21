@@ -265,3 +265,15 @@ describe('mapPiRpcEvent', () => {
     expect(send).not.toHaveBeenCalled();
   });
 });
+
+describe('mapPiRpcEvent model status', () => {
+  it('announces provider/model from an assistant message, and stays silent for other roles', () => {
+    const send = vi.fn();
+    mapPiRpcEvent({ raw: { type: 'unknown_kind', message: { role: 'assistant', provider: 'anthropic', model: 'claude-x' } }, send, ctx: ctx() });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'model', model: 'anthropic/claude-x' } });
+    send.mockClear();
+    mapPiRpcEvent({ raw: { type: 'unknown_kind', message: { role: 'user', provider: 'anthropic', model: 'claude-x' } }, send, ctx: ctx() });
+    mapPiRpcEvent({ raw: { type: 'unknown_kind', message: { role: 'assistant', model: 'claude-x' } }, send, ctx: ctx() });
+    expect(send).not.toHaveBeenCalled();
+  });
+});

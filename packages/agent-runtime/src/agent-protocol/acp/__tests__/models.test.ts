@@ -561,6 +561,17 @@ describe('detectAcpModelMetadata', () => {
     });
   });
 
+  it('is what the native ACP model probe adapter reports as metadata', async () => {
+    const { nativeAcpModelProbe } = await import('../../../acp-model-probe.js');
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = nativeAcpModelProbe.detectMetadata!({ bin: 'bin', args: [] });
+    await answerHandshake(child, {
+      models: { currentModelId: 'b', availableModels: [{ modelId: 'a' }, { modelId: 'b' }] },
+    });
+    await expect(promise).resolves.toEqual({ models: [{ id: 'a', label: 'a' }, { id: 'b', label: 'b' }], currentModelId: 'b' });
+  });
+
   it('strips the " • current" marker and the " (id)" annotation from labels', async () => {
     const child = new FakeChild();
     spawnReturns(child);

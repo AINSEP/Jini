@@ -111,33 +111,42 @@ export function createA2uiActionPoster(
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { ...options.headers, "content-type": "application/json" },
-        body: JSON.stringify({ exchangeId, message }),
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        const detail = await response.text().catch(() => "");
-        reportFailure({ args: [`[a2ui] action delivery failed (${response.status}) for surface ${exchangeId}`, detail] }, {});
-        return { ok: false, reason: reasonForStatus(response.status) };
-      }
-      return { ok: true };
-    } catch (error) {
-      const timedOut = error instanceof Error && error.name === "AbortError";
-      reportFailure({ args: [`[a2ui] action delivery failed for surface ${exchangeId}`, timedOut ? `timed out after ${timeoutMs}ms` : error] }, {});
-      return {
-        ok: false,
-        reason: timedOut
-          ? "This took too long to deliver and was given up on."
-          : "Couldn't reach the server to deliver this action.",
-      };
-    } finally {
-      clearTimeout(timer);
-    }
+    // Cleared on every outcome; a `.finally` rather than try/finally so no path falls through.
+    return postOnce({ endpoint, exchangeId, message, timeoutMs, reportFailure, fetch, signal: controller.signal, headers: options.headers })
+      .finally(() => clearTimeout(timer));
   };
+}
+
+/** One POST attempt and its classification; never rejects. @complexity O(1). */
+async function postOnce(attempt: {
+  endpoint: string; exchangeId: string; message: unknown; timeoutMs: number; signal: AbortSignal;
+  headers: Readonly<Record<string, string>> | undefined; fetch: typeof fetch; reportFailure: A2uiActionPosterInput["reportFailure"];
+}): Promise<A2uiActionDeliveryOutcome> {
+  const { exchangeId, reportFailure } = attempt;
+  try {
+    const response = await attempt.fetch(attempt.endpoint, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { ...attempt.headers, "content-type": "application/json" },
+      body: JSON.stringify({ exchangeId, message: attempt.message }),
+      signal: attempt.signal,
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      reportFailure({ args: [`[a2ui] action delivery failed (${response.status}) for surface ${exchangeId}`, detail] }, {});
+      return { ok: false, reason: reasonForStatus(response.status) };
+    }
+    return { ok: true };
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === "AbortError";
+    reportFailure({ args: [`[a2ui] action delivery failed for surface ${exchangeId}`, timedOut ? `timed out after ${attempt.timeoutMs}ms` : error] }, {});
+    return {
+      ok: false,
+      reason: timedOut
+        ? "This took too long to deliver and was given up on."
+        : "Couldn't reach the server to deliver this action.",
+    };
+  }
 }
 
 export interface A2uiActionPosterInput {

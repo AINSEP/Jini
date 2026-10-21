@@ -48,6 +48,10 @@ describe('adminHref / currentRoutePath', () => {
     expect(currentRoutePath({ pathname: '/elsewhere/settings' })).toBe('/elsewhere/settings');
   });
 
+  it('treats an empty pathname outside the base as the dashboard root', () => {
+    expect(currentRoutePath({ pathname: '' })).toBe('/');
+  });
+
   it('strips a trailing slash but leaves a lone root alone', () => {
     expect(stripTrailingSlash({ pathname: '/admin/settings/' })).toBe('/admin/settings');
     expect(stripTrailingSlash({ pathname: '/' })).toBe('/');
@@ -104,6 +108,10 @@ describe('matchRoute', () => {
     const route = matchRoute({ routePath: '/widgets/new?type=text', panels: PANELS });
     expect(route.view).toBe('widget-editor');
     expect(route.query.get('type')).toBe('text');
+  });
+
+  it('rejects trailing segments on a panel that registers no detail routes', () => {
+    expect(matchRoute({ routePath: '/settings/extra', panels: PANELS })).toMatchObject({ panelId: null, view: null, params: {} });
   });
 
   it('exposes an empty query when there is none', () => {

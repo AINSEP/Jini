@@ -89,11 +89,10 @@ function buildModule(ports: Pick<AgentPluginLifecyclePorts, "filesystem">) {
   async function assertContainedOnDisk(packageRoot: string, entryPath: string): Promise<string> {
     const normalized = normalizePackageEntryPath(entryPath);
     const realRoot = await realpath(packageRoot);
+    // No separate lexical-escape check: normalizePackageEntryPath already refused absolute, drive-
+    // letter and `..`-leading paths, so resolving its relative output always stays under realRoot,
+    // and the filesystem-resolved check below would refuse any escape regardless.
     const lexicalCandidate = path.resolve(realRoot, normalized);
-
-    if (!isWithin(realRoot, lexicalCandidate)) {
-      throw new PackagePathViolation({ message: `package entry resolves outside the package root: '${entryPath}'` });
-    }
 
     let realCandidate: string;
     try {

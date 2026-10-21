@@ -21,10 +21,11 @@ export function useWidgetRegionEditorView({ regionKey, useWidgetRegionEditorHook
 }
 import type { MouseEvent } from 'react';
 import type { WidgetTypeOption } from '../../models.js';
-import { widgetInstanceGuard } from '../../rules.js';
+import { widgetEditorGate } from '../../rules.js';
 import { useWiredWidgetInstanceEditor } from './use-widget-instance-editor.hooks.js';
 /** The back-link cancellation also stops the host's document-level internal-link interceptor. */
 export function useWidgetInstanceEditorView({ widgetId, widgetType, widgetTypes, useWidgetInstanceEditorHook = useWiredWidgetInstanceEditor }: { widgetId: string | null; widgetType: string | null; widgetTypes: readonly WidgetTypeOption[]; useWidgetInstanceEditorHook?: typeof useWiredWidgetInstanceEditor | undefined }, _optional: Record<string, never> = {}) {
   const state = useWidgetInstanceEditorHook({ widgetId, widgetType });
-  return { ...state, guard: widgetInstanceGuard({ ...state, types: widgetTypes }), onBackClick: (event: MouseEvent<HTMLAnchorElement>) => { if (!state.confirmLeave()) event.preventDefault(); } };
+  const gate = widgetEditorGate({ ...state, types: widgetTypes });
+  return { ...state, gate, guard: gate.guard, onBackClick: (event: MouseEvent<HTMLAnchorElement>) => { if (!state.confirmLeave()) event.preventDefault(); } };
 }

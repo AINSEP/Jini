@@ -46,20 +46,19 @@ export function WidgetInstanceEditor(props: WidgetInstanceEditorProps) {
     fieldErrors,
     loading,
     saving,
-    widgetType,
     save,
     confirmLeave,
     t,
     locale,
-    guard,
+    gate,
     onBackClick,
   } = useWidgetInstanceEditorView({ widgetId, widgetType: queryWidgetType, useWidgetInstanceEditorHook, widgetTypes });
 
-  if (guard) return <WidgetInstanceGuardNotice guard={guard} t={t} />;
-  // Unreachable in practice — `widgetInstanceGuard`'s "no-type" case already covers a null
-  // `widgetType` above — but TS can't see through that opaque function call, so this narrows the
-  // type for the JSX below rather than asserting it with `!`.
-  if (!widgetType) return null;
+  if (gate.guard !== null) return <WidgetInstanceGuardNotice guard={gate.guard} t={t} />;
+  // `widgetInstanceGuard`'s "no-type" case already covers a null `widgetType` above, but TS can't
+  // see through that opaque function call; `widgetEditorGate` hands back the narrowed type so the
+  // JSX below needs neither a `!` assertion nor a never-taken null check.
+  const { widgetType } = gate;
 
   // The host slot binds shared-component translations; screen copy uses the module t.
   const sharedT: Translate = t;

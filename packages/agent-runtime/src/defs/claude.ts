@@ -172,7 +172,7 @@ export const claudeAgentDef = {
       if (routed) return routed;
       const [fromCli, fromApi] = await Promise.all([
         loadClaudeCodeModels(resolvedBin, env, CLAUDE_FALLBACK_MODELS),
-        loadAnthropicLiveModels(env, CLAUDE_FALLBACK_MODELS),
+        loadAnthropicLiveModels({ env, fallbackModels: CLAUDE_FALLBACK_MODELS }),
       ]);
       if (!fromCli) return fromApi;
       return fromApi ? mergeLiveModels(fromCli, fromApi) : fromCli;

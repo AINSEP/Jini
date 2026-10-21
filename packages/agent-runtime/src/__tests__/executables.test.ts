@@ -134,6 +134,23 @@ describe('resolveOnPath / agentSearchDirs', () => {
     expect(dirs.every(entry => path.isAbsolute(entry))).toBe(true);
   });
 
+  it('expands a ~ binary override from USERPROFILE when HOME is absent, and from os.homedir() when both are', async () => {
+    const filename = process.platform === 'win32' ? 'profile-claude.exe' : 'profile-claude';
+    const binary = path.join(dir, filename);
+    makeExecutable(binary);
+    const def = makeDef({ id: 'claude', bin: 'claude-not-on-path-security-fixture' });
+    const configuredEnv = { CLAUDE_BIN: `~/${filename}` };
+    const fromProfile = inspectAgentExecutableResolution({ def }, { env: { PATH: '', USERPROFILE: dir }, state, configuredEnv });
+    expect(fromProfile.configuredOverridePath).toBe(binary);
+    const { homedir } = await import('node:os');
+    const unique = `jini-absent-agent-${process.pid}-${Date.now()}`;
+    const fromOsHome = inspectAgentExecutableResolution({ def }, { env: { PATH: '' }, state, configuredEnv: { CLAUDE_BIN: `~/${unique}` } });
+    // Without HOME/USERPROFILE the ~ expands against os.homedir(), never the fixture dir; nothing by
+    // that unique name exists in the real home, so the override is refused rather than misresolved.
+    expect(homedir()).not.toBe(dir);
+    expect(fromOsHome.configuredOverridePath).toBeNull();
+  });
+
   it.each(['~/', '~\\'])('expands a %s binary override using the supplied HOME', prefix => {
     const filename = process.platform === 'win32' ? 'sandbox-claude.exe' : 'sandbox-claude';
     const binary = path.join(dir, filename);

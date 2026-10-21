@@ -4,7 +4,7 @@ import { ModelProbeError, modelIdentityKind } from './model-discovery-shared.js'
 /** UNVERIFIED locally. The host may install the official SDK or inject the RPC port.
  * Use the CLI's authenticated server, not an unrelated HTTP token or an inference prompt.
  * https://github.com/github/copilot-sdk/blob/main/nodejs/src/client.ts */
-interface CopilotMetadataClient {
+export interface CopilotMetadataClient {
   start(): Promise<unknown>;
   listModels(): Promise<{ id: string; name?: string }[]>;
   forceStop(): Promise<unknown>;
@@ -25,9 +25,18 @@ export async function probeCopilotSdk(context: ModelDiscoveryContext, signal: Ab
     await client.forceStop().catch(() => {});
   }
 }
-async function createCopilotMetadataClient(context: ModelDiscoveryContext): Promise<CopilotMetadataClient> {
-  const packageName = '@github/copilot-sdk';
-  const sdk = await import(packageName);
+/** The slice of `@github/copilot-sdk` this probe constructs a metadata client from. */
+export interface CopilotSdkModule {
+  readonly RuntimeConnection?: { forStdio(input: { path: string; env: Record<string, string> }): unknown };
+  readonly CopilotClient: new (options: Record<string, unknown>) => CopilotMetadataClient;
+}
+/** Builds the metadata client from the host-installed SDK. `importSdk` is the module-loading port
+ * (Node's dynamic import by default), injectable so both SDK API generations are testable. */
+export async function createCopilotMetadataClient(
+  context: ModelDiscoveryContext,
+  { importSdk = (name: string) => import(name) as Promise<CopilotSdkModule> }: { importSdk?: (name: string) => Promise<CopilotSdkModule> } = {},
+): Promise<CopilotMetadataClient> {
+  const sdk = await importSdk('@github/copilot-sdk');
   const env = Object.fromEntries(Object.entries(context.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   // RuntimeConnection is the current SDK API; older SDKs expose cliPath/cwd/useStdio.
   const connection = sdk.RuntimeConnection?.forStdio({ path: context.executable, env });

@@ -22,7 +22,9 @@ export function useMediaRefField(
   // One cached library read shared by every image field on the screen; only a library reference
   // needs it (a URL names itself), and a host without `listSeoMedia` falls back to the slug.
   const list = api.listSeoMedia;
-  const media = useFetchQuery({ key: SEO_KEYS.media, fetch: () => list ? list.call(api, {}) : Promise.resolve([]) }, { enabled: Boolean(list) && isStoredMediaRef({ value }) });
+  // `fetch` runs only while the query is enabled, which requires `list`: the fetch-query adapters
+  // never call a disabled read's fetch (not on mount, focus or prefix invalidation).
+  const media = useFetchQuery({ key: SEO_KEYS.media, fetch: () => list!.call(api, {}) }, { enabled: Boolean(list) && isStoredMediaRef({ value }) });
   return {
     ...diagnostics,
     file: describeMediaRef({ value, media: media.data }, { width: naturalWidth, height: naturalHeight, t, extensionFor: extensionForMimeType }),

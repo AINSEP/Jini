@@ -11,7 +11,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'json'],
-      include: ['src/**'],
+      // core/ is the build-free implementation shared by ./persistent-state and src/lifecycle; measure it too.
+      include: ['src/**', 'core/**', 'persistent-state.js'],
       exclude: ['src/**/*.test.ts', 'src/**/__tests__/**'],
     },
   },

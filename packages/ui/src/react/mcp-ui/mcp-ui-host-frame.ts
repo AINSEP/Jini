@@ -46,7 +46,7 @@ export function resolveThemedViewSession(input: {
  */
 export function resolveFrameHeight(
   input: { readonly reported: number | undefined },
-  options: { readonly initialHeight?: number; readonly autoResize?: boolean; readonly maxHeight?: number } = {},
+  options: { readonly initialHeight?: number; readonly autoResize?: boolean; readonly maxHeight?: number | undefined } = {},
 ): number {
   const { initialHeight = DEFAULT_INITIAL_HEIGHT, autoResize = true, maxHeight = DEFAULT_MAX_HEIGHT } = options;
   const { reported } = input;

@@ -261,6 +261,15 @@ describe('McpUiSurfaceCard', () => {
       expect(mirror?.getAttribute('data-agent-label')).toContain('Cancel');
     });
 
+    it('keeps the scheme as the handle for a bare ui:// URI, and says "none" for a plan without buttons', () => {
+      const { container } = render(
+        <McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://', '<p>a</p>', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'Acknowledge?', actions: [] } })]} />,
+      );
+      const mirror = container.querySelector('[data-agent-role="status"]');
+      expect(mirror).toHaveAttribute('data-agent-element', 'mcp-ui-pending-ui');
+      expect(mirror).toHaveAttribute('data-agent-label', 'A confirmation is pending human response: "Acknowledge?". Buttons: none.');
+    });
+
     it('hides the mirror from sighted users too, not just screen readers — the real dialog is already visible in the frame', () => {
       const { container } = render(
         <McpUiSurfaceCard

@@ -36,3 +36,16 @@ it('omits upstream stream failure details', async () => {
   async function* failed() { throw new Error('private@example.test'); yield ''; }
   await expect(readProviderResponseText({ body: failed() })).rejects.toThrow(/^Provider response could not be read within the byte limit$/);
 });
+
+describe('readProviderResponseText limit validation', () => {
+  it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])('rejects an unusable maxBytes of %s before reading the body', async (maxBytes) => {
+    let read = false;
+    async function* body() { read = true; yield 'x'; }
+    await expect(readProviderResponseText({ body: body() }, { maxBytes })).rejects.toThrow(new RangeError('Invalid provider response limit'));
+    expect(read).toBe(false);
+  });
+
+  it('accepts the smallest valid limit of one byte', async () => {
+    expect(await readProviderResponseText({ body: Readable.from(['x']) }, { maxBytes: 1 })).toBe('x');
+  });
+});

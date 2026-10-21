@@ -21,12 +21,15 @@ export function createOtherCredentialsController({ api, permissions = [] }: { ap
     const token = store.getSnapshot().drafts[`${row.store}:${row.id}`]?.trim() ?? ''; if (!remove && !token) return Promise.resolve(false);
     const run = lane.then(async () => {
       if (store.signal.aborted) return false; store.set({ patch: { saving: true } });
+      // One exit after `finally`: a catch that returned left a fall-through path nothing could take.
+      let saved = false;
       try {
         if (remove) await api.remove({ store: row.store, id: row.id }, { signal: store.signal }); else await api.replace({ store: row.store, id: row.id, token }, { signal: store.signal });
         const drafts = { ...store.getSnapshot().drafts }; delete drafts[`${row.store}:${row.id}`]; store.set({ patch: { drafts } });
-        await read(row.store, generation); return !store.signal.aborted;
-      } catch { store.set({ patch: { errors: { ...store.getSnapshot().errors, [row.store]: 'Unable to update credential' } } }); return false; }
+        await read(row.store, generation); saved = !store.signal.aborted;
+      } catch { store.set({ patch: { errors: { ...store.getSnapshot().errors, [row.store]: 'Unable to update credential' } } }); }
       finally { store.set({ patch: { saving: false } }); }
+      return saved;
     }); lane = run.then(() => undefined); return run;
   }
   return {

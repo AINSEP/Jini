@@ -71,6 +71,18 @@ describe('buildNav', () => {
     expect(nav[1]?.label).toBe('People');
   });
 
+  it('orders groups by their first member and collects later members into the existing group', () => {
+    const panels = [
+      p('posts', { nav: { label: 'Posts', group: 'Content' } }),
+      p('users', { nav: { label: 'Users', group: 'People' } }),
+      p('pages', { nav: { label: 'Pages', group: 'Content' } }),
+    ];
+    expect(buildNav({ panels: panels }).map((g) => [g.label, g.items.map((i) => i.id)])).toEqual([
+      ['Content', ['posts', 'pages']],
+      ['People', ['users']],
+    ]);
+  });
+
   it('sorts within a group by order ascending', () => {
     const panels = [
       p('b', { nav: { label: 'B', group: 'G', order: 2 } }),
@@ -151,6 +163,13 @@ describe('buildAgentPageMap', () => {
     });
   });
 
+  it('skips a param-free route that names no agent page id', () => {
+    const panels = [
+      p('widgets', { agentReachable: true, routes: [{ pattern: '/regions', view: 'widget-regions' }] }),
+    ];
+    expect(buildAgentPageMap({ panels: panels })).toEqual({ widgets: '/widgets' });
+  });
+
   it('never publishes a parameterized route — an agent has no id to supply', () => {
     const panels = [
       p('posts', { routes: [{ pattern: '/:postId', view: 'editor', agentPageId: 'post-editor' }] }),
@@ -191,6 +210,10 @@ describe('resolveAgentPageId', () => {
       ],
     }),
   ];
+
+  it('reports no page for a panel id that is not in the resolved set', () => {
+    expect(resolveAgentPageId({ panels: panels, panelId: 'removed', view: null })).toBeNull();
+  });
 
   it('reports the panel id for an index view', () => {
     expect(resolveAgentPageId({ panels: panels, panelId: 'posts', view: null })).toBe('posts');

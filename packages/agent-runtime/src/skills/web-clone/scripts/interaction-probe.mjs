@@ -3,17 +3,23 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
+import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
+import { runCli, runIfMain } from "./lib/main-guard.mjs";
 
-function usage() {
-  console.log(`Usage:
+// Hard dependencies are ports with real defaults wired here at the CLI edge;
+// tests pass fakes (no real browser, captured output, fixed clock).
+const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error, now: () => new Date() };
+
+export function usage(log = console.log) {
+  log(`Usage:
   node scripts/interaction-probe.mjs --url <url> --out RECON/interactions [--label original] [--max-clicks 12] [--max-hovers 8] [--wait 800] [--width 1440]
 
 Exercises scroll, hover, safe clicks, and canvas drag gestures, then saves screenshots plus state/network evidence.
 `);
 }
 
-function parseArgs(argv) {
-  const out = {
+const ARG_SPEC = {
+  defaults: {
     url: "",
     outDir: "RECON/interactions",
     label: "site",
@@ -21,31 +27,38 @@ function parseArgs(argv) {
     maxHovers: 8,
     waitMs: 800,
     width: 1440,
-  };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--help" || arg === "-h") out.help = true;
-    else if (arg === "--url") out.url = argv[++i] || "";
-    else if (arg === "--out") out.outDir = argv[++i] || "RECON/interactions";
-    else if (arg === "--label") out.label = argv[++i] || "site";
-    else if (arg === "--max-clicks") out.maxClicks = Number(argv[++i] || "12");
-    else if (arg === "--max-hovers") out.maxHovers = Number(argv[++i] || "8");
-    else if (arg === "--wait") out.waitMs = Number(argv[++i] || "800");
-    else if (arg === "--width") out.width = Number(argv[++i] || "1440");
-    else throw new Error(`Unexpected argument: ${arg}`);
-  }
-  return out;
+  },
+  options: {
+    ...HELP_OPTIONS,
+    "--url": { key: "url", parse: text("") },
+    "--out": { key: "outDir", parse: text("RECON/interactions") },
+    "--label": { key: "label", parse: text("site") },
+    "--max-clicks": { key: "maxClicks", parse: num("12") },
+    "--max-hovers": { key: "maxHovers", parse: num("8") },
+    "--wait": { key: "waitMs", parse: num("800") },
+    "--width": { key: "width", parse: num("1440") },
+  },
+};
+
+export function parseArgs(argv) {
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-function shortHash(value) {
+export function shortHash(value) {
   return crypto.createHash("sha1").update(value).digest("hex").slice(0, 10);
 }
 
-function safeFileName(label) {
+export function safeFileName(label) {
   return label.replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 90) || "step";
 }
 
-function markdown(result) {
+function actionRow(action, index) {
+  const target = String(action.target || "").replaceAll("|", "\\|");
+  const urlAfter = action.after.url.replaceAll("|", "\\|");
+  return `| ${index + 1} | ${action.type} | ${target} | ${action.changed ? "yes" : "no"} | ${urlAfter} | ${action.screenshot || ""} |`;
+}
+
+export function markdown(result) {
   const lines = [
     `# ${result.label} interaction probe`,
     "",
@@ -58,9 +71,7 @@ function markdown(result) {
     "| # | Type | Target | Changed | URL after | Screenshot |",
     "|---:|---|---|---:|---|---|",
   ];
-  result.actions.forEach((action, index) => {
-    lines.push(`| ${index + 1} | ${action.type} | ${String(action.target || "").replaceAll("|", "\\|")} | ${action.changed ? "yes" : "no"} | ${action.after.url.replaceAll("|", "\\|")} | ${action.screenshot || ""} |`);
-  });
+  result.actions.forEach((action, index) => lines.push(actionRow(action, index)));
   if (result.findings.length) {
     lines.push("");
     lines.push("## Findings");
@@ -69,9 +80,8 @@ function markdown(result) {
   return `${lines.join("\n")}\n`;
 }
 
-async function snapshot(page) {
+export async function snapshot(page) {
   return page.evaluate(() => {
-    const text = (node) => (node?.textContent || "").trim().replace(/\s+/g, " ");
     const visible = (selector) => Array.from(document.querySelectorAll(selector)).filter((node) => {
       const rect = node.getBoundingClientRect();
       const style = getComputedStyle(node);
@@ -100,7 +110,7 @@ async function snapshot(page) {
   });
 }
 
-async function hashSnapshot(page, state) {
+export async function hashSnapshot(page, state) {
   const htmlHash = await page.evaluate(() => {
     const html = document.documentElement.outerHTML;
     let hash = 0;
@@ -112,7 +122,7 @@ async function hashSnapshot(page, state) {
   return { ...state, htmlHash };
 }
 
-async function candidates(page) {
+export async function candidates(page) {
   return page.evaluate(() => {
     function selectorFor(node) {
       if (node.id && !/\s/.test(node.id)) return `#${CSS.escape(node.id)}`;
@@ -179,14 +189,14 @@ async function candidates(page) {
   });
 }
 
-function hasChanged(before, after) {
+export function hasChanged(before, after) {
   if (before.url !== after.url) return true;
   if (before.htmlHash !== after.htmlHash) return true;
   if (before.scrollY !== after.scrollY) return true;
   return JSON.stringify(before.counts) !== JSON.stringify(after.counts);
 }
 
-async function freshPage(browser, args, network, consoleErrors) {
+export async function freshPage(browser, args, network, consoleErrors) {
   const page = await browser.newPage({ viewport: { width: args.width, height: 900 }, deviceScaleFactor: 1 });
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -203,14 +213,14 @@ async function freshPage(browser, args, network, consoleErrors) {
   return page;
 }
 
-async function captureAction(page, outDir, index, action, before) {
-  if (action.type === "scroll") {
-    await page.evaluate((ratio) => window.scrollTo({ top: Math.round((document.documentElement.scrollHeight - window.innerHeight) * ratio), behavior: "instant" }), action.ratio);
-  } else if (action.type === "hover") {
-    await page.locator(action.selector).first().hover({ timeout: 3000 });
-  } else if (action.type === "click") {
-    await page.locator(action.selector).first().click({ timeout: 4000 });
-  } else if (action.type === "canvas-drag") {
+// One performer per planned action type; `planActions` only ever emits
+// these four, so the lookup always hits.
+const ACTION_PERFORMERS = {
+  scroll: (page, action) =>
+    page.evaluate((ratio) => window.scrollTo({ top: Math.round((document.documentElement.scrollHeight - window.innerHeight) * ratio), behavior: "instant" }), action.ratio),
+  hover: (page, action) => page.locator(action.selector).first().hover({ timeout: 3000 }),
+  click: (page, action) => page.locator(action.selector).first().click({ timeout: 4000 }),
+  "canvas-drag": async (page, action) => {
     const rect = action.rect;
     const x = rect.x + rect.width / 2;
     const y = rect.y + rect.height / 2;
@@ -218,7 +228,11 @@ async function captureAction(page, outDir, index, action, before) {
     await page.mouse.down();
     await page.mouse.move(x + Math.min(180, rect.width * 0.25), y + Math.min(120, rect.height * 0.2), { steps: 8 });
     await page.mouse.up();
-  }
+  },
+};
+
+export async function captureAction(page, outDir, index, action, before) {
+  await ACTION_PERFORMERS[action.type](page, action);
   await page.waitForTimeout(450);
   const after = await hashSnapshot(page, await snapshot(page));
   const screenshotName = `${String(index + 1).padStart(2, "0")}-${safeFileName(`${action.type}-${action.target || action.selector || "page"}`)}-${shortHash(JSON.stringify(action))}.png`;
@@ -233,57 +247,36 @@ async function captureAction(page, outDir, index, action, before) {
   };
 }
 
-try {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help || !args.url) {
-    usage();
-    process.exit(args.help ? 0 : 1);
-  }
-
-  const outDir = path.resolve(args.outDir);
-  fs.mkdirSync(path.join(outDir, "screenshots"), { recursive: true });
-
-  const { chromium } = loadPlaywright();
-  const browser = await launchChromium(chromium);
-  const network = [];
-  const consoleErrors = [];
-
-  const seedPage = await freshPage(browser, args, network, consoleErrors);
-  const initial = await hashSnapshot(seedPage, await snapshot(seedPage));
-  const discovered = await candidates(seedPage);
-  await seedPage.screenshot({ path: path.join(outDir, "screenshots", "00-initial.png"), fullPage: true });
-  await seedPage.close();
-
-  const actions = [
+/** The scripted action list: two scrolls, hovers, safe clicks, canvas drags. */
+export function planActions(discovered, args) {
+  const label = (item) => item.text || item.ariaLabel || item.selector;
+  return [
     { type: "scroll", target: "middle", ratio: 0.5 },
     { type: "scroll", target: "bottom", ratio: 1 },
-    ...discovered.interactive.slice(0, args.maxHovers).map((item) => ({ type: "hover", target: item.text || item.ariaLabel || item.selector, selector: item.selector, meta: item })),
-    ...discovered.interactive.filter((item) => item.safeClick).slice(0, args.maxClicks).map((item) => ({ type: "click", target: item.text || item.ariaLabel || item.selector, selector: item.selector, meta: item })),
+    ...discovered.interactive.slice(0, args.maxHovers).map((item) => ({ type: "hover", target: label(item), selector: item.selector, meta: item })),
+    ...discovered.interactive.filter((item) => item.safeClick).slice(0, args.maxClicks).map((item) => ({ type: "click", target: label(item), selector: item.selector, meta: item })),
     ...discovered.canvases.map((item) => ({ type: "canvas-drag", target: item.selector, selector: item.selector, rect: item.rect })),
   ];
+}
 
-  const results = [];
-  for (let index = 0; index < actions.length; index += 1) {
-    const page = await freshPage(browser, args, network, consoleErrors);
-    const before = await hashSnapshot(page, await snapshot(page));
-    try {
-      results.push(await captureAction(page, outDir, index, actions[index], before));
-    } catch (error) {
-      results.push({
-        ...actions[index],
-        before,
-        after: before,
-        changed: false,
-        screenshot: "",
-        error: error.message,
-      });
-    } finally {
-      await page.close();
-    }
+// Each action runs on a fresh page so one action's state never leaks into
+// the next; a failing action is recorded (unchanged, with its error) rather
+// than aborting the probe.
+async function runAction(browser, args, evidence, outDir, index, action) {
+  const page = await freshPage(browser, args, evidence.network, evidence.consoleErrors);
+  const before = await hashSnapshot(page, await snapshot(page));
+  let result;
+  try {
+    result = await captureAction(page, outDir, index, action, before);
+  } catch (error) {
+    result = { ...action, before, after: before, changed: false, screenshot: "", error: error.message };
+  } finally {
+    await page.close();
   }
+  return result;
+}
 
-  await browser.close();
-
+export function summarizeFindings(discovered, results) {
   const changedCount = results.filter((action) => action.changed).length;
   const findings = [
     `${discovered.interactive.length} visible interactive candidates discovered`,
@@ -291,24 +284,67 @@ try {
     `${changedCount}/${results.length} actions changed DOM, URL, scroll, or visible overlay counts`,
   ];
   if (discovered.canvases.length) findings.push("Canvas drag evidence exists; inspect screenshots before simplifying WebGL/Canvas behavior.");
+  return findings;
+}
+
+async function discover(browser, args, evidence, outDir) {
+  const seedPage = await freshPage(browser, args, evidence.network, evidence.consoleErrors);
+  const initial = await hashSnapshot(seedPage, await snapshot(seedPage));
+  const discovered = await candidates(seedPage);
+  await seedPage.screenshot({ path: path.join(outDir, "screenshots", "00-initial.png"), fullPage: true });
+  await seedPage.close();
+  return { initial, discovered };
+}
+
+async function probe(args, deps) {
+  const outDir = path.resolve(args.outDir);
+  deps.fs.mkdirSync(path.join(outDir, "screenshots"), { recursive: true });
+
+  const { chromium } = deps.loadPlaywright();
+  const browser = await deps.launchChromium(chromium);
+  const evidence = { network: [], consoleErrors: [] };
+  const { initial, discovered } = await discover(browser, args, evidence, outDir);
+
+  const actions = planActions(discovered, args);
+  const results = [];
+  for (let index = 0; index < actions.length; index += 1) {
+    results.push(await runAction(browser, args, evidence, outDir, index, actions[index]));
+  }
+  await browser.close();
 
   const result = {
     label: args.label,
     url: args.url,
-    capturedAt: new Date().toISOString(),
+    capturedAt: deps.now().toISOString(),
     initial,
     discovered,
     actions: results,
-    network,
-    consoleErrors,
-    findings,
+    network: evidence.network,
+    consoleErrors: evidence.consoleErrors,
+    findings: summarizeFindings(discovered, results),
   };
   const jsonFile = path.join(outDir, `${args.label}-interactions.json`);
   const mdFile = path.join(outDir, `${args.label}-interactions.md`);
-  fs.writeFileSync(jsonFile, `${JSON.stringify(result, null, 2)}\n`);
-  fs.writeFileSync(mdFile, markdown(result));
-  console.log(jsonFile);
-} catch (error) {
-  console.error(`interaction-probe failed: ${error.message}`);
-  process.exit(1);
+  deps.fs.writeFileSync(jsonFile, `${JSON.stringify(result, null, 2)}\n`);
+  deps.fs.writeFileSync(mdFile, markdown(result));
+  deps.log(jsonFile);
+  return 0;
 }
+
+/**
+ * CLI entry: parse `argv`, probe the page, write `<label>-interactions.{json,md}`.
+ * @returns {Promise<number>} exit code (0 ok, 1 usage error or failure).
+ */
+export async function main({ argv }, deps = {}) {
+  const io = { ...DEFAULT_DEPS, ...deps };
+  return runCli({ label: "interaction-probe", body: () => {
+    const args = parseArgs(argv);
+    if (args.help || !args.url) {
+      usage(io.log);
+      return args.help ? 0 : 1;
+    }
+    return probe(args, io);
+  }, report: io.error });
+}
+
+await runIfMain({ moduleUrl: import.meta.url, main });

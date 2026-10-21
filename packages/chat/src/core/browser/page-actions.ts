@@ -53,8 +53,10 @@ export function findTargetElement({ title, root, selection }: {
   if (!needle) return null;
   const candidates = Array.from(root.querySelectorAll(selection.candidateSelector))
     .filter(el => !el.closest(selection.excludedAncestorSelector));
-  return candidates.find(el => (el.textContent ?? '').trim() === needle)
-    ?? candidates.find(el => (el.textContent ?? '').trim().toLowerCase() === needle.toLowerCase()) ?? null;
+  // `textContent` is null only for documents and doctypes; every Element the selector yields has a string.
+  const text = (el: Element) => el.textContent!.trim();
+  return candidates.find(el => text(el) === needle)
+    ?? candidates.find(el => text(el).toLowerCase() === needle.toLowerCase()) ?? null;
 }
 export interface PageActionTimerPort {
   schedule(args: { callback: () => void; delayMs: number }): unknown;
