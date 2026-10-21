@@ -6,6 +6,6 @@ Subagent groups: react (chat react comps/hooks), pane (chat-pane), cmsct (cms co
 |---|---|---|
 | react | running | |
 | pane | running | |
-| cmsct | running | |
-| store | queued | |
+| cmsct | merged, 8/8 files 100/100/100, 3612 tests green; fixed outbox widening bug in content-types/tool-registrations.ts | a0ec638c |
+| store | running | |
 | cmsmisc | queued | |
