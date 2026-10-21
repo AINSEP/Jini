@@ -157,8 +157,12 @@ export function ConversationList({
   // nothing on every document event.
   useEffect(() => {
     if (!open) return;
+    // The root div is committed before any effect runs, so it is never null here. Capturing it
+    // (rather than reading the ref per event) keeps a late event during unmount, after React has
+    // detached the ref but before this cleanup runs, measured against the real node.
+    const root = rootRef.current as HTMLDivElement;
     function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!root.contains(event.target as Node)) setOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') setOpen(false);
@@ -233,10 +237,9 @@ export function ConversationList({
     (item: ConversationListItem) => {
       const confirmer =
         confirmDelete ??
+        // Only ever called from a click handler, so a browser `window` always exists here.
         ((c: ConversationListItem) =>
-          typeof window === 'undefined'
-            ? true
-            : window.confirm(t('Delete "{title}"? This cannot be undone.').replace('{title}', c.title ?? t('Untitled'))));
+          window.confirm(t('Delete "{title}"? This cannot be undone.').replace('{title}', c.title ?? t('Untitled'))));
       // No optimistic removal — the row stays in `conversations` until the host's own state
       // drops it — so a rejected confirmer or `onDelete` cannot leave a deleted-looking row
       // behind; it only means the item silently never disappears. `onDelete` is the effect name
@@ -284,8 +287,8 @@ export function ConversationList({
               className="jini-conv-new"
               disabled={createDisabled}
               data-testid="conversation-new"
+              // `disabled` alone guards this: a disabled button never dispatches a click.
               onClick={() => {
-                if (createDisabled) return;
                 // No optimistic row is inserted — the list still comes straight from props — so a
                 // rejection here cannot leave a phantom conversation on screen; it only means the
                 // switcher closed without one actually being created. Reporting the failure closes
