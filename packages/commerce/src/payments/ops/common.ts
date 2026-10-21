@@ -110,16 +110,17 @@ function readable<T>(holder: { outcome: Outcome<T> | null | undefined }): holder
   return (outcome?.kind === "rejected" || outcome?.kind === "unknown") && typeof outcome.error?.code === "string";
 }
 
-/** A `dispatched` attempt row, written BEFORE the provider call. */
+/** A `dispatched` attempt row, written BEFORE the provider call. `optional.amount`: what a capture requested. */
 export function newAttempt(
   { deps, payment, op, operationKey }: { deps: OpsDeps; payment: PaymentRecord; op: AttemptOp; operationKey: string },
-  optional: { refundId?: string } = {}
+  optional: { refundId?: string; amount?: Money } = {}
 ): AttemptRecord {
   const at = deps.now();
   return {
     id: deps.newId(), paymentId: payment.id, workspaceId: payment.workspaceId, siteId: payment.siteId, providerId: payment.providerId,
     providerAccountId: payment.providerAccountId, mode: payment.mode, op, operationKey, refundId: optional.refundId ?? null,
     outcome: "dispatched", errorCode: null, errorMessage: null, createdAt: at, updatedAt: at,
+    currency: optional.amount?.currency ?? null, amountMinor: optional.amount?.minorUnits ?? null,
   };
 }
 

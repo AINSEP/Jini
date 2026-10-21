@@ -136,7 +136,8 @@ export const LEDGER_TABLE_RULES: Readonly<Record<LedgerTableName, LedgerTableRul
     ],
     nonNegative: ["amount_minor", "captured_minor", "refunded_minor", "refund_held_minor", "disputed_minor"],
   },
-  commerce_payment_attempts: { nullable: ["refund_id", "error_code", "error_message"], nonNegative: [] },
+  // `currency` / `amount_minor` added by 0004 (a capture's requested amount).
+  commerce_payment_attempts: { nullable: ["refund_id", "error_code", "error_message", "currency", "amount_minor"], nonNegative: [] },
   commerce_refunds: { nullable: ["idempotency_key", "provider_refund_ref", "reason"], nonNegative: ["amount_minor"] },
   commerce_disputes: { nullable: ["due_by"], nonNegative: ["amount_minor"] },
   commerce_payment_evidence: { nullable: ["currency", "amount_minor", "inbox_id"], nonNegative: [] },
@@ -197,6 +198,9 @@ export interface AttemptsTable {
   error_message: string | null;
   created_at: Int;
   updated_at: Int;
+  /** 0004: the amount a capture requested; NULL for other ops and older rows. */
+  currency: string | null;
+  amount_minor: NullableInt;
 }
 
 export interface RefundsTable {
@@ -404,6 +408,9 @@ export interface AttemptRecord {
   readonly errorMessage: string | null;
   readonly createdAt: number;
   readonly updatedAt: number;
+  /** The amount a capture requested (compared on replay); null for other ops and for rows written before 0004. */
+  readonly currency: string | null;
+  readonly amountMinor: number | null;
 }
 
 export interface RefundRecord {
@@ -666,6 +673,8 @@ export function attemptFromRow(row: Selectable<AttemptsTable>, _optional: Record
     errorMessage: row.error_message,
     createdAt: decodeMinor(row.created_at),
     updatedAt: decodeMinor(row.updated_at),
+    currency: row.currency,
+    amountMinor: decodeNullableMinor(row.amount_minor),
   };
 }
 
@@ -800,6 +809,7 @@ export function attemptToRow(r: AttemptRecord, _optional: Record<string, never> 
     id: r.id, payment_id: r.paymentId, workspace_id: r.workspaceId, site_id: r.siteId, provider_id: r.providerId,
     provider_account_id: r.providerAccountId, mode: r.mode, op: r.op, operation_key: r.operationKey, refund_id: r.refundId,
     outcome: r.outcome, error_code: r.errorCode, error_message: r.errorMessage, created_at: r.createdAt, updated_at: r.updatedAt,
+    currency: r.currency, amount_minor: r.amountMinor,
   });
 }
 

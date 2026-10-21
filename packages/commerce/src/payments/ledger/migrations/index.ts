@@ -3,6 +3,7 @@ import type { StorageKernel } from "@jini-ai/db/kernel";
 
 import { paymentsLedger } from "./0001_payments_ledger.js";
 import { paymentsOperatorActions } from "./0002_payments_operator_actions.js";
+import { paymentsAttemptRecovery } from "./0004_payments_attempt_recovery.js";
 import { COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS } from "./checksums.js";
 
 /**
@@ -30,6 +31,7 @@ export function pinnedChecksum(
 export const COMMERCE_PAYMENTS_MIGRATIONS: readonly MigrationStep[] = [
   paymentsLedger({ checksum: pinnedChecksum({ id: "0001_payments_ledger" }) }),
   paymentsOperatorActions({ checksum: pinnedChecksum({ id: "0002_payments_operator_actions" }) }),
+  paymentsAttemptRecovery({ checksum: pinnedChecksum({ id: "0004_payments_attempt_recovery" }) }),
 ];
 
 /**

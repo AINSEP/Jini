@@ -34,7 +34,7 @@ export function payment(overrides: Partial<NewPayment> = {}): NewPayment {
 function attempt(overrides: Partial<AttemptRecord> = {}): AttemptRecord {
   return {
     id: "att-1", paymentId: "pay-1", workspaceId: WS, siteId: "site-1", providerId: "stripe", providerAccountId: "acct-1", mode: "live", op: "intent", operationKey: "op-1", refundId: null,
-    outcome: "dispatched", errorCode: null, errorMessage: null, createdAt: 1_000, updatedAt: 1_000, ...overrides,
+    outcome: "dispatched", errorCode: null, errorMessage: null, createdAt: 1_000, updatedAt: 1_000, currency: null, amountMinor: null, ...overrides,
   };
 }
 

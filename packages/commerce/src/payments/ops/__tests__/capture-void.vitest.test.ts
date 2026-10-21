@@ -20,7 +20,8 @@ for (const ledgerKind of ["memory", "sqlite"] as const) {
       const result = await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(6_000), idempotencyKey: "ck-1", grant: await captureGrant(w, held.id, 6_000) });
       expect(result).toMatchObject({ ok: true, replayed: false, risk: { reasons: ["not-assessed"] }, payment: { status: "succeeded", captured: USD(6_000) } });
       const { attempts } = await w.read(held.id);
-      expect(attempts.at(-1)).toMatchObject({ op: "capture", operationKey: "capture:ck-1", outcome: "ok" });
+      // The requested amount is stored on the attempt (0004): a replay of the key is compared against it.
+      expect(attempts.at(-1)).toMatchObject({ op: "capture", operationKey: "capture:ck-1", outcome: "ok", currency: "USD", amountMinor: 6_000 });
       expect(w.scripted.calls.at(-1)).toMatchObject({ op: "capture", req: { providerRef: `sp_${held.id}`, amount: USD(6_000), idempotencyKey: attempts.at(-1)!.id } });
     });
 
@@ -29,6 +30,7 @@ for (const ledgerKind of ["memory", "sqlite"] as const) {
       const held = await authorizedScripted(w);
       expect(await w.service.void({ scope: SCRIPTED, paymentId: held.id, idempotencyKey: "vk-1", grant: await voidGrant(w, held.id) }))
         .toMatchObject({ ok: true, payment: { status: "canceled" } });
+      expect((await w.read(held.id)).attempts.at(-1)).toMatchObject({ op: "void", currency: null, amountMinor: null });
     });
   });
 }
@@ -44,6 +46,27 @@ describe("capture/void: idempotency", () => {
     expect(await w.service.capture({ scope: SCRIPTED, paymentId: other.id, amount: USD(10_000), idempotencyKey: "ck-1", grant: "g" }))
       .toMatchObject({ ok: false, error: { code: "IDEMPOTENCY_CONFLICT", message: "idempotency key already used for a different capture request" } });
     expect(w.scripted.calls.filter((c) => c.op === "capture")).toHaveLength(1);
+  });
+
+  test("the same key on the same payment with a different amount or currency is a conflict, not a replay", async () => {
+    const w = await world({ scripted: { currencies: ["USD", "EUR"] } });
+    const held = await authorizedScripted(w);
+    await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(6_000), idempotencyKey: "ck-1", grant: await captureGrant(w, held.id, 6_000) });
+    const conflict = { ok: false, error: { code: "IDEMPOTENCY_CONFLICT", message: "idempotency key already used for a different capture request" } };
+    expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(9_000), idempotencyKey: "ck-1", grant: "g" })).toMatchObject(conflict);
+    expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: { minorUnits: 6_000, currency: "EUR" }, idempotencyKey: "ck-1", grant: "g" })).toMatchObject(conflict);
+    expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(6_000), idempotencyKey: "ck-1", grant: "g" })).toMatchObject({ ok: true, replayed: true });
+    expect(w.scripted.calls.filter((c) => c.op === "capture")).toHaveLength(1);
+  });
+
+  test("a capture attempt recorded before amounts were stored (NULL amount) replays on the payment alone", async () => {
+    const w = await world();
+    const held = await authorizedScripted(w);
+    await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(6_000), idempotencyKey: "ck-1", grant: await captureGrant(w, held.id, 6_000) });
+    const [legacy] = (await w.read(held.id)).attempts.filter((a) => a.op === "capture");
+    // Simulate a pre-0004 row: same key, no amount on record.
+    await w.ledger.transaction((tx) => tx.insertAttempt({ attempt: { ...legacy!, id: "att_legacy", operationKey: "capture:ck-old", currency: null, amountMinor: null } }));
+    expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(1), idempotencyKey: "ck-old", grant: "g" })).toMatchObject({ ok: true, replayed: true });
   });
 
   test("an idempotency race lost at the attempt insert turns into the winner's replay", async () => {

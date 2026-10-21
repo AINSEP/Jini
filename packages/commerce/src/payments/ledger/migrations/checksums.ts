@@ -11,4 +11,5 @@
 export const COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS: Readonly<Record<string, string>> = {
   "0001_payments_ledger": "484498a844675099a2cd1b6ddcaba4e2b0f2293597b4c4a8be81458bc9424749",
   "0002_payments_operator_actions": "b25706b7606c5e9be93eba63ae2a415cf81212307e06bf511f158a14701aa74d",
+  "0004_payments_attempt_recovery": "902fb1230f456c3420e64c2093cbdbc0ab18ee65184febdc777c76a0574bbe4c",
 };

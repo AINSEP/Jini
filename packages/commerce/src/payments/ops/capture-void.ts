@@ -5,8 +5,10 @@
  * evidence through `applyPaymentEvidence`; rejected/unknown: the attempt records it and the
  * authorization is left as the provider last reported it).
  *
- * Idempotency here is keyed on the attempt row (`capture:<key>` / `void:<key>`). Attempt rows carry
- * no amount, so a replay is matched on the payment only; it moves no money either way.
+ * Idempotency here is keyed on the attempt row (`capture:<key>` / `void:<key>`). A replay must name
+ * the same payment and, for a capture, the same amount the attempt stored (0004); anything else is
+ * an `IDEMPOTENCY_CONFLICT`. A capture attempt written before 0004 has no amount and is matched on
+ * the payment only; a replay moves no money either way.
  */
 import type { Money } from "../../money/money.js";
 import type { PaymentEvidence } from "../contract/evidence.js";
@@ -82,11 +84,18 @@ function checkOp(
 type Done = { readonly kind: "done"; readonly result: IntentResult };
 type Opened = { readonly kind: "opened"; readonly payment: PaymentRecord; readonly attempt: AttemptRecord };
 
+/** Does the stored attempt ask for what this call asks? Same payment, and the same amount when both carry one. */
+function sameRequest({ prior, spec, required }: { prior: AttemptRecord; spec: OpSpec; required: VoidRequired }): boolean {
+  const amount = spec.amount;
+  const sameAmount = amount === null || prior.amountMinor === null || (prior.amountMinor === amount.minorUnits && prior.currency === amount.currency);
+  return prior.paymentId === required.paymentId && sameAmount;
+}
+
 async function lookupOp({ tx, spec, required }: { tx: LedgerTx; spec: OpSpec; required: VoidRequired }): Promise<Done | null> {
   const { scope } = required;
   const prior = await tx.findAttemptByOperationKey({ workspaceId: scope.workspaceId, mode: scope.mode, operationKey: `${spec.op}:${required.idempotencyKey}` });
   if (!prior) return null;
-  const payment = prior.paymentId === required.paymentId ? await readPayment({ tx, scope, paymentId: prior.paymentId }) : null;
+  const payment = sameRequest({ prior, spec, required }) ? await readPayment({ tx, scope, paymentId: prior.paymentId }) : null;
   if (!payment) return { kind: "done", result: fail({ code: "IDEMPOTENCY_CONFLICT", message: `idempotency key already used for a different ${spec.op} request` }) };
   return { kind: "done", result: { ok: true, payment: paymentView(payment), replayed: true, risk: REPLAY_RISK } };
 }
@@ -114,7 +123,10 @@ async function openOp({ deps, spec, required }: { deps: OpsDeps; spec: OpSpec; r
     if (!(await deps.grants.redeem({ grant: required.grant, binding }))) {
       return { kind: "done", result: fail({ code: "GRANT_INVALID", message: `the ${spec.op} grant is missing, expired, used or bound to another request` }) };
     }
-    const attempt = newAttempt({ deps, payment: payment as PaymentRecord, op: spec.op, operationKey: `${spec.op}:${idempotencyKey}` });
+    const attempt = newAttempt(
+      { deps, payment: payment as PaymentRecord, op: spec.op, operationKey: `${spec.op}:${idempotencyKey}` },
+      spec.amount === null ? {} : { amount: spec.amount }
+    );
     await tx.insertAttempt({ attempt });
     return { kind: "opened", payment: payment as PaymentRecord, attempt };
   });
