@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -401,4 +401,41 @@ describe('default process port (real node child processes)', () => {
     const error = await run({ context: node, args: ['-e', 'setTimeout(() => {}, 10_000)'], stdin: '', signal: controller.signal, timeoutMs: 10_000, terminateProcessTree: true }).catch((caught: unknown) => caught);
     expect(error).toMatchObject({ name: 'AbortError' });
   });
+});
+
+describe('default RPC port over real child processes', () => {
+  let rpcDir: string;
+  beforeAll(() => { rpcDir = mkdtempSync(join(tmpdir(), 'rpc-port-')); });
+  afterAll(() => { rmSync(rpcDir, { recursive: true, force: true }); });
+  function script(name: string, body: string): string {
+    const file = join(rpcDir, name);
+    writeFileSync(file, `#!${process.execPath}\n${body}\n`);
+    chmodSync(file, 0o755);
+    return file;
+  }
+  const scope = (executable: string): ModelDiscoveryContext => ({ executable, cwd: rpcDir, env: { PATH: process.env.PATH ?? '' } });
+
+  it('reads Pi\'s catalog and current model over --mode rpc, stopping the CLI once both arrived', async () => {
+    const pi = script('pi', [
+      'if (process.argv.slice(2).join(" ") !== "--mode rpc") process.exit(9);',
+      // State first: until the catalog arrives the partial output cannot be parsed, so the probe keeps reading.
+      'process.stdout.write(JSON.stringify({ type: "response", success: true, command: "get_state", data: { model: { provider: "p", id: "m1" } } }) + "\\n");',
+      'setTimeout(() => process.stdout.write(JSON.stringify({ type: "response", success: true, command: "get_available_models", data: { models: [{ provider: "p", id: "m1", name: "M One" }] } }) + "\\n"), 50);',
+      'setTimeout(() => {}, 10_000);',
+    ].join('\n'));
+    const result = await defaultModelDiscoveryDeps.rpc.probe({ agentId: 'pi', context: scope(pi), signal });
+    expect(result).toEqual({ models: [{ id: 'p/m1', label: 'M One', provider: 'p', identityKind: 'concrete' }], source: 'rpc', coverage: 'account', defaultSelectionId: 'p/m1' });
+  }, 15_000);
+
+  it('refuses Droid metadata when the Python SDK prints no catalog', async () => {
+    // The fake "executable" is irrelevant: python3 runs the bridge, and without droid_sdk installed
+    // (this sandbox) or with a broken one, the bridge yields no JSON and the probe refuses it.
+    const outcome = await probeError(defaultModelDiscoveryDeps.rpc.probe({ agentId: 'droid', context: scope(join(rpcDir, 'droid')), signal }));
+    expect(outcome).not.toBe('resolved');
+  }, 30_000);
+
+  it('refuses Copilot metadata when the CLI the SDK would start does not exist', async () => {
+    const outcome = await probeError(defaultModelDiscoveryDeps.rpc.probe({ agentId: 'copilot', context: scope(join(rpcDir, 'missing-copilot')), signal }));
+    expect(outcome).not.toBe('resolved');
+  }, 30_000);
 });
