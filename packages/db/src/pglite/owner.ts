@@ -89,6 +89,84 @@ export class PgliteOwnerLockedError extends Error {
   }
 }
 
+/**
+ * The filesystem calls the owner makes on its lock file, socket dir and socket. Defaults to
+ * `node:fs`; a test passes a fake to reach the races and errno paths a real filesystem cannot be
+ * made to produce on demand (another starter renaming the lock mid-reap, EIO on a hard link).
+ */
+export interface OwnerFsPort {
+  openSync(path: string, flags: "r"): number;
+  fstatSync(fd: number): { ino: number; mtimeMs: number };
+  readFileSync(fd: number, encoding: "utf8"): string;
+  closeSync(fd: number): void;
+  writeFileSync(path: string, data: string, options: { flag: "wx"; mode: number }): void;
+  linkSync(existingPath: string, newPath: string): void;
+  rmSync(path: string, options: { force: true }): void;
+  renameSync(oldPath: string, newPath: string): void;
+  mkdirSync(path: string, options: { recursive?: boolean; mode: number }): unknown;
+  rmdirSync(path: string): void;
+  statSync(path: string): { ino: number; mode: number };
+  lstatSync(path: string): { isDirectory(): boolean; isSymbolicLink(): boolean; uid: number; mode: number };
+  chmodSync(path: string, mode: number): void;
+  existsSync(path: string): boolean;
+  unlinkSync(path: string): void;
+}
+
+/** The process facts the owner reads: its own pid and uid, the home dir, the clock, and other pids' liveness. */
+export interface OwnerProcessPort {
+  readonly pid: number;
+  /** Undefined where the platform has no uids (Windows). */
+  uid(): number | undefined;
+  homedir(): string;
+  nowMs(): number;
+  /** `process.kill(pid, 0)`: throws ESRCH for a dead pid, EPERM for another user's live one. */
+  kill(pid: number, signal: 0): void;
+}
+
+/** Optional ports for the owner's filesystem and process access; both default to Node's own. */
+export interface OwnerPorts {
+  fs?: OwnerFsPort;
+  proc?: OwnerProcessPort;
+}
+
+const nodeOwnerFs: OwnerFsPort = {
+  openSync,
+  fstatSync,
+  readFileSync,
+  closeSync,
+  writeFileSync,
+  linkSync,
+  rmSync,
+  renameSync,
+  mkdirSync,
+  rmdirSync,
+  statSync,
+  lstatSync,
+  chmodSync,
+  existsSync,
+  unlinkSync,
+};
+
+const nodeOwnerProcess: OwnerProcessPort = {
+  pid: process.pid,
+  uid: () => process.getuid?.(),
+  homedir,
+  nowMs: () => Date.now(),
+  kill: (pid, signal) => {
+    process.kill(pid, signal);
+  },
+};
+
+/** The ports one call works with: the caller's, else Node's. */
+interface OwnerIo {
+  readonly fs: OwnerFsPort;
+  readonly proc: OwnerProcessPort;
+}
+
+function ownerIo(ports: OwnerPorts): OwnerIo {
+  return { fs: ports.fs ?? nodeOwnerFs, proc: ports.proc ?? nodeOwnerProcess };
+}
+
 /** The owners this process runs, by resolved data dir (a second owner in-process is refused by the lock). */
 const runningOwners = new Map<string, PgliteOwner>();
 
@@ -112,12 +190,16 @@ function dirKey(dataDir: string): string {
  * @param required.runDirName the consumer's own directory name (e.g. its app name), so two apps'
  *   sockets never share a directory. A plain name: no slash, no leading dot.
  */
-export function defaultPgliteSocketDir(required: { dataDir: string; runDirName: string }, optional: { home?: string } = {}): string {
+export function defaultPgliteSocketDir(
+  required: { dataDir: string; runDirName: string },
+  optional: { home?: string; proc?: OwnerProcessPort } = {}
+): string {
   assertPlainName(required.runDirName, "runDirName");
+  const { proc } = ownerIo(optional);
   const key = dirKey(required.dataDir);
-  const inHome = join(optional.home ?? homedir(), `.${required.runDirName}`, "run", key);
+  const inHome = join(optional.home ?? proc.homedir(), `.${required.runDirName}`, "run", key);
   if (Buffer.byteLength(join(inHome, PGLITE_SOCKET_FILE)) <= MAX_SOCKET_PATH_BYTES) return inHome;
-  return join(tmpSocketParent(required.runDirName), key);
+  return join(tmpSocketParent(required.runDirName, proc), key);
 }
 
 /** A consumer-chosen file or directory name: no separator, no leading dot, so it cannot escape its parent. */
@@ -126,8 +208,8 @@ function assertPlainName(name: string, what: string): void {
 }
 
 /** The per-user parent of fallback socket dirs. Other users can write `/tmp`, so it is checked, never trusted. */
-function tmpSocketParent(runDirName: string): string {
-  return join("/tmp", `${runDirName}-${process.getuid?.() ?? "user"}`);
+function tmpSocketParent(runDirName: string, proc: OwnerProcessPort): string {
+  return join("/tmp", `${runDirName}-${proc.uid() ?? "user"}`);
 }
 
 /** Throws unless `socketPath` fits in `sun_path`. */
@@ -138,8 +220,8 @@ export function assertSocketPathFits(socketPath: string): void {
   }
 }
 
-function ownedByOtherUser(uid: number): boolean {
-  const own = process.getuid?.();
+function ownedByOtherUser(uid: number, proc: OwnerProcessPort): boolean {
+  const own = proc.uid();
   return own !== undefined && uid !== own;
 }
 
@@ -151,34 +233,35 @@ function ownedByOtherUser(uid: number): boolean {
  *   0700 non-symlink directory of ours (else its owner could swap `dir` for their own). Default:
  *   on when the parent sits directly in `/tmp` (the `/tmp/<app>-<uid>` fallback).
  */
-export function ensurePrivateDir(dir: string, optional: { privateParent?: boolean } = {}): void {
+export function ensurePrivateDir(dir: string, optional: { privateParent?: boolean } & OwnerPorts = {}): void {
+  const io = ownerIo(optional);
   const parent = dirname(resolve(dir));
   if (optional.privateParent ?? dirname(parent) === "/tmp") {
-    ensurePrivateParent({ parent });
+    ensurePrivateParent({ parent, io });
   }
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const stat = lstatSync(dir);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || ownedByOtherUser(stat.uid)) {
+  io.fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const stat = io.fs.lstatSync(dir);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || ownedByOtherUser(stat.uid, io.proc)) {
     throw new Error(`refusing socket dir ${dir}: not a directory owned by this user`);
   }
-  chmodSync(dir, 0o700);
+  io.fs.chmodSync(dir, 0o700);
 }
 
-function ensurePrivateParent({ parent }: { parent: string }, _optional = {}): void {
+function ensurePrivateParent({ parent, io }: { parent: string; io: OwnerIo }, _optional = {}): void {
   try {
-    mkdirSync(parent, { mode: 0o700 });
+    io.fs.mkdirSync(parent, { mode: 0o700 });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
-  const stat = lstatSync(parent);
-  if (!stat.isDirectory() || ownedByOtherUser(stat.uid) || (stat.mode & 0o077) !== 0) {
+  const stat = io.fs.lstatSync(parent);
+  if (!stat.isDirectory() || ownedByOtherUser(stat.uid, io.proc) || (stat.mode & 0o077) !== 0) {
     throw new Error(`refusing socket parent ${parent}: not a 0700 directory owned by this user`);
   }
 }
 
-function pidAlive(pid: number): boolean {
+function pidAlive(pid: number, proc: OwnerProcessPort): boolean {
   try {
-    process.kill(pid, 0);
+    proc.kill(pid, 0);
     return true;
   } catch (error) {
     // EPERM: the pid exists but belongs to another user — still alive.
@@ -201,34 +284,41 @@ interface LockSeen {
 }
 
 /** The lock file's inode, pid and age, read through one descriptor; undefined when there is none. */
-function inspectLock(lockPath: string): LockSeen | undefined {
+function inspectLock(lockPath: string, fs: OwnerFsPort): LockSeen | undefined {
   let fd: number;
   try {
-    fd = openSync(lockPath, "r");
+    fd = fs.openSync(lockPath, "r");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
   }
   try {
-    const { ino, mtimeMs } = fstatSync(fd);
-    return { ino, mtimeMs, pid: parsePid(readFileSync(fd, "utf8")) };
+    const { ino, mtimeMs } = fs.fstatSync(fd);
+    return { ino, mtimeMs, pid: parsePid(fs.readFileSync(fd, "utf8")) };
   } finally {
-    closeSync(fd);
+    fs.closeSync(fd);
   }
 }
 
-/** Creates the lock with our pid already in it (write a temp file, hard-link it in): never visible empty. */
-function tryCreateLock(lockPath: string): boolean {
-  const temp = `${lockPath}.${process.pid}.${randomBytes(4).toString("hex")}`;
-  writeFileSync(temp, `${process.pid}\n`, { flag: "wx", mode: 0o600 });
+/** Hard-links `existingPath` at `newPath`: false when `newPath` already exists; any other failure throws. */
+function linkUnlessExists(existingPath: string, newPath: string, fs: OwnerFsPort): boolean {
   try {
-    linkSync(temp, lockPath);
-    return true;
+    fs.linkSync(existingPath, newPath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
     throw error;
+  }
+  return true;
+}
+
+/** Creates the lock with our pid already in it (write a temp file, hard-link it in): never visible empty. */
+function tryCreateLock(lockPath: string, { fs, proc }: OwnerIo): boolean {
+  const temp = `${lockPath}.${proc.pid}.${randomBytes(4).toString("hex")}`;
+  fs.writeFileSync(temp, `${proc.pid}\n`, { flag: "wx", mode: 0o600 });
+  try {
+    return linkUnlessExists(temp, lockPath, fs);
   } finally {
-    rmSync(temp, { force: true });
+    fs.rmSync(temp, { force: true });
   }
 }
 
@@ -237,33 +327,31 @@ function tryCreateLock(lockPath: string): boolean {
  * inode, so a lock another starter took over in the meantime is put back, not deleted.
  * @throws PgliteOwnerLockedError when the lock moved aside was a newer one.
  */
-function moveStaleLock(dataDir: string, lockPath: string, seen: LockSeen): void {
-  const aside = `${lockPath}.stale.${process.pid}.${randomBytes(4).toString("hex")}`;
+function moveStaleLock(dataDir: string, lockPath: string, seen: LockSeen, { fs, proc }: OwnerIo): void {
+  const aside = `${lockPath}.stale.${proc.pid}.${randomBytes(4).toString("hex")}`;
   try {
-    renameSync(lockPath, aside);
+    fs.renameSync(lockPath, aside);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return; // another starter removed it
     throw error;
   }
-  const moved = inspectLock(aside);
+  const moved = inspectLock(aside, fs);
   if (moved?.ino === seen.ino) {
-    rmSync(aside, { force: true });
+    fs.rmSync(aside, { force: true });
     return;
   }
   try {
-    linkSync(aside, lockPath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    linkUnlessExists(aside, lockPath, fs); // a lock another starter created since stays theirs
   } finally {
-    rmSync(aside, { force: true });
+    fs.rmSync(aside, { force: true });
   }
   throw new PgliteOwnerLockedError(dataDir, moved?.pid);
 }
 
 /** Whether an observed lock is eligible for takeover; a fresh empty file remains contended. */
-function isStaleLock(seen: LockSeen): boolean {
-  if (seen.pid === undefined) return Date.now() - seen.mtimeMs > EMPTY_LOCK_STALE_MS;
-  return !pidAlive(seen.pid);
+function isStaleLock(seen: LockSeen, proc: OwnerProcessPort): boolean {
+  if (seen.pid === undefined) return proc.nowMs() - seen.mtimeMs > EMPTY_LOCK_STALE_MS;
+  return !pidAlive(seen.pid, proc);
 }
 
 /**
@@ -275,21 +363,21 @@ function isStaleLock(seen: LockSeen): boolean {
  * must confirm no starter is running before removing it; automatic guard takeover would recreate
  * the same compare/rename race on the guard itself.
  */
-function removeStaleLock(dataDir: string, lockPath: string, seen: LockSeen): void {
+function removeStaleLock(dataDir: string, lockPath: string, seen: LockSeen, io: OwnerIo): void {
   const guard = `${lockPath}.reaping-${seen.ino}`;
   try {
-    mkdirSync(guard, { mode: 0o700 });
+    io.fs.mkdirSync(guard, { mode: 0o700 });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new PgliteOwnerLockedError(dataDir, undefined);
     throw error;
   }
   try {
-    const current = inspectLock(lockPath);
+    const current = inspectLock(lockPath, io.fs);
     if (current?.ino !== seen.ino) return; // a previous reaper already removed this inode
-    if (!isStaleLock(current)) throw new PgliteOwnerLockedError(dataDir, current.pid);
-    moveStaleLock(dataDir, lockPath, current);
+    if (!isStaleLock(current, io.proc)) throw new PgliteOwnerLockedError(dataDir, current.pid);
+    moveStaleLock(dataDir, lockPath, current, io);
   } finally {
-    rmdirSync(guard);
+    io.fs.rmdirSync(guard);
   }
 }
 
@@ -300,25 +388,27 @@ function removeStaleLock(dataDir: string, lockPath: string, seen: LockSeen): voi
  * function that only removes the inode acquired by this call.
  * @complexity O(L) time/space for L bytes in a pid file; at most five acquisition attempts.
  */
-export function acquireOwnerLock(required: { dataDir: string; lockFileName: string }): () => void {
+export function acquireOwnerLock(required: { dataDir: string; lockFileName: string }, optional: OwnerPorts = {}): () => void {
   const { dataDir } = required;
   assertPlainName(required.lockFileName, "lockFileName");
+  const io = ownerIo(optional);
+  const { fs, proc } = io;
   const lockPath = join(dataDir, required.lockFileName);
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    if (tryCreateLock(lockPath)) {
-      const acquiredInode = statSync(lockPath).ino;
+    if (tryCreateLock(lockPath, io)) {
+      const acquiredInode = fs.statSync(lockPath).ino;
       let released = false;
       return () => {
         if (released) return;
         released = true;
-        const current = inspectLock(lockPath);
-        if (current?.ino === acquiredInode && current.pid === process.pid) rmSync(lockPath, { force: true });
+        const current = inspectLock(lockPath, fs);
+        if (current?.ino === acquiredInode && current.pid === proc.pid) fs.rmSync(lockPath, { force: true });
       };
     }
-    const seen = inspectLock(lockPath);
+    const seen = inspectLock(lockPath, fs);
     if (seen === undefined) continue; // released in between
-    if (!isStaleLock(seen)) throw new PgliteOwnerLockedError(dataDir, seen.pid);
-    removeStaleLock(dataDir, lockPath, seen);
+    if (!isStaleLock(seen, proc)) throw new PgliteOwnerLockedError(dataDir, seen.pid);
+    removeStaleLock(dataDir, lockPath, seen, io);
   }
   throw new Error(`could not take the PGlite owner lock ${lockPath}`);
 }
@@ -333,6 +423,7 @@ export function acquireOwnerLock(required: { dataDir: string; lockFileName: stri
  * @param required.runDirName names the default socket dir; see {@link defaultPgliteSocketDir}.
  * @param optional.socketDir default {@link defaultPgliteSocketDir}.
  * @param optional.idleInTransactionTimeoutMs default 30 s; see `PgliteSocketServer`.
+ * @param optional.fs / optional.proc see {@link OwnerPorts}; default Node's own.
  * @throws PgliteOwnerLockedError when another live owner holds `dataDir`.
  */
 export async function startPgliteOwner(
@@ -342,15 +433,17 @@ export async function startPgliteOwner(
     idleInTransactionTimeoutMs?: number;
     maxConnections?: number;
     log?: (message: string) => void;
-  } = {}
+  } & OwnerPorts = {}
 ): Promise<PgliteOwner> {
+  const io = ownerIo(optional);
+  const { fs } = io;
   const dataDir = resolve(required.dataDir);
-  const socketDir = optional.socketDir ?? defaultPgliteSocketDir({ dataDir, runDirName: required.runDirName });
+  const socketDir = optional.socketDir ?? defaultPgliteSocketDir({ dataDir, runDirName: required.runDirName }, io);
   const socketPath = join(socketDir, PGLITE_SOCKET_FILE);
   assertSocketPathFits(socketPath);
 
-  mkdirSync(dataDir, { recursive: true, mode: 0o700 });
-  const releaseLock = acquireOwnerLock({ dataDir, lockFileName: required.lockFileName });
+  fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+  const releaseLock = acquireOwnerLock({ dataDir, lockFileName: required.lockFileName }, io);
   let db: PGlite | undefined;
   let server: PgliteSocketServer | undefined;
   // WASM initialization can await native work with no referenced Node handle. Until the socket
@@ -358,9 +451,9 @@ export async function startPgliteOwner(
   // Release on both success and failure, so an idle or refused boot retains no extra timer.
   const startupRef = setInterval(() => {}, 1_000);
   try {
-    ensurePrivateDir(socketDir);
+    ensurePrivateDir(socketDir, io);
     // We hold the lock, so a socket file here was left by a dead owner.
-    if (existsSync(socketPath)) unlinkSync(socketPath);
+    if (fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
     db = await required.PGlite.create({ dataDir, startParams: pgliteLowMemoryStartParams(required.PGlite) });
     server = new PgliteSocketServer({
       db,
@@ -370,12 +463,12 @@ export async function startPgliteOwner(
       log: optional.log,
     });
     await server.start();
-    chmodSync(socketPath, 0o600);
-    if ((statSync(socketPath).mode & 0o077) !== 0) throw new Error(`socket ${socketPath} is not owner-only`);
+    fs.chmodSync(socketPath, 0o600);
+    if ((fs.statSync(socketPath).mode & 0o077) !== 0) throw new Error(`socket ${socketPath} is not owner-only`);
   } catch (error) {
     await server?.stop().catch(() => {});
     await db?.close().catch(() => {});
-    rmSync(socketPath, { force: true });
+    fs.rmSync(socketPath, { force: true });
     releaseLock();
     throw error;
   } finally {
@@ -396,7 +489,7 @@ export async function startPgliteOwner(
           await serving.stop();
           await open.close();
         } finally {
-          rmSync(socketPath, { force: true });
+          fs.rmSync(socketPath, { force: true });
           releaseLock();
         }
       })();

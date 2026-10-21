@@ -4,7 +4,7 @@
  * `LICENSE.pglite-socket` at the package root). Modified 2026-09-28: see `NOTICE.md` at the
  * package root for every change from upstream.
  */
-import { createServer, type Server, type Socket } from "node:net";
+import { createServer as createNetServer } from "node:net";
 
 import type { PGlite } from "@electric-sql/pglite";
 
@@ -49,6 +49,34 @@ const READY_FOR_QUERY = "Z".charCodeAt(0);
 /** The id of work that belongs to no connection ({@link PgliteSocketServer.runExclusive}). */
 const OWNER_JOB = 0;
 
+/** The parts of a client socket (`net.Socket`) the server uses. */
+export interface SocketServerClient {
+  readonly writable: boolean;
+  setNoDelay(noDelay: boolean): unknown;
+  on(event: "data", listener: (data: Buffer) => void): unknown;
+  on(event: "error", listener: (error: Error) => void): unknown;
+  on(event: "close", listener: () => void): unknown;
+  pause(): unknown;
+  resume(): unknown;
+  write(data: Uint8Array | string): unknown;
+  end(): unknown;
+  destroy(): unknown;
+}
+
+/** The parts of a listening server (`net.Server`) the server uses. */
+export interface SocketServerListener {
+  listen(path: string, onListening: () => void): unknown;
+  once(event: "error", listener: (error: Error) => void): unknown;
+  off(event: "error", listener: (error: Error) => void): unknown;
+  on(event: "error", listener: (error: Error) => void): unknown;
+  close(onClosed: () => void): unknown;
+}
+
+/** Creates the listener that hands each accepted client to `accept`. */
+export type SocketServerFactory = (accept: (socket: SocketServerClient) => void) => SocketServerListener;
+
+const netServerFactory: SocketServerFactory = (accept) => createNetServer((socket) => accept(socket));
+
 export interface PgliteSocketServerOptions {
   /** The PGlite this server owns. Nothing else may query it while the server runs. */
   db: PGlite;
@@ -59,6 +87,8 @@ export interface PgliteSocketServerOptions {
   /** A client idle inside an open transaction this long is disconnected and rolled back. Default 30 s; 0 = never. */
   idleInTransactionTimeoutMs?: number | undefined;
   log?: ((message: string) => void) | undefined;
+  /** Default `node:net`'s `createServer`; a test passes a fake to script a client socket's events. */
+  createServer?: SocketServerFactory | undefined;
 }
 
 /** Refuses invalid protocol lengths before buffering or slicing. O(1) time/space. */
@@ -109,7 +139,7 @@ function frameFilter(dropReady: boolean, emit: (data: Uint8Array) => void) {
  * Half-closes `socket`, then destroys it: end() alone lets a FATAL frame written just before reach
  * the client, but a client that never closes its side would hold `server.close()` open forever.
  */
-function endSocket(socket: Socket, destroyNow: boolean): void {
+function endSocket(socket: SocketServerClient, destroyNow: boolean): void {
   socket.end();
   if (destroyNow) socket.destroy();
   else setTimeout(() => socket.destroy(), 1000).unref();
@@ -224,7 +254,7 @@ class Connection {
 
   constructor(
     readonly id: number,
-    private readonly socket: Socket,
+    private readonly socket: SocketServerClient,
     private readonly db: PGlite,
     private readonly queue: PgliteQueue,
     private readonly onClosed: (connection: Connection) => void
@@ -328,7 +358,7 @@ class Connection {
 }
 
 export class PgliteSocketServer {
-  private server: Server | null = null;
+  private server: SocketServerListener | null = null;
   private readonly connections = new Map<number, Connection>();
   private readonly queue: PgliteQueue;
   private nextId = 1;
@@ -351,7 +381,7 @@ export class PgliteSocketServer {
   async start(): Promise<void> {
     if (this.server !== null) throw new Error("socket server already started");
     await this.options.db.waitReady;
-    const server = createServer((socket) => this.accept(socket));
+    const server = (this.options.createServer ?? netServerFactory)((socket) => this.accept(socket));
     this.server = server;
     await new Promise<void>((resolve, reject) => {
       server.once("error", reject);
@@ -399,7 +429,7 @@ export class PgliteSocketServer {
     await this.queue.whenIdle();
   }
 
-  private accept(socket: Socket): void {
+  private accept(socket: SocketServerClient): void {
     if (this.server === null || this.connections.size >= this.maxConnections) {
       socket.write(errorResponseFrame("FATAL", "53300", "sorry, too many clients already"));
       endSocket(socket, false);
