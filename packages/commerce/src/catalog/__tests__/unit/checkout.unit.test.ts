@@ -135,3 +135,15 @@ test("orderTotal: a sum past the safe-integer range is refused with the typed va
     return true;
   });
 });
+
+test("orderTotal: validates each line itself (public API) — quantity positive integer, unit amount normalized Money", () => {
+  const usd = (minorUnits: number, currency = "USD") => ({ unitAmount: { minorUnits, currency }, quantity: 1 });
+  for (const quantity of [-3, 0, 0.5, Number.NaN]) {
+    assert.throws(() => orderTotal({ lines: [{ ...usd(100), quantity }] }), (e: Error & { fieldErrors?: { field: string }[] }) =>
+      e.message === "quantity must be a positive integer" && e.fieldErrors?.[0]?.field === "quantity");
+  }
+  assert.throws(() => orderTotal({ lines: [usd(-50)] }), (e: Error & { fieldErrors?: { field: string }[] }) =>
+    /^invalid unit amount: minorUnits must not be negative/.test(e.message) && e.fieldErrors?.[0]?.field === "unitAmount");
+  assert.deepEqual(orderTotal({ lines: [usd(100, "usd"), usd(50)] }), { minorUnits: 150, currency: "USD" });
+  assert.deepEqual(orderTotal({ lines: [usd(0)] }), { minorUnits: 0, currency: "USD" });
+});

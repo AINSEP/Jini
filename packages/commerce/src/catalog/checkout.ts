@@ -1,7 +1,7 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort, UUID } from "@jini-ai/core/primitives";
 
-import { addMoney, type Money } from "../money/money.js";
+import { addMoney, money, type Money } from "../money/money.js";
 import {
   CommerceCheckoutValidationError,
   CommerceCurrencyMismatchError,
@@ -69,13 +69,25 @@ export interface OrderLine {
   quantity: number;
 }
 
-/** `unitAmount × quantity`, refusing a product past the safe-integer range rather than rounding. */
+const invalidLine = (reason: string) =>
+  new CommerceCheckoutValidationError({ message: reason, fieldErrors: [{ field: "quantity", reason }] });
+
+/** `unitAmount × quantity`, refusing a product past the safe-integer range rather than rounding.
+ * `orderTotal` is public, so each line is validated here, not only by `checkout()` (L8 review):
+ * quantity is a positive integer and the unit amount is normalized Money (UPPERCASE, ≥ 0). */
 function lineTotal({ unitAmount, quantity }: OrderLine, _optional: Record<string, never> = {}): Money {
-  const minorUnits = unitAmount.minorUnits * quantity;
+  if (!Number.isSafeInteger(quantity) || quantity < 1) throw invalidLine("quantity must be a positive integer");
+  let unit: Money;
+  try {
+    unit = money(unitAmount, { allowZero: true });
+  } catch (error) {
+    throw new CommerceCheckoutValidationError({ message: `invalid unit amount: ${(error as Error).message}`, fieldErrors: [{ field: "unitAmount", reason: (error as Error).message }] });
+  }
+  const minorUnits = unit.minorUnits * quantity;
   if (!Number.isSafeInteger(minorUnits)) {
     throw new CommerceCheckoutValidationError({ message: "line total exceeds the safe integer range", fieldErrors: [{ field: "quantity", reason: "line total exceeds the safe integer range" }] });
   }
-  return { minorUnits, currency: unitAmount.currency };
+  return { minorUnits, currency: unit.currency };
 }
 
 /**
