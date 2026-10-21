@@ -70,8 +70,9 @@ describe("entry points", () => {
     expect(kernel.migrateCommercePayments).toBeUndefined();
     const sqlEntry: Record<string, unknown> = await import("../sql.js");
     expect(Object.keys(sqlEntry).sort()).toEqual([
-      "COMMERCE_PAYMENTS_LEDGER_TABLE", "COMMERCE_PAYMENTS_MIGRATIONS", "PAYMENTS_LEDGER_ID", "PAYMENTS_OPERATOR_ACTIONS_ID", "constraintKindOf",
-      "migrateCommercePayments", "paymentsLedger", "paymentsOperatorActions", "pinnedChecksum", "sqlPaymentsLedger",
+      "COMMERCE_PAYMENTS_LEDGER_TABLE", "COMMERCE_PAYMENTS_MIGRATIONS", "LEGACY_LIPAY_IMPORT_ID", "PAYMENTS_LEDGER_ID", "PAYMENTS_OPERATOR_ACTIONS_ID",
+      "constraintKindOf", "legacyLipayImport", "migrateCommercePayments", "paymentsLedger", "paymentsOperatorActions", "pinnedChecksum",
+      "readLegacyLipayHistory", "sqlPaymentsLedger",
     ]);
   });
 });
