@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
 import { createAdmin } from '../../../core/module/index.js';
-import type { MediaPickerPort } from '../../../contracts/media-picker.js';
+import type { MediaAsset, MediaPickerPort } from '../../../contracts/media-picker.js';
 import { createMemorySeoApi } from '../../adapters/memory.js';
 import type { AdminSeoPort, SeoEventsPort } from '../../ports.js';
 import { seoModule } from '../../seo.module.js';
@@ -115,10 +115,10 @@ describe('media picker bridge', () => {
   });
 
   it('asks the shared picker for images by default and forwards the chosen item', async () => {
-    const item = { id: 'm1', title: 'Hero', contentType: 'image/png' };
+    const item: MediaAsset = { id: 'm1', title: 'Hero', alt: 'Hero banner', contentType: 'image/png', publicUrl: 'https://cdn.test/hero.png' };
     const pick = vi.fn(async () => item);
     const props = slotProps();
-    renderHook(() => useMediaPickerBridge(props), { wrapper: ({ children }) => scope({ ports: { seoApi: createMemorySeoApi({}), mediaPicker: { pick } as MediaPickerPort }, children }) });
+    renderHook(() => useMediaPickerBridge(props), { wrapper: ({ children }) => scope({ ports: { seoApi: createMemorySeoApi({}), mediaPicker: { pick } }, children }) });
     await waitFor(() => expect(props.onSelect).toHaveBeenCalledWith(item));
     expect(pick).toHaveBeenCalledWith({ accept: ['image/*'] }, { signal: expect.any(AbortSignal) });
   });

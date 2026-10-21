@@ -68,8 +68,8 @@ describe('createHttpSeoApi request mapping', () => {
     const { transport } = recordingTransport({});
     const api = createHttpSeoApi({ transport, basePath: '/ws' });
     expect(api.mediaOriginalUrl({ id: 'img 1' })).toBe('https://admin.test/ws/media/img%201/original');
-    expect(api.mediaPreviewUrl({ value: 'https://cdn.test/a.png' })).toBe('https://cdn.test/a.png');
-    expect(api.mediaPreviewUrl({ value: 'img7:hero.png' })).toBe('https://admin.test/ws/media/img7/original');
+    expect(api.mediaPreviewUrl?.({ value: 'https://cdn.test/a.png' })).toBe('https://cdn.test/a.png');
+    expect(api.mediaPreviewUrl?.({ value: 'img7:hero.png' })).toBe('https://admin.test/ws/media/img7/original');
   });
 
   it('offers share-image inspection only when the host supplies an image transport', () => {
