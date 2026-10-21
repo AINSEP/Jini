@@ -33,6 +33,7 @@ function mount({ permissions, rootKeyScopeNotice, onTabChange }: { permissions: 
 describe('security credential editor', () => {
   it('collects the custom-provider fields and saves them under the chosen category', async () => {
     const { api } = mount({ permissions: ['security.read', 'custom-credentials.write'] });
+    const create = vi.spyOn(api.custom, 'create');
     // Wait for the first load: the add action is inert until the tab's controller has mounted.
     await screen.findByLabelText('Search tokens');
     await waitFor(() => expect(screen.queryByText('Loading credentials…')).toBeNull());
@@ -48,8 +49,18 @@ describe('security credential editor', () => {
     fireEvent.change(field('Additional hosts'), { target: { value: 'cdn.analytics.test' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     expect(await screen.findByRole('heading', { name: 'Analytics' })).toBeVisible();
+    // The memory backend discards credential material, so token delivery is checked on the request itself.
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0]![0]).toEqual({
+      label: 'Analytics',
+      connection: { token: 'value-from-test', username: 'robot' },
+      category: 'ai',
+      baseUrl: 'https://analytics.test',
+      additionalHosts: ['cdn.analytics.test'],
+      username: 'robot',
+    });
     const [saved] = await api.custom.list({}, {});
-    expect(saved).toMatchObject({ label: 'Analytics', category: 'ai' });
+    expect(saved).toMatchObject({ label: 'Analytics', category: 'ai', baseUrl: 'https://analytics.test', username: 'robot', additionalHosts: ['cdn.analytics.test'] });
     expect(JSON.stringify(saved)).not.toContain('value-from-test');
   });
 
