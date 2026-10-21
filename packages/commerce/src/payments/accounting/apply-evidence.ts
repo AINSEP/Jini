@@ -63,12 +63,22 @@ interface Ctx extends WriterInput {
   deferred: number;
 }
 
+/**
+ * The evidence amount column takes only a safe integer. A malformed amount (fractional, unsafe) is
+ * validated out BEFORE the insert: written as-is it would throw in the integer encoder and roll back
+ * the whole apply, losing the observation the planner then quarantines as `bad-amount` (R1-F3). The
+ * observation, malformed amount included, is kept whole in the quarantine row's JSON.
+ */
+function storableMinor({ amount }: { amount: { minorUnits: number } | undefined }): number | null {
+  return amount !== undefined && Number.isSafeInteger(amount.minorUnits) ? amount.minorUnits : null;
+}
+
 async function appendEvidence(ctx: Ctx, entry: { subject: EvidenceSubject; subjectRef: string; status: string; amount?: { minorUnits: number; currency: string } }): Promise<void> {
   await ctx.tx.appendEvidence({
     evidence: {
       id: ctx.deps.newId(), paymentId: ctx.payment.id, workspaceId: ctx.payment.workspaceId, siteId: ctx.payment.siteId,
       providerId: ctx.payment.providerId, providerAccountId: ctx.payment.providerAccountId, mode: ctx.payment.mode, source: ctx.source, subject: entry.subject, subjectRef: entry.subjectRef, observedStatus: entry.status,
-      currency: entry.amount?.currency ?? null, amountMinor: entry.amount?.minorUnits ?? null, inboxId: ctx.inboxId, recordedAt: ctx.deps.now(),
+      currency: entry.amount?.currency ?? null, amountMinor: storableMinor({ amount: entry.amount }), inboxId: ctx.inboxId, recordedAt: ctx.deps.now(),
     },
   });
 }

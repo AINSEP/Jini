@@ -45,3 +45,39 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
     });
   });
 }
+
+for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
+  describe(`R1-F3 malformed amounts are quarantined, never rolled back (${kind})`, () => {
+    const paidEvidence = { providerRef: "ch_1", correlationId: "pay_1", status: "succeeded" as const, refunds: [], disputes: [] };
+
+    test.each([["fractional", 1.5], ["unsafe", 2 ** 53]])("a %s refund amount: bad-amount quarantine, evidence kept without the amount", async (_name, minorUnits) => {
+      const w = await paidPayment(kind);
+      await w.reserve("rf_1", 3_000);
+      const evidence = { providerRefundRef: "re_9", correlationId: "rf_1", amount: USD(minorUnits), status: "succeeded" as const };
+      expect(await w.refundEvidence(evidence)).toEqual({ kind: "quarantined", reason: "bad-amount" });
+      const { refunds, quarantine, evidence: log } = await w.read();
+      expect(refunds).toEqual([expect.objectContaining({ id: "rf_1", status: "reserved" })]);
+      expect(log.at(-1)).toMatchObject({ subject: "refund", subjectRef: "re_9", observedStatus: "succeeded", currency: "USD", amountMinor: null });
+      expect(quarantine.map((q) => [q.subject, q.reason, JSON.parse(q.evidenceJson)])).toEqual([["refund", "bad-amount", evidence]]);
+    });
+
+    test("a fractional payment amount: bad-amount quarantine, evidence kept without the amount", async () => {
+      const w = await paidPayment(kind);
+      const evidence = { ...paidEvidence, amount: USD(10_000.5) };
+      expect(await w.payment(evidence)).toEqual({ kind: "quarantined", reason: "bad-amount" });
+      const { quarantine, evidence: log } = await w.read();
+      expect(log.at(-1)).toMatchObject({ subject: "payment", subjectRef: "ch_1", currency: "USD", amountMinor: null });
+      expect(quarantine.map((q) => [q.subject, q.reason])).toEqual([["payment", "bad-amount"]]);
+    });
+
+    test("a fractional dispute amount: the dispute is quarantined, the rest of the observation applies", async () => {
+      const w = await paidPayment(kind);
+      const dispute = { providerDisputeRef: "dp_1", amount: USD(0.25), status: "open" as const };
+      expect(await w.payment({ ...paidEvidence, disputes: [dispute] })).toMatchObject({ kind: "applied", quarantined: ["bad-amount"] });
+      const { payment, quarantine, evidence: log } = await w.read();
+      expect(payment.disputedMinor).toBe(0);
+      expect(log.at(-1)).toMatchObject({ subject: "dispute", subjectRef: "dp_1", amountMinor: null });
+      expect(quarantine.map((q) => [q.subject, q.reason, JSON.parse(q.evidenceJson)])).toEqual([["dispute", "bad-amount", dispute]]);
+    });
+  });
+}
