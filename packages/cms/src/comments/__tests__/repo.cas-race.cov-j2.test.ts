@@ -102,5 +102,11 @@ describeEachDialect({
       assert.deepEqual(result, { ok: false, reason: "conflict", currentVersion: undefined });
       assert.equal(await repo.findById({ workspaceId: WS, id: "c2" }), null);
     });
+
+    test("countByStatus over zero matching rows is 0: the COUNT aggregate row is always present", async () => {
+      const { repo } = make();
+      assert.equal(await repo.countByStatus({ workspaceId: WS, status: "approved" }), 0);
+      assert.equal(await repo.countByStatus({ workspaceId: WS, status: "pending", entryId: "no-such-entry" }), 0);
+    });
   },
 });
