@@ -3,7 +3,7 @@
  *
  * The host mounts this behind `POST /hooks/mail/:providerId` with the RAW body. Hardening lives
  * here so every host gets it: a body-size cap before parsing, a rate limit on unverified requests
- * (signature guessing), vault-held secrets with rotation (any of several may verify), and an inbox
+ * (signature guessing; a verified request is never throttled), vault-held secrets with rotation (any of several may verify), and an inbox
  * keyed by (providerId, eventId) so provider replays are no-ops.
  *
  * The inbox row and the suppression write are separate statements with no enclosing transaction,
@@ -104,7 +104,11 @@ export function createMailFeedbackIngest(required: MailFeedbackIngestDeps, optio
     const secrets = await required.secretsFor({ providerId: input.providerId });
     if (secrets.length === 0) return { status: 503, body: { ok: false, error: "webhook secret not configured" } };
     if (input.parser.verify({ rawBody: input.rawBody, headers: input.headers, secrets, now: now() })) return null;
+    // The throttle answers failed verifications only. Checked before verifying, it let anyone who can
+    // reach the route block a provider's genuinely signed bounces/complaints with 30 junk requests.
+    const throttled = unverified.blocked({ providerId: input.providerId });
     unverified.note({ providerId: input.providerId });
+    if (throttled) return { status: 429, body: { ok: false, error: "too many unverified requests" } };
     return { status: 401, body: { ok: false, error: "signature rejected" } };
   };
 
@@ -113,7 +117,6 @@ export function createMailFeedbackIngest(required: MailFeedbackIngestDeps, optio
       const parser = required.parserFor({ providerId: input.providerId });
       if (!parser) return { status: 404, body: { ok: false, error: "unknown provider" } };
       if (input.rawBody.byteLength > maxBodyBytes) return { status: 413, body: { ok: false, error: "body too large" } };
-      if (unverified.blocked({ providerId: input.providerId })) return { status: 429, body: { ok: false, error: "too many unverified requests" } };
       const denied = await authenticate({ ...input, parser });
       if (denied) return denied;
       const parsed = parser.parse({ rawBody: input.rawBody, workspaceId: input.workspaceId, headers: input.headers });

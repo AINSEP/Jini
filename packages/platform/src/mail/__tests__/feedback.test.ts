@@ -29,7 +29,7 @@ function harness(optional: { events?: readonly MailerFeedbackEvent[] | { error: 
       suppressed.push(input);
     },
   };
-  const parser: MailFeedbackParser = { verify: () => optional.verified ?? true, parse: () => optional.events ?? [BASE] };
+  const parser: MailFeedbackParser = { verify: ({ headers }) => optional.verified ?? headers["x-sig"] !== "forged", parse: () => optional.events ?? [BASE] };
   const deps = {
     parserFor: ({ providerId }: { providerId: string }) => (providerId === "resend" ? parser : undefined),
     secretsFor: async () => optional.secrets ?? ["whsec_1"],
@@ -95,5 +95,13 @@ describe("createMailFeedbackIngest", () => {
     assert.equal((await ingest.handle(REQUEST)).status, 429);
     now = 1000;
     assert.equal((await ingest.handle(REQUEST)).status, 401);
+  });
+  test("exhausting the unverified allowance never blocks a correctly signed delivery", async () => {
+    const { deps, suppressed } = harness();
+    const ingest = createMailFeedbackIngest(deps, { maxUnverifiedPerWindow: 2, windowMs: 1000, now: () => 0 });
+    const forged = { ...REQUEST, headers: { "x-sig": "forged" } };
+    for (const expected of [401, 401, 429, 429]) assert.equal((await ingest.handle(forged)).status, expected);
+    assert.deepEqual(await ingest.handle(REQUEST), { status: 200, body: { ok: true, applied: 1, duplicates: 0 } });
+    assert.equal(suppressed.length, 1);
   });
 });
