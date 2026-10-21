@@ -122,7 +122,9 @@ function alertFor(row: InboxRecord, kind: PaymentsAlert["kind"], paymentId: stri
   return { kind, workspaceId: row.workspaceId, mode: row.mode, paymentId, detail: `inbox ${row.id} (${row.providerId} event ${row.providerEventId}): ${detail}` };
 }
 
-async function deadLetter(env: Env, tx: LedgerTx, row: InboxRecord, verdict: { error: string; paymentId: string | null; quarantine?: Quarantine }): Promise<Settled> {
+async function deadLetter(
+  { env, tx, row, verdict }: { env: Env; tx: LedgerTx; row: InboxRecord; verdict: { error: string; paymentId: string | null; quarantine?: Quarantine } }
+): Promise<Settled> {
   const now = env.deps.now();
   await tx.deadInbox({ id: row.id, error: verdict.error });
   if (verdict.quarantine) {
@@ -137,11 +139,11 @@ async function deadLetter(env: Env, tx: LedgerTx, row: InboxRecord, verdict: { e
 }
 
 /** Writes the row's state change for a verdict, inside `tx`. */
-async function settle(env: Env, tx: LedgerTx, row: InboxRecord, verdict: Verdict): Promise<Settled> {
+async function settle({ env, tx, row, verdict }: { env: Env; tx: LedgerTx; row: InboxRecord; verdict: Verdict }): Promise<Settled> {
   const attempt = row.attempts + 1;
-  if (verdict.kind === "dead") return deadLetter(env, tx, row, verdict);
+  if (verdict.kind === "dead") return deadLetter({ env, tx, row, verdict });
   if (verdict.kind === "retry") {
-    if (attempt >= env.maxAttempts) return deadLetter(env, tx, row, { ...verdict, error: `${verdict.error} (gave up after ${attempt} attempts)` });
+    if (attempt >= env.maxAttempts) return deadLetter({ env, tx, row, verdict: { ...verdict, error: `${verdict.error} (gave up after ${attempt} attempts)` } });
     await tx.parkInbox({ id: row.id, error: verdict.error, nextAttemptAt: env.deps.now() + env.backoff(attempt) });
     return { state: "parked", quarantined: false, alerts: [] };
   }
@@ -153,7 +155,7 @@ async function settle(env: Env, tx: LedgerTx, row: InboxRecord, verdict: Verdict
 }
 
 const settleAlone = (env: Env, row: InboxRecord, verdict: Verdict): Promise<Settled> =>
-  env.deps.ledger.transaction((tx) => settle(env, tx, row, verdict));
+  env.deps.ledger.transaction((tx) => settle({ env, tx, row, verdict }));
 
 /** The evidence to apply: the fact's own, or a `retrieve` snapshot for an id-only event. */
 async function evidenceFor(env: Env, row: InboxRecord, fact: WebhookFact, provider: PaymentProvider): Promise<Located | { error: string }> {
@@ -218,7 +220,7 @@ function verdictForThrow(error: unknown, paymentId: string | null, evidence: Pay
 async function applyAndSettle(env: Env, row: InboxRecord, found: Located): Promise<Settled> {
   const seen: { paymentId: string | null } = { paymentId: null };
   try {
-    return await env.deps.ledger.transaction(async (tx) => settle(env, tx, row, await applyInTx(env, tx, row, found, seen)));
+    return await env.deps.ledger.transaction(async (tx) => settle({ env, tx, row, verdict: await applyInTx(env, tx, row, found, seen) }));
   } catch (error) {
     return settleAlone(env, row, verdictForThrow(error, seen.paymentId, found.evidence));
   }
