@@ -22,14 +22,20 @@
 //   <out>/media/<host>/<name>    音视频(受 --max-bytes 限制)
 //   <out>/asset-manifest.json    originalUrl → localPath 全映射 + 每项状态
 //     构建复刻页时照 manifest 机械替换引用，禁止凭记忆写外链。
+//
+// Module shape: importing this file has no side effects. The CLI edge at the
+// bottom runs `main` only when the file is executed directly; `main` takes its
+// hard dependencies (fs, fetch, browser launcher, console, cwd) as an optional
+// ports object so the harvesting logic is testable without a real browser.
 
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
+import { flag, list, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
 
-function usage() {
-  console.log(`asset-harvest.mjs — 抓取页面真实用到的图片/字体/媒体(含第三方 CDN)并生成本地映射
+export function usage(log) {
+  log(`asset-harvest.mjs — 抓取页面真实用到的图片/字体/媒体(含第三方 CDN)并生成本地映射
 
   node scripts/asset-harvest.mjs --url <URL> --out assets [--recon RECON/original-recon.json]
     [--types image,font,media,stylesheet] [--max-bytes 26214400] [--scroll-step 700] [--settle 2500]
@@ -38,8 +44,8 @@ function usage() {
       + <out>/asset-manifest.json(originalUrl → localPath, 构建时照此机械替换)`);
 }
 
-function parseArgs(argv) {
-  const out = {
+const ARG_SPEC = {
+  defaults: {
     url: "",
     recon: "",
     outDir: "assets",
@@ -50,23 +56,26 @@ function parseArgs(argv) {
     settle: 2500,
     reconOnly: false,
     allExternal: true,
-  };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--help" || arg === "-h") out.help = true;
-    else if (arg === "--url") out.url = argv[++i] || "";
-    else if (arg === "--recon") out.recon = argv[++i] || "";
-    else if (arg === "--out") out.outDir = argv[++i] || "assets";
-    else if (arg === "--manifest") out.manifest = argv[++i] || "";
-    else if (arg === "--types") out.types = (argv[++i] || "").split(",").map((s) => s.trim()).filter(Boolean);
-    else if (arg === "--max-bytes") out.maxBytes = Number(argv[++i] || out.maxBytes);
-    else if (arg === "--scroll-step") out.scrollStep = Number(argv[++i] || "700");
-    else if (arg === "--settle") out.settle = Number(argv[++i] || "2500");
-    else if (arg === "--recon-only") out.reconOnly = true;
-    else if (arg === "--all-external") out.allExternal = true;
-    else throw new Error(`Unexpected argument: ${arg}`);
-  }
-  return out;
+  },
+  flags: {
+    "--help": flag("help"),
+    "-h": flag("help"),
+    "--url": { key: "url", read: text() },
+    "--recon": { key: "recon", read: text() },
+    "--out": { key: "outDir", read: text("assets") },
+    "--manifest": { key: "manifest", read: text() },
+    "--types": { key: "types", read: list() },
+    "--max-bytes": { key: "maxBytes", read: (raw, out) => Number(raw || out.maxBytes) },
+    "--scroll-step": { key: "scrollStep", read: (raw) => Number(raw || "700") },
+    "--settle": { key: "settle", read: (raw) => Number(raw || "2500") },
+    "--recon-only": flag("reconOnly"),
+    "--all-external": flag("allExternal"),
+  },
+  onOther: rejectUnknown,
+};
+
+export function parseArgs(argv) {
+  return parseCliArgs(argv, ARG_SPEC);
 }
 
 const FONT_EXT = /\.(woff2?|ttf|otf|eot)(?:$|[?#])/i;
@@ -74,13 +83,18 @@ const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif|svg|ico|bmp)(?:$|[?#])/i;
 const MEDIA_EXT = /\.(mp4|webm|m4v|mov|mp3|ogg|wav)(?:$|[?#])/i;
 const WEBFONT_CSS = /use\.typekit\.net\/[a-z0-9]+\.css|fonts\.googleapis\.com\/css/i;
 
-function classify(url, resourceType, contentType) {
+// First match wins, in this order: a font served as image/* is still a font.
+const KIND_TESTS = [
+  ["font", (url, rt, ct) => ct.startsWith("font/") || ct.includes("font-woff") || FONT_EXT.test(url)],
+  ["image", (url, rt, ct) => ct.startsWith("image/") || rt === "image" || IMAGE_EXT.test(url)],
+  ["media", (url, rt, ct) => ct.startsWith("video/") || ct.startsWith("audio/") || rt === "media" || MEDIA_EXT.test(url)],
+  ["stylesheet", (url, rt, ct) => ct.includes("text/css") || rt === "stylesheet"],
+];
+
+export function classify(url, resourceType, contentType) {
   const ct = (contentType || "").toLowerCase();
-  if (ct.startsWith("font/") || ct.includes("font-woff") || FONT_EXT.test(url)) return "font";
-  if (ct.startsWith("image/") || resourceType === "image" || IMAGE_EXT.test(url)) return "image";
-  if (ct.startsWith("video/") || ct.startsWith("audio/") || resourceType === "media" || MEDIA_EXT.test(url)) return "media";
-  if (ct.includes("text/css") || resourceType === "stylesheet") return "stylesheet";
-  return null;
+  const hit = KIND_TESTS.find(([, test]) => test(url, resourceType, ct));
+  return hit ? hit[0] : null;
 }
 
 function safeName(url) {
@@ -91,186 +105,269 @@ function safeName(url) {
   return `${base}-${hash}${ext || ".bin"}`;
 }
 
-function localPathFor(kind, url) {
+const KIND_DIRS = { image: "images", font: "fonts", media: "media" };
+
+export function localPathFor(kind, url) {
   const host = new URL(url).hostname.replace(/[^a-z0-9.-]+/gi, "-");
-  const dir = kind === "image" ? "images" : kind === "font" ? "fonts" : kind === "media" ? "media" : "css";
-  return path.join(dir, host, safeName(url));
+  return path.join(KIND_DIRS[kind] || "css", host, safeName(url));
+}
+
+const arr = (value) => value || [];
+
+function imageRefs(image) {
+  const srcset = String(image.srcset || "").split(",").map((candidate) => [candidate.trim().split(/\s+/)[0], "image"]);
+  return [[image.src, "image"], ...srcset];
+}
+
+// One capture's statically visible refs as [raw, hintedKind, base?] tuples,
+// in the order the first-hinted kind should win.
+function captureRefs(capture) {
+  const signals = capture.signals || {};
+  const resources = signals.resources || {};
+  return [
+    ...arr(signals.images).flatMap(imageRefs),
+    ...arr(signals.fontFaces).flatMap((face) => arr(face.srcUrls).map((src) => [src, "font", face.sheetHref])),
+    ...arr(signals.stylesheets).map((href) => [href, "stylesheet"]),
+    ...arr(resources.images).map((url) => [url, "image"]),
+    ...arr(resources.fonts).map((url) => [url, "font"]),
+    ...arr(resources.media).map((url) => [url, "media"]),
+  ];
+}
+
+function absoluteHttpUrl(raw, base) {
+  let abs = "";
+  try {
+    abs = new URL(raw, base).href;
+  } catch {
+    // relative ref with no usable base, or not a URL at all: skip it
+  }
+  return /^https?:/i.test(abs) ? abs : null;
 }
 
 // recon JSON 里能静态看出来的 URL(img src/srcset、@font-face src、stylesheet)——
 // 补充给 network 捕获兜底(比如首屏截图后才出现的资源)。
-function urlsFromRecon(recon) {
+export function urlsFromRecon(recon) {
   const urls = new Map(); // url -> hinted kind
-  const add = (raw, kind, base) => {
-    if (!raw) return;
-    try {
-      const abs = new URL(raw, base || recon.url).href;
-      if (/^https?:/i.test(abs) && !urls.has(abs)) urls.set(abs, kind);
-    } catch {}
-  };
-  for (const capture of recon.captures || []) {
-    const signals = capture.signals || {};
-    for (const image of signals.images || []) {
-      add(image.src, "image");
-      for (const candidate of String(image.srcset || "").split(",")) {
-        add(candidate.trim().split(/\s+/)[0], "image");
-      }
+  for (const capture of arr(recon.captures)) {
+    for (const [raw, kind, base] of captureRefs(capture)) {
+      const abs = raw ? absoluteHttpUrl(raw, base || recon.url) : null;
+      if (abs && !urls.has(abs)) urls.set(abs, kind);
     }
-    for (const face of signals.fontFaces || []) {
-      for (const src of face.srcUrls || []) add(src, "font", face.sheetHref);
-    }
-    for (const href of signals.stylesheets || []) add(href, "stylesheet");
-    for (const url of signals.resources?.images || []) add(url, "image");
-    for (const url of signals.resources?.fonts || []) add(url, "font");
-    for (const url of signals.resources?.media || []) add(url, "media");
   }
   return urls;
 }
 
+function localFontRef(ref, cssUrl, urlToLocal) {
+  let local;
+  try {
+    local = urlToLocal.get(new URL(ref, cssUrl).href);
+  } catch {
+    // unresolvable ref: leave the url() exactly as written
+  }
+  // fonts.css 落在 <out>/fonts/ 下，字体在 <out>/fonts/<host>/,
+  // 所以相对引用去掉前导 "fonts/"。
+  return local ? path.relative("fonts", local).split(path.sep).join("/") : null;
+}
+
 // 把 webfont CSS / @font-face 源 CSS 里的 url(...) 改写为本地字体路径，
 // 汇总成一份可直接 <link> 的 fonts.css。
-function rewriteFontCss(cssText, cssUrl, urlToLocal) {
+export function rewriteFontCss(cssText, cssUrl, urlToLocal) {
   return cssText.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (match, quote, ref) => {
-    try {
-      const abs = new URL(ref, cssUrl).href;
-      const local = urlToLocal.get(abs);
-      if (!local) return match;
-      // fonts.css 落在 <out>/fonts/ 下，字体在 <out>/fonts/<host>/,
-      // 所以相对引用去掉前导 "fonts/"。
-      const rel = path.relative("fonts", local).split(path.sep).join("/");
-      return `url(${quote}${rel}${quote})`;
-    } catch {
-      return match;
-    }
+    const local = localFontRef(ref, cssUrl, urlToLocal);
+    return local ? `url(${quote}${local}${quote})` : match;
   });
 }
 
-async function downloadAll(entries, ctx, args, refererUrl) {
+// Download transports share one shape: (url, referer) -> { ok, status, body() }.
+// The browser context reuses the page's network stack (UA/cookies); plain
+// fetch is the --recon-only fallback.
+function playwrightTransport(ctx) {
+  return async (url, referer) => {
+    const resp = await ctx.request.get(url, { headers: { referer }, maxRedirects: 5 });
+    return { ok: resp.ok(), status: resp.status(), body: () => resp.body() };
+  };
+}
+
+function fetchTransport(fetchImpl) {
+  return async (url, referer) => {
+    const resp = await fetchImpl(url, { headers: { referer, accept: "*/*" } });
+    return { ok: resp.ok, status: resp.status, body: async () => Buffer.from(await resp.arrayBuffer()) };
+  };
+}
+
+async function downloadOne(entry, get, { outDir, maxBytes, referer, fs: files }) {
+  const rel = localPathFor(entry.kind, entry.url);
+  const resp = await get(entry.url, referer);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const buffer = await resp.body();
+  if (buffer.length > maxBytes) throw new Error(`exceeds --max-bytes (${buffer.length})`);
+  const dest = path.join(outDir, rel);
+  files.mkdirSync(path.dirname(dest), { recursive: true });
+  files.writeFileSync(dest, buffer);
+  return { ...entry, status: "ok", bytes: buffer.length, localPath: rel.split(path.sep).join("/") };
+}
+
+/** Sequentially downloads every entry; a failure is recorded, never thrown. */
+export async function downloadAll(entries, get, options) {
   const results = [];
-  const outDir = path.resolve(args.outDir);
   for (const entry of entries) {
-    const rel = localPathFor(entry.kind, entry.url);
-    const dest = path.join(outDir, rel);
-    try {
-      const resp = ctx
-        ? await ctx.request.get(entry.url, { headers: { referer: refererUrl }, maxRedirects: 5 })
-        : await fetch(entry.url, { headers: { referer: refererUrl, accept: "*/*" } });
-      const ok = ctx ? resp.ok() : resp.ok;
-      const status = ctx ? resp.status() : resp.status;
-      if (!ok) throw new Error(`HTTP ${status}`);
-      const buffer = ctx ? await resp.body() : Buffer.from(await resp.arrayBuffer());
-      if (buffer.length > args.maxBytes) throw new Error(`exceeds --max-bytes (${buffer.length})`);
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.writeFileSync(dest, buffer);
-      results.push({ ...entry, status: "ok", bytes: buffer.length, localPath: rel.split(path.sep).join("/") });
-    } catch (error) {
-      results.push({ ...entry, status: "error", error: error.message });
-    }
+    results.push(await downloadOne(entry, get, options).catch((error) => ({ ...entry, status: "error", error: error.message })));
   }
   return results;
 }
 
-try {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help || (!args.url && !args.recon)) {
-    usage();
-    process.exit(args.help ? 0 : 1);
-  }
-
-  const recon = args.recon ? JSON.parse(fs.readFileSync(args.recon, "utf8")) : null;
-  const pageUrl = args.url || recon?.url || "";
-  if (!pageUrl) throw new Error("need --url or a recon JSON with a url");
-
-  // 候选资产: network 捕获(权威) + recon 静态清单(兜底)。
-  const candidates = new Map(); // url -> {kind, via}
-  const addCandidate = (url, kind, via) => {
-    if (!kind || !args.types.includes(kind)) return;
-    if (!candidates.has(url)) candidates.set(url, { url, kind, via });
+function createCandidates(types) {
+  const byUrl = new Map(); // url -> {url, kind, via}; first sighting wins
+  return {
+    add(url, kind, via) {
+      if (types.includes(kind) && !byUrl.has(url)) byUrl.set(url, { url, kind, via });
+    },
+    list: () => Array.from(byUrl.values()),
   };
+}
 
-  let ctx = null;
-  let browser = null;
-  if (!args.reconOnly) {
-    const pw = loadPlaywright();
-    browser = await launchChromium(pw.chromium);
-    ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
-    const page = await ctx.newPage();
-    page.on("response", (resp) => {
-      try {
-        const kind = classify(resp.url(), resp.request().resourceType(), resp.headers()["content-type"]);
-        if (kind) addCandidate(resp.url(), kind, "network");
-      } catch {}
-    });
-    console.log(`▸ 加载 + 全程滚动捕获资产请求: ${pageUrl}`);
-    await page.goto(pageUrl, { waitUntil: "networkidle", timeout: 90000 }).catch((e) => console.warn("  goto:", e.message));
-    const total = await page.evaluate(() => document.documentElement.scrollHeight);
-    for (let y = 0; y <= total; y += args.scrollStep) {
-      await page.evaluate((yy) => window.scrollTo(0, yy), y);
-      await page.waitForTimeout(180);
-    }
-    await page.waitForTimeout(args.settle);
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.waitForTimeout(800);
-    await page.close();
+function recordResponse(resp, candidates) {
+  try {
+    candidates.add(resp.url(), classify(resp.url(), resp.request().resourceType(), resp.headers()["content-type"]), "network");
+  } catch {
+    // a response whose metadata can no longer be read (page torn down) is skipped
   }
+}
 
-  if (recon) {
-    for (const [url, kind] of urlsFromRecon(recon)) addCandidate(url, kind, "recon");
+// Loads the page and scrolls its full height so lazy images / on-demand
+// fonts actually hit the network; every classified response becomes a candidate.
+async function captureNetworkAssets(page, { pageUrl, args, io, candidates }) {
+  page.on("response", (resp) => recordResponse(resp, candidates));
+  io.log(`▸ 加载 + 全程滚动捕获资产请求: ${pageUrl}`);
+  await page.goto(pageUrl, { waitUntil: "networkidle", timeout: 90000 }).catch((e) => io.warn("  goto:", e.message));
+  const total = await page.evaluate(() => document.documentElement.scrollHeight);
+  for (let y = 0; y <= total; y += args.scrollStep) {
+    await page.evaluate((yy) => window.scrollTo(0, yy), y);
+    await page.waitForTimeout(180);
   }
+  await page.waitForTimeout(args.settle);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(800);
+  await page.close();
+}
 
-  const entries = Array.from(candidates.values());
-  const fontCount = entries.filter((e) => e.kind === "font").length;
-  const imageCount = entries.filter((e) => e.kind === "image").length;
-  console.log(`▸ 候选资产 ${entries.length} 个(图片 ${imageCount} / 字体 ${fontCount})，开始下载…`);
-
-  const results = await downloadAll(entries, ctx, args, pageUrl);
-
-  // 自托管 @font-face: 抓 webfont CSS(typekit/google fonts) + recon 里的 @font-face
-  // 规则，把 url() 改写成本地字体路径，汇成一份 fonts.css。
-  const urlToLocal = new Map(
-    results.filter((r) => r.status === "ok").map((r) => [r.url, r.localPath]),
-  );
-  const fontCssBlocks = [];
-  const webfontCssUrls = results.filter((r) => r.kind === "stylesheet" && WEBFONT_CSS.test(r.url));
-  for (const cssAsset of webfontCssUrls) {
-    try {
-      const cssText = fs.readFileSync(path.join(path.resolve(args.outDir), cssAsset.localPath), "utf8");
-      fontCssBlocks.push(`/* self-hosted from ${cssAsset.url} */\n${rewriteFontCss(cssText, cssAsset.url, urlToLocal)}`);
-    } catch {}
-  }
-  for (const capture of recon?.captures || []) {
-    for (const face of capture.signals?.fontFaces || []) {
-      if (!face.cssText) continue;
-      fontCssBlocks.push(rewriteFontCss(face.cssText, face.sheetHref || pageUrl, urlToLocal));
+// 自托管 @font-face: 抓 webfont CSS(typekit/google fonts) + recon 里的 @font-face
+// 规则，把 url() 改写成本地字体路径，汇成一份 fonts.css。Returns whether it was written.
+export function writeFontsCss(results, recon, { pageUrl, outDir, fs: files }) {
+  const okResults = results.filter((r) => r.status === "ok");
+  const urlToLocal = new Map(okResults.map((r) => [r.url, r.localPath]));
+  const blocks = okResults
+    .filter((r) => r.kind === "stylesheet" && WEBFONT_CSS.test(r.url))
+    .map((css) => `/* self-hosted from ${css.url} */\n${rewriteFontCss(files.readFileSync(path.join(outDir, css.localPath), "utf8"), css.url, urlToLocal)}`);
+  for (const capture of arr(recon?.captures)) {
+    for (const face of arr(capture.signals?.fontFaces)) {
+      if (face.cssText) blocks.push(rewriteFontCss(face.cssText, face.sheetHref || pageUrl, urlToLocal));
     }
   }
-  if (fontCssBlocks.length) {
-    const fontsDir = path.join(path.resolve(args.outDir), "fonts");
-    fs.mkdirSync(fontsDir, { recursive: true });
-    fs.writeFileSync(path.join(fontsDir, "fonts.css"), `${Array.from(new Set(fontCssBlocks)).join("\n\n")}\n`);
-  }
+  if (!blocks.length) return false;
+  const fontsDir = path.join(outDir, "fonts");
+  files.mkdirSync(fontsDir, { recursive: true });
+  files.writeFileSync(path.join(fontsDir, "fonts.css"), `${Array.from(new Set(blocks)).join("\n\n")}\n`);
+  return true;
+}
 
-  const manifestFile = path.resolve(args.manifest || path.join(args.outDir, "asset-manifest.json"));
-  fs.mkdirSync(path.dirname(manifestFile), { recursive: true });
+function writeManifest(manifestFile, { pageUrl, args, results, hasFontsCss, fs: files }) {
   const okCount = results.filter((r) => r.status === "ok").length;
-  const errCount = results.length - okCount;
-  fs.writeFileSync(manifestFile, `${JSON.stringify({
+  files.mkdirSync(path.dirname(manifestFile), { recursive: true });
+  files.writeFileSync(manifestFile, `${JSON.stringify({
     url: pageUrl,
     capturedVia: args.reconOnly ? "recon-only" : "browser-network+recon",
     total: results.length,
     ok: okCount,
-    error: errCount,
-    fontsCss: fontCssBlocks.length ? "fonts/fonts.css" : null,
+    error: results.length - okCount,
+    fontsCss: hasFontsCss ? "fonts/fonts.css" : null,
     assets: results,
   }, null, 2)}\n`);
-
-  if (browser) await browser.close();
-  console.log(`✅ 下载 ${okCount} 成功 / ${errCount} 失败 → ${path.resolve(args.outDir)}`);
-  if (fontCssBlocks.length) console.log(`▸ 自托管字体样式: ${path.join(args.outDir, "fonts/fonts.css")} (页面 <link> 引入即可)`);
-  const failedFonts = results.filter((r) => r.kind === "font" && r.status === "error");
-  if (failedFonts.length) console.log(`⚠️ ${failedFonts.length} 个字体下载失败——不许用系统字体糊弄，逐个排查:\n   ${failedFonts.map((f) => `${f.error} ${f.url}`).slice(0, 10).join("\n   ")}`);
-  console.log(manifestFile);
-} catch (error) {
-  console.error(`asset-harvest failed: ${error.message}`);
-  process.exit(1);
+  return okCount;
 }
+
+function reportSummary({ io, args, outDir, results, okCount, hasFontsCss, manifestFile }) {
+  io.log(`✅ 下载 ${okCount} 成功 / ${results.length - okCount} 失败 → ${outDir}`);
+  if (hasFontsCss) io.log(`▸ 自托管字体样式: ${path.join(args.outDir, "fonts/fonts.css")} (页面 <link> 引入即可)`);
+  const failedFonts = results.filter((r) => r.kind === "font" && r.status === "error");
+  if (failedFonts.length) io.log(`⚠️ ${failedFonts.length} 个字体下载失败——不许用系统字体糊弄，逐个排查:\n   ${failedFonts.map((f) => `${f.error} ${f.url}`).slice(0, 10).join("\n   ")}`);
+  io.log(manifestFile);
+}
+
+function loadRecon(args, io) {
+  return args.recon ? JSON.parse(io.fs.readFileSync(path.resolve(io.cwd(), args.recon), "utf8")) : null;
+}
+
+// 候选资产: network 捕获(权威) + recon 静态清单(兜底)。
+async function collectCandidates({ args, recon, pageUrl, io, session }) {
+  const candidates = createCandidates(args.types);
+  let get = fetchTransport(io.fetch);
+  if (!args.reconOnly) {
+    session.browser = await io.launchBrowser();
+    const ctx = await session.browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
+    await captureNetworkAssets(await ctx.newPage(), { pageUrl, args, io, candidates });
+    get = playwrightTransport(ctx);
+  }
+  for (const [url, kind] of recon ? urlsFromRecon(recon) : []) candidates.add(url, kind, "recon");
+  return { entries: candidates.list(), get };
+}
+
+async function harvest(argv, io, session) {
+  const args = parseArgs(argv);
+  if (args.help || (!args.url && !args.recon)) {
+    usage(io.log);
+    return args.help ? 0 : 1;
+  }
+  const recon = loadRecon(args, io);
+  const pageUrl = args.url || recon?.url;
+  if (!pageUrl) throw new Error("need --url or a recon JSON with a url");
+  const outDir = path.resolve(io.cwd(), args.outDir);
+
+  const { entries, get } = await collectCandidates({ args, recon, pageUrl, io, session });
+  const fontCount = entries.filter((e) => e.kind === "font").length;
+  const imageCount = entries.filter((e) => e.kind === "image").length;
+  io.log(`▸ 候选资产 ${entries.length} 个(图片 ${imageCount} / 字体 ${fontCount})，开始下载…`);
+
+  const results = await downloadAll(entries, get, { outDir, maxBytes: args.maxBytes, referer: pageUrl, fs: io.fs });
+  const hasFontsCss = writeFontsCss(results, recon, { pageUrl, outDir, fs: io.fs });
+  const manifestFile = path.resolve(io.cwd(), args.manifest || path.join(args.outDir, "asset-manifest.json"));
+  const okCount = writeManifest(manifestFile, { pageUrl, args, results, hasFontsCss, fs: io.fs });
+  reportSummary({ io, args, outDir, results, okCount, hasFontsCss, manifestFile });
+  return 0;
+}
+
+const PLAYWRIGHT = { load: loadPlaywright, launch: launchChromium };
+
+/** Real-browser launcher (the default `launchBrowser` port). */
+export async function launchBrowser(loaders = {}) {
+  const { load, launch } = { ...PLAYWRIGHT, ...loaders };
+  return launch(load().chromium);
+}
+
+const DEFAULT_DEPS = {
+  fs,
+  fetch,
+  launchBrowser,
+  log: console.log,
+  warn: console.warn,
+  error: console.error,
+  cwd: process.cwd,
+};
+
+/**
+ * CLI entry: harvests, writes the manifest, and returns the exit code
+ * (0 ok / help, 1 usage error or failure). Any browser it opened is closed
+ * before returning, on success and on failure.
+ */
+export async function main({ argv }, deps = {}) {
+  const io = { ...DEFAULT_DEPS, ...deps };
+  const session = { browser: null };
+  const code = await harvest(argv, io, session).catch((error) => {
+    io.error(`asset-harvest failed: ${error.message}`);
+    return 1;
+  });
+  if (session.browser) await session.browser.close();
+  return code;
+}
+
+await runIfMain({ moduleUrl: import.meta.url, main });
