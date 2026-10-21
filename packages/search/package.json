@@ -56,8 +56,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --maxWorkers=2",
-    "test:coverage": "vitest run --maxWorkers=2 --coverage"
+    "test": "vitest run --maxWorkers=2 --minWorkers=1",
+    "test:coverage": "vitest run --maxWorkers=2 --minWorkers=1 --coverage"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"

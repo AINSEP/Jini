@@ -107,7 +107,7 @@ test('typo tolerance: one insertion, deletion or substitution on words of five o
     const result = await provider.query(ctx, { query: { text } });
     return result.status === 'ok' && result.value.hits.length === 1;
   };
-  expect(await Promise.all(['elephnt', 'elephantt', 'elefant', 'elephant'].map(found))).toEqual([true, true, true, true]);
+  expect(await Promise.all(['elephnt', 'elephantt', 'elephent', 'elephant'].map(found))).toEqual([true, true, true, true]);
   expect(await Promise.all(['elphnt', 'eleph', 'cats', 'xlephanx'].map(found))).toEqual([false, false, false, false]);
 });
 
@@ -130,7 +130,7 @@ test('async mode: a duplicate queued write is ignored at apply time; a dropped i
   await provider.upsert(ctx, { documents: [doc('a', { title: 'One' })] });
   await provider.upsert(ctx, { documents: [doc('a', { title: 'Two' })] });
   await provider.awaitTask?.(ctx, { taskId: 'task_2' });
-  const result = await provider.query(ctx, { query: { text: 'title' } });
+  const result = await provider.query(ctx, { query: { text: 'body' } });
   expect(result.status === 'ok' && result.value.hits.map(hit => hit.title)).toEqual(['One']);
   await provider.upsert(ctx, { documents: [doc('b')] });
   await provider.dropIndex(ctx);

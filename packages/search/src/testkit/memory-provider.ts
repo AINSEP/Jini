@@ -205,13 +205,15 @@ export function createInMemorySearchProvider(_required: Record<string, never> = 
 
   /** Settle every queued task up to and including `taskId`, in write order. */
   function settleThrough(taskId: string): void {
-    for (const [queuedId, task] of queued) {
+    const ids = [...queued.keys()];
+    // awaitTask calls this only when `taskId` is queued, so indexOf is never -1.
+    for (const queuedId of ids.slice(0, ids.indexOf(taskId) + 1)) {
+      const task = queued.get(queuedId) as QueuedTask;
       const index = indexes.get(task.indexName);
       // A task whose index was dropped meanwhile has nothing left to write into.
       if (index !== undefined) for (const entry of task.entries) store(index, entry);
       queued.delete(queuedId);
       settled.add(queuedId);
-      if (queuedId === taskId) return;
     }
   }
 
