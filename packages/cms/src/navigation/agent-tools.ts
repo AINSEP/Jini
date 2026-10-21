@@ -191,7 +191,7 @@ const ITEMS_TREE_SCHEMA = {
  * (`server/routes/admin/menus/*.ts`) exposes that are safe to wrap, out of its 6 total (see file
  * header for why `delete` is the one exclusion).
  *
- * Ordered read-first, matching `identity/agent-tools.ts`'s convention: a model needs a `menuId`
+ * Ordered read-first, matching `identity/agent-tools.ts`'s convention: a model needs a menu's id
  * before it can update or assign one, and `menus_list_menus` is how it learns one for an existing menu.
  */
 export const menusAgentToolCatalog: AgentToolDefinition[] = [
@@ -252,9 +252,9 @@ export const menusAgentToolCatalog: AgentToolDefinition[] = [
     inputSchema: {
       type: "object",
       additionalProperties: false,
-      required: ["menuId", "expectedVersion"],
+      required: ["id", "expectedVersion"],
       properties: {
-        menuId: MENU_ID_SCHEMA,
+        id: MENU_ID_SCHEMA,
         expectedVersion: { type: "integer", description: "The menu's current 'version', as last returned by a read or write on it — the optimistic-concurrency guard. A stale value is rejected with a conflict naming the current version." },
         title: { type: "string", description: "New title. Omit to leave unchanged." },
         slug: { type: "string", pattern: "^[a-z0-9-]+$", description: "New slug. Omit to leave unchanged. Must not collide with another menu's slug." },

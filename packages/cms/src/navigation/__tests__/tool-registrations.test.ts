@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { ToolExecutionContext } from "@jini-ai/core";
+import { normalizeToolInput, requireInputRecord, ToolInputError, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 
+import { menusAgentToolCatalog } from "../agent-tools.js";
+import { MenuVersionConflictError } from "../menu-service.js";
 import { InMemoryMenuRepo, InMemoryNavLocationBindingRepo } from "../repo.memory.js";
 import { buildMenusRegistrations, type MenusToolDeps } from "../tool-registrations.js";
+import type { NavItemNode } from "../types.js";
 
 /**
  * @file C4f (2026-09-24 leftovers pass, `fix-plan-jini-leftovers-2026-09-24.md`): `menus_create_menu`
@@ -66,4 +69,188 @@ test("menus_create_menu still accepts an omitted items and a real array", async 
     executionContext({ title: "Footer", slug: "footer", items: [{ id: "n1", label: "Home", target: { kind: "url", href: "/" } }] })
   )) as { menu: { items: unknown[] } };
   assert.equal(withItems.menu.items.length, 1);
+});
+
+/** Locate the real domain registration; keep alias tests on the published normalization seam. */
+function registrationFor({ deps, toolId }: { deps: MenusToolDeps; toolId: string }): ToolRegistration {
+  const registration = buildMenusRegistrations(deps).find((candidate) => candidate.descriptor.id === toolId);
+  assert.ok(registration, `${toolId} must be wired`);
+  return registration;
+}
+
+/** Seed via the existing create handler so tests exercise versioned service writes, not repo stubs. */
+async function seededMenu({ deps }: { deps: MenusToolDeps }): Promise<string> {
+  const create = registrationFor({ deps, toolId: "menus_create_menu" });
+  const output = await create.handler(executionContext({ title: "Main", slug: "main" })) as { menu: { id: string } };
+  return output.menu.id;
+}
+
+/** Exercise the same domain hook/schema normalization the executor uses, then the real handler. */
+async function normalizedUpdate({ deps, input }: { deps: MenusToolDeps; input: unknown }): Promise<unknown> {
+  const registration = registrationFor({ deps, toolId: "menus_update_menu_tree" });
+  const normalized = await normalizeToolInput({ registration, input });
+  return registration.handler(executionContext(requireInputRecord({ input: normalized.input })));
+}
+
+const REPLACEMENT_TREE: NavItemNode[] = [
+  { id: "entry-link", label: "About", target: { kind: "entryRef", entryId: "page-about", entryType: "page", lastKnownHref: "/about" },
+    children: [{ id: "child-link", label: "Contact", target: { kind: "url", href: "/contact" } }] },
+  { id: "term-link", label: "News", target: { kind: "termRef", termId: "term-news", taxonomy: "category" } },
+];
+
+test("only the update target publishes id; menu reader and assignment references retain their ABI", () => {
+  const entry = menusAgentToolCatalog.find((tool) => tool.name === "menus_update_menu_tree");
+  assert.ok(entry);
+  const update = registrationFor({ deps: fakeDeps(), toolId: entry.name });
+  assert.deepEqual(update.descriptor.inputSchema, entry.inputSchema);
+  const schema = requireInputRecord({ input: update.descriptor.inputSchema });
+  assert.deepEqual(schema.required, ["id", "expectedVersion"]);
+  assert.equal(schema.additionalProperties, false);
+  const properties = requireInputRecord({ input: schema.properties });
+  assert.equal(requireInputRecord({ input: properties.id }).type, "string");
+  assert.equal(Object.hasOwn(properties, "menuId"), false);
+
+  const read = registrationFor({ deps: fakeDeps(), toolId: "menus_get_menu" });
+  const assign = registrationFor({ deps: fakeDeps(), toolId: "menus_assign_location" });
+  assert.deepEqual(requireInputRecord({ input: read.descriptor.inputSchema }).required, ["menuId"]);
+  assert.deepEqual(requireInputRecord({ input: assign.descriptor.inputSchema }).required, ["menuId", "locationKey"]);
+  assert.equal(read.normalizeInput, undefined);
+  assert.equal(assign.normalizeInput, undefined);
+});
+
+test("canonical update normalization leaves the caller's input and nested target references intact", async () => {
+  const registration = registrationFor({ deps: fakeDeps(), toolId: "menus_update_menu_tree" });
+  assert.ok(registration.normalizeInput);
+  const input = Object.freeze({ id: "private-menu-id", expectedVersion: 1, items: REPLACEMENT_TREE });
+  assert.deepEqual(await registration.normalizeInput({ input }), { input, notes: [] });
+  assert.deepEqual(await normalizeToolInput({ input, registration }), { input, notes: [] });
+});
+
+for (const alias of ["menuId", "menu_id", "menu-id", "MenuId"]) {
+  test(`legacy ${alias} normalizes to id before closed-schema validation without disclosing values`, async () => {
+    const registration = registrationFor({ deps: fakeDeps(), toolId: "menus_update_menu_tree" });
+    const input = Object.freeze({ [alias]: "private-menu-id", expectedVersion: "1", items: [] });
+    const result = await normalizeToolInput({ input, registration });
+    assert.deepEqual(result.input, { id: "private-menu-id", expectedVersion: 1, items: [] });
+    assert.deepEqual(result.notes, ["expectedVersion: string→integer", `${alias}→id`]);
+    assert.deepEqual(input, { [alias]: "private-menu-id", expectedVersion: "1", items: [] });
+    assert.equal(result.notes.join(" ").includes("private-menu-id"), false);
+  });
+}
+
+for (const target of [
+  { id: "private-menu-id", menuId: "other-private-id" },
+  { id: "private-menu-id", menuId: "private-menu-id" },
+  { menuId: "private-menu-id", id: "other-private-id" },
+  { ID: "private-menu-id", menuId: "other-private-id" },
+  { menuId: "private-menu-id", menu_id: "other-private-id" },
+]) {
+  test(`alias collisions (${Object.keys(target).join(", ")}) fail before authorization or mutation`, async () => {
+    const deps = fakeDeps();
+    const id = await seededMenu({ deps });
+    let authorizations = 0;
+    deps.authorize = async () => { authorizations++; return { allowed: true, reason: "matched" }; };
+    await assert.rejects(() => normalizedUpdate({ deps, input: { ...target, expectedVersion: 1, items: [] } }), (error: unknown) => {
+      assert.ok(error instanceof ToolInputError);
+      assert.match(error.message, /Conflicting inputs.*Send only 'id'/);
+      assert.equal(error.message.includes("private-menu-id"), false);
+      assert.equal(error.message.includes("other-private-id"), false);
+      return true;
+    });
+    assert.equal(authorizations, 0);
+    assert.equal((await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id }))?.version, 1);
+  });
+}
+
+for (const selector of ["id", "menuId"]) {
+  test(`${selector} updates the complete nested item tree and preserves legacy read and assignment calls`, async () => {
+    const deps = fakeDeps();
+    const id = await seededMenu({ deps });
+    const output = await normalizedUpdate({ deps, input: { [selector]: id, expectedVersion: 1, items: REPLACEMENT_TREE, title: "Changed" } }) as { menu: { id: string; version: number; title: string; items: NavItemNode[] } };
+    assert.equal(output.menu.id, id);
+    assert.equal(output.menu.version, 2);
+    assert.equal(output.menu.title, "Changed");
+    assert.deepEqual(output.menu.items, REPLACEMENT_TREE);
+    const read = registrationFor({ deps, toolId: "menus_get_menu" });
+    assert.deepEqual(await read.handler(executionContext({ menuId: id })), output);
+    const assign = registrationFor({ deps, toolId: "menus_assign_location" });
+    const assigned = await assign.handler(executionContext({ menuId: id, locationKey: "primary" })) as { binding: unknown };
+    assert.deepEqual(assigned.binding, { menuId: id, locationKey: "primary" });
+  });
+
+  test(`${selector} retains direct-handler compatibility`, async () => {
+    const deps = fakeDeps();
+    const id = await seededMenu({ deps });
+    const update = registrationFor({ deps, toolId: "menus_update_menu_tree" });
+    const result = await update.handler(executionContext({ [selector]: id, expectedVersion: 1, items: [] })) as { menu: { id: string; version: number } };
+    assert.equal(result.menu.id, id);
+    assert.equal(result.menu.version, 2);
+  });
+
+  test(`${selector} preserves expected-version conflicts without writes or events`, async () => {
+    const deps = fakeDeps();
+    const id = await seededMenu({ deps });
+    await normalizedUpdate({ deps, input: { [selector]: id, expectedVersion: 1, items: REPLACEMENT_TREE } });
+    const before = structuredClone(await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id }));
+    let events = 0;
+    deps.outbox.enqueue = async () => { events++; };
+    await assert.rejects(() => normalizedUpdate({ deps, input: { [selector]: id, expectedVersion: 1, items: [], title: "Stale" } }), MenuVersionConflictError);
+    const menu = await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id });
+    assert.equal(menu?.version, 2);
+    assert.equal(menu?.title, "Main");
+    assert.deepEqual(menu, before);
+    assert.equal(events, 0);
+  });
+
+  test(`${selector} preserves the principal, workspace and entity-scoped update permission`, async () => {
+    const deps = fakeDeps();
+    const id = await seededMenu({ deps });
+    const calls: unknown[] = [];
+    deps.authorize = async (request) => { calls.push(request); return { allowed: false, reason: "scope_denied" }; };
+    await assert.rejects(() => normalizedUpdate({ deps, input: { [selector]: id, expectedVersion: 1, items: [] } }), /not authorized.*admin.menus.update.*scope_denied/);
+    assert.deepEqual(calls, [{ workspaceId: WORKSPACE_ID, principalId: PRINCIPAL_ID, permission: "admin.menus.update", entityType: "menu", entityId: id }]);
+    assert.equal((await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id }))?.version, 1);
+  });
+
+  test(`${selector} preserves the separate HTML permission before an HTML-only write`, async () => {
+    const deps = fakeDeps();
+    const id = await seededMenu({ deps });
+    deps.rawHtmlPermission = "pages.edit_html";
+    deps.normalizeMenuHtml = ({ html }) => html;
+    const calls: unknown[] = [];
+    deps.authorize = async (request) => {
+      calls.push(request);
+      return { allowed: request.permission !== "pages.edit_html", reason: "scope_denied" };
+    };
+    await assert.rejects(() => normalizedUpdate({ deps, input: { [selector]: id, expectedVersion: 1, mode: "html", html: "<p>Menu</p>" } }), /not authorized.*pages.edit_html/);
+    assert.deepEqual(calls, ["admin.menus.update", "pages.edit_html"].map((permission) => ({ workspaceId: WORKSPACE_ID, principalId: PRINCIPAL_ID, permission, entityType: "menu", entityId: id })));
+    assert.equal((await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id }))?.version, 1);
+    deps.authorize = async () => ({ allowed: true, reason: "matched" });
+    const output = await normalizedUpdate({ deps, input: { [selector]: id, expectedVersion: 1, mode: "html", html: "<p>Menu</p>" } }) as { menu: { mode: string; html: string; items: unknown[]; version: number } };
+    assert.equal(output.menu.mode, "html");
+    assert.equal(output.menu.html, "<p>Menu</p>");
+    assert.deepEqual(output.menu.items, []);
+    assert.equal(output.menu.version, 2);
+  });
+
+  test(`${selector} rejects duplicate ids across tree branches atomically`, async () => {
+    const deps = fakeDeps();
+    const id = await seededMenu({ deps });
+    let events = 0;
+    deps.outbox.enqueue = async () => { events++; };
+    const items = [REPLACEMENT_TREE[0], { id: "child-link", target: { kind: "url", href: "/other" } }];
+    await assert.rejects(() => normalizedUpdate({ deps, input: { [selector]: id, expectedVersion: 1, items } }), /duplicate.*child-link/i);
+    const menu = await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id });
+    assert.equal(menu?.version, 1);
+    assert.deepEqual(menu?.doc.items, []);
+    assert.equal(events, 0);
+  });
+}
+
+test("invocation batches remain unsupported because items is the menu's tree, not a batch envelope", async () => {
+  const deps = fakeDeps();
+  const id = await seededMenu({ deps });
+  await assert.rejects(() => normalizedUpdate({ deps, input: [{ id, expectedVersion: 1, items: [] }] }), /send one input object/i);
+  await assert.rejects(() => normalizedUpdate({ deps, input: { items: [{ menuId: id, expectedVersion: 1, items: [] }] } }), /'id'.*required/i);
+  assert.equal((await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id }))?.version, 1);
 });

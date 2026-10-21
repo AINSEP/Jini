@@ -133,6 +133,29 @@ function menusDeps(routeDeps: MenusToolDeps) {
   return { repo: routeDeps.menuRepo, clock: routeDeps.clock, idGen: routeDeps.idGen, outbox: routeDeps.outbox, normalizeMenuHtml: routeDeps.normalizeMenuHtml };
 }
 
+/**
+ * Normalize the update target's legacy menuId to id before the executor's schema/policy gates.
+ * Retain menuId for 90 days from the coordinated release, including the key spellings the shared
+ * normalizer previously accepted. Read selectors and assignment references keep their own ABI.
+ * Direct handler callers use this same adapter to retain their legacy input contract.
+ * @returns Canonical input and value-free rewrite notes; never mutates the caller's record.
+ * @throws {ToolInputError} If more than one spelling supplies the update target, even if equal.
+ * @complexity O(k) time and space for k top-level input keys; no I/O.
+ */
+function normalizeMenuUpdateInput(
+  { input }: { input: Readonly<Record<string, unknown>> },
+  _options: Record<string, never> = {},
+): { input: Readonly<Record<string, unknown>>; notes: readonly string[] } {
+  const aliases = Object.keys(input).filter((key) => key.replace(/[_-]/g, "").toLowerCase() === "menuid");
+  const alias = aliases[0];
+  if (alias === undefined) return { input, notes: [] };
+  if (Object.hasOwn(input, "id") || aliases.length > 1) {
+    throw new ToolInputError({ message: "Conflicting inputs for the menu target. Send only 'id', not multiple id/menuId spellings." });
+  }
+  const { [alias]: menuId, ...rest } = input;
+  return { input: { ...rest, id: menuId }, notes: [`${alias}→id`] };
+}
+
 export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     menus_list_menus: async (ctx) => {
@@ -173,8 +196,8 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
     },
 
     menus_update_menu_tree: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      const menuId = requireString({ input: input, key: "menuId" });
+      const { input } = normalizeMenuUpdateInput({ input: requireInputRecord({ input: ctx.input }) });
+      const menuId = requireString({ input: input, key: "id" });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.menus.update" }, { entityType: "menu", entityId: menuId });
       const authoring = htmlAuthoring(input);
       if (input.items === undefined && authoring.mode === undefined && authoring.html === undefined) {
@@ -221,6 +244,7 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
     catalogModule: "navigation/agent-tools.ts",
     catalog: CATALOG_BY_ID,
     handlers,
+    inputNormalizers: { menus_update_menu_tree: normalizeMenuUpdateInput },
     derivedRisk: menusDerivedRisk,
   });
 }
