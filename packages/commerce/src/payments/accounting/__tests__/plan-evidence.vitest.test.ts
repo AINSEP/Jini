@@ -137,3 +137,44 @@ describe("computeTotals", () => {
       .toEqual({ refundedMinor: 3_000, refundHeldMinor: 1_000, disputedMinor: 500, status: "partially_refunded" });
   });
 });
+
+describe("L3 review fixes (planner)", () => {
+  const pe = (over: Partial<PaymentEvidence> = {}): PaymentEvidence => ({ providerRef: "ch_1", status: "succeeded", refunds: [], disputes: [], ...over });
+
+  test("a later success without `captured` never widens a partial capture", () => {
+    const partial: PaymentState = { ...paid, capturedMinor: 6_000 };
+    expect(planIntentEvidence({ payment: partial, evidence: pe() })).toMatchObject({ payment: { capturedMinor: 6_000 } });
+    const pendingSnapshot = planIntentEvidence({ payment: { ...paid, intentStatus: "pending", capturedMinor: 0 }, evidence: pe({ status: "pending" }) });
+    expect(pendingSnapshot).toMatchObject({ payment: { capturedMinor: 0 } });
+  });
+
+  test("terminal conflicts are quarantined, not silently ignored", () => {
+    const failed: RefundState = { id: "rf_1", providerRefundRef: "re_9", amountMinor: 3_000, status: "failed" };
+    expect(planRefundEvidence({ payment: paid, refunds: [failed], evidence: ev(), newId: "n" })).toEqual({ kind: "quarantined", reason: "terminal-conflict" });
+    expect(planRefundEvidence({ payment: paid, refunds: [failed], evidence: ev({ status: "pending" }), newId: "n" })).toMatchObject({ kind: "refund", write: "none" });
+    const canceled: PaymentState = { ...paid, intentStatus: "canceled", capturedMinor: 0 };
+    expect(planIntentEvidence({ payment: canceled, evidence: pe() })).toEqual({ kind: "quarantined", reason: "terminal-conflict" });
+    expect(planIntentEvidence({ payment: canceled, evidence: pe({ status: "authorized" }) })).toEqual({ kind: "quarantined", reason: "terminal-conflict" });
+    expect(planIntentEvidence({ payment: canceled, evidence: pe({ status: "failed" }) })).toMatchObject({ kind: "intent", changed: false });
+  });
+
+  test("a payment observation naming another payment's correlation id is a conflict", () => {
+    expect(planIntentEvidence({ payment: paid, evidence: pe({ correlationId: "pay_other" }) })).toEqual({ kind: "quarantined", reason: "ref-conflict" });
+    expect(planIntentEvidence({ payment: paid, evidence: pe({ correlationId: "pay_1" }) })).toMatchObject({ kind: "intent" });
+  });
+
+  test("no echo: bind to the single unbound in-flight refund of that amount; defer when ambiguous; else a new row", () => {
+    const noEcho = ev({ correlationId: undefined });
+    expect(planRefundEvidence({ payment: paid, refunds: [reserved], evidence: noEcho, newId: "n" })).toMatchObject({ kind: "refund", write: "update", row: { id: "rf_1", providerRefundRef: "re_9" } });
+    const twin: RefundState = { ...reserved, id: "rf_2", status: "unknown" };
+    expect(planRefundEvidence({ payment: paid, refunds: [reserved, twin], evidence: noEcho, newId: "n" })).toEqual({ kind: "deferred" });
+    const other: RefundState = { ...reserved, amountMinor: 1_000 };
+    expect(planRefundEvidence({ payment: paid, refunds: [other], evidence: noEcho, newId: "n" })).toMatchObject({ kind: "refund", write: "insert", row: { id: "n" } });
+  });
+
+  test("an existing dispute whose amount changes is quarantined", () => {
+    const open = { id: "d1", providerDisputeRef: "dp_1", amountMinor: 10_000, status: "open" as const };
+    expect(planDisputeEvidence({ payment: paid, disputes: [open], evidence: { providerDisputeRef: "dp_1", amount: USD(5_000), status: "lost" }, newId: "x" }))
+      .toEqual({ kind: "quarantined", reason: "amount-mismatch" });
+  });
+});

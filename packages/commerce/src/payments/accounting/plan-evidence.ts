@@ -60,7 +60,9 @@ export type EvidenceQuarantineReason =
   | "currency-mismatch"
   | "amount-mismatch"
   | "ref-conflict"
-  | "over-refund";
+  | "over-refund"
+  /** Evidence that money moved contradicts a terminal record (refund failed → succeeded, intent canceled → succeeded). */
+  | "terminal-conflict";
 
 type OutboxTopic = LedgerOutboxTopic;
 
@@ -155,6 +157,32 @@ function writeKind<T>(existing: T | undefined, row: T): "insert" | "update" | "n
 }
 
 /**
+ * Which row this evidence is about. Correlation id or provider ref first. A provider that does not
+ * echo our id: bind to the ONE unbound in-flight refund of exactly this amount; when several such
+ * refunds are in flight, defer (parking) instead of guessing; when none, it is a new refund made at
+ * the provider. Binding by amount keeps a non-echo timeout from waiting forever (L3 review).
+ */
+function resolveRefund({ refunds, evidence }: { refunds: readonly RefundState[]; evidence: RefundEvidence }): { existing: RefundState | undefined } | Deferred {
+  const matched = matchRefund({ refunds, evidence });
+  if (matched || evidence.correlationId !== undefined) return { existing: matched };
+  const candidates = refunds.filter((r) => isUnboundInFlight(r) && r.amountMinor === evidence.amount.minorUnits);
+  if (candidates.length > 1) return { kind: "deferred" };
+  return { existing: candidates[0] };
+}
+
+function refundProblem({ payment, existing, evidence }: { payment: PaymentState; existing: RefundState | undefined; evidence: RefundEvidence }): EvidenceQuarantineReason | null {
+  const bad = amountProblem({
+    currency: payment.currency, minorUnits: evidence.amount.minorUnits, evidenceCurrency: evidence.amount.currency,
+    ...(existing ? { amountMinor: existing.amountMinor } : {}),
+  });
+  if (bad) return bad;
+  if (!existing) return null;
+  if (existing.providerRefundRef !== null && existing.providerRefundRef !== evidence.providerRefundRef) return "ref-conflict";
+  // Nothing leaves `failed`, but a success after it means money left after all: surface it, never drop it.
+  return existing.status === "failed" && evidence.status === "succeeded" ? "terminal-conflict" : null;
+}
+
+/**
  * Plan one refund observation. `newId` names the row only when nothing matches (an unsolicited
  * refund issued at the provider's dashboard is still money that left).
  */
@@ -164,16 +192,11 @@ export function planRefundEvidence(
   },
   _optional: Record<string, never> = {}
 ): RefundPlan | Quarantined | Deferred {
-  const existing = matchRefund({ refunds, evidence });
-  if (!existing && evidence.correlationId === undefined && refunds.some(isUnboundInFlight)) return { kind: "deferred" };
-  const bad = amountProblem({
-    currency: payment.currency, minorUnits: evidence.amount.minorUnits, evidenceCurrency: evidence.amount.currency,
-    ...(existing ? { amountMinor: existing.amountMinor } : {}),
-  });
-  if (bad) return { kind: "quarantined", reason: bad };
-  if (existing && existing.providerRefundRef !== null && existing.providerRefundRef !== evidence.providerRefundRef) {
-    return { kind: "quarantined", reason: "ref-conflict" };
-  }
+  const resolved = resolveRefund({ refunds, evidence });
+  if ("kind" in resolved) return resolved;
+  const { existing } = resolved;
+  const problem = refundProblem({ payment, existing, evidence });
+  if (problem) return { kind: "quarantined", reason: problem };
   const row = nextRefundRow({ existing, evidence, newId });
   const next = existing ? refunds.map((r) => (r.id === row.id ? row : r)) : [...refunds, row];
   if (refundTotals({ refunds: next }).succeeded > payment.capturedMinor) return { kind: "quarantined", reason: "over-refund" };
@@ -193,7 +216,10 @@ export function planDisputeEvidence(
   _optional: Record<string, never> = {}
 ): DisputePlan | Quarantined {
   const existing = disputes.find((d) => d.providerDisputeRef === evidence.providerDisputeRef);
-  const bad = amountProblem({ currency: payment.currency, minorUnits: evidence.amount.minorUnits, evidenceCurrency: evidence.amount.currency });
+  const bad = amountProblem({
+    currency: payment.currency, minorUnits: evidence.amount.minorUnits, evidenceCurrency: evidence.amount.currency,
+    ...(existing ? { amountMinor: existing.amountMinor } : {}),
+  });
   if (bad) return { kind: "quarantined", reason: bad };
   const row: DisputeState = existing
     ? { ...existing, status: mergeDisputeStatus({ current: existing.status, incoming: evidence.status }) }
@@ -202,14 +228,20 @@ export function planDisputeEvidence(
   return { kind: "dispute", write: writeKind(existing, row), row, disputes: next, outbox: disputeOutbox(existing?.status, row.status) };
 }
 
-/** Captured never decreases; `succeeded` without an explicit capture amount means the full amount. */
+/**
+ * Captured never decreases. Evidence without `captured` leaves it UNCHANGED — except the first
+ * move to `succeeded` with nothing captured yet, which means the full amount (auto capture).
+ * Defaulting to the full amount on every success would let a later snapshot widen a partial
+ * capture and open refund room that was never captured (L3 review).
+ */
 function nextCaptured({ payment, evidence, intent }: { payment: PaymentState; evidence: PaymentEvidence; intent: IntentStatus }): number {
-  const reported = evidence.captured?.minorUnits ?? (intent === "succeeded" ? payment.amountMinor : 0);
-  return Math.max(payment.capturedMinor, reported);
+  if (evidence.captured) return Math.max(payment.capturedMinor, evidence.captured.minorUnits);
+  return intent === "succeeded" && payment.capturedMinor === 0 ? payment.amountMinor : payment.capturedMinor;
 }
 
-function intentProblem({ payment, evidence }: { payment: PaymentState; evidence: PaymentEvidence }): EvidenceQuarantineReason | null {
-  if (payment.providerRef !== null && payment.providerRef !== evidence.providerRef) return "ref-conflict";
+const MONEY_MOVED: ReadonlySet<string> = new Set(["authorized", "succeeded"]);
+
+function intentAmountProblem({ payment, evidence }: { payment: PaymentState; evidence: PaymentEvidence }): EvidenceQuarantineReason | null {
   const checks = [evidence.amount, evidence.captured].filter((m) => m !== undefined);
   for (const reported of checks) {
     const bad = amountProblem({ currency: payment.currency, minorUnits: reported.minorUnits, evidenceCurrency: reported.currency });
@@ -218,6 +250,13 @@ function intentProblem({ payment, evidence }: { payment: PaymentState; evidence:
   if (evidence.amount !== undefined && evidence.amount.minorUnits !== payment.amountMinor) return "amount-mismatch";
   if (evidence.captured !== undefined && evidence.captured.minorUnits > payment.amountMinor) return "amount-mismatch";
   return null;
+}
+
+function intentProblem({ payment, evidence }: { payment: PaymentState; evidence: PaymentEvidence }): EvidenceQuarantineReason | null {
+  if (payment.providerRef !== null && payment.providerRef !== evidence.providerRef) return "ref-conflict";
+  if (evidence.correlationId !== undefined && evidence.correlationId !== payment.id) return "ref-conflict";
+  if (payment.intentStatus === "canceled" && MONEY_MOVED.has(evidence.status)) return "terminal-conflict";
+  return intentAmountProblem({ payment, evidence });
 }
 
 /** Plan the intent half of a payment observation (status, provider ref, captured amount). */
