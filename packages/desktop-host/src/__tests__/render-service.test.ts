@@ -136,9 +136,9 @@ describe('withRenderTimeout', () => {
       const result = withRenderTimeout({ promise: pending }, { timeoutMs: 10, signal: controller.signal });
       const assertion = expect(result).rejects.toMatchObject({ code: 'timeout' });
       await vi.advanceTimersByTimeAsync(20);
-      // The timeout path does not remove the abort listener (only the
-      // promise's resolve/reject handlers do), so a later abort is still
-      // delivered to `onAbort` — which must no-op via the settled guard.
+      // The timeout path removes the abort listener as it settles (as the
+      // promise's resolve/reject handlers do), so a later abort reaches no
+      // listener and cannot re-settle the already-rejected result.
       controller.abort();
       await assertion;
     } finally {

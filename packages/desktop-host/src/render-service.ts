@@ -121,8 +121,11 @@ export async function withRenderTimeout<T>({ promise }: { promise: Promise<T> },
             reject(new RenderServiceError({ message: `render timed out after ${timeoutMs}ms`, code: 'timeout' }));
           }, timeoutMs);
 
+    // No `if (settled) return` guard here either: every settling path (the
+    // timer above and both `promise.then` handlers) removes this listener as
+    // it settles, settling never happens synchronously inside an `abort`
+    // dispatch, and the listener is `once` — so it can only run unsettled.
     const onAbort = () => {
-      if (settled) return;
       settled = true;
       if (timer != null) clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
