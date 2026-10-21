@@ -33,10 +33,11 @@ export function createEditMediaController(
       store.set({
         patch: { error: error instanceof Error ? error.message : 'Failed to save media metadata' },
       });
-      return false;
     } finally {
       store.set({ patch: { saving: false } });
     }
+    // Reached only through the catch above: the failure is already recorded in `error`.
+    return false;
   }
   return {
     getSnapshot: store.getSnapshot,

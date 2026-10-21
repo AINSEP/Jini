@@ -289,6 +289,12 @@ describe('DataTable sortable headers', () => {
     expect(onSortChange).toHaveBeenCalledWith({ column: 'title', direction: 'desc' });
   });
 
+  it('clicking the already-active descending column toggles it back to ascending', () => {
+    const onSortChange = renderSortable({ column: 'title', direction: 'desc' });
+    fireEvent.click(within(screen.getAllByRole('columnheader')[0] as HTMLElement).getByRole('button'));
+    expect(onSortChange).toHaveBeenCalledWith({ column: 'title', direction: 'asc' });
+  });
+
   it('clicking a sortable header when there is no active sort at all switches to it at its default', () => {
     const onSortChange = renderSortable(null);
     fireEvent.click(within(screen.getAllByRole('columnheader')[1] as HTMLElement).getByRole('button'));

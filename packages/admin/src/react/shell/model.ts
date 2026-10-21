@@ -6,7 +6,8 @@ import type { AdminShellPanel, AdminShellSession } from './types.js';
 export interface AdminShellModel {
   readonly panels: readonly AdminShellPanel[];
   readonly panel: AdminShellPanel | undefined;
-  readonly route: AdminRoute;
+  /** Always names a panel: an unmatched or root path resolves to the host's default panel. */
+  readonly route: AdminRoute & { readonly panelId: string };
   readonly nav: readonly AdminNavGroup[];
   readonly agentPageId: string | null;
 }
@@ -26,12 +27,13 @@ export function resolveAdminShellModel(
     permissions: args.session.effectivePermissions ?? [],
   });
   const matched = matchRoute({ routePath: args.routePath, panels });
-  const rawPath = args.routePath.split('?')[0] ?? '';
+  // `split` with a string separator always returns at least one element, so index 0 exists.
+  const rawPath = args.routePath.split('?')[0]!;
   const isRoot = rawPath.split('/').filter(Boolean).length === 0;
   // The existing matcher maps root to dashboard. The shell's default is host-owned.
-  const route: AdminRoute = isRoot || matched.panelId === null
+  const route: AdminShellModel['route'] = isRoot || matched.panelId === null
     ? { panelId: args.defaultPanelId, view: null, params: {}, query: matched.query }
-    : matched;
+    : { ...matched, panelId: matched.panelId };
   return {
     panels,
     panel: panels.find((panel) => panel.id === route.panelId),

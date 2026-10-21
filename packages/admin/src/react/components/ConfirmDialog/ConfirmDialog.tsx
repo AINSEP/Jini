@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
-import { agentHandle } from '@jini-ai/agentic';
-import type { AgentAttrsPort } from '@jini-ai/ui-kit';
 import { useConfirmController } from '@jini-ai/ui-kit/react';
 import { resolveTone, toneClassName, type ConfirmTone } from '../../types.js';
 import { useConfirmDialog, useConfirmDialogCancelLabel, type UseConfirmDialog } from './ConfirmDialog.hooks.js';
+import { confirmDialogAgentAttrs, withoutAccessibleName } from './confirm-dialog-attrs.js';
 
 /**
  * @file Shared modal confirmation primitive — the replacement for `window.confirm`, which blocks
@@ -138,19 +137,16 @@ export function ConfirmDialog({
     ...(props.pending === undefined ? {} : { pending: props.pending }),
     onConfirm: () => props.onConfirm(), onCancel: () => props.onCancel(),
   }, {
-    // UI-kit names selects separately; agentic publishes them as fields and still owns handle validation.
-    agent: ((required, optional = {}) => agentHandle(required, {
-      ...(optional.role === undefined ? {} : { role: optional.role === 'select' ? 'field' : optional.role }),
-      ...(optional.label === undefined ? {} : { label: optional.label }),
-    })) satisfies AgentAttrsPort,
+    // UI-kit names selects separately; see `confirmDialogAgentAttrs`.
+    agent: confirmDialogAgentAttrs,
   });
   const { titleId, dialogRef, cancelRef, handleNativeCancel, handleBackdropClick } = useDialog(
     { open: props.open, onCancel: () => { controller.requestDismiss({ reason: 'close' }); }, document },
     { pending: controller.pending },
   );
   // Keep admin's concise accessible names; the shared planner still supplies consequence-aware agent labels.
-  const { 'aria-label': _cancelName, ...cancelAttrs } = controller.cancel.attrs ?? {};
-  const { 'aria-label': _confirmName, ...confirmAttrs } = controller.confirm.attrs ?? {};
+  const cancelAttrs = withoutAccessibleName({ attrs: controller.cancel.attrs });
+  const confirmAttrs = withoutAccessibleName({ attrs: controller.confirm.attrs });
 
   return (
     <dialog

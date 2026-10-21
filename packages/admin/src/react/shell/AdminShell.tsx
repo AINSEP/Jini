@@ -56,7 +56,7 @@ function ShellSidebar({ props, view, open, id }: {
   readonly props: AdminShellProps; readonly view: ShellView; readonly open: boolean; readonly id: string;
 }): ReactNode {
   return (
-    <Sidebar activeId={view.model.route.panelId ?? ''} base={props.adminBase} open={open} id={id}
+    <Sidebar activeId={view.model.route.panelId} base={props.adminBase} open={open} id={id}
       label={props.labels.navigation} railStorageKey={props.railStorageKey} railDefaultCollapsed={props.railDefaultCollapsed ?? false}>
       {props.slots.sidebarHeader}
       <Sidebar.Nav groups={view.nav} soonLabel={props.labels.soon} collapsibleGroups={props.collapsibleGroups ?? []} />

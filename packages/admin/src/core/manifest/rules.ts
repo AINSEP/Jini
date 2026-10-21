@@ -68,8 +68,9 @@ export function buildNav<T>(
   { panels }: { readonly panels: readonly AdminPanel<T>[] },
   options: { readonly defaultPanelId?: string } = {},
 ): readonly AdminNavGroup[] {
+  // A `Map` iterates in first-insertion order, so it alone records the order each group's first
+  // member was registered — no separate order list (and no lookup that could miss) is needed.
   const groups = new Map<string, AdminNavItem[]>();
-  const groupOrder: string[] = [];
   // Sentinel for "no group". A panel cannot collide with it: `group` is `string | undefined`, and
   // an explicit empty-string group would be a labelless heading, which is the same thing.
   const UNGROUPED = '';
@@ -77,22 +78,21 @@ export function buildNav<T>(
   panels.forEach((panel) => {
     if (!panel.nav) return;
     const key = panel.nav.group ?? UNGROUPED;
-    if (!groups.has(key)) {
-      groups.set(key, []);
-      groupOrder.push(key);
-    }
-    groups.get(key)?.push({ ...panel.nav, id: panel.id, href: panelHref({ panelId: panel.id }, options) });
+    const group = groups.get(key) ?? [];
+    groups.set(key, group);
+    group.push({ ...panel.nav, id: panel.id, href: panelHref({ panelId: panel.id }, options) });
   });
 
   // Ungrouped first regardless of when it was registered — it is the top row, not a peer group.
+  const entries = [...groups.entries()];
   const ordered = [
-    ...groupOrder.filter((k) => k === UNGROUPED),
-    ...groupOrder.filter((k) => k !== UNGROUPED),
+    ...entries.filter(([k]) => k === UNGROUPED),
+    ...entries.filter(([k]) => k !== UNGROUPED),
   ];
 
-  return ordered.map((key) => ({
+  return ordered.map(([key, items]) => ({
     ...(key === UNGROUPED ? {} : { label: key }),
-    items: stableSortByOrder(groups.get(key) ?? []),
+    items: stableSortByOrder(items),
   }));
 }
 
