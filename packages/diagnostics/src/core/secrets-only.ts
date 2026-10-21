@@ -335,6 +335,16 @@ function renderRedactedLiteral({ content, classified, result }: { content: strin
   return result.text.match(/\[REDACTED:[^\]]+\]/)?.[0] ?? "[REDACTED:escaped_secret]";
 }
 
+/** Keep the last four significant tokens for the next literal's context check. */
+function rememberSignificantCodeToken(
+  { previous, token }: { previous: { type: string; value: string }[]; token: CodeToken },
+  _options = {},
+): void {
+  if (/^(WhiteSpace|LineTerminatorSequence|SingleLineComment|MultiLineComment|HashbangComment)$/.test(token.type)) return;
+  previous.push(token);
+  if (previous.length > 4) previous.shift();
+}
+
 /** Only tokenizer-delimited static literal text and comments reach the existing strict policy.
  * Regexes, references and interpolation syntax never reach it; nested literals do.
  * O(r*n) time and O(n) space for fixed strict rule count r and source length n. */
@@ -349,10 +359,7 @@ function redactCodeLiterals(
   for (const token of tokens) {
     const adjacentSecret = /^(StringLiteral|NoSubstitutionTemplate|TemplateHead)$/.test(token.type) &&
       hasSecretLiteralContext({ previous });
-    if (!/^(WhiteSpace|LineTerminatorSequence|SingleLineComment|MultiLineComment|HashbangComment)$/.test(token.type)) {
-      previous.push(token);
-      if (previous.length > 4) previous.shift();
-    }
+    rememberSignificantCodeToken({ previous, token });
     const span = codeTokenSpan({ token });
     if (!span) {
       parts.push(token.value);

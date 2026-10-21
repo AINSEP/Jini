@@ -445,6 +445,24 @@ type OpenAiFetchOutcome =
   | { readonly type: 'retry'; readonly retryInit: OpenAiCompatibleRequestInit }
   | { readonly type: 'ended' };
 
+/** Tool-schema retry has precedence; consume only the hook that selected a replacement body. */
+function resolveOpenAiRetry(
+  { init, status, rawText }: { init: OpenAiCompatibleRequestInit; status: number; rawText: string },
+  _options = {},
+): OpenAiFetchOutcome | null {
+  const toolRetryBody = init.retryToolBody?.({ status, rawErrorText: rawText, body: init.body });
+  if (toolRetryBody) {
+    const { retryToolBody: _retryToolBody, ...retryInit } = init;
+    return { type: 'retry', retryInit: { ...retryInit, body: toolRetryBody } };
+  }
+  const retryBody = init.retryableBody?.(status, rawText);
+  if (retryBody) {
+    const { retryableBody: _retryableBody, ...retryInit } = init;
+    return { type: 'retry', retryInit: { ...retryInit, body: retryBody } };
+  }
+  return null;
+}
+
 /**
  * Opens the streaming POST and validates the response, returning its readable body once every
  * pre-stream failure mode (network error, non-2xx status with no retry available, missing body)
@@ -452,7 +470,10 @@ type OpenAiFetchOutcome =
  * those — the caller only has to branch on the outcome's `type`, keeping `hasEnded()` as the sole
  * gate for every exit path (see `runOpenAiCompatibleRequest`'s doc).
  */
-async function requestOpenAiCompatibleStream(init: OpenAiCompatibleRequestInit): Promise<OpenAiFetchOutcome> {
+async function requestOpenAiCompatibleStream(
+  { init }: { init: OpenAiCompatibleRequestInit },
+  _options = {},
+): Promise<OpenAiFetchOutcome> {
   const { onEvent, emitEnd } = init;
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
@@ -483,16 +504,8 @@ async function requestOpenAiCompatibleStream(init: OpenAiCompatibleRequestInit):
 
   if (!response.ok) {
     const rawText = await response.text();
-    const toolRetryBody = init.retryToolBody?.({ status: response.status, rawErrorText: rawText, body: init.body });
-    if (toolRetryBody) {
-      const { retryToolBody: _retryToolBody, ...retryInit } = init;
-      return { type: 'retry', retryInit: { ...retryInit, body: toolRetryBody } };
-    }
-    const retryBody = init.retryableBody?.(response.status, rawText);
-    if (retryBody) {
-      const { retryableBody: _retryableBody, ...retryInit } = init;
-      return { type: 'retry', retryInit: { ...retryInit, body: retryBody } };
-    }
+    const retryOutcome = resolveOpenAiRetry({ init, status: response.status, rawText });
+    if (retryOutcome) return retryOutcome;
     onEvent({
       type: 'error',
       message: redactSecrets({ input: extractOpenAiErrorDetail({ rawText: rawText }) }, { exactSecrets: init.redactSecretsList }),
@@ -551,7 +564,7 @@ export async function runOpenAiCompatibleRequest(requiredArgs: Pick<OpenAiCompat
   const init: OpenAiCompatibleRequestInit = { ...optionalArgs, ...requiredArgs };
   const { onEvent, hasEnded } = init;
 
-  const fetchOutcome = await requestOpenAiCompatibleStream(init);
+  const fetchOutcome = await requestOpenAiCompatibleStream({ init });
   if (fetchOutcome.type === 'ended') {
     return { finishReason: null, toolCalls: [], text: '' };
   }

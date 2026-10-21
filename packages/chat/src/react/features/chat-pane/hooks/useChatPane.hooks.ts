@@ -192,6 +192,14 @@ function resolveRunContext(
   return typeof context === 'function' ? context(input) : context;
 }
 
+function assertPromptSendable(
+  { trimmed, sendBlocker }: { trimmed: string; sendBlocker: ChatPaneSendBlocker | null },
+  _options = {},
+): void {
+  if (!trimmed) throw new Error('cannot send: the prompt is empty');
+  if (sendBlocker !== null) throw new Error(`cannot send: ${describeChatPaneSendBlocker(sendBlocker)}`);
+}
+
 function createChatLocalId(_required: {}, _options: {} = {}): string {
   return globalThis.crypto?.randomUUID?.()
     ?? `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -619,8 +627,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     { redaction, inputs, attachments = composer.attachments }: { redaction: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[] }, _options = {},
   ) => {
     const trimmed = redaction.text.trim();
-    if (!trimmed) throw new Error('cannot send: the prompt is empty');
-    if (sendBlocker !== null) throw new Error(`cannot send: ${describeChatPaneSendBlocker(sendBlocker)}`);
+    assertPromptSendable({ trimmed, sendBlocker });
     if (startingPromptRef.current) return;
     startingPromptRef.current = true;
     const generation = typedAnswerGenerationRef.current;

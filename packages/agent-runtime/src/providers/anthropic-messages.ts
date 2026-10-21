@@ -513,53 +513,21 @@ function refreshAnthropicTools(options: AnthropicTurnOptions, retry: StrictToolR
   return { ...options, ...(tools !== undefined ? { tools } : {}) };
 }
 
-/**
- * Validates `options.baseUrl` and opens the streaming POST, returning the response's readable
- * body once every pre-stream failure mode (SSRF-guard rejection, network error, non-2xx status,
- * missing body) has been ruled out. Calls `emitEnd('error')` and returns `null` itself on any of
- * those — the caller only has to check for `null`, keeping the single `ended` flag as the sole
- * gate for every exit path (see `runAnthropicToolTurn`'s doc).
- */
-async function openAnthropicResponseStream(
-  options: AnthropicTurnOptions,
-  messages: readonly AnthropicMessageParam[],
-  emitEnd: (reason: AnthropicTurnEndReason) => void,
-  retry: StrictToolRetryState,
+/** Resolve strict retry before terminal HTTP errors and missing-body failures. */
+async function resolveAnthropicResponse(
+  { response, options, requestOptions, messages, emitEnd, retry }: {
+    response: Awaited<ReturnType<PinnedFetch>>; options: AnthropicTurnOptions; requestOptions: AnthropicTurnOptions;
+    messages: readonly AnthropicMessageParam[]; emitEnd: (reason: AnthropicTurnEndReason) => void;
+    retry: StrictToolRetryState;
+  },
+  _options = {},
 ): Promise<AsyncIterable<Uint8Array | string> | null> {
   const { onEvent } = options;
-
-  // DNS-resolving, not merely textual — see the identical note in `openai-chat.ts`. A literal
-  // private IP was already rejected; a hostname resolving to one was not.
-  const baseUrlCheck = await validateBaseUrlResolved({ baseUrl: options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL, lookup: options.dnsLookup ?? defaultDnsLookup });
-  if (baseUrlCheck.error) {
-    onEvent({ type: 'error', message: baseUrlCheck.error });
-    emitEnd('error');
-    return null;
-  }
-
-  const requestOptions = refreshAnthropicTools(options, retry);
-  let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
-  try {
-    response = await (options.fetchImpl ?? pinnedFetch)({ url: anthropicRequestUrl({ baseUrl: options.baseUrl }), init: {
-        method: 'POST',
-        headers: (({ apiKey, model, messages, maxTokens, onEvent, ...optionalArgs }: Parameters<typeof anthropicHeaders>[0] & NonNullable<Parameters<typeof anthropicHeaders>[1]>) => anthropicHeaders({ apiKey, model, messages, maxTokens, onEvent }, optionalArgs))(options),
-        body: JSON.stringify(anthropicRequestBody({ options: requestOptions, messages: messages })),
-        redirect: 'error',
-        ...(options.signal ? { signal: options.signal } : {}),
-      }, pinnedAddress: baseUrlCheck.pinnedAddress }
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    onEvent({ type: 'error', message: redactSecrets({ input: message }, { exactSecrets: [options.apiKey] }) });
-    emitEnd('error');
-    return null;
-  }
-
   if (!response.ok) {
     const rawText = await response.text();
     const toolNames = (requestOptions.tools ?? []).filter(tool => tool.strict).map(tool => tool.name);
     if (retry.downgrade({ status: response.status, rawErrorText: rawText, toolNames })) {
-      return openAnthropicResponseStream(options, messages, emitEnd, retry);
+      return openAnthropicResponseStream({ options, messages, emitEnd, retry });
     }
     onEvent({
       type: 'error',
@@ -578,6 +546,52 @@ async function openAnthropicResponseStream(
   return response.body;
 }
 
+/**
+ * Validates `options.baseUrl` and opens the streaming POST, returning the response's readable
+ * body once every pre-stream failure mode (SSRF-guard rejection, network error, non-2xx status,
+ * missing body) has been ruled out. Calls `emitEnd('error')` and returns `null` itself on any of
+ * those — the caller only has to check for `null`, keeping the single `ended` flag as the sole
+ * gate for every exit path (see `runAnthropicToolTurn`'s doc).
+ */
+async function openAnthropicResponseStream(
+  { options, messages, emitEnd, retry }: {
+    options: AnthropicTurnOptions; messages: readonly AnthropicMessageParam[];
+    emitEnd: (reason: AnthropicTurnEndReason) => void; retry: StrictToolRetryState;
+  },
+  _options = {},
+): Promise<AsyncIterable<Uint8Array | string> | null> {
+  const { onEvent } = options;
+
+  // DNS-resolving, not merely textual — see the identical note in `openai-chat.ts`. A literal
+  // private IP was already rejected; a hostname resolving to one was not.
+  const baseUrlCheck = await validateBaseUrlResolved({ baseUrl: options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL, lookup: options.dnsLookup ?? defaultDnsLookup });
+  if (baseUrlCheck.error) {
+    onEvent({ type: 'error', message: baseUrlCheck.error });
+    emitEnd('error');
+    return null;
+  }
+
+  const requestOptions = refreshAnthropicTools(options, retry);
+  let response: Awaited<ReturnType<PinnedFetch>>;
+  try {
+    response = await (options.fetchImpl ?? pinnedFetch)({ url: anthropicRequestUrl({ baseUrl: options.baseUrl }), init: {
+        method: 'POST',
+        headers: (({ apiKey, model, messages, maxTokens, onEvent, ...optionalArgs }: Parameters<typeof anthropicHeaders>[0] & NonNullable<Parameters<typeof anthropicHeaders>[1]>) => anthropicHeaders({ apiKey, model, messages, maxTokens, onEvent }, optionalArgs))(options),
+        body: JSON.stringify(anthropicRequestBody({ options: requestOptions, messages: messages })),
+        redirect: 'error',
+        ...(options.signal ? { signal: options.signal } : {}),
+      }, pinnedAddress: baseUrlCheck.pinnedAddress }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    onEvent({ type: 'error', message: redactSecrets({ input: message }, { exactSecrets: [options.apiKey] }) });
+    emitEnd('error');
+    return null;
+  }
+
+  return resolveAnthropicResponse({ response, options, requestOptions, messages, emitEnd, retry });
+}
+
 /** Runs exactly one Anthropic Messages API streaming request and reduces its SSE events into a single outcome. Calls `emitEnd` directly (and only) on contamination or a fatal request/stream error — the caller (`runAnthropicToolTurn`) is responsible for the normal-completion `emitEnd` call once the tool loop actually concludes, so the single `ended` flag stays the sole gate for every exit path. */
 async function runSingleAnthropicRequest(
   options: AnthropicTurnOptions,
@@ -587,7 +601,7 @@ async function runSingleAnthropicRequest(
 ): Promise<SingleRequestOutcome> {
   const { onEvent } = options;
 
-  const body = await openAnthropicResponseStream(options, messages, emitEnd, retry);
+  const body = await openAnthropicResponseStream({ options, messages, emitEnd, retry });
   if (!body) {
     return { stopReason: null, toolCalls: [], text: '' };
   }

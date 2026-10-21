@@ -424,52 +424,31 @@ export function processGoogleFrame({ state, data, onEvent }: { state: GoogleStre
     : { action: 'continue' };
 }
 
-/**
- * Validates `options.baseUrl` and opens the streaming POST, returning the response's readable body
- * once every pre-stream failure mode (SSRF-guard rejection, network error, non-2xx status, missing
- * body) has been ruled out. Calls `emitEnd('error')` and returns `null` itself on any of those —
- * the caller only has to check for `null` — same split as
- * `anthropic-messages.ts#openAnthropicResponseStream`.
- */
-async function openGoogleResponseStream(
-  options: GoogleTurnOptions,
-  contents: readonly GoogleContent[],
-  emitEnd: (reason: GoogleTurnEndReason) => void,
-  retry: StrictToolRetryState,
-): Promise<AsyncIterable<Uint8Array | string> | null> {
-  const { onEvent } = options;
-
-  const baseUrlCheck = await validateBaseUrlResolved({ baseUrl: options.baseUrl ?? DEFAULT_GOOGLE_BASE_URL, lookup: options.dnsLookup ?? defaultDnsLookup });
-  if (baseUrlCheck.error) {
-    onEvent({ type: 'error', message: baseUrlCheck.error });
-    emitEnd('error');
-    return null;
-  }
-
+/** Refresh the projection once per request and retain the names used by strict retry. */
+function refreshGoogleTools(
+  { options, retry }: { options: GoogleTurnOptions; retry: StrictToolRetryState },
+  _options = {},
+): { tools: readonly GoogleToolDef[] | undefined; toolNames: string[]; validated: boolean } {
   const tools = options.getTools?.({ strict: retry.enabled }) ?? options.tools;
   const toolNames = (tools ?? []).flatMap(tool => tool.functionDeclarations.map(declaration => declaration.name));
   const validated = Boolean(options.getTools && retry.enabled && toolNames.length > 0);
-  let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
-  try {
-    response = await (options.fetchImpl ?? pinnedFetch)({ url: googleRequestUrl(options.baseUrl, options.model), init: {
-        method: 'POST',
-        headers: googleHeaders(options),
-        body: JSON.stringify(googleRequestBody({ ...options, ...(tools !== undefined ? { tools } : {}) }, contents, { validated })),
-        redirect: 'error',
-        ...(options.signal ? { signal: options.signal } : {}),
-      }, pinnedAddress: baseUrlCheck.pinnedAddress }
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    onEvent({ type: 'error', message: redactSecrets({ input: message }, { exactSecrets: [options.apiKey] }) });
-    emitEnd('error');
-    return null;
-  }
+  return { tools, toolNames, validated };
+}
 
+/** Resolve HTTP failures before inspecting the body; only validated requests may downgrade. */
+async function resolveGoogleResponse(
+  { response, options, contents, emitEnd, retry, toolNames, validated }: {
+    response: Awaited<ReturnType<PinnedFetch>>; options: GoogleTurnOptions; contents: readonly GoogleContent[];
+    emitEnd: (reason: GoogleTurnEndReason) => void; retry: StrictToolRetryState;
+    toolNames: readonly string[]; validated: boolean;
+  },
+  _options = {},
+): Promise<AsyncIterable<Uint8Array | string> | null> {
+  const { onEvent } = options;
   if (!response.ok) {
     const rawText = await response.text();
     if (validated && retry.downgrade({ status: response.status, rawErrorText: rawText, toolNames })) {
-      return openGoogleResponseStream(options, contents, emitEnd, retry);
+      return openGoogleResponseStream({ options, contents, emitEnd, retry });
     }
     onEvent({
       type: 'error',
@@ -488,6 +467,50 @@ async function openGoogleResponseStream(
   return response.body;
 }
 
+/**
+ * Validates `options.baseUrl` and opens the streaming POST, returning the response's readable body
+ * once every pre-stream failure mode (SSRF-guard rejection, network error, non-2xx status, missing
+ * body) has been ruled out. Calls `emitEnd('error')` and returns `null` itself on any of those —
+ * the caller only has to check for `null` — same split as
+ * `anthropic-messages.ts#openAnthropicResponseStream`.
+ */
+async function openGoogleResponseStream(
+  { options, contents, emitEnd, retry }: {
+    options: GoogleTurnOptions; contents: readonly GoogleContent[];
+    emitEnd: (reason: GoogleTurnEndReason) => void; retry: StrictToolRetryState;
+  },
+  _options = {},
+): Promise<AsyncIterable<Uint8Array | string> | null> {
+  const { onEvent } = options;
+
+  const baseUrlCheck = await validateBaseUrlResolved({ baseUrl: options.baseUrl ?? DEFAULT_GOOGLE_BASE_URL, lookup: options.dnsLookup ?? defaultDnsLookup });
+  if (baseUrlCheck.error) {
+    onEvent({ type: 'error', message: baseUrlCheck.error });
+    emitEnd('error');
+    return null;
+  }
+
+  const { tools, toolNames, validated } = refreshGoogleTools({ options, retry });
+  let response: Awaited<ReturnType<PinnedFetch>>;
+  try {
+    response = await (options.fetchImpl ?? pinnedFetch)({ url: googleRequestUrl(options.baseUrl, options.model), init: {
+        method: 'POST',
+        headers: googleHeaders(options),
+        body: JSON.stringify(googleRequestBody({ ...options, ...(tools !== undefined ? { tools } : {}) }, contents, { validated })),
+        redirect: 'error',
+        ...(options.signal ? { signal: options.signal } : {}),
+      }, pinnedAddress: baseUrlCheck.pinnedAddress }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    onEvent({ type: 'error', message: redactSecrets({ input: message }, { exactSecrets: [options.apiKey] }) });
+    emitEnd('error');
+    return null;
+  }
+
+  return resolveGoogleResponse({ response, options, contents, emitEnd, retry, toolNames, validated });
+}
+
 /** Runs exactly one Gemini `streamGenerateContent` request and reduces its SSE events into a single outcome. Mirrors `anthropic-messages.ts#runSingleAnthropicRequest`'s `emitEnd` contract — see that function's doc. */
 async function runSingleGoogleRequest(
   options: GoogleTurnOptions,
@@ -497,7 +520,7 @@ async function runSingleGoogleRequest(
 ): Promise<SingleRequestOutcome> {
   const { onEvent } = options;
 
-  const body = await openGoogleResponseStream(options, contents, emitEnd, retry);
+  const body = await openGoogleResponseStream({ options, contents, emitEnd, retry });
   if (!body) {
     return { finishReason: null, toolCalls: [], text: '' };
   }

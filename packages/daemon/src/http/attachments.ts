@@ -912,6 +912,13 @@ async function isAdoptableAttachment(record: AttachmentRecord): Promise<boolean>
   }
 }
 
+function needsAttachmentTimestampBackfill(
+  { record }: { readonly record: AttachmentRecord | undefined },
+  _options = {},
+): boolean {
+  return record?.mtimeMs === undefined || record?.ctimeMs === undefined;
+}
+
 /**
  * Rebuilds the record map from the sidecar directory, adopting only records that are (a) well
  * formed and contained, (b) still within the retention window, and (c) still backed by the exact
@@ -942,7 +949,7 @@ export async function loadPersistedAttachments(requiredArgs: Omit<{ readonly can
   for (const entry of await readdir(sidecarDirectory)) {
     const sidecarPath = resolve(sidecarDirectory, entry);
     const record = await readPersistedAttachment(sidecarPath, canonicalUploadDirectory);
-    const needsBackfill = record?.mtimeMs === undefined || record?.ctimeMs === undefined;
+    const needsBackfill = needsAttachmentTimestampBackfill({ record });
     if (record && now - record.createdAt < retentionMs && await isAdoptableAttachment(record)) {
       if (needsBackfill) await writePersistedAttachment({ record, sidecarPath });
       adopted.set(record.id, record);
