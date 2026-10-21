@@ -85,3 +85,26 @@ export function validateAdminSurfaceMessage(required: { readonly event: AdminSur
   if (violation !== null) return refuse('invalid-payload', `The request does not match the action's input: ${violation}.`);
   return { ok: true, request };
 }
+
+/** Frame heights a host accepts by default (CSS px): tall enough for a notice, short enough that a
+ *  surface cannot push the admin page out of reach. */
+export const ADMIN_SURFACE_MIN_HEIGHT = 96;
+export const ADMIN_SURFACE_MAX_HEIGHT = 4000;
+
+/**
+ * The frame height `event` asks for when it is `mount`'s own `resize` message (same origin, window and
+ * mount as every other inbound message), clamped to `[min, max]`; null for anything else, which the
+ * caller ignores. A size is cosmetic, so a bad one is dropped rather than answered.
+ * @complexity O(1).
+ */
+export function readAdminSurfaceResize(
+  required: { readonly event: AdminSurfaceMessageEvent; readonly mount: Pick<AdminSurfaceMountRecord, 'mountId' | 'frame'> },
+  optional: { readonly min?: number; readonly max?: number } = {},
+): number | null {
+  const { event, mount } = required;
+  if (frameTransportRefusal({ event, mount }) !== null || typeof event.data !== 'object' || event.data === null) return null;
+  const message = event.data as Readonly<Record<string, unknown>>;
+  const isResize = message.protocol === ADMIN_SURFACE_PROTOCOL && message.version === ADMIN_SURFACE_PROTOCOL_VERSION && message.kind === 'resize';
+  if (!isResize || message.mountId !== mount.mountId || typeof message.height !== 'number' || !Number.isFinite(message.height)) return null;
+  return Math.min(optional.max ?? ADMIN_SURFACE_MAX_HEIGHT, Math.max(optional.min ?? ADMIN_SURFACE_MIN_HEIGHT, Math.ceil(message.height)));
+}

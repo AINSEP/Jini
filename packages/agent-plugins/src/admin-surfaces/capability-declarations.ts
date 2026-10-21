@@ -26,6 +26,8 @@ export interface AdminSurfaceCapabilityDeclarations {
   /** Delivery adapter ids whose bindings the handlers manage. Jini checks only the shape; the host
    *  checks that each is an adapter this same plugin contributes. */
   readonly deliveryAdapters?: readonly string[];
+  /** Read-only form discovery; no form contents, submissions or mutation access. */
+  readonly forms?: readonly 'list'[];
 }
 
 type Entry = Readonly<Record<string, unknown>>;
@@ -92,9 +94,14 @@ function parseDeliveryAdapters(value: unknown, at: string): readonly string[] | 
   return parseNames(value, { pattern: ADAPTER_ID_PATTERN, max: MAX_DELIVERY_ADAPTERS, at });
 }
 
+/** Only the read operation can be granted; unknown operations fail admission. */
+function parseForms(value: unknown, at: string): readonly string[] | string {
+  return parseNames(value, { pattern: /^list$/, max: 1, at });
+}
+
 /** Each declaration's parser, in the order refusals are reported. */
 const DECLARATION_PARSERS = [
-  ['connections', parseConnections], ['publicConfig', parsePublicConfig], ['deliveryAdapters', parseDeliveryAdapters],
+  ['connections', parseConnections], ['publicConfig', parsePublicConfig], ['deliveryAdapters', parseDeliveryAdapters], ['forms', parseForms],
 ] as const satisfies readonly (readonly [keyof AdminSurfaceCapabilityDeclarations, (value: unknown, at: string) => unknown])[];
 
 /**

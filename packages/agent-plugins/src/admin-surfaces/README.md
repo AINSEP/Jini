@@ -67,6 +67,7 @@ Rules (any violation refuses the whole file, reported in the loader's `refusals`
 | `connections` | optional, only with `handlerModule`; at most 4 `{ id, startParams?, callbackFields? }`: the plugin's own connection ids (`[A-Za-z0-9][A-Za-z0-9._-]{0,63}`, unique) its handlers administer, the per-sign-in parameters they may set and the callback fields they may take (names `[A-Za-z0-9_.-]{1,64}`, at most 8 each) |
 | `deliveryAdapters` | optional, only with `handlerModule`; at most 8 unique lowercase hyphenated ids (≤ 64) of the delivery adapters whose form-delivery bindings the handlers manage (see `deliveryBindings` below). Jini checks only the shape; the host refuses an id this same plugin does not contribute |
 | `publicConfig` | optional, only with `handlerModule`; at most 16 environment-style names (`[A-Z][A-Z0-9_]{0,63}`) the host may hand the handlers; a name containing `SECRET`, `TOKEN`, `PASSWORD`, `PASSWD`, `PRIVATE`, `CREDENTIAL`, `COOKIE`, `SESSION` or `SIGNING` is refused |
+| `forms` | optional, only with `handlerModule`; `[]` or `["list"]`. Grants read-only form discovery, never form contents, submissions or edits |
 | `linkOrigins` | optional, any surface; at most 8 unique bare `https://host[:port]` origins (the `csp` source rule) the host may open links to for this surface |
 | `csp` | keys only `script-src`, `style-src`, `img-src`, `font-src`, `connect-src`, `frame-src`; values only bare `https://host[:port]` origins with a DNS name (no wildcard, path, IP, keyword, `data:`/`blob:`) |
 
@@ -252,6 +253,7 @@ gate as executable tools, `openCapabilityGate`), and cuts host answers back to t
 | | `takeCallbackFields({ connectionId, attemptId })` → declared fields or `null` | declared connection, opaque attempt id, undeclared fields dropped |
 | `state` | `get({ key })`, `set({ key, value })`, `delete({ key })` | key `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}`; value plain JSON (depth ≤ 16, ≤ 16 KiB serialized); a value mentioning a token the call obtained is refused; the host stores a checked copy |
 | `publicConfig` | `get({ name })` → string or `null` | declared name only |
+| `forms` | `list({})` → `[{slug,title}]` | optional host port; present only with `forms: ["list"]`; signed-in admin and revocation checks; first 200 choices, non-empty slugs ≤ 64 characters, titles truncated to 1024; extra host fields dropped |
 | `deliveryBindings` | `list()` → bindings; `save({ bindingId?, adapterId, connectionId, enabled, formIds | allForms: true, config })` → binding; `remove({ bindingId })`. A binding is `{ bindingId, adapterId, connectionId, enabled, formIds | allForms: true, config }`: exactly one of `formIds` (`[]` = none) or `allForms: true` (every current and future form). There is no implicit "every form": a draft stating neither, both, or `allForms` other than `true` is refused, and a host binding listed without either is refused too (a host whose store keeps "absent = every form" maps it to `allForms: true`) | present only when the surface declares `deliveryAdapters` and the host provides the port; a signed-in admin; `adapterId` declared; `connectionId` one of the surface's declared connections; `formIds` ≤ 64 unique short ids; `config` a plain JSON object under the `state` value rules (≤ 16 KiB, never a token the plugin obtained), stored as a checked copy; a `bindingId` given to `save` or `remove` must be one the host lists for a declared adapter (another adapter's binding is never overwritten or removed); `list` keeps only declared adapters' bindings, cut to the shape above (no connection ref), and is withheld when one mentions an obtained token |
 
 Host duties: key `state` by the scope's plugin and workspace (never shared across plugins), and back
@@ -262,6 +264,10 @@ confirmed (`revocation` uses the API-connection values `confirmed | pending | no
 `status` its four lifecycle values, so the host passes both through); fill `lastSignInAttempt` with
 your OWN codes for a sign-in that did not complete (for example `access-denied` + `reconnect`), never
 the provider's error text; never return a refresh token or secret from any port; give `publicConfig` only public values.
+For `forms`, use the call's workspace and principal to authorize the existing forms-list service,
+and return only identities and display titles. A host permission refusal is an error, not an absent
+capability. Handlers may include choices in their declared result schemas; the frame's host validator
+continues to refuse undeclared actions, and declaring forms creates no additional browser RPC.
 For `deliveryBindings`, scope every call to the scope's plugin and workspace and to the adapters this
 plugin contributes (refuse a declared adapter id the plugin does not own), map the plugin's
 `connectionId` to the plugin's own connection (the binding stores the host's connection ref; the

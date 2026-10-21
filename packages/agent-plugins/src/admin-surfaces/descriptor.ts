@@ -41,7 +41,7 @@ export interface AdminSurfaceDescriptor extends AdminSurfaceCapabilityDeclaratio
   readonly bootstrap?: AdminSurfaceActionSchema;
   /** Bare https origins the host may open links to for this surface (`./external-links.ts`); present only when declared. */
   readonly linkOrigins?: readonly string[];
-  // `connections`, `publicConfig` and `deliveryAdapters` (./capability-declarations.ts) also need a `handlerModule`.
+  // Capability declarations (./capability-declarations.ts) also need a `handlerModule`.
 }
 
 type Parsed<T> = T | string;
@@ -142,7 +142,7 @@ function parseLinkOrigins(value: unknown, at: string): Parsed<readonly string[]>
  * it may not also be served to the frame, and every action it answers must declare a `result`: unlike
  * a host handler, plugin code is not trusted to shape what reaches the frame.
  */
-type HandlerFields = Pick<AdminSurfaceDescriptor, 'handlerModule' | 'bootstrap' | 'connections' | 'publicConfig' | 'deliveryAdapters'>;
+type HandlerFields = Pick<AdminSurfaceDescriptor, 'handlerModule' | 'bootstrap' | 'connections' | 'publicConfig' | 'deliveryAdapters' | 'forms'>;
 
 function parseHandler(entry: Entry, surface: Pick<AdminSurfaceDescriptor, 'files' | 'actions'>, at: string): Parsed<HandlerFields> {
   const { handlerModule } = entry;
@@ -160,7 +160,7 @@ function parseHandler(entry: Entry, surface: Pick<AdminSurfaceDescriptor, 'files
 /** Fields only a handler module can use; without one they would be dead declarations. */
 function handlerOnlyFieldRefusal(entry: Entry, at: string): string | null {
   if (entry.bootstrap !== undefined) return `${at}.bootstrap needs a handlerModule that provides it`;
-  const declared = ['connections', 'publicConfig', 'deliveryAdapters'].find((name) => entry[name] !== undefined);
+  const declared = ['connections', 'publicConfig', 'deliveryAdapters', 'forms'].find((name) => entry[name] !== undefined);
   return declared === undefined ? null : `${at}.${declared} needs a handlerModule that uses it`;
 }
 

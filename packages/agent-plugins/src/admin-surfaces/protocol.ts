@@ -7,6 +7,7 @@
  * deliberately repeats the constants instead of importing them so a plugin can copy that one file;
  * the vertical-slice test proves both sides still agree.
  */
+import type { AdminSurfaceTheme } from './theme.js';
 
 /** Discriminates this protocol's messages from anything else posted to the same window. */
 export const ADMIN_SURFACE_PROTOCOL = 'jini.admin-surface';
@@ -30,13 +31,15 @@ export interface AdminSurfaceBootstrap<D = unknown> {
   readonly data: D;
 }
 
-/** Host page -> surface, once per mount, after the frame loads. Carries the mount nonce. */
+/** Host page -> surface, once per mount, after the frame loads. Carries the mount nonce and, when
+ * the host shares them, its design tokens (`./theme.ts`; later changes arrive as `theme` messages). */
 export interface AdminSurfaceInitMessage {
   readonly protocol: typeof ADMIN_SURFACE_PROTOCOL;
   readonly version: typeof ADMIN_SURFACE_PROTOCOL_VERSION;
   readonly kind: 'init';
   readonly mountId: string;
   readonly bootstrap?: AdminSurfaceBootstrap;
+  readonly theme?: AdminSurfaceTheme;
 }
 
 /** Surface -> host page. `mountId` must echo the nonce from init. */
@@ -63,6 +66,15 @@ export interface AdminSurfaceOpenLinkRequest {
 
 /** Surface-safe failure: `message` is written for the person using the surface and never carries a
  * handler's raw error text, a token or a submitted value. */
+/** Surface -> host: the surface's content height in CSS pixels, so the host can size the frame to fit. */
+export interface AdminSurfaceResizeMessage {
+  readonly protocol: typeof ADMIN_SURFACE_PROTOCOL;
+  readonly version: typeof ADMIN_SURFACE_PROTOCOL_VERSION;
+  readonly kind: 'resize';
+  readonly mountId: string;
+  readonly height: number;
+}
+
 export interface AdminSurfaceActionFailure {
   readonly code: string;
   readonly message: string;
@@ -84,8 +96,11 @@ export type AdminSurfaceActionResponse = {
 
 /** Builds the init envelope the host page posts into a freshly loaded frame.
  * @complexity O(1). */
-export function adminSurfaceInitMessage(required: { readonly mountId: string }, optional: { readonly bootstrap?: AdminSurfaceBootstrap } = {}): AdminSurfaceInitMessage {
-  return { protocol: ADMIN_SURFACE_PROTOCOL, version: ADMIN_SURFACE_PROTOCOL_VERSION, kind: 'init', mountId: required.mountId, ...(optional.bootstrap ? { bootstrap: optional.bootstrap } : {}) };
+export function adminSurfaceInitMessage(required: { readonly mountId: string }, optional: { readonly bootstrap?: AdminSurfaceBootstrap; readonly theme?: AdminSurfaceTheme } = {}): AdminSurfaceInitMessage {
+  return {
+    protocol: ADMIN_SURFACE_PROTOCOL, version: ADMIN_SURFACE_PROTOCOL_VERSION, kind: 'init', mountId: required.mountId,
+    ...(optional.bootstrap ? { bootstrap: optional.bootstrap } : {}), ...(optional.theme ? { theme: optional.theme } : {}),
+  };
 }
 
 /** Wraps a dispatcher outcome as the response to one validated request.

@@ -106,6 +106,17 @@ export interface AdminSurfacePublicConfig {
   get(required: { readonly name: string }, optional?: Record<string, never>): Promise<string | null>;
 }
 
+/** Only form identity and display text, never fields, recipients or submission data. */
+export interface AdminSurfaceForm {
+  readonly slug: string;
+  readonly title: string;
+}
+
+/** Workspace-scoped discovery. The session returns at most 200 choices; titles are capped at 1024 characters. */
+export interface AdminSurfaceForms {
+  list(required: Record<string, never>, optional?: Record<string, never>): Promise<readonly AdminSurfaceForm[]>;
+}
+
 export type AdminSurfaceCapabilities = Pick<AgentPluginToolCapabilities, 'http' | 'limiter' | 'artifacts'> & {
   readonly connections: AdminSurfaceConnections;
   readonly state: AdminSurfaceState;
@@ -113,6 +124,8 @@ export type AdminSurfaceCapabilities = Pick<AgentPluginToolCapabilities, 'http' 
   /** The workspace's form-delivery bindings (`./delivery-bindings.ts`). Optional for the host; a handler
    *  gets it only when its surface declares `deliveryAdapters` and the host provides it. */
   readonly deliveryBindings?: AdminSurfaceDeliveryBindings;
+  /** Absent unless both the host supplies it and this surface declares `forms: ["list"]`. */
+  readonly forms?: AdminSurfaceForms;
 };
 
 /** Host port: builds one call's capabilities for the loaded plugin, workspace and admin principal. */
@@ -262,6 +275,23 @@ function guardPublicConfig(gate: AgentPluginCapabilityGate, host: AdminSurfacePu
   });
 }
 
+/** Read-only discovery shares revocation and actor checks with other surface-only ports. Unknown
+ * host fields never reach a handler; collection and string caps bound the disclosure.
+ * @complexity O(min(f, 200)) time/space for f host forms, one workspace read. */
+function guardForms(required: { readonly gate: AgentPluginCapabilityGate; readonly host: AdminSurfaceForms }, optional: { readonly actorId?: string } = {}): AdminSurfaceForms {
+  const { gate, host } = required;
+  return Object.freeze({
+    list: gate.guard(async (_input: Record<string, never>, _options: Record<string, never> = {}) => {
+      requireActor(optional.actorId);
+      const forms = await host.list({});
+      return forms.slice(0, 200).map(({ slug, title }) => {
+        if (typeof slug !== 'string' || slug.length === 0 || slug.length > 64 || typeof title !== 'string') throw new Error('The forms host returned an invalid form choice.');
+        return { slug, title: title.slice(0, 1024) };
+      });
+    }),
+  });
+}
+
 /**
  * Opens the capability session for one admin-surface handler call.
  * @param required.capabilities - The host's ports for this call (already scoped to plugin, workspace, principal).
@@ -291,6 +321,7 @@ export function openAdminSurfaceCapabilitySession(
     state: guardState(gate, host.state),
     publicConfig: guardPublicConfig(gate, host.publicConfig, declared.publicConfig ?? []),
     ...(deliveryBindings && { deliveryBindings }),
+    ...(declared.forms?.includes('list') && host.forms !== undefined && { forms: guardForms({ gate, host: host.forms }, optional) }),
   });
   return { capabilities, release: gate.release, sanitize: gate.sanitize };
 }
