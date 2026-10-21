@@ -21,8 +21,9 @@ export function ChartHost({ spec, registry, theme = DEFAULT_CHART_THEME, sitePro
   const instance = useRef<MountedChart | undefined>(undefined);
   const previous = useRef({ spec, theme });
   useEffect(() => {
-    if (!element.current) return;
-    const mounted = mountChart({ element: element.current, spec, registry }, {
+    // The container `<div>` below is rendered unconditionally, so React has always attached the ref
+    // by the time this effect runs; the old `if (!element.current) return` could never fire.
+    const mounted = mountChart({ element: element.current!, spec, registry }, {
       theme, siteProvider, ...(onProviderError ? { onProviderError } : {}),
     });
     instance.current = mounted; previous.current = { spec, theme };
