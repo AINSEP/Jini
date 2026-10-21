@@ -51,7 +51,8 @@ it('terminates discovery on rejected issuer metadata without trying another adve
   const issuer = 'https://auth.example.com/tenant';
   const fetchFn = vi.fn<oauth.OAuthFetch>(async ({ url }) => {
     if (String(url).includes('oauth-protected-resource'))
-      return Response.json({ authorization_servers: [issuer, 'https://fallback.example.com'] });
+      // RFC 9728 processing requires resource identity before issuer policy is reached.
+      return Response.json({ resource: 'https://resource.example.com/api', authorization_servers: [issuer, 'https://fallback.example.com'] });
     return Response.json({ issuer: 'https://substitute.example.com', token_endpoint: 'https://auth.example.com/token' });
   });
   const guard = oauth.createOAuthUrlGuard({ assertAllowed: () => {} });

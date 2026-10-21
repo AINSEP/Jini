@@ -27,6 +27,7 @@ afterEach(async () => {
   await rm(dataDir, { recursive: true, force: true });
 });
 
+// openid-client requires token_type on successful token responses, including refresh responses.
 describe('resolveOAuthBearer', () => {
   it('returns null when nothing is stored', async () => {
     await expect(resolveOAuthBearer({ config: config, tokenFileName: FILE_NAME, dataDir: dataDir })).resolves.toBeNull();
@@ -87,7 +88,7 @@ describe('resolveOAuthBearer', () => {
       expiresAt: Date.now() - 1,
       refreshToken: 'rt-original',
     } });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'fresh2' })));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token_type: 'Bearer', access_token: 'fresh2' })));
     await resolveOAuthBearer({ config: config, tokenFileName: FILE_NAME, dataDir: dataDir }, { fetchImpl: fetchMock });
 
     // Force a second refresh to prove the carried-forward refresh token still works.
@@ -101,7 +102,7 @@ describe('resolveOAuthBearer', () => {
     const secondFetch = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
       const body = new URLSearchParams(init.body as string);
       expect(body.get('refresh_token')).toBe('rt-original');
-      return new Response(JSON.stringify({ access_token: 'fresh3' }));
+      return new Response(JSON.stringify({ token_type: 'Bearer', access_token: 'fresh3' }));
     });
     await resolveOAuthBearer({ config: config, tokenFileName: FILE_NAME, dataDir: dataDir }, { fetchImpl: secondFetch });
     expect(secondFetch).toHaveBeenCalledTimes(1);
@@ -115,7 +116,7 @@ describe('resolveOAuthBearer', () => {
       expiresAt: Date.now() - 1,
       refreshToken: 'rt-1',
     } });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'fresh' })));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token_type: 'Bearer', access_token: 'fresh' })));
     const result = await resolveOAuthBearer({ config: config, tokenFileName: FILE_NAME, dataDir: dataDir }, { fetchImpl: fetchMock });
     expect(result).toEqual({ accessToken: 'fresh', source: 'refreshed' });
     // Not expired (isOAuthTokenExpired returns false with no expiresAt) — proves it round-trips as non-expiring.
@@ -143,7 +144,7 @@ describe('resolveOAuthBearer', () => {
       expiresAt: Date.now() - 1,
       refreshToken: 'rt-1',
     } });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'fresh' })));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token_type: 'Bearer', access_token: 'fresh' })));
     vi.stubGlobal('fetch', fetchMock);
     const result = await resolveOAuthBearer({ config: config, tokenFileName: FILE_NAME, dataDir: dataDir });
     expect(result).toEqual({ accessToken: 'fresh', source: 'refreshed' });

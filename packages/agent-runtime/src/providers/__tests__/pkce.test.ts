@@ -63,6 +63,7 @@ describe('buildAuthorizeUrl', () => {
   });
 });
 
+// openid-client requires token_type on successful token responses, including refresh responses.
 describe('exchangeCodeForToken / refreshAccessToken', () => {
   it('exchanges a code for a token via the correct grant_type and body', async () => {
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ access_token: 'at-1', token_type: 'Bearer', expires_in: 3600 }));
@@ -85,7 +86,7 @@ describe('exchangeCodeForToken / refreshAccessToken', () => {
   });
 
   it('includes a resource indicator and confidential-client basic auth when supplied', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ access_token: 'at-2' }));
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ token_type: 'Bearer', access_token: 'at-2' }));
     await exchangeCodeForToken({ input: {
         tokenEndpoint: 'https://auth.example.com/token',
         clientId: 'client-1',
@@ -99,11 +100,12 @@ describe('exchangeCodeForToken / refreshAccessToken', () => {
     const [, init] = fetchMock.mock.calls[0]!;
     const body = new URLSearchParams(init.body as string);
     expect(body.get('resource')).toBe('https://api.example.com');
-    expect(init.headers['authorization']).toBe(`Basic ${Buffer.from('client-1:secret-1').toString('base64')}`);
+    // openid-client form-encodes both credentials before Basic authentication.
+    expect(init.headers['authorization']).toBe(`Basic ${Buffer.from('client%2D1:secret%2D1').toString('base64')}`);
   });
 
   it('refreshes an access token via grant_type=refresh_token, including optional scope/resource', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ access_token: 'at-3' }));
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ token_type: 'Bearer', access_token: 'at-3' }));
     await refreshAccessToken({ input: {
         tokenEndpoint: 'https://auth.example.com/token',
         clientId: 'client-1',
@@ -121,7 +123,7 @@ describe('exchangeCodeForToken / refreshAccessToken', () => {
   });
 
   it('defaults fetchImpl to the global fetch when not supplied', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ access_token: 'at-4' }));
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ token_type: 'Bearer', access_token: 'at-4' }));
     vi.stubGlobal('fetch', fetchMock);
     await exchangeCodeForToken({ input: {
       tokenEndpoint: 'https://auth.example.com/token',
@@ -264,9 +266,9 @@ it('retains an 86-character provider verifier', () => {
 it('rejects non-RFC verifier strings rather than silently hashing them', () => {
     expect(() => deriveCodeChallenge({ verifier: 'short' })).toThrow('PKCE code verifier must be');
 });
-// PARITY: normalize and adapt expiry without rounding the provider's fractional seconds.
+// PARITY: upstream requires token_type; fractional expiry still survives the shared parser unchanged.
 it('keeps fractional token lifetime in the persisted wire DTO', async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ access_token: 'at', expires_in: 1.5 }));
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ token_type: 'Bearer', access_token: 'at', expires_in: 1.5 }));
     const tokens = await refreshAccessToken({ input: { tokenEndpoint: 'https://auth.example.com/token',
         clientId: 'client', refreshToken: 'rt' } }, { fetchImpl });
     expect(tokens.expires_in).toBe(1.5);

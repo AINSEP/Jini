@@ -349,7 +349,8 @@ describe('exchangeOAuthAuthorizationCode / refreshAccessToken', () => {
     const [, init] = fetchMock.mock.calls[0]!;
     const body = new URLSearchParams(typeof init.body === 'string' ? init.body : '');
     expect(body.get('resource')).toBe('https://api.example.com');
-    expect(init.headers['authorization']).toBe(`Basic ${Buffer.from('client-1:secret-1').toString('base64')}`);
+    // openid-client form-encodes both credentials before Basic authentication.
+    expect(init.headers['authorization']).toBe(`Basic ${Buffer.from('client%2D1:secret%2D1').toString('base64')}`);
   });
 
   // PARITY: the vector survives the shared parser; typed errors replace the unsafe echoed-body error.

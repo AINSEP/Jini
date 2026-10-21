@@ -318,7 +318,8 @@ describe('createJsonEventStreamHandler (codex)', () => {
       arguments: {}, error, result, status: 'failed',
     } }]);
     expect(events).toEqual([
-      { type: 'tool_use', id: 'mcp-failed', name: 'probe_tool', input: {} },
+      // External MCP tools retain their server namespace to prevent built-in tool impersonation.
+      { type: 'tool_use', id: 'mcp-failed', name: 'mcp__probe__probe_tool', input: {} },
       { type: 'tool_result', toolUseId: 'mcp-failed', content: expected, isError: true },
     ]);
   });

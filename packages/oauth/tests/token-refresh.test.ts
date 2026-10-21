@@ -501,21 +501,26 @@ test('a no-refresh token in the proactive skew window reports refresh due', asyn
 });
 
 for (const rotatedRefresh of [undefined, '', 'fixture-rotated-refresh']) {
-    test(`the refresh wire path ${rotatedRefresh ? 'rotates' : rotatedRefresh === '' ? 'preserves an empty' : 'preserves an omitted'} refresh token`, async () => {
+    test(`the refresh wire path ${rotatedRefresh ? 'rotates' : rotatedRefresh === '' ? 'rejects an empty' : 'preserves an omitted'} refresh token`, async () => {
         const http = createFetchDouble([{ json: {
             access_token: 'fixture-access', token_type: 'Bearer', expires_in: 60, scope: 'read write',
             ...(rotatedRefresh === undefined ? {} : { refresh_token: rotatedRefresh }),
         } }]);
         const resources = ['https://api.example.com/one', 'https://api.example.com/two'];
-        const refreshed = await refreshAccessToken({
+        const refresh = () => refreshAccessToken({
             ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
             tokenEndpoint: 'https://auth.example.com/token', client: TEST_CLIENT,
             refreshToken: 'fixture-current-refresh',
         }, { scopes: ['read', 'write'], resource: resources });
-        assert.deepEqual(refreshed, {
-            accessToken: 'fixture-access', refreshToken: rotatedRefresh || 'fixture-current-refresh',
-            tokenType: 'Bearer', scopes: ['read', 'write'], expiresAt: '2026-08-25T12:01:00.000Z',
-        });
+        // openid-client rejects an explicitly empty refresh token; only omission retains the old token.
+        if (rotatedRefresh === '') {
+            await assertOAuthRejects(refresh, 'OAUTH_MALFORMED_RESPONSE');
+        } else {
+            assert.deepEqual(await refresh(), {
+                accessToken: 'fixture-access', refreshToken: rotatedRefresh ?? 'fixture-current-refresh',
+                tokenType: 'Bearer', scopes: ['read', 'write'], expiresAt: '2026-08-25T12:01:00.000Z',
+            });
+        }
         assert.equal(http.callCount(), 1);
         const request = http.requests[0];
         assert.ok(request);

@@ -42,11 +42,12 @@ describe('beginOAuthPkce', () => {
   });
 });
 
+// openid-client requires token_type on successful token responses, including refresh responses.
 describe('completeOAuthPkce', () => {
   it('exchanges the code for a token when state matches', async () => {
     const pending = new PendingAuthCache();
     const { state } = beginOAuthPkce({ config: testConfig, pending, redirectUri: 'http://127.0.0.1:5555/callback' });
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'at-1' })));
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token_type: 'Bearer', access_token: 'at-1' })));
     const token = await completeOAuthPkce({ config: testConfig, pending, state, code: 'code-1' }, { fetchImpl });
     expect(token.access_token).toBe('at-1');
     pending.stop();
@@ -73,7 +74,7 @@ describe('completeOAuthPkce', () => {
   it('defaults fetchImpl to the global fetch', async () => {
     const pending = new PendingAuthCache();
     const { state } = beginOAuthPkce({ config: testConfig, pending, redirectUri: 'http://127.0.0.1:5555/callback' });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'at-2' })));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token_type: 'Bearer', access_token: 'at-2' })));
     vi.stubGlobal('fetch', fetchMock);
     await completeOAuthPkce({ config: testConfig, pending, state, code: 'code-1' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -84,7 +85,7 @@ describe('completeOAuthPkce', () => {
 
 describe('refreshOAuthPkceToken', () => {
   it('posts a refresh_token grant to the token endpoint', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'at-3' })));
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token_type: 'Bearer', access_token: 'at-3' })));
     const token = await refreshOAuthPkceToken({ config: testConfig, refreshToken: 'rt-1' }, { fetchImpl });
     expect(token.access_token).toBe('at-3');
     const [, init] = fetchImpl.mock.calls[0]!;
@@ -94,7 +95,7 @@ describe('refreshOAuthPkceToken', () => {
   });
 
   it('defaults fetchImpl to the global fetch', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ access_token: 'at-4' })));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token_type: 'Bearer', access_token: 'at-4' })));
     vi.stubGlobal('fetch', fetchMock);
     await refreshOAuthPkceToken({ config: testConfig, refreshToken: 'rt-1' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
