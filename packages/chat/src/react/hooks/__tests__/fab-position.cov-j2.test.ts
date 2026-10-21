@@ -43,7 +43,7 @@ type Viewport = ReturnType<typeof fakeViewport>;
 type Doc = ReturnType<typeof fakeDocument>;
 
 function setup(
-  overrides: Partial<Omit<FabPositionInput, 'viewport' | 'pointerEvents'>> & { viewport?: Viewport; doc?: Doc } = {},
+  overrides: Partial<Omit<FabPositionInput, 'viewport' | 'pointerEvents' | 'storage'>> & { viewport?: Viewport; doc?: Doc; storage?: ReturnType<typeof fakeStorage> } = {},
 ) {
   const { viewport = fakeViewport(), doc = fakeDocument(), storage = fakeStorage(), ...rest } = overrides;
   const base: FabPositionInput = {

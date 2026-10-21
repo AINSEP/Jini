@@ -183,6 +183,11 @@ export function createAssistantChatsClient({ ports }: { ports: AssistantChatsCli
    * {@link attemptSave}.
    *
    * Never rejects, so a caller can treat the result as data rather than wrapping every call.
+   *
+   * A `do…while` on the attempt's own verdict rather than `for (;;)` with an inner `return`: the
+   * unconditional loop had an exit path no input could ever reach (it only ever left by `return`),
+   * while this loop exits exactly when an attempt is done. Termination is unchanged — every
+   * attempt past the end of the delay ladder is done.
    */
   async function saveWithRetry(
     port: AssistantChatsPort,
@@ -190,10 +195,13 @@ export function createAssistantChatsClient({ ports }: { ports: AssistantChatsCli
     message: ChatMessage,
     isDisposed: () => boolean,
   ): Promise<SaveOutcome> {
-    for (let attempt = 0; ; attempt += 1) {
-      const result = await attemptSave(port, conversationId, message, attempt, isDisposed);
-      if (result.done) return result.outcome;
-    }
+    let attempt = 0;
+    let result: AttemptResult;
+    do {
+      result = await attemptSave(port, conversationId, message, attempt, isDisposed);
+      attempt += 1;
+    } while (!result.done);
+    return result.outcome;
   }
 
   /**

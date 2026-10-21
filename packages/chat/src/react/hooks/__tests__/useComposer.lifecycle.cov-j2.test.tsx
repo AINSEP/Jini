@@ -19,7 +19,7 @@ function storedDraft(conversationId: string): string | null {
 }
 
 /** A hand-written page: two plain event targets and a settable visibility state. */
-function fakePage(): ComposerPageLifecycle & { hide: () => void; show: () => void; listenerCount: () => number } {
+function fakePage(): ComposerPageLifecycle & { hide: () => void; show: () => void; leave: () => void; listenerCount: () => number } {
   const page = new EventTarget();
   const doc = Object.assign(new EventTarget(), { visibilityState: 'visible' as DocumentVisibilityState });
   let listeners = 0;
@@ -35,6 +35,7 @@ function fakePage(): ComposerPageLifecycle & { hide: () => void; show: () => voi
     document: track(doc) as unknown as ComposerPageLifecycle['document'],
     hide: () => { doc.visibilityState = 'hidden'; doc.dispatchEvent(new Event('visibilitychange')); },
     show: () => { doc.visibilityState = 'visible'; doc.dispatchEvent(new Event('visibilitychange')); },
+    leave: () => { page.dispatchEvent(new Event('pagehide')); },
     listenerCount: () => listeners,
   };
 }
@@ -65,9 +66,7 @@ describe('useComposer page-exit flush', () => {
     const { result, unmount } = renderHook(() => useComposer({ conversationId: 'c1', pageLifecycle: page }));
     expect(page.listenerCount()).toBe(2);
     act(() => result.current.setDraft('leaving'));
-    act(() => {
-      page.window.dispatchEvent(new Event('pagehide'));
-    });
+    act(() => page.leave());
     expect(storedDraft('c1')).toBe('leaving');
     unmount();
     expect(page.listenerCount()).toBe(0);
