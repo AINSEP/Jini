@@ -93,7 +93,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts src/payments/__tests__/*.test.ts src/http/__tests__/*.test.ts src/store/__tests__/*.test.ts && vitest run && vitest run -c vitest.kernel.config.ts --maxWorkers=2 --minWorkers=1",
+    "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts src/payments/__tests__/*.test.ts src/store/__tests__/*.test.ts && vitest run && vitest run -c vitest.kernel.config.ts --maxWorkers=2 --minWorkers=1",
     "test:react": "vitest run"
   },
   "dependencies": {

@@ -25,3 +25,7 @@ export * from "./ledger/repo.js";
 export * from "./ledger/repo.memory.js";
 export * from "./accounting/plan-evidence.js";
 export * from "./accounting/apply-evidence.js";
+// Webhook ingest (L5): receive (verify + record), the inbox worker (apply) and the outbox relay.
+export * from "./ingest/receive.js";
+export * from "./ingest/worker.js";
+export * from "./ingest/outbox-relay.js";
