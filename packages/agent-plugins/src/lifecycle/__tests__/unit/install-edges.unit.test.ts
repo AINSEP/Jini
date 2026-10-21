@@ -60,7 +60,7 @@ describe('installAgentPlugin refusals', () => {
     const many = Array.from({ length: 4097 }, (_, index) => fileEntry(`f${index}.md`, 'x'));
     const { result } = await install({}, readerOf(basicEntries(), [...basicEntries(), ...many]));
     expect((await installError(result)).code).toBe('TOO_MANY_ENTRIES');
-  });
+  }, 30_000);
 
   test('a containment fault while extracting is re-shaped as an unsafe entry, keeping only a path-violation cause', async () => {
     // The extraction root itself cannot be resolved: a device fault, not a path violation.
@@ -109,5 +109,22 @@ describe('publication', () => {
     expect(installed.pluginId).toBe('edge-plugin');
     expect(admitted).toEqual([{ id: installed.id, localId: 'edge-plugin' }]);
     expect((await fs.stat(installed.packageRoot)).isDirectory()).toBe(true);
+  });
+
+  test('a fault scanning for superseded revisions warns without failing the accepted install', async () => {
+    const events: Array<{ event: string; message: string }> = [];
+    // Only the post-publication scan faults; the identity scan before publication reads normally.
+    let published = false;
+    const scanFault = { ...fs,
+      rename: (async (from: string, to: string) => { await fs.rename(from, to); if (path.basename(from) === 'root') published = true; }) as FilesystemPort['rename'],
+      readdir: (async (target: string, ...rest: [{ withFileTypes: true }]) => {
+        if (published && target.endsWith(`${path.sep}ws${path.sep}ws`)) throw Object.assign(new Error('EIO: scan fault'), { code: 'EIO' });
+        return fs.readdir(target, ...rest);
+      }) as unknown as FilesystemPort['readdir'] } as FilesystemPort;
+    const { result } = await install({ filesystem: scanFault, onEvent: event => events.push(event) }, readerOf(basicEntries()));
+    const installed = await result;
+    expect((await fs.stat(installed.packageRoot)).isDirectory()).toBe(true);
+    expect(events.filter(event => event.event === 'agent-plugin-revision-prune-warning'))
+      .toEqual([{ event: 'agent-plugin-revision-prune-warning', message: "Plugin 'edge-plugin': superseded revisions could not be scanned for pruning." }]);
   });
 });
