@@ -14,7 +14,8 @@ Personas: vendored /home/user/Jini/AI-Dev-Shop/agents (tdd, programmer, software
 | 5 | 075-076 | MERGED — 23/23 files 100 (db suite 66 files/524 tests, *.postgres.test.ts excluded = LOCAL-RUN NEEDED) |
 | 6 | 077-078 | MERGED — 27/27 files 100 (db, desktop-host 662 tests, devops agent-jobs). Review flag: db transfer-tools approval-path guard removed as unreachable (relies on core createApprovalHandler invariant) |
 | 7 | 079-081 | MERGED — 4/4 files 100 (3 were already 100: NEVER-LOADED only because devops vitest.config narrows coverage.include to src/deploy/**) |
-| 8 | 073b-074b (remainder) | running |
+| 8 | 073b-074b (remainder) | MERGED — 18/18 files 100 (db 82 files/640 tests; daemon 142 files/3480 tests; only daemon http/xai.ts:300 br remains). Owner judgement: daemon launch.ts turnIndex always 0 (`hasPriorAssistantTurn` never set) |
 | 9 | 082-089 | MERGED — 59/59 files 100 (devops 850, diagnostics 769, http-kit 531, integrations 1619, mcp 1280 tests). Out-of-scope bug noted: platform/src/asset-cache.ts:141 TypeError on null address entry |
 | 10 | 090-091 | running |
 | 11 | 092-093 | running |
+| 12 | 094-095 | running |
