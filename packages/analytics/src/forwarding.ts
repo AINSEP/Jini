@@ -47,6 +47,8 @@ export interface AnalyticsForwarderCredential {
 
 /** What a vendor module exports (same shape as host mail adapter modules). */
 export interface AnalyticsForwarderModule {
+  /** Host credential-store label the vendor key is saved under; absent for vendors that need none. */
+  readonly credentialLabel?: string;
   create(required: { credential: AnalyticsForwarderCredential | null; kit: { httpClient: HttpClientPort } }): AnalyticsForwarder;
 }
 
@@ -67,6 +69,8 @@ export function asAnalyticsForwarderModule(required: { exported: unknown }, _opt
   if (typeof candidate !== "object" || candidate === null || typeof candidate.create !== "function") {
     return "its module has no create() function";
   }
+  const label = (candidate as { credentialLabel?: unknown }).credentialLabel;
+  if (label !== undefined && (typeof label !== "string" || label.trim() === "")) return "its credentialLabel must be a non-empty string";
   return candidate as AnalyticsForwarderModule;
 }
 

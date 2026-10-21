@@ -45,6 +45,10 @@ describe("module validators", () => {
     expect(asAnalyticsForwarderModule({ exported: null })).toBe("its module has no create() function");
     expect(asAnalyticsForwarderModule({ exported: { create: 1 } })).toBe("its module has no create() function");
     expect(asAnalyticsForwarderModule({ exported: "x" })).toBe("its module has no create() function");
+    const labelled = { create: () => recordingForwarder().forwarder, credentialLabel: "GA4" };
+    expect(asAnalyticsForwarderModule({ exported: labelled })).toBe(labelled);
+    expect(asAnalyticsForwarderModule({ exported: { create: () => null, credentialLabel: " " } })).toBe("its credentialLabel must be a non-empty string");
+    expect(asAnalyticsForwarderModule({ exported: { create: () => null, credentialLabel: 3 } })).toBe("its credentialLabel must be a non-empty string");
   });
 
   it("accepts a hook with beforeIngest() and refuses others", () => {
