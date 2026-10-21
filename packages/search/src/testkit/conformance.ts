@@ -18,7 +18,7 @@ import {
   type SearchWriteResult, type SearchWriteStatus,
 } from '../contract.js';
 import { validateSearchProvider } from '../registry.js';
-import { check } from './assert.js';
+import { check, SearchConformanceError } from './assert.js';
 
 /** A test registrar: `vitest`'s or `node:test`'s `test`, or any `(title, fn) => void`. */
 export type ConformanceTestRegistrar = (title: string, fn: () => Promise<void>) => unknown;
@@ -72,7 +72,7 @@ async function attempt<T>(label: string, run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
-    check(false, `${label} threw instead of returning a result: ${messageOf(error)}`);
+    throw new SearchConformanceError(`${label} threw instead of returning a result: ${messageOf(error)}`);
   }
 }
 
@@ -119,7 +119,8 @@ function checkPage(page: SearchPage, limit: number): void {
     // The kit never writes '<', so any '<' in a snippet is markup the provider injected.
     check(!hit.snippet.includes('<'), `snippet of ${keyText(hit.key)} contains markup: ${hit.snippet}`);
     for (const { start, end } of hit.highlights) {
-      check(Number.isInteger(start) && Number.isInteger(end) && start >= 0 && start < end && end <= hit.snippet.length,
+      const integral = Number.isInteger(start) && Number.isInteger(end);
+      check(integral && start >= 0 && start < end && end <= hit.snippet.length,
         `highlight ${start}..${end} of ${keyText(hit.key)} is outside its ${hit.snippet.length}-char snippet`);
     }
   }
@@ -382,8 +383,9 @@ async function dropIndexCase(s: Session): Promise<void> {
   await s.upsert(ctx, [doc({ key: keyOf('dropped'), revision: 1, title: 'Dropped with its index' })]);
   expectOk(await attempt('dropIndex', () => s.provider.dropIndex(ctx)), 'dropIndex');
   const result = await attempt('query', () => s.provider.query(ctx, { query: { text: TERM } }));
+  const answered = result.status === 'ok' ? `${result.value.hits.length} hits` : describe(result);
   check(result.status === 'ok' ? result.value.hits.length === 0 : result.status === 'rejected' && result.error.code === 'not_found',
-    `query of a dropped index returned ${result.status === 'ok' ? `${result.value.hits.length} hits` : describe(result)}, expected no hits or rejected (not_found)`);
+    `query of a dropped index returned ${answered}, expected no hits or rejected (not_found)`);
 }
 
 async function typoCase(s: Session): Promise<void> {

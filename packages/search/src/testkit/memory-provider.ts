@@ -95,11 +95,13 @@ function fieldsMatch(document: SearchDocument, filters: Readonly<Record<string, 
   });
 }
 
+function scopeMatches(document: SearchDocument, query: SearchQuery): boolean {
+  const collectionOk = query.collections === undefined || query.collections.includes(document.key.collection);
+  return collectionOk && (query.locale === undefined || document.locale === query.locale);
+}
+
 function passesFilters(document: SearchDocument, query: SearchQuery): boolean {
-  return (query.collections === undefined || query.collections.includes(document.key.collection))
-    && (query.locale === undefined || document.locale === query.locale)
-    && fieldsMatch(document, query.filters ?? {})
-    && audienceAllows(document, query.audiences ?? []);
+  return scopeMatches(document, query) && fieldsMatch(document, query.filters ?? {}) && audienceAllows(document, query.audiences ?? []);
 }
 
 function pageBounds(query: SearchQuery): { readonly offset: number; readonly limit: number } | string {
@@ -143,6 +145,14 @@ function runQuery(index: Index, query: SearchQuery, typoTolerance: boolean): Pro
 
 const isRevision = (revision: unknown): boolean => typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0;
 
+function resolveOptions(optional: InMemorySearchProviderOptions) {
+  const {
+    id = 'memory', label = 'In-memory reference provider', acceptsRestricted = true, asyncIndexing = false,
+    typoTolerance = false, locales = 'any', maxBatch = 100, available = () => true,
+  } = optional;
+  return { id, label, acceptsRestricted, asyncIndexing, typoTolerance, locales, maxBatch, available };
+}
+
 /**
  * The reference provider. Case-insensitive word matching over title + body (every query word must
  * match), plain-text snippet windows with highlight ranges, versioned tombstones, cursor = offset.
@@ -151,10 +161,7 @@ const isRevision = (revision: unknown): boolean => typeof revision === 'number' 
  * @complexity Writes O(batch); queries O(documents in the index × words).
  */
 export function createInMemorySearchProvider(_required: Record<string, never> = {}, optional: InMemorySearchProviderOptions = {}): SearchProvider {
-  const {
-    id = 'memory', label = 'In-memory reference provider', acceptsRestricted = true, asyncIndexing = false,
-    typoTolerance = false, locales = 'any', maxBatch = 100, available = () => true,
-  } = optional;
+  const { id, label, acceptsRestricted, asyncIndexing, typoTolerance, locales, maxBatch, available } = resolveOptions(optional);
   const indexes = new Map<string, Index>();
   const queued = new Map<string, QueuedTask>();
   const settled = new Set<string>();
