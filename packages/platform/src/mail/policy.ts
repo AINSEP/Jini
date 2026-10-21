@@ -82,14 +82,17 @@ async function preflight(
   return null;
 }
 
-/** Maps an existing ledger row to the result a duplicate delivery returns. */
+/**
+ * Maps an existing ledger row to the result a duplicate delivery returns. A resendable `unknown` row
+ * never gets here: the ledger reclaims it atomically in `reserve` (`reclaimUnknown`), so only the
+ * one caller that won that claim re-sends.
+ */
 function existingResult(
-  required: { existing: { outcome: "reserved" | "sent" | "unknown"; payloadHash: string; providerMessageId?: string }; payloadHash: string; policy: MailResendPolicy; nowIso: () => string },
-): MailerSendResult | "resend" {
-  const { existing, payloadHash, policy } = required;
+  required: { existing: { outcome: "reserved" | "sent" | "unknown"; payloadHash: string; providerMessageId?: string }; payloadHash: string; nowIso: () => string },
+): MailerSendResult {
+  const { existing, payloadHash } = required;
   if (existing.payloadHash !== payloadHash) return refuse("MAIL_IDEMPOTENCY_CONFLICT", "idempotency key reused with a different message");
   if (existing.outcome === "sent") return { ok: true, providerMessageId: existing.providerMessageId ?? "", acceptedAt: required.nowIso() };
-  if (existing.outcome === "unknown" && policy === "on_unknown") return "resend";
   // `reserved` = another worker is sending now, or a crash mid-send: the outcome is unknown.
   return refuse("MAIL_OUTCOME_UNKNOWN", "an earlier attempt with this key has an unknown outcome", { unknown: true });
 }
@@ -143,11 +146,9 @@ export function createMailDeliveryPolicy(required: MailDeliveryPolicyDeps, optio
       if (!taken.ok) return refuse("MAIL_RATE_LIMITED", `${lane} lane is rate limited`, { retryable: true, retryAfterMs: taken.retryAfterMs });
       const key = { workspaceId: options.workspaceId, idempotencyKey: options.idempotencyKey, recipient: message.to.email.trim().toLowerCase() };
       const payloadHash = mailPayloadHash({ message });
-      const reserved = await required.ledger.reserve({ ...key, payloadHash, lane, providerId: required.providerId });
-      if (reserved.status === "existing") {
-        const replay = existingResult({ existing: reserved, payloadHash, policy: resendPolicy({ purpose: options.purpose }), nowIso });
-        if (replay !== "resend") return replay;
-      }
+      const reclaimUnknown = resendPolicy({ purpose: options.purpose }) === "on_unknown";
+      const reserved = await required.ledger.reserve({ ...key, payloadHash, lane, providerId: required.providerId }, { reclaimUnknown });
+      if (reserved.status === "existing") return existingResult({ existing: reserved, payloadHash, nowIso });
       const result = await dispatch({ message: tested.message, send });
       await required.ledger.mark({ ...key, outcome: outcomeOf(result), ...(result.ok ? { providerMessageId: result.providerMessageId } : { errorCode: result.errorCode }) });
       return result;

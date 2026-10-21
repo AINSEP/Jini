@@ -16,10 +16,12 @@ function fakeLedger(seed: Record<string, Row> = {}) {
   const rows = new Map<string, Row>(Object.entries(seed));
   const marks: unknown[] = [];
   const ledger: MailSendLedgerPort = {
-    async reserve({ idempotencyKey, recipient, payloadHash }) {
+    async reserve({ idempotencyKey, recipient, payloadHash }, optional = {}) {
       const id = `${idempotencyKey}|${recipient}`;
       const row = rows.get(id);
-      if (row === undefined || row.outcome === "failed") { rows.set(id, { outcome: "reserved", payloadHash }); return { status: "reserved" }; }
+      // Same statement as the real port: the read and the flip cannot interleave with another reserve.
+      const reclaim = optional.reclaimUnknown === true && row?.outcome === "unknown" && row.payloadHash === payloadHash;
+      if (row === undefined || row.outcome === "failed" || reclaim) { rows.set(id, { outcome: "reserved", payloadHash }); return { status: "reserved" }; }
       return { status: "existing", outcome: row.outcome, payloadHash: row.payloadHash, ...(row.providerMessageId ? { providerMessageId: row.providerMessageId } : {}) };
     },
     async mark(input) {
@@ -142,6 +144,28 @@ describe("reserve → send → mark", () => {
     await confirm.policy.deliver({ message: MESSAGE, options: OPTIONS, send: sendUnknown });
     assert.deepEqual(await confirm.policy.deliver({ message: MESSAGE, options: OPTIONS, send: confirm.send }), OK);
     assert.equal(confirm.sent.length, 1);
+  });
+  test("two concurrent retries of an unknown outcome dispatch once: the first claims the row", async () => {
+    const hash = mailPayloadHash({ message: MESSAGE });
+    const { ledger, rows } = fakeLedger({ "k1|reader@example.com": { outcome: "unknown", payloadHash: hash } });
+    const policy = createMailDeliveryPolicy({ providerId: "smtp", ledger, suppression: fakeSuppression(), supportsAttachments: true }, { nowIso: NOW });
+    let calls = 0;
+    let release: (result: MailerSendResult) => void = () => undefined;
+    const blocked = () => { calls += 1; return new Promise<MailerSendResult>((resolve) => { release = resolve; }); };
+    const first = policy.deliver({ message: MESSAGE, options: OPTIONS, send: blocked });
+    const second = policy.deliver({ message: MESSAGE, options: OPTIONS, send: blocked });
+    const secondResult = await second;
+    assert.equal(!secondResult.ok && secondResult.errorCode, "MAIL_OUTCOME_UNKNOWN");
+    release(OK);
+    assert.deepEqual(await first, OK);
+    assert.equal(calls, 1);
+    assert.equal(rows.get("k1|reader@example.com")?.outcome, "sent");
+  });
+  test("an unknown row under a different payload is a conflict, never reclaimed", async () => {
+    const { ledger } = fakeLedger({ "k1|reader@example.com": { outcome: "unknown", payloadHash: "other" } });
+    const policy = createMailDeliveryPolicy({ providerId: "smtp", ledger, suppression: fakeSuppression(), supportsAttachments: true });
+    const result = await policy.deliver({ message: MESSAGE, options: OPTIONS, send: async () => OK });
+    assert.equal(!result.ok && result.errorCode, "MAIL_IDEMPOTENCY_CONFLICT");
   });
   test("a still-reserved row (crash or concurrent send) is unknown, not resent", async () => {
     const { ledger } = fakeLedger({ "k1|reader@example.com": { outcome: "reserved", payloadHash: mailPayloadHash({ message: MESSAGE }) } });

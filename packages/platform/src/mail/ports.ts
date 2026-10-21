@@ -60,11 +60,14 @@ export interface MailSendLedgerPort {
    * Atomically insert (workspaceId, idempotencyKey, recipient) as `reserved`. An existing row is
    * returned as-is, except `failed`, which the port flips back to `reserved` in the same statement
    * (a definitive failure means nothing was sent, so retrying under the same identity is safe).
+   * With `optional.reclaimUnknown`, an `unknown` row with the SAME payloadHash is flipped to
+   * `reserved` in that same statement too: the caller that wins the flip is the only one that
+   * re-sends, and a concurrent retry sees `reserved` (an unknown outcome) instead of also re-sending.
    */
   reserve(required: {
     workspaceId: UUID; idempotencyKey: string; recipient: string; payloadHash: string;
     lane: MailDeliveryLane; providerId: string;
-  }): Promise<
+  }, optional?: { reclaimUnknown?: boolean }): Promise<
     | { status: "reserved" }
     | { status: "existing"; outcome: Exclude<MailLedgerOutcome, "failed">; payloadHash: string; providerMessageId?: string }
   >;
