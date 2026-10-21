@@ -68,7 +68,8 @@ describe('native dialog lifecycle characterization', () => {
     modalApi({});
     const opener = kind === 'null' ? null : kind === 'svg' ? document.createElementNS('http://www.w3.org/2000/svg', 'svg') : document.createElement('button');
     if (opener) document.body.append(opener);
-    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    // React may also restore the dialog's focus during its commit; count the opener itself.
+    const focus = vi.spyOn(opener instanceof HTMLElement ? opener : HTMLElement.prototype, 'focus');
     const view = render(createElement(Bare, { open: true, document: { activeElement: opener } }));
     focus.mockClear();
     if (kind === 'detached') opener?.remove();

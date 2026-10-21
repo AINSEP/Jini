@@ -702,8 +702,7 @@ describe('renderConfirmationDocument choicesParam collisions with alternatives',
   });
 });
 
-// Exact-output pins: sha256 of whole documents/resources captured on the pre-refactor code, so a
-// refactor that moves one byte of markup, inline script, action plan or framing fails here.
+// Exact hashes include the intended detail-layout fix (c4c19234); all other emitted bytes stay pinned.
 describe('renderConfirmationDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const FULL = {
@@ -714,20 +713,20 @@ describe('renderConfirmationDocument exact output', () => {
     text: { working: 'W' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
   } as const;
   const cases: ReadonlyArray<readonly [string, Parameters<typeof renderConfirmationDocument>[0], string]> = [
-    ['tool-routed cancel', DELETE_POST, 'f6a869447f8966829c0d36d52dcf113caa30e03f620c04b1eee413577efc1896'],
-    ['minimal with no cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} } }, 'c8b0f37daf7fa589a2f41f75b30f8e1bd11109403cc9cb6a698ddc315edbbd96'],
-    ['local-only cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, cancel: { label: 'No' } }, 'b017c612043de8a70e5b4d4160b3c54350cf9fe5540a27df6e5f5d99f80e2d6b'],
-    ['choices, alternatives and every option', FULL, '8d72fde4f751183c1c1800208701466696e6f45390c51eba0df3ac1e2ca4a876'],
+    ['tool-routed cancel', DELETE_POST, 'f8dff6cc6e7b6a2412c5376ebc97ed128996049ae82bdedfb4b982aa797eb9f8'],
+    ['minimal with no cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} } }, 'addeeb377caf61ab1fe8cc40484414214445e0a02ed0d3c4226bd1ad73d4b356'],
+    ['local-only cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, cancel: { label: 'No' } }, '335a191e179cfcd4469262d09cb818d6f5a8f53bf2e53fc5c68fabc81475dc1f'],
+    ['choices, alternatives and every option', FULL, 'baf80ab6817f10d1eb3d015ff7dddbf91ae04d628a911a84d7067fdd541aa9e8'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderConfirmationDocument(spec))).toBe(expected);
   });
 
   it('pins the framed, expiring resource wrapper and its action plan', () => {
-    expect(digest(buildConfirmationSurface({ ...FULL, uri: 'ui://h/c/1', preferredFrameSize: ['1px', '2px'], expiresAtMs: 123 }))).toBe('4bcd9e1427b2c3e1739d97c9b11bcfc8770b9ebfeb52d8db70867185163345c1');
+    expect(digest(buildConfirmationSurface({ ...FULL, uri: 'ui://h/c/1', preferredFrameSize: ['1px', '2px'], expiresAtMs: 123 }))).toBe('0df5d6175caeee5583e723acf42a9211a63e57e7febe7da4bec0d28541c68da3');
   });
 
   it('pins the bare resource wrapper', () => {
-    expect(digest(buildConfirmationSurface({ title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, uri: 'ui://h/c/2' }))).toBe('7efbc7ae94f9dc037f513c3405401cb3b67218b3159e9d9eff2c3730f4813c0f');
+    expect(digest(buildConfirmationSurface({ title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, uri: 'ui://h/c/2' }))).toBe('7c3fd74e155bf5893e1ef036cf03c131f4e6fac8b3d25bd66335a2b02cb0016a');
   });
 });

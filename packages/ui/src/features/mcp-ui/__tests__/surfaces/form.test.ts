@@ -526,31 +526,30 @@ it('an alternative submit action collects checked fields and carries its own act
   expect(surface.api.callTool).toHaveBeenCalledTimes(1);
 });
 
-// Exact-output pins: sha256 of whole documents/resources captured on the pre-refactor code, so a
-// refactor that moves one byte of markup, inline script or routing params fails here.
+// Exact hashes include the intended detail-layout fix (c4c19234); all other emitted bytes stay pinned.
 describe('renderFormDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const cases: ReadonlyArray<readonly [string, FormSurfaceSpec, string]> = [
-    ['shared spec with an untargeted cancel', SPEC, 'd6f2939607184095c29d108707668f110c5d2686a621cf046a8b355fdba5a526'],
-    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, 'cea276136613ddba217e7939a0ca06a0300e71e1a957533bc88334c517ffe896'],
+    ['shared spec with an untargeted cancel', SPEC, '6c87cf26a2fa4491185aa424a71c80fe6e0c69298bf707cefd12396dd4b35656'],
+    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, 'f5501bc23289059d2b92be383a54e4ae5286c64d363cdb4e7c2ab62be96472ed'],
     ['every option, with a tool-routed cancel', {
       ...SPEC, warning: 'Careful <now>', danger: true,
       fields: [...SPEC.fields, { kind: 'string', name: 'key', label: 'Key', secret: true, multiline: true }],
       additionalSubmitActions: [{ id: 'later', label: 'Later', params: { when: 'later' } }],
       cancel: { label: 'Stop', toolName: 'cancel_tool', params: { reason: 'x' } },
       text: { working: 'W', showSecret: 'Reveal' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
-    }, 'acce221dc13f25223cd0265757a06248d4b76959cc8149e99ffac77426e81c67'],
-    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '5e7c602a0aa4ce472882c871635b2c71218ae270afc1e9eae88e692d5406d06f'],
+    }, '254d9a5b2bc0e6b9ab1eb1854a61317d5ddf9c5b01c27cf1bf167be0ecc1c390'],
+    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '7975f57db5d633bc3ecfc8eb30603b15df4ff0c951f7d5c38c828df46782cd51'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderFormDocument(spec))).toBe(expected);
   });
 
   it('pins the framed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('18950938d511a8abcbc46484b0a3015cbc4f49f65a2876200f931bf36c41cf48');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('405ebd687a67c9d9b3a1938605ec9a463eb603427c8e8b37b83fd3174ae6f886');
   });
 
   it('pins the unframed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('97959b00169765ee131c704cb33ffafddec9337c2dba5ef8af2a339fea997f01');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('30fe210fabcf130778e0ca66e149f460cadff385ed076d70befa5d3da8177e4a');
   });
 });

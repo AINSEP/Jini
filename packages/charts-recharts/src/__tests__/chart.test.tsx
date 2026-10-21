@@ -98,13 +98,14 @@ describe('shared chart presentation with real Recharts', () => {
     expect(screen.queryByRole('list')).toBeNull();
   });
 
+  // Computed styles serialize named colors as RGB; keep exact color assertions in that form.
   it.each([
-    { entry: { dataKey: 'revenue', name: 'Raw name', value: 7, color: 'red', payload: { _jiniChartKey: 'slice-1' } }, label: 'Revenue', color: 'blue' },
-    { entry: { name: 'revenue', value: 7 }, label: 'Revenue', color: 'blue' },
-    { entry: { dataKey: 'value', name: 'Repeated', value: 7, payload: { _jiniChartKey: 'slice-1' } }, label: 'Slice', color: 'green' },
-    { entry: { dataKey: 'value', name: 'Raw name', value: 7, color: 'red', payload: {} }, label: 'Raw name', color: 'red' },
-    { entry: { dataKey: 'value', name: 'Raw name', value: 7, color: 'red', payload: { _jiniChartKey: 'missing' } }, label: 'Raw name', color: 'red' },
-    { entry: { dataKey: 'constructor', name: 'Raw name', value: 7, payload: { _jiniChartKey: 'slice-1' } }, label: 'Slice', color: 'green' },
+    { entry: { dataKey: 'revenue', name: 'Raw name', value: 7, color: 'red', payload: { _jiniChartKey: 'slice-1' } }, label: 'Revenue', color: 'rgb(0, 0, 255)' },
+    { entry: { name: 'revenue', value: 7 }, label: 'Revenue', color: 'rgb(0, 0, 255)' },
+    { entry: { dataKey: 'value', name: 'Repeated', value: 7, payload: { _jiniChartKey: 'slice-1' } }, label: 'Slice', color: 'rgb(0, 128, 0)' },
+    { entry: { dataKey: 'value', name: 'Raw name', value: 7, color: 'red', payload: {} }, label: 'Raw name', color: 'rgb(255, 0, 0)' },
+    { entry: { dataKey: 'value', name: 'Raw name', value: 7, color: 'red', payload: { _jiniChartKey: 'missing' } }, label: 'Raw name', color: 'rgb(255, 0, 0)' },
+    { entry: { dataKey: 'constructor', name: 'Raw name', value: 7, payload: { _jiniChartKey: 'slice-1' } }, label: 'Slice', color: 'rgb(0, 128, 0)' },
     { entry: { dataKey: 'value', name: 'Raw name', value: 7, payload: { _jiniChartKey: 'constructor' } }, label: 'Raw name', color: 'var(--jini-chart-1, var(--jini-chart-default-1))' },
     { entry: { dataKey: 'blank', name: 'Raw name', value: 7, color: 'red' }, label: '', color: '' },
   ])('resolves tooltip identity and presentation for $entry', ({ entry, label, color }) => {

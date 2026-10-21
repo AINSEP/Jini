@@ -413,7 +413,8 @@ describe('VersionManagerModal metadata characterization (L204)', () => {
       <VersionManagerModal fileRef={FILE_REF} currentContent="body" onClose={vi.fn()} onRestored={vi.fn()} dependencies={dependencies} />,
     );
     await waitFor(() => expect(screen.getByText('1 version')).toBeInTheDocument());
+    // The list resolves before the selected version's cached content populates the preview.
+    expect(await screen.findByTitle(`${FILE_REF.name} · v2`)).toBeInTheDocument();
     expect(screen.queryByText(/Restored from v/)).not.toBeInTheDocument();
-    expect(screen.getByTitle(`${FILE_REF.name} · v2`)).toBeInTheDocument();
   });
 });

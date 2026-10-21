@@ -160,7 +160,7 @@ function QueuedMessage({ prompt, renderAttachment }: {
         <button
           type="button"
           className="jini-chat-pane__queued-cancel"
-          onClick={prompt.onCancel}
+          onClick={() => prompt.onCancel()}
           title={t('Cancel queued message')}
         >
           {t('Cancel')}

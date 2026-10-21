@@ -163,7 +163,7 @@ function LocalCliAgentGrid({ agents, scan, list, renderCard, agentHandle }: {
             type="button"
             className="jini-btn jini-local-cli-more"
             aria-expanded={list.showCollapsed}
-            onClick={list.toggleCollapsed}
+            onClick={() => list.toggleCollapsed()}
             {...agentHandleProps({}, { base: agentHandle, action: 'toggle-not-installed', role: 'button', label: t('Show not-installed CLIs') })}
           >
             {list.showCollapsed
