@@ -206,38 +206,65 @@ describe("property: any delivery order of the same facts ends in the same ledger
     };
   }
 
-  test("200 shuffled deliveries of two refunds (responses, both webhook types, duplicates, snapshots)", async () => {
-    for (let seed = 1; seed <= 200; seed++) {
-      const w = await paidPayment("memory", { echoesCorrelation: seed % 2 === 0 });
-      await w.reserve("rf_1", 3_000);
-      await w.reserve("rf_2", 2_000);
-      const r1 = await w.dispatch("rf_1", 3_000);
-      const r2 = await w.dispatch("rf_2", 2_000);
-      const early = await w.retrieve();
-      w.fake.server.settleRefund({ refundId: "re_2", status: "succeeded" });
-      w.fake.server.settleRefund({ refundId: "re_3", status: "succeeded" });
-      const deliveries = [
-        () => w.refundEvidence((r1 as { value: never }).value, "rf_1"),
-        () => w.refundEvidence((r2 as { value: never }).value, "rf_2"),
-        async () => w.payment(await w.webhook("refund.updated", "re_2", "e1")),
-        async () => w.payment(await w.webhook("refund.updated", "re_3", "e2")),
-        async () => w.payment(await w.webhook("charge.refunded", "ch_1", "e3")),
-        async () => w.payment(await w.webhook("charge.refunded", "ch_1", "e3")),
-        () => w.payment(early, "retrieve"),
-      ];
-      const random = rng(seed);
-      for (let i = deliveries.length - 1; i > 0; i--) {
-        const j = Math.floor(random() * (i + 1));
-        [deliveries[i], deliveries[j]] = [deliveries[j]!, deliveries[i]!];
-      }
-      for (const deliver of deliveries) await deliver();
-      // The inbox worker retries parked (deferred) deliveries after the attempts settle: replay all once.
-      for (const deliver of deliveries) await deliver();
-      const { payment, refunds, outbox, quarantine } = await w.read();
-      const summary = { refunded: payment.refundedMinor, held: payment.refundHeldMinor, rows: refunds.length, announced: count(outbox, "refund.succeeded"), quarantine: quarantine.length };
-      expect(summary, `seed ${seed}`).toEqual({ refunded: 5_000, held: 0, rows: 2, announced: 2, quarantine: 0 });
+  /** Applies each delivery; returns true when it was (partly) deferred and must be retried by the worker. */
+  const isDeferred = (r: unknown) => (r as { kind: string }).kind === "deferred" || ((r as { deferred?: number }).deferred ?? 0) > 0;
+
+  function shuffle<T>(items: T[], seed: number): T[] {
+    const random = rng(seed);
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [items[i], items[j]] = [items[j]!, items[i]!];
     }
-  });
+    return items;
+  }
+
+  /** The inbox worker's park-and-retry, to a fixpoint: only deferred deliveries are delivered again. */
+  async function deliverUntilSettled(deliveries: Array<() => Promise<unknown>>): Promise<number> {
+    let pending = deliveries;
+    for (let round = 0; round < 4 && pending.length > 0; round++) {
+      const next: typeof pending = [];
+      for (const deliver of pending) if (isDeferred(await deliver())) next.push(deliver);
+      pending = next;
+    }
+    return pending.length;
+  }
+
+  async function scenario(kind: LedgerKind, seed: number) {
+    // Every third seed: equal amounts, the ambiguous case for providers that do not echo.
+    const [a1, a2] = seed % 3 === 0 ? [2_500, 2_500] : [3_000, 2_000];
+    const w = await paidPayment(kind, { echoesCorrelation: seed % 2 === 0 });
+    await w.reserve("rf_1", a1);
+    await w.reserve("rf_2", a2);
+    if (seed % 5 === 0) w.fake.server.script({ op: "refund", behaviours: ["timeout"] });
+    const r1 = await w.dispatch("rf_1", a1);
+    const r2 = await w.dispatch("rf_2", a2);
+    const early = await w.retrieve();
+    w.fake.server.settleRefund({ refundId: "re_2", status: "succeeded" });
+    w.fake.server.settleRefund({ refundId: "re_3", status: "succeeded" });
+    const stuck = await deliverUntilSettled(shuffle([
+      () => (r1.kind === "ok" ? w.refundEvidence(r1.value, "rf_1") : w.dispatchOutcome("rf_1", "unknown")),
+      () => w.refundEvidence((r2 as { value: never }).value, "rf_2"),
+      async () => w.payment(await w.webhook("refund.updated", "re_2", "e1")),
+      async () => w.payment(await w.webhook("refund.updated", "re_3", "e2")),
+      async () => w.payment(await w.webhook("charge.refunded", "ch_1", "e3")),
+      async () => w.payment(await w.webhook("charge.refunded", "ch_1", "e3")),
+      () => w.payment(early, "retrieve"),
+    ], seed));
+    const { payment, refunds, outbox, quarantine } = await w.read();
+    return {
+      actual: { stuck, refunded: payment.refundedMinor, held: payment.refundHeldMinor, rows: refunds.length, announced: count(outbox, "refund.succeeded"), quarantine: quarantine.length },
+      expected: { stuck: 0, refunded: a1 + a2, held: 0, rows: 2, announced: 2, quarantine: 0 },
+    };
+  }
+
+  for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
+    test(`${kind}: shuffled deliveries (responses, both webhook types, duplicates, a stale snapshot, timeouts), retrying only deferred ones`, async () => {
+      for (let seed = 1; seed <= (kind === "memory" ? 200 : 40); seed++) {
+        const { actual, expected } = await scenario(kind, seed);
+        expect(actual, `seed ${seed}`).toEqual(expected);
+      }
+    }, 120_000);
+  }
 });
 
 describe("guards", () => {
@@ -284,19 +311,123 @@ describe("guards", () => {
 });
 
 describe("providers that do not echo our correlation id", () => {
-  test("a webhook for an in-flight refund is deferred, then matches once the response binds the ref", async () => {
+  test("one in-flight refund of that amount: the webhook binds to it even before the response", async () => {
     const w = await paidPayment("memory", { echoesCorrelation: false });
     await w.reserve("rf_1", 3_000);
-    const response = await w.dispatch("rf_1", 3_000);
+    await w.dispatch("rf_1", 3_000);
     w.fake.server.settleRefund({ refundId: "re_2", status: "succeeded" });
-    const early = await w.webhook("refund.updated", "re_2", "evt_1");
-    expect(await w.payment(early)).toMatchObject({ kind: "applied", deferred: 1 });
-    expect(await w.refundEvidence((early.refunds[0])!)).toEqual({ kind: "deferred" });
-    expect((await w.read()).refunds).toHaveLength(1);
-    await w.refundEvidence((response as { value: never }).value, "rf_1");
-    expect(await w.payment(early)).toMatchObject({ kind: "applied", deferred: 0 });
+    expect(await w.payment(await w.webhook("refund.updated", "re_2", "evt_1"))).toMatchObject({ kind: "applied", deferred: 0 });
     const { refunds, payment } = await w.read();
     expect(refunds).toEqual([expect.objectContaining({ id: "rf_1", providerRefundRef: "re_2", status: "succeeded" })]);
     expect(payment.refundedMinor).toBe(3_000);
+  });
+
+  test("timeout without echo: a retrieve snapshot settles the unknown row (no endless deferral)", async () => {
+    const w = await paidPayment("memory", { echoesCorrelation: false });
+    await w.reserve("rf_1", 3_000);
+    w.fake.server.script({ op: "refund", behaviours: ["timeout"] });
+    await w.dispatch("rf_1", 3_000);
+    await w.dispatchOutcome("rf_1", "unknown");
+    w.fake.server.settleRefund({ refundId: "re_2", status: "succeeded" });
+    await w.payment(await w.retrieve(), "retrieve");
+    expect((await w.read()).refunds).toEqual([expect.objectContaining({ id: "rf_1", status: "succeeded", providerRefundRef: "re_2" })]);
+  });
+
+  test("two in-flight refunds of the same amount: defer, then match once the responses bind refs", async () => {
+    const w = await paidPayment("memory", { echoesCorrelation: false });
+    await w.reserve("rf_1", 3_000);
+    await w.reserve("rf_2", 3_000);
+    const r1 = await w.dispatch("rf_1", 3_000);
+    const r2 = await w.dispatch("rf_2", 3_000);
+    w.fake.server.settleRefund({ refundId: "re_2", status: "succeeded" });
+    const early = await w.webhook("refund.updated", "re_2", "evt_1");
+    expect(await w.payment(early)).toMatchObject({ kind: "applied", deferred: 1 });
+    expect(await w.refundEvidence(early.refunds[0]!)).toEqual({ kind: "deferred" });
+    await w.refundEvidence((r1 as { value: never }).value, "rf_1");
+    await w.refundEvidence((r2 as { value: never }).value, "rf_2");
+    expect(await w.payment(early)).toMatchObject({ kind: "applied", deferred: 0 });
+    const { refunds, payment } = await w.read();
+    expect(refunds.map((r) => [r.id, r.providerRefundRef, r.status])).toEqual([["rf_1", "re_2", "succeeded"], ["rf_2", "re_3", "pending"]]);
+    expect(payment).toMatchObject({ refundedMinor: 3_000, refundHeldMinor: 3_000 });
+  });
+});
+
+describe("L3 review fixes (writer)", () => {
+  test("BLOCKER: a rejected retry never flips a settled or in-flight refund to failed", async () => {
+    const w = await paidPayment("memory");
+    await w.reserve("rf_1", 10_000);
+    w.fake.server.script({ op: "refund", behaviours: ["timeout"] });
+    await w.dispatch("rf_1", 10_000);
+    await w.dispatchOutcome("rf_1", "unknown");
+    await w.dispatchOutcome("rf_1", "rejected");
+    expect((await w.read()).refunds[0]!.status).toBe("unknown");
+    w.fake.server.settleRefund({ refundId: "re_2", status: "succeeded" });
+    await w.payment(await w.retrieve(), "retrieve");
+    await w.dispatchOutcome("rf_1", "rejected");
+    const { refunds, payment } = await w.read();
+    expect(refunds[0]!.status).toBe("succeeded");
+    expect(payment).toMatchObject({ refundedMinor: 10_000, status: "refunded" });
+    expect(await w.reserve("rf_2", 1)).toEqual({ kind: "insufficient", refundableMinor: 0 });
+  });
+
+  test("money withdrawn by a dispute is not refundable", async () => {
+    const w = await paidPayment("memory");
+    const snapshot = await w.retrieve();
+    await w.payment({ ...snapshot, disputes: [{ providerDisputeRef: "dp_1", amount: USD(7_000), status: "open" }] });
+    expect(await w.reserve("rf_1", 3_001)).toEqual({ kind: "insufficient", refundableMinor: 3_000 });
+    await w.payment({ ...snapshot, disputes: [{ providerDisputeRef: "dp_1", amount: USD(7_000), status: "won" }] });
+    expect(await w.reserve("rf_1", 10_000)).toMatchObject({ kind: "reserved" });
+  });
+
+  test("a snapshot applies refund failures before successes, so the cap sees the returned money", async () => {
+    const w = await paidPayment("memory");
+    await w.reserve("rf_a", 10_000);
+    await w.dispatch("rf_a", 10_000);
+    w.fake.server.settleRefund({ refundId: "re_2", status: "succeeded" });
+    await w.payment(await w.webhook("refund.updated", "re_2", "e1"));
+    const snapshot = await w.retrieve();
+    const failedA = { ...snapshot.refunds[0]!, status: "failed" as const };
+    const dashboardB = { providerRefundRef: "re_dash", amount: USD(10_000), status: "succeeded" as const };
+    expect(await w.payment({ ...snapshot, refunds: [dashboardB, failedA] })).toMatchObject({ kind: "applied", quarantined: [] });
+    const { payment, refunds } = await w.read();
+    expect(payment.refundedMinor).toBe(10_000);
+    expect(refunds.map((r) => r.status).sort()).toEqual(["failed", "succeeded"]);
+  });
+
+  test("payment.succeeded is enqueued before any refund topic of the same observation", async () => {
+    const w = await paidPayment("memory");
+    const first = await w.retrieve();
+    // A fresh payment whose first evidence already carries a refund.
+    await w.ledger.transaction((tx) => tx.insertPayment({ payment: { ...newPayment({ id: "pay_2", idempotencyKey: "idem-2" }) } }));
+    const result = await w.ledger.transaction((tx) => applyPaymentEvidence({
+      tx, deps: w.deps, workspaceId: "ws", mode: "test", paymentId: "pay_2", source: "webhook",
+      evidence: { ...first, providerRef: "ch_9", correlationId: "pay_2", refunds: [{ providerRefundRef: "re_9", amount: USD(100), status: "succeeded" }] },
+    }));
+    expect(result).toMatchObject({ kind: "applied", outbox: ["payment.succeeded", "refund.succeeded"] });
+  });
+
+  test("every writer takes the payment lock before any other ledger access", async () => {
+    const w = await paidPayment("memory");
+    await w.reserve("rf_1", 1_000);
+    const calls: string[] = [];
+    const run = (fn: Parameters<typeof w.ledger.transaction>[0]) => w.ledger.transaction((tx) => {
+      const spy = new Proxy(tx, { get: (target, name) => {
+        const value = Reflect.get(target, name);
+        return typeof value === "function" ? (...args: unknown[]) => { calls.push(String(name)); return value.apply(target, args); } : value;
+      } });
+      return fn(spy);
+    });
+    const base = { deps: w.deps, workspaceId: "ws", mode: "test" as const, paymentId: "pay_1" };
+    const writers = [
+      (tx: never) => applyPaymentEvidence({ ...base, tx, source: "retrieve", evidence: { providerRef: "ch_1", status: "succeeded", refunds: [], disputes: [] } }),
+      (tx: never) => applyRefundEvidence({ ...base, tx, source: "webhook", evidence: { providerRefundRef: "re_x", correlationId: "rf_1", amount: USD(1_000), status: "pending" } }),
+      (tx: never) => reserveRefund({ ...base, tx, refundId: "rf_2", amountMinor: 1, idempotencyKey: "k2" }),
+      (tx: never) => recordRefundDispatchOutcome({ ...base, tx, refundId: "rf_2", outcome: "unknown" }),
+    ];
+    for (const writer of writers) {
+      calls.length = 0;
+      await run(writer as never);
+      expect(calls[0]).toBe("lockPayment");
+    }
   });
 });

@@ -10,12 +10,17 @@
  * through the pure planner (`plan-evidence.ts`), writes what changed, re-derives the caches from
  * the rows and enqueues outbox events. Evidence the planner refuses is quarantined with the
  * observation kept, never dropped and never capped.
+ *
+ * Known limit (L3 review, left to L5): refs are checked within ONE payment. A provider ref already
+ * held by another payment makes the insert throw `LedgerConstraintError`, rolling back the whole
+ * apply. On Postgres the transaction is poisoned, so the quarantine cannot be written inside it:
+ * the inbox worker must catch the error, roll back, and dead-letter/quarantine in a new transaction.
  */
 import type { DisputeEvidence, PaymentEvidence, RefundEvidence } from "../contract/evidence.js";
 import type { PaymentMode } from "../contract/scope.js";
 import type { LedgerTx } from "../ledger/repo.js";
 import type { EvidenceSource, EvidenceSubject, LedgerOutboxTopic, PaymentRecord, RefundRecord } from "../ledger/rows.js";
-import { mergeRefundStatus, refundTotals, refundableMinor } from "../state/status.js";
+import { disputedMinor, refundTotals, refundableMinor } from "../state/status.js";
 import {
   computeTotals, planDisputeEvidence, planIntentEvidence, planRefundEvidence,
   type EvidenceQuarantineReason, type PaymentState, type Quarantined,
@@ -165,6 +170,10 @@ function settlementPatch(evidence: PaymentEvidence): Partial<PaymentRecord> {
   };
 }
 
+function failuresFirst(refunds: readonly RefundEvidence[]): RefundEvidence[] {
+  return [...refunds.filter((r) => r.status === "failed"), ...refunds.filter((r) => r.status !== "failed")];
+}
+
 /**
  * Apply a full payment observation: the intent first (a quarantined intent stops the whole
  * observation — its refunds cannot be trusted to belong to this payment), then each refund and
@@ -189,10 +198,13 @@ export async function applyPaymentEvidence(
     ...settlementPatch(evidence),
   };
   ctx.payment = { ...ctx.payment, ...intent } as PaymentRecord;
-  for (const refund of evidence.refunds) await applyOneRefund(ctx, refund);
+  // The intent's topics first: consumers must see payment.succeeded before any refund of it.
+  await enqueue(ctx, plan.outbox, { amountMinor: ctx.payment.capturedMinor, currency: ctx.payment.currency });
+  // Failures first: a snapshot listing a later refund before an earlier one's failure must not
+  // trip the over-refund cap on money the failure already returned (L3 review).
+  for (const refund of failuresFirst(evidence.refunds)) await applyOneRefund(ctx, refund);
   for (const dispute of evidence.disputes) await applyOneDispute(ctx, dispute);
   await writeCaches(ctx, intent);
-  await enqueue(ctx, plan.outbox, { amountMinor: ctx.payment.capturedMinor, currency: ctx.payment.currency });
   return { kind: "applied", quarantined: ctx.quarantined, outbox: ctx.outbox, deferred: ctx.deferred };
 }
 
@@ -236,7 +248,10 @@ export async function reserveRefund(
   if (!ctx) return { kind: "missing" };
   if (ctx.payment.intentStatus !== "succeeded") return { kind: "not-refundable", status: ctx.payment.status };
   const refunds = await ctx.tx.listRefunds({ paymentId: ctx.payment.id });
-  const available = refundableMinor({ capturedMinor: ctx.payment.capturedMinor, totals: refundTotals({ refunds }) });
+  // Money withdrawn by an open or lost dispute is not refundable too: refund + chargeback would pay twice.
+  const disputes = await ctx.tx.listDisputes({ paymentId: ctx.payment.id });
+  const base = ctx.payment.capturedMinor - disputedMinor({ disputes });
+  const available = refundableMinor({ capturedMinor: base, totals: refundTotals({ refunds }) });
   if (!Number.isSafeInteger(required.amountMinor) || required.amountMinor <= 0) return { kind: "invalid-amount" };
   if (required.amountMinor > available) return { kind: "insufficient", refundableMinor: available };
   const refund: RefundRecord = {
@@ -251,8 +266,12 @@ export async function reserveRefund(
 /**
  * Record what a dispatched refund call answered when it carried no evidence: `rejected` (provably
  * no money moved) → `failed`, releasing the hold; `unknown` (timeout, 5xx) → `unknown`, keeping
- * the hold until a webhook or `retrieve` settles it — never `failed` (bug B4). Merged like any
- * evidence, so a webhook that already settled the row is not regressed.
+ * the hold until a webhook or `retrieve` settles it — never `failed` (bug B4).
+ *
+ * Only a `reserved` row moves: once a row is `unknown`, `pending` or settled, the provider may
+ * already have moved the money, and a later retry being rejected ("already refunded") proves
+ * nothing — flipping it to `failed` would release the hold and allow a double refund (L3 review
+ * blocker). Those rows settle only through evidence.
  */
 export async function recordRefundDispatchOutcome(
   required: Omit<WriterInput, "source"> & { refundId: string; outcome: "rejected" | "unknown" },
@@ -263,9 +282,10 @@ export async function recordRefundDispatchOutcome(
   const refunds = await ctx.tx.listRefunds({ paymentId: ctx.payment.id });
   const row = refunds.find((r) => r.id === required.refundId);
   if (!row) return { kind: "missing" };
-  const incoming = required.outcome === "rejected" ? "failed" : "unknown";
-  const status = mergeRefundStatus({ current: row.status, incoming });
-  if (status !== row.status) await ctx.tx.updateRefund({ id: row.id, patch: { status, updatedAt: ctx.deps.now() } });
-  await writeCaches(ctx, {});
+  if (row.status === "reserved") {
+    const status = required.outcome === "rejected" ? "failed" : "unknown";
+    await ctx.tx.updateRefund({ id: row.id, patch: { status, updatedAt: ctx.deps.now() } });
+    await writeCaches(ctx, {});
+  }
   return { kind: "applied", quarantined: [], outbox: [], deferred: 0 };
 }
