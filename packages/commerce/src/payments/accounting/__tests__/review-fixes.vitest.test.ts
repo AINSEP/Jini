@@ -145,3 +145,28 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
     });
   });
 }
+
+for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
+  describe(`R1-F2 persisted outbox order (${kind})`, () => {
+    test("fixed clock, ids whose lexical order reverses insertion: a later transaction reads the outbox in enqueue order", async () => {
+      const ledger = await openLedger(kind);
+      let seq = 0;
+      // Every id sorts BEFORE the previous one, and every message shares one created_at.
+      const deps = { now: () => NOW, newId: () => `id_${String(9_999 - ++seq).padStart(4, "0")}` };
+      await ledger.transaction((tx) => tx.insertPayment({ payment: newPayment() }));
+      const apply = (evidence: PaymentEvidence) =>
+        ledger.transaction((tx) => applyPaymentEvidence({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", source: "webhook", evidence }));
+      const base = { providerRef: "ch_1", correlationId: "pay_1", status: "succeeded" as const };
+      await apply({
+        ...base, refunds: [{ providerRefundRef: "re_1", amount: USD(1_000), status: "succeeded" }],
+        disputes: [{ providerDisputeRef: "dp_1", amount: USD(500), status: "open" }],
+      });
+      await apply({ ...base, refunds: [{ providerRefundRef: "re_2", amount: USD(2_000), status: "succeeded" }], disputes: [] });
+      const pending = await ledger.transaction((tx) => tx.listPendingOutbox({ limit: 10 }));
+      expect(pending.map((m) => m.topic)).toEqual(["payment.succeeded", "refund.succeeded", "dispute.opened", "refund.succeeded"]);
+      expect(pending.map((m) => m.createdAt)).toEqual([NOW, NOW, NOW, NOW]);
+      const ids = pending.map((m) => m.id);
+      expect(ids).toEqual([...ids].sort().reverse());
+    });
+  });
+}
