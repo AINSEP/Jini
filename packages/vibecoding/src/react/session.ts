@@ -158,6 +158,13 @@ export function createVibecodingSession(
     partContent.set(change.id, side === 'after' ? change.after : change.before);
   }
 
+  /** Mirrors a recorded snapshot restore in the cache and re-reads the part list it may have grown. */
+  async function restoredPatch(entry: HistoryEntry): Promise<Partial<VibecodingSessionSnapshot>> {
+    for (const change of entry.changes) cacheChange(change, 'after');
+    const parts = await target.listParts();
+    return { parts, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() };
+  }
+
   return {
     target,
     history,
@@ -246,18 +253,8 @@ export function createVibecodingSession(
     restoreSnapshot: ({ snapshot }) =>
       run(async () => {
         const entry = await history.restore({ snapshot });
-        if (!entry) return { result: entry, patch: {} };
-        for (const change of entry.changes) cacheChange(change, 'after');
-        const parts = await target.listParts();
-        return {
-          result: entry,
-          patch: {
-            parts,
-            partContent: new Map(partContent),
-            canUndo: history.canUndo(),
-            canRedo: history.canRedo(),
-          },
-        };
+        // A restore that already matched records no entry and changes nothing to mirror.
+        return { result: entry, patch: entry ? await restoredPatch(entry) : {} };
       }),
   };
 }

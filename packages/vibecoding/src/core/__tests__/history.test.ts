@@ -112,6 +112,25 @@ describe("transaction batching", () => {
     expect(history.entries()[0]?.changes.map((c) => c.id)).toEqual(["a"]);
   });
 
+  test("the recording target forwards reads, snapshots and restores to the real target without recording them", async () => {
+    const target = makeTarget({ initial: { a: "a0", b: "b0" } });
+    const history = createEditHistory({ target });
+
+    const seen = await history.transaction({ work: async (recording) => {
+      const listed = await recording.listParts();
+      const read = await recording.readPart({ id: "b" });
+      const snapshot = await recording.snapshot();
+      target.parts.set("a", "drifted");
+      await recording.restore({ snapshot });
+      return { listed, read, snapshot };
+    } });
+
+    expect(seen).toEqual({ listed: [{ id: "a" }, { id: "b" }], read: "b0", snapshot: { id: "snap", parts: { a: "a0", b: "b0" } } });
+    expect(target.parts.get("a")).toBe("a0");
+    // Only replacePart is recorded; a pass-through restore is the host's own business.
+    expect(history.canUndo()).toBe(false);
+  });
+
   test("a transaction that changes nothing records no entry — a fully rejected turn leaves no empty step", async () => {
     const target = makeTarget({
       initial: { a: "a0" },
