@@ -3,6 +3,9 @@ import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 import { createPersistentStateModule } from './persistent-state.js';
 import type { AgentPluginLifecyclePorts } from './ports.js';
 
+/** One update transaction's durable intent and, once finished, its audit record (`result`).
+ * `settingsSnapshot` is the host's NON-SECRET settings summary; hosts must never put secret values
+ * in it, because it is retained in the update history after the transaction ends. */
 export interface AgentPluginUpdateJournal {
   readonly schemaVersion: 1;
   readonly state: 'pending' | 'published' | 'committed';
@@ -26,24 +29,44 @@ export class AgentPluginUpdateError extends Error {
   }
 }
 
+const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
+const TRANSACTION_PATTERN = /^[a-zA-Z0-9-]{1,100}$/;
+const JOURNAL_STATES: readonly unknown[] = ['pending', 'published', 'committed'];
+
+function invalidJournal(optional: ErrorOptions = {}): AgentPluginUpdateError {
+  return new AgentPluginUpdateError({ code: 'UPDATE_JOURNAL_INVALID', message: 'Update recovery record is invalid.' }, optional);
+}
+
+function hasValidIdentity({ raw, pluginId }: { raw: Record<string, unknown>; pluginId: string }): boolean {
+  return raw.schemaVersion === 1 && raw.pluginId === pluginId && typeof raw.actor === 'string' && typeof raw.enabled === 'boolean';
+}
+
+/** Digests become path segments in recovery; the grammar check is what keeps them segments. */
+function hasValidDigests({ raw }: { raw: Record<string, unknown> }): boolean {
+  const digests = [raw.fromDigest, raw.toDigest];
+  return raw.fromDigest !== raw.toDigest && digests.every(digest => typeof digest === 'string' && DIGEST_PATTERN.test(digest));
+}
+
+/** The transaction id names the history file, so it gets the same segment discipline. */
+function hasValidTransaction({ raw }: { raw: Record<string, unknown> }): boolean {
+  return JOURNAL_STATES.includes(raw.state) && typeof raw.transactionId === 'string'
+    && TRANSACTION_PATTERN.test(raw.transactionId) && typeof raw.startedAt === 'string';
+}
+
 /** Validates durable intent before using it; no journal field is ever accepted as a path.
  * A damaged journal blocks mutations instead of discarding the only recovery record.
  */
 function parseJournal({ value, pluginId }: { value: unknown; pluginId: string }, _optional = {}): AgentPluginUpdateJournal {
-  if (typeof value !== 'object' || value === null) throw new AgentPluginUpdateError({ code: 'UPDATE_JOURNAL_INVALID', message: 'Update recovery record is invalid.' });
+  if (typeof value !== 'object' || value === null) throw invalidJournal();
   const raw = value as Record<string, unknown>;
-  const validIdentity = raw.schemaVersion === 1 && raw.pluginId === pluginId && typeof raw.actor === 'string' && typeof raw.enabled === 'boolean';
-  const validDigests = raw.fromDigest !== raw.toDigest && [raw.fromDigest, raw.toDigest].every(digest => typeof digest === 'string' && /^[a-f0-9]{64}$/.test(digest));
-  const validState = ['pending', 'published', 'committed'].includes(String(raw.state));
-  const validTransaction = typeof raw.transactionId === 'string' && /^[a-zA-Z0-9-]{1,100}$/.test(raw.transactionId);
-  if (!validIdentity || !validDigests || !validState || !validTransaction || typeof raw.startedAt !== 'string') {
-    throw new AgentPluginUpdateError({ code: 'UPDATE_JOURNAL_INVALID', message: 'Update recovery record is invalid.' });
-  }
+  if (!hasValidIdentity({ raw, pluginId }) || !hasValidDigests({ raw }) || !hasValidTransaction({ raw })) throw invalidJournal();
   return raw as unknown as AgentPluginUpdateJournal;
 }
 
-/** Durable per-plugin journal and audit files, using the existing platform atomic writer.
- * Settings snapshots are private (0600) and never returned to tools or HTTP callers.
+/** Durable per-plugin journal, audit history and frozen rollback area, all under the plugin's own
+ * state root (never under `package/sha256`, so a rollback copy is never a live digest). Files use
+ * the existing platform atomic writer. Settings snapshots are private (0600) and never returned to
+ * tools or HTTP callers.
  * @complexity O(s) serialization of the host's settings slice.
  */
 export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
@@ -61,9 +84,11 @@ export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
     await contain({ entryPath: journalPath });
     let text: string;
     try { text = await ports.filesystem.readFile(journalPath, 'utf8'); }
-    catch (error) { if (isMissing({ error })) return undefined; throw error; }
-    try { return parseJournal({ value: JSON.parse(text), pluginId }); }
-    catch (cause) { throw new AgentPluginUpdateError({ code: 'UPDATE_JOURNAL_INVALID', message: 'Update recovery record could not be read.' }, { cause }); }
+    catch (error) { if (!isMissing({ error })) throw error; return undefined; }
+    let value: unknown;
+    try { value = JSON.parse(text); }
+    catch (cause) { throw invalidJournal({ cause }); }
+    return parseJournal({ value, pluginId });
   }
   async function write({ journal, history = false }: { journal: AgentPluginUpdateJournal; history?: boolean }, _optional = {}): Promise<void> {
     const filePath = history ? path.join(root, 'update-history', `${journal.transactionId}.json`) : journalPath;
@@ -75,11 +100,25 @@ export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
     await contain({ entryPath: journalPath });
     await ports.filesystem.rm(journalPath, { force: true });
   }
+  /** Audit first, then drop the active journal: a crash between the two leaves a finished journal
+   * that the next update or boot re-files (same transaction id, so the history write is idempotent). */
+  async function finish({ journal }: { journal: AgentPluginUpdateJournal }, _optional = {}): Promise<void> {
+    await write({ journal, history: true });
+    await clear({});
+  }
   async function prepare(_required: Record<string, never>, _optional = {}): Promise<void> {
     await contain({ entryPath: rollbackDir });
     await ports.filesystem.mkdir(rollbackDir, { recursive: true, mode: 0o700 });
   }
-  return { read, write, clear, prepare,
+  /** Retained rollback copies (digest-named directories only); other entries are never touched. */
+  async function listRollbackRoots(_required: Record<string, never>, _optional = {}): Promise<string[]> {
+    await contain({ entryPath: rollbackDir });
+    let entries;
+    try { entries = await ports.filesystem.readdir(rollbackDir, { withFileTypes: true }); }
+    catch (error) { if (!isMissing({ error })) throw error; return []; }
+    return entries.filter(entry => entry.isDirectory() && DIGEST_PATTERN.test(entry.name)).map(entry => path.join(rollbackDir, entry.name));
+  }
+  return { read, write, clear, finish, prepare, listRollbackRoots, rollbackDir,
     rollbackRoot: ({ digest }: { digest: string }, _optional = {}) => path.join(rollbackDir, digest),
     liveRoot: ({ digest }: { digest: string }, _optional = {}) => path.join(workspace.pluginPackagesDir({ pluginId }), digest) };
 }
