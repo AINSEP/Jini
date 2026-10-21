@@ -9,7 +9,7 @@ afterEach(() => { vi.restoreAllMocks(); });
 function quietRenderErrors() { vi.spyOn(console, 'error').mockImplementation(() => {}); }
 
 describe('fetch-query hooks outside a provider', () => {
-  it.each([
+  it.each<[string, () => unknown]>([
     ['useFetchQuery', () => useFetchQuery({ key: ['k'], fetch: async () => 1 })],
     ['useFetchMutation', () => useFetchMutation({ run: async () => 1 })],
     ['useCachedLoader', () => useCachedLoader({ key: ['k'], fetch: async () => 1 })],

@@ -4,7 +4,7 @@ import { Button } from '../button.js';
 import { Card, CardFooter } from '../card.js';
 import { ContentCard } from '../content-card.js';
 import { DataTable } from '../data-table.js';
-import { Check } from '../icons.js';
+import { Check, type IconProps } from '../icons.js';
 import { Table, TableBody, TableCaption, TableCell, TableFooter, TableRow } from '../table.js';
 
 describe('Button asChild', () => {
@@ -66,7 +66,9 @@ describe('icon accessibility', () => {
   it('stays visible to assistive tech when the caller gives it a role or a title', () => {
     const { container: withRole } = render(<Check role="img" />);
     expect(withRole.querySelector('svg')).not.toHaveAttribute('aria-hidden');
-    const { container: withTitle } = render(<Check title="Done" />);
+    // `title` is not in React's SVG prop typings, but untyped (JS) callers and Lucide's own API pass it.
+    const jsCallerProps = { title: 'Done' } as unknown as IconProps;
+    const { container: withTitle } = render(<Check {...jsCallerProps} />);
     expect(withTitle.querySelector('svg')).not.toHaveAttribute('aria-hidden');
   });
 });
