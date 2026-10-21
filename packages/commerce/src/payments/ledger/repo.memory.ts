@@ -443,7 +443,7 @@ class MemoryLedgerTx implements LedgerTx {
 /**
  * A fresh, empty in-memory ledger.
  *
- * @example const ledger = memoryPaymentsLedger(); await ledger.transaction((tx) => tx.insertPayment({ payment }));
+ * @example const ledger = memoryPaymentsLedger(); await ledger.transaction({ fn: (tx) => tx.insertPayment({ payment }) });
  */
 export function memoryPaymentsLedger(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): PaymentsLedger {
   const tables = new MemoryLedgerTables();
@@ -462,7 +462,7 @@ export function memoryPaymentsLedger(_required: Record<string, never> = {}, _opt
   }
 
   return {
-    transaction<T>(fn: (tx: LedgerTx) => Promise<T>): Promise<T> {
+    transaction<T>({ fn }: { fn: (tx: LedgerTx) => Promise<T> }, _optional: Record<string, never> = {}): Promise<T> {
       if (active.getStore() === true) return fn(tx);
       const run = tail.then(() => active.run(true, () => attempt(fn)));
       // The queue must keep moving past a failed transaction; the caller still sees the failure via `run`.

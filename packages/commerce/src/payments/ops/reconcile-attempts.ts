@@ -34,7 +34,7 @@ function judge({ op, status }: { op: AttemptOpName; status: IntentStatus }): "ok
 
 function readPaymentOf({ deps, attempt }: { deps: OpsDeps; attempt: AttemptRecord }): Promise<PaymentRecord> {
   // An attempt's payment exists in its scope: the composite foreign key guarantees it.
-  return deps.ledger.transaction((tx) => tx.getPayment({ workspaceId: attempt.workspaceId, mode: attempt.mode, id: attempt.paymentId })) as Promise<PaymentRecord>;
+  return deps.ledger.transaction({ fn: (tx) => tx.getPayment({ workspaceId: attempt.workspaceId, mode: attempt.mode, id: attempt.paymentId }) }) as Promise<PaymentRecord>;
 }
 
 /**
@@ -45,7 +45,7 @@ function readPaymentOf({ deps, attempt }: { deps: OpsDeps; attempt: AttemptRecor
 async function close(
   { deps, attempt, outcome, status }: { deps: OpsDeps; attempt: AttemptRecord; outcome: "ok" | "rejected"; status: IntentStatus }
 ): Promise<Verdict> {
-  const closed = await deps.ledger.transaction(async (tx) => {
+  const closed = await deps.ledger.transaction({ fn: async (tx) => {
     const scope = { workspaceId: attempt.workspaceId, mode: attempt.mode };
     await tx.lockPayment({ ...scope, id: attempt.paymentId });
     const current = await tx.findAttemptByOperationKey({ ...scope, operationKey: attempt.operationKey });
@@ -53,7 +53,7 @@ async function close(
     const error = outcome === "ok" ? {} : { errorCode: "RECONCILED", errorMessage: `reconciled: the provider reports the payment ${status}` };
     await tx.updateAttempt({ id: attempt.id, patch: { outcome, ...error, updatedAt: deps.now() } });
     return true;
-  });
+  } });
   return closed && outcome === "rejected" ? "failed" : "settled";
 }
 

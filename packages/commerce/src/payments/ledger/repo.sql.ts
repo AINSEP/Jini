@@ -410,10 +410,10 @@ class SqlLedgerTx implements LedgerTx {
  * The SQL ledger over the host's storage kernel. The tables must exist: run
  * `migrateCommercePayments({ kernel })` first. No connection work happens here.
  *
- * @example const ledger = sqlPaymentsLedger({ kernel }); await ledger.transaction(async (tx) => tx.lockPayment({ workspaceId, mode, id }));
+ * @example const ledger = sqlPaymentsLedger({ kernel }); await ledger.transaction({ fn: async (tx) => tx.lockPayment({ workspaceId, mode, id }) });
  */
 export function sqlPaymentsLedger<DB>(required: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): PaymentsLedger {
   const kernel = required.kernel as unknown as StorageKernel<PaymentsLedgerDatabase>;
   const tx = new SqlLedgerTx(kernel);
-  return { transaction: (fn) => kernel.transaction(() => fn(tx)) };
+  return { transaction: ({ fn }) => kernel.transaction(() => fn(tx)) };
 }

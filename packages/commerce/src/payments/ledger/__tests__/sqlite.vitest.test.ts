@@ -44,7 +44,7 @@ describe("SQL adapter: driver errors", () => {
     const kernel = openKernel();
     try {
       // No migration: the table does not exist.
-      const error = await sqlPaymentsLedger({ kernel }).transaction((tx) => tx.insertPayment({ payment: payment() })).catch((caught: unknown) => caught);
+      const error = await sqlPaymentsLedger({ kernel }).transaction({ fn: (tx) => tx.insertPayment({ payment: payment() }) }).catch((caught: unknown) => caught);
       expect(error).not.toBeInstanceOf(LedgerConstraintError);
       expect(String(error)).toMatch(/no such table: commerce_payments/);
     } finally {
@@ -57,9 +57,9 @@ describe("SQL adapter: driver errors", () => {
     try {
       await migrateCommercePayments({ kernel });
       const ledger = sqlPaymentsLedger({ kernel });
-      await ledger.transaction((tx) => tx.insertPayment({ payment: payment() }));
+      await ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: payment() }) });
       const insert = (overrides: Parameters<typeof payment>[0]) =>
-        ledger.transaction((tx) => tx.insertPayment({ payment: payment(overrides) })).then(
+        ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: payment(overrides) }) }).then(
           () => new Error("expected a constraint error"),
           (caught: unknown) => caught as LedgerConstraintError
         );

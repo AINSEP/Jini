@@ -31,7 +31,7 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
       expect(JSON.parse(entry!.evidenceJson)).toEqual({
         evidence: { ...dispute, amount: USD(4_000), status: "lost" }, storedMinor: 10_000, observedMinor: 4_000, differenceMinor: -6_000,
       });
-      const disputes = await w.ledger.transaction((tx) => tx.listDisputes({ paymentId: "pay_1" }));
+      const disputes = await w.ledger.transaction({ fn: (tx) => tx.listDisputes({ paymentId: "pay_1" }) });
       expect(disputes.map((d) => [d.status, d.amountMinor])).toEqual([["lost", 10_000]]);
     });
 
@@ -77,12 +77,12 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
   describe(`intent dispatch outcome on ${kind}`, () => {
     async function unknownPayment(overrides: Parameters<typeof newPayment>[0] = {}) {
       const ledger = await openLedger(kind);
-      await ledger.transaction((tx) => tx.insertPayment({ payment: newPayment(overrides) }));
+      await ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: newPayment(overrides) }) });
       let seq = 0;
       const deps = { now: () => NOW + 1, newId: () => `id_${++seq}` };
       const record = (outcome: "rejected" | "unknown") =>
-        ledger.transaction((tx) => recordIntentDispatchOutcome({ tx, deps, ...SCOPE, paymentId: "pay_1", outcome }));
-      const read = () => ledger.transaction((tx) => tx.getPayment({ ...SCOPE, id: "pay_1" }));
+        ledger.transaction({ fn: (tx) => recordIntentDispatchOutcome({ tx, deps, ...SCOPE, paymentId: "pay_1", outcome }) });
+      const read = () => ledger.transaction({ fn: (tx) => tx.getPayment({ ...SCOPE, id: "pay_1" }) });
       return { ledger, record, read };
     }
 
@@ -106,7 +106,7 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
     test("a missing payment is reported", async () => {
       const ledger = await openLedger(kind);
       const deps = { now: () => NOW, newId: () => "x" };
-      expect(await ledger.transaction((tx) => recordIntentDispatchOutcome({ tx, deps, ...SCOPE, paymentId: "nope", outcome: "rejected" })))
+      expect(await ledger.transaction({ fn: (tx) => recordIntentDispatchOutcome({ tx, deps, ...SCOPE, paymentId: "nope", outcome: "rejected" }) }))
         .toEqual({ kind: "missing" });
     });
   });
@@ -117,7 +117,7 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
       await w.reserve("rf_1", 3_000);
       await w.dispatchOutcome("rf_1", "unknown");
       const settle = (status: "succeeded" | "failed", source: "retrieve" | "operator", refundId = "rf_1") =>
-        w.ledger.transaction((tx) => settleUnknownRefund({ tx, deps: w.deps, ...SCOPE, paymentId: "pay_1", source, refundId, status }));
+        w.ledger.transaction({ fn: (tx) => settleUnknownRefund({ tx, deps: w.deps, ...SCOPE, paymentId: "pay_1", source, refundId, status }) });
       return { w, settle };
     }
 
@@ -129,7 +129,7 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
       expect(after.payment).toMatchObject({ refundHeldMinor: 0, refundedMinor: 0, status: "succeeded" });
       expect(after.refunds.map((r) => r.status)).toEqual(["failed"]);
       expect(after.evidence.at(-1)).toMatchObject({ source: "retrieve", subject: "refund", subjectRef: "rf_1", observedStatus: "failed", amountMinor: 3_000, currency: "USD" });
-      const messages = await w.ledger.transaction((tx) => tx.listPendingOutbox({ limit: 100 }));
+      const messages = await w.ledger.transaction({ fn: (tx) => tx.listPendingOutbox({ limit: 100 }) });
       expect(JSON.parse(messages.at(-1)!.payloadJson)).toEqual({ paymentId: "pay_1", refundId: "rf_1", amountMinor: 3_000, currency: "USD", previousStatus: "unknown" });
       // Settled: a second attempt is refused and writes nothing.
       expect(await settle("succeeded", "operator")).toEqual({ kind: "not-unknown", status: "failed" });
@@ -147,33 +147,33 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
       const w = await paidPayment(kind);
       await w.reserve("rf_1", 3_000);
       const call = (paymentId: string, refundId: string) =>
-        w.ledger.transaction((tx) => settleUnknownRefund({ tx, deps: w.deps, ...SCOPE, paymentId, source: "operator", refundId, status: "failed" }));
+        w.ledger.transaction({ fn: (tx) => settleUnknownRefund({ tx, deps: w.deps, ...SCOPE, paymentId, source: "operator", refundId, status: "failed" }) });
       expect(await call("pay_1", "rf_1")).toEqual({ kind: "not-unknown", status: "reserved" });
       expect(await call("pay_1", "rf_nope")).toEqual({ kind: "missing" });
       expect(await call("pay_nope", "rf_1")).toEqual({ kind: "missing" });
-      await w.ledger.transaction((tx) => tx.updateRefund({ id: "rf_1", patch: { status: "unknown", providerRefundRef: "re_7", updatedAt: NOW } }));
+      await w.ledger.transaction({ fn: (tx) => tx.updateRefund({ id: "rf_1", patch: { status: "unknown", providerRefundRef: "re_7", updatedAt: NOW } }) });
       await call("pay_1", "rf_1");
       expect((await w.read()).evidence.at(-1)).toMatchObject({ subjectRef: "re_7" });
     });
 
     test("an operator settles an unknown intent: succeeded captures the full amount and announces it; failed moves nothing", async () => {
       const ledger = await openLedger(kind);
-      await ledger.transaction(async (tx) => {
+      await ledger.transaction({ fn: async (tx) => {
         await tx.insertPayment({ payment: newPayment() });
         await tx.insertPayment({ payment: newPayment({ id: "pay_2", idempotencyKey: "idem-2", providerRef: "ch_2" }) });
-      });
+      } });
       let seq = 0;
       const deps = { now: () => NOW, newId: () => `id_${++seq}` };
       const settle = (paymentId: string, status: "succeeded" | "failed") =>
-        ledger.transaction((tx) => settleUnknownIntent({ tx, deps, ...SCOPE, paymentId, source: "operator", status }));
+        ledger.transaction({ fn: (tx) => settleUnknownIntent({ tx, deps, ...SCOPE, paymentId, source: "operator", status }) });
       expect(await settle("pay_1", "succeeded")).toEqual({ kind: "settled", outbox: ["payment.succeeded"] });
       expect(await settle("pay_2", "failed")).toEqual({ kind: "settled", outbox: [] });
       expect(await settle("pay_1", "failed")).toEqual({ kind: "not-unknown", status: "succeeded" });
       expect(await settle("nope", "failed")).toEqual({ kind: "missing" });
-      const read = await ledger.transaction(async (tx) => ({
+      const read = await ledger.transaction({ fn: async (tx) => ({
         one: await tx.getPayment({ ...SCOPE, id: "pay_1" }), two: await tx.getPayment({ ...SCOPE, id: "pay_2" }),
         ev1: await tx.listEvidence({ paymentId: "pay_1" }), ev2: await tx.listEvidence({ paymentId: "pay_2" }),
-      }));
+      }) });
       expect(read.one).toMatchObject({ intentStatus: "succeeded", status: "succeeded", capturedMinor: 10_000 });
       expect(read.two).toMatchObject({ intentStatus: "failed", status: "failed", capturedMinor: 0 });
       expect(read.ev1).toEqual([expect.objectContaining({ source: "operator", subject: "payment", subjectRef: "pay_1", observedStatus: "succeeded", amountMinor: 10_000 })]);

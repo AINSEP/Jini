@@ -151,7 +151,7 @@ export async function world(optional: WorldOptions = {}) {
       const { scope: _ignored, ...rest } = binding;
       return grants.mint({ binding: { workspaceId: scope.workspaceId, mode: scope.mode, ...rest }, expiresAt: clock + 60_000 });
     },
-    read: (paymentId: string) => ledger.transaction(async (tx) => ({
+    read: (paymentId: string) => ledger.transaction({ fn: async (tx) => ({
       payment: await tx.getPayment({ workspaceId: "ws", mode: "test", id: paymentId }),
       attempts: await tx.listAttempts({ paymentId }),
       refunds: await tx.listRefunds({ paymentId }),
@@ -159,7 +159,7 @@ export async function world(optional: WorldOptions = {}) {
       actions: await tx.listOperatorActions({ paymentId }),
       quarantine: await tx.listQuarantine({ workspaceId: "ws", mode: "test" }),
       outbox: (await tx.listPendingOutbox({ limit: 100 })).map((m) => m.topic),
-    })),
+    }) }),
   };
 }
 

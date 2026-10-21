@@ -121,7 +121,7 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps, _optional: Reco
       if (!verified.facts.every(isRecordableFact)) return fail(500, "INVALID_FACT", "payments provider returned an unusable webhook fact");
       const bodySha256 = createHash("sha256").update(rawBody).digest("hex");
       const { scope } = endpoint;
-      const inserted = await deps.ledger.transaction(async (tx) => {
+      const inserted = await deps.ledger.transaction({ fn: async (tx) => {
         const results: boolean[] = [];
         for (const fact of verified.facts) {
           const now = deps.now();
@@ -137,7 +137,7 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps, _optional: Reco
           results.push(row.inserted || (await tx.reviveInbox({ id: row.id, nextAttemptAt: now }, { payload: { factsJson, bodySha256 } })));
         }
         return results;
-      });
+      } });
       const received = inserted.filter(Boolean).length;
       return { status: 200, body: { received, duplicates: inserted.length - received } };
     },

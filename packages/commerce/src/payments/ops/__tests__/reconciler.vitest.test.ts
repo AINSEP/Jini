@@ -19,7 +19,7 @@ const restart = { payments: null, refunds: null, attempts: null };
 
 async function insertPayment(w: World, overrides: Partial<NewPayment>) {
   const payment = newPayment({ siteId: "site", createdAt: NOW - AGE * 2, updatedAt: NOW - AGE * 2, ...overrides });
-  await w.ledger.transaction((tx) => tx.insertPayment({ payment }));
+  await w.ledger.transaction({ fn: (tx) => tx.insertPayment({ payment }) });
   return payment;
 }
 
@@ -69,10 +69,10 @@ describe("reconcileUnknown: payments", () => {
     await insertPayment(w, { id: "p_b", providerId: "scripted", idempotencyKey: "b", providerRef: "rb", updatedAt: NOW - AGE * 3 });
     await insertPayment(w, { id: "p_c", providerId: "scripted", idempotencyKey: "c", providerRef: "rc", updatedAt: NOW - AGE * 2 });
     const taken = await insertPayment(w, { id: "p_taken", providerId: "scripted", idempotencyKey: "t", providerRef: "rt", intentStatus: "succeeded", status: "succeeded" });
-    await w.ledger.transaction((tx) => tx.insertRefund({ refund: {
+    await w.ledger.transaction({ fn: (tx) => tx.insertRefund({ refund: {
       id: "rf_taken", paymentId: taken.id, workspaceId: "ws", siteId: "site", providerId: "scripted", providerAccountId: "acct_fake", mode: "test",
       idempotencyKey: null, providerRefundRef: "rr_taken", currency: "USD", amountMinor: 100, status: "succeeded", reason: null, createdAt: NOW, updatedAt: NOW,
-    } }));
+    } }) });
     w.scripted.queue(
       "retrieve",
       timedOut(),
@@ -163,7 +163,7 @@ describe("reconcileUnknown: refunds", () => {
     const alerts = recordingAlerts();
     const w = await world({ alerts, scripted: { capture: "auto", retrieve: "payment+refunds" } });
     const { id, refundId } = await unknownRefund(w, "payment+refunds");
-    await w.ledger.transaction((tx) => tx.updateRefund({ id: refundId, patch: { providerRefundRef: "sre_known", updatedAt: NOW } }));
+    await w.ledger.transaction({ fn: (tx) => tx.updateRefund({ id: refundId, patch: { providerRefundRef: "sre_known", updatedAt: NOW } }) });
     w.tick(AGE * 2);
     // Same ref, but a currency the writer quarantines: the row stays unknown.
     const bad = { providerRefundRef: "sre_known", amount: { minorUnits: 3_000, currency: "EUR" }, status: "succeeded" as const };
@@ -177,7 +177,7 @@ describe("reconcileUnknown: refunds", () => {
     const paid = await w.service.createIntent({ scope: SCRIPTED, amount: USD(10_000), idempotencyKey: "ik", reference: "o" });
     const id = (paid as { payment: { id: string } }).payment.id;
     const { reserveRefund } = await import("../../accounting/apply-evidence.js");
-    await w.ledger.transaction((tx) => reserveRefund({ tx, deps: { now: () => NOW, newId: () => "rf_crash" }, workspaceId: "ws", mode: "test", paymentId: id, refundId: "rf_crash", amountMinor: 500, idempotencyKey: "rk" }));
+    await w.ledger.transaction({ fn: (tx) => reserveRefund({ tx, deps: { now: () => NOW, newId: () => "rf_crash" }, workspaceId: "ws", mode: "test", paymentId: id, refundId: "rf_crash", amountMinor: 500, idempotencyKey: "rk" }) });
     w.tick(AGE * 2);
     w.scripted.queue("retrieve", { kind: "ok", value: { providerRef: `sp_${id}`, status: "succeeded", refunds: [], disputes: [] } });
     expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).refunds).toEqual({ ...zero, scanned: 1, failed: 1 });
@@ -254,10 +254,10 @@ describe("reconcileUnknown: capture/void attempts, without asking the provider o
     const done = await ambiguous(w, "void", "ik-1");
     const moved = await ambiguous(w, "capture", "ik-2");
     const { applyPaymentEvidence } = await import("../../accounting/apply-evidence.js");
-    const apply = (paymentId: string, status: "canceled") => w.ledger.transaction((tx) => applyPaymentEvidence({
+    const apply = (paymentId: string, status: "canceled") => w.ledger.transaction({ fn: (tx) => applyPaymentEvidence({
       tx, deps: { now: () => NOW, newId: () => `ev_${paymentId}` }, workspaceId: "ws", mode: "test", paymentId, source: "webhook",
       evidence: { providerRef: `sp_${paymentId}`, status, refunds: [], disputes: [] },
-    }));
+    }) });
     await apply(done.id, "canceled");
     await apply(moved.id, "canceled");
     const retrieves = w.scripted.calls.filter((c) => c.op === "retrieve").length;
@@ -285,7 +285,7 @@ describe("reconcileUnknown: capture/void attempts, without asking the provider o
     let lateAnswer: string | null = null;
     // The late provider answer lands exactly when the reconciler re-reads the attempt to close it.
     const wrapLedger = (ledger: PaymentsLedger): PaymentsLedger => ({
-      transaction: (fn) => ledger.transaction((tx) => fn(new Proxy(tx, {
+      transaction: ({ fn }) => ledger.transaction({ fn: (tx) => fn(new Proxy(tx, {
         get: (target, name) => {
           const value = Reflect.get(target, name).bind(target);
           if (name !== "findAttemptByOperationKey" || lateAnswer === null) return value;
@@ -293,7 +293,7 @@ describe("reconcileUnknown: capture/void attempts, without asking the provider o
           lateAnswer = null;
           return async (args: never) => { await target.updateAttempt({ id, patch: { outcome: "ok", updatedAt: NOW } }); return value(args); };
         },
-      }) as LedgerTx)),
+      }) as LedgerTx) }),
     });
     const w = await world({ wrapLedger });
     const { id, attemptId } = await ambiguous(w, "capture");

@@ -19,7 +19,7 @@ import { paymentView, providerSummary } from "./view.js";
 
 async function getPayment({ deps, scope, paymentId }: { deps: OpsDeps; scope: PaymentScope; paymentId: string }): Promise<PaymentView | null> {
   if (scopeProblem({ scope })) return null;
-  const record = await deps.ledger.transaction((tx) => readPayment({ tx, scope, paymentId }));
+  const record = await deps.ledger.transaction({ fn: (tx) => readPayment({ tx, scope, paymentId }) });
   return record ? paymentView(record) : null;
 }
 

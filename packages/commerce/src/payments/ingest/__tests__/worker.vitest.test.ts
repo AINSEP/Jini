@@ -34,13 +34,13 @@ async function evidenceInboxIds(w: World) {
 /** A ledger whose transactions hand out a tx whose `lockPayment` throws `thrown`. */
 function lockThrows(ledger: PaymentsLedger, thrown: () => unknown): PaymentsLedger {
   return {
-    transaction: (fn) => ledger.transaction((tx) => fn(new Proxy(tx, {
+    transaction: ({ fn }) => ledger.transaction({ fn: (tx) => fn(new Proxy(tx, {
       get(target, key) {
         if (key === "lockPayment") return async () => { throw thrown(); };
         const value = Reflect.get(target, key) as unknown;
         return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
       },
-    }) as LedgerTx)),
+    }) as LedgerTx) }),
   };
 }
 

@@ -35,9 +35,9 @@ export async function applySnapshot(
   { deps, payment, evidence }: { deps: OpsDeps; payment: PaymentRecord; evidence: PaymentEvidence },
   _optional: Record<string, never> = {}
 ): Promise<boolean> {
-  const result = await deps.ledger.transaction((tx) => applyPaymentEvidence({
+  const result = await deps.ledger.transaction({ fn: (tx) => applyPaymentEvidence({
     tx, deps: deps.writer, workspaceId: payment.workspaceId, mode: payment.mode, paymentId: payment.id, source: "retrieve", evidence,
-  }));
+  }) });
   return noteApplied({ deps, payment, result });
 }
 

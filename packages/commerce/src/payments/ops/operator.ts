@@ -82,7 +82,7 @@ export async function resolveUnknown(
 ): Promise<ResolveUnknownResult> {
   const problem = checkResolve({ deps, required });
   if (problem) return problem;
-  const resolved = await deps.ledger.transaction((tx) => resolveInTx({ tx, deps, required }));
+  const resolved = await deps.ledger.transaction({ fn: (tx) => resolveInTx({ tx, deps, required }) });
   if ("ok" in resolved) return resolved;
   return { ok: true, payment: paymentView(resolved.payment), refund: resolved.refund ? refundView(resolved.refund) : null };
 }

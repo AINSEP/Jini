@@ -50,7 +50,7 @@ describe("Stripe → service → ledger", () => {
     expect(authorized).toMatchObject({ ok: true, payment: { status: "authorized", captured: usd(0) } });
     if (!authorized.ok) return;
     const paymentId = authorized.payment.id;
-    const quarantine = await ledger.transaction((tx) => tx.listQuarantine({ workspaceId: "ws", mode: "test" }));
+    const quarantine = await ledger.transaction({ fn: (tx) => tx.listQuarantine({ workspaceId: "ws", mode: "test" }) });
     expect(quarantine).toEqual([]);
 
     const binding = { op: "capture" as const, workspaceId: "ws", mode: "test" as const, paymentId, amount: usd(1_500), idempotencyKey: "ik-cap" };

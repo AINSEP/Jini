@@ -53,8 +53,8 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
         id: "in_1", workspaceId: "ws", siteId: "site", providerId: "lipay", providerAccountId: "acct_fake", mode: "test" as const,
         providerEventId: "evt_1", factsJson: "{}", bodySha256: "ab".repeat(32), nextAttemptAt: NOW, receivedAt: NOW,
       };
-      const first = await w.ledger.transaction((tx) => tx.insertInbox({ entry }));
-      const second = await w.ledger.transaction((tx) => tx.insertInbox({ entry: { ...entry, id: "in_2" } }));
+      const first = await w.ledger.transaction({ fn: (tx) => tx.insertInbox({ entry }) });
+      const second = await w.ledger.transaction({ fn: (tx) => tx.insertInbox({ entry: { ...entry, id: "in_2" } }) });
       expect([first.inserted, second.inserted]).toEqual([true, false]);
       const evidence = await w.webhook("refund.updated", "re_2", "evt_1");
       await w.payment(evidence);
@@ -281,21 +281,21 @@ describe("guards", () => {
   test("every writer reports a missing payment", async () => {
     const ledger = memoryPaymentsLedger();
     const evidence = { providerRefundRef: "re", amount: USD(1), status: "succeeded" as const };
-    await ledger.transaction(async (tx) => {
+    await ledger.transaction({ fn: async (tx) => {
       expect(await applyPaymentEvidence({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "nope", source: "webhook", evidence: { providerRef: "c", status: "pending", refunds: [], disputes: [] } })).toEqual({ kind: "missing" });
       expect(await applyRefundEvidence({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "nope", source: "webhook", evidence })).toEqual({ kind: "missing" });
       expect(await reserveRefund({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "nope", refundId: "r", amountMinor: 1, idempotencyKey: "k" })).toEqual({ kind: "missing" });
       expect(await recordRefundDispatchOutcome({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "nope", refundId: "r", outcome: "unknown" })).toEqual({ kind: "missing" });
-    });
+    } });
   });
 
   test("an unpaid payment is not refundable; a bad amount is refused; an unknown refund id is missing", async () => {
     const ledger = memoryPaymentsLedger();
-    await ledger.transaction((tx) => tx.insertPayment({ payment: newPayment({ intentStatus: "pending", status: "pending" }) }));
-    await ledger.transaction(async (tx) => {
+    await ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: newPayment({ intentStatus: "pending", status: "pending" }) }) });
+    await ledger.transaction({ fn: async (tx) => {
       expect(await reserveRefund({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", refundId: "r", amountMinor: 1, idempotencyKey: "k" })).toEqual({ kind: "not-refundable", status: "pending" });
       expect(await recordRefundDispatchOutcome({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", refundId: "r", outcome: "rejected" })).toEqual({ kind: "missing" });
-    });
+    } });
     const w = await paidPayment("memory");
     expect(await w.reserve("r", 0)).toEqual({ kind: "invalid-amount" });
     expect(await w.reserve("r", 1.5)).toEqual({ kind: "invalid-amount" });
@@ -303,18 +303,18 @@ describe("guards", () => {
 
   test("a refund reservation carries its idempotency key and reason", async () => {
     const w = await paidPayment("memory");
-    const reserved = await w.ledger.transaction((tx) =>
-      reserveRefund({ tx, deps: w.deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", refundId: "rf_r", amountMinor: 100, idempotencyKey: "kr" }, { reason: "requested_by_customer" }));
+    const reserved = await w.ledger.transaction({ fn: (tx) =>
+      reserveRefund({ tx, deps: w.deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", refundId: "rf_r", amountMinor: 100, idempotencyKey: "kr" }, { reason: "requested_by_customer" }) });
     expect(reserved).toMatchObject({ kind: "reserved", refund: { idempotencyKey: "kr", reason: "requested_by_customer", status: "reserved", currency: "USD" } });
   });
 
   test("a writer that bypasses the lock is detected, not silently overwritten", async () => {
     const w = await paidPayment("memory");
-    await expect(w.ledger.transaction(async (tx) => {
+    await expect(w.ledger.transaction({ fn: async (tx) => {
       const original = tx.updatePayment.bind(tx);
       tx.updatePayment = async (r) => { await original({ ...r, patch: { updatedAt: NOW } }); return original(r); };
       return applyRefundEvidence({ tx, deps: w.deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", source: "webhook", evidence: { providerRefundRef: "re_q", amount: USD(5), status: "pending" } });
-    })).rejects.toThrow("payments ledger: payment pay_1 changed under its lock");
+    } })).rejects.toThrow("payments ledger: payment pay_1 changed under its lock");
   });
 });
 
@@ -423,11 +423,11 @@ describe("L3 review fixes (writer)", () => {
     const w = await paidPayment("memory");
     const first = await w.retrieve();
     // A fresh payment whose first evidence already carries a refund.
-    await w.ledger.transaction((tx) => tx.insertPayment({ payment: { ...newPayment({ id: "pay_2", idempotencyKey: "idem-2" }) } }));
-    const result = await w.ledger.transaction((tx) => applyPaymentEvidence({
+    await w.ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: { ...newPayment({ id: "pay_2", idempotencyKey: "idem-2" }) } }) });
+    const result = await w.ledger.transaction({ fn: (tx) => applyPaymentEvidence({
       tx, deps: w.deps, workspaceId: "ws", mode: "test", paymentId: "pay_2", source: "webhook",
       evidence: { ...first, providerRef: "ch_9", correlationId: "pay_2", refunds: [{ providerRefundRef: "re_9", amount: USD(100), status: "succeeded" }] },
-    }));
+    }) });
     expect(result).toMatchObject({ kind: "applied", outbox: ["payment.succeeded", "refund.succeeded"] });
   });
 
@@ -435,13 +435,13 @@ describe("L3 review fixes (writer)", () => {
     const w = await paidPayment("memory");
     await w.reserve("rf_1", 1_000);
     const calls: string[] = [];
-    const run = (fn: Parameters<typeof w.ledger.transaction>[0]) => w.ledger.transaction((tx) => {
+    const run = (fn: Parameters<typeof w.ledger.transaction>[0]["fn"]) => w.ledger.transaction({ fn: (tx) => {
       const spy = new Proxy(tx, { get: (target, name) => {
         const value = Reflect.get(target, name);
         return typeof value === "function" ? (...args: unknown[]) => { calls.push(String(name)); return value.apply(target, args); } : value;
       } });
       return fn(spy);
-    });
+    } });
     const base = { deps: w.deps, workspaceId: "ws", mode: "test" as const, paymentId: "pay_1" };
     const writers = [
       (tx: never) => applyPaymentEvidence({ ...base, tx, source: "retrieve", evidence: { providerRef: "ch_1", status: "succeeded", refunds: [], disputes: [] } }),

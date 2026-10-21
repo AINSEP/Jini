@@ -144,7 +144,7 @@ async function admit(
 
 async function openOp({ deps, spec, required }: { deps: OpsDeps; spec: OpSpec; required: VoidRequired }): Promise<Done | Opened> {
   const { scope, idempotencyKey } = required;
-  const open = () => deps.ledger.transaction(async (tx): Promise<Done | Opened> => {
+  const open = () => deps.ledger.transaction({ fn: async (tx): Promise<Done | Opened> => {
     const prior = await lookupOp({ tx, spec, required });
     if (prior) return prior;
     // The lock serializes this check against a concurrent capture/void and the evidence writers.
@@ -157,19 +157,19 @@ async function openOp({ deps, spec, required }: { deps: OpsDeps; spec: OpSpec; r
     );
     await tx.insertAttempt({ attempt });
     return { kind: "opened", payment: payment as PaymentRecord, attempt };
-  });
-  return onUniqueRace({ open, lookup: () => deps.ledger.transaction((tx) => lookupOp({ tx, spec, required })) });
+  } });
+  return onUniqueRace({ open, lookup: () => deps.ledger.transaction({ fn: (tx) => lookupOp({ tx, spec, required }) }) });
 }
 
 async function settleOp({ deps, opened, outcome }: { deps: OpsDeps; opened: Opened; outcome: Outcome<PaymentEvidence> }): Promise<IntentResult> {
   const { payment, attempt } = opened;
-  const result = await deps.ledger.transaction(async (tx) => {
+  const result = await deps.ledger.transaction({ fn: async (tx) => {
     await markAttempt({ tx, deps, attemptId: attempt.id, outcome });
     if (outcome.kind !== "ok") return null;
     return applyPaymentEvidence({ tx, deps: deps.writer, workspaceId: payment.workspaceId, mode: payment.mode, paymentId: payment.id, source: "response", evidence: outcome.value });
-  });
+  } });
   const scope = scopeOf(payment);
-  const view = paymentView((await deps.ledger.transaction((tx) => readPayment({ tx, scope, paymentId: payment.id }))) as PaymentRecord);
+  const view = paymentView((await deps.ledger.transaction({ fn: (tx) => readPayment({ tx, scope, paymentId: payment.id }) })) as PaymentRecord);
   if (outcome.kind !== "ok") return { ok: false, error: outcome.error, payment: view };
   // An ok outcome always went through applyPaymentEvidence above.
   if (!(await noteApplied({ deps, payment, result: result as ApplyResult }))) {

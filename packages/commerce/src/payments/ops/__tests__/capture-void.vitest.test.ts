@@ -65,18 +65,18 @@ describe("capture/void: idempotency", () => {
     await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(6_000), idempotencyKey: "ck-1", grant: await captureGrant(w, held.id, 6_000) });
     const [legacy] = (await w.read(held.id)).attempts.filter((a) => a.op === "capture");
     // Simulate a pre-0004 row: same key, no amount on record.
-    await w.ledger.transaction((tx) => tx.insertAttempt({ attempt: { ...legacy!, id: "att_legacy", operationKey: "capture:ck-old", currency: null, amountMinor: null } }));
+    await w.ledger.transaction({ fn: (tx) => tx.insertAttempt({ attempt: { ...legacy!, id: "att_legacy", operationKey: "capture:ck-old", currency: null, amountMinor: null } }) });
     expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(1), idempotencyKey: "ck-old", grant: "g" })).toMatchObject({ ok: true, replayed: true });
   });
 
   test("an idempotency race lost at the attempt insert turns into the winner's replay", async () => {
     let blind = false;
     const wrap = (ledger: PaymentsLedger): PaymentsLedger => ({
-      transaction: (fn) => ledger.transaction((tx) => fn(new Proxy(tx, {
+      transaction: ({ fn }) => ledger.transaction({ fn: (tx) => fn(new Proxy(tx, {
         get: (target, name) => (blind && name === "findAttemptByOperationKey"
           ? () => { blind = false; return Promise.resolve(null); }
           : Reflect.get(target, name).bind(target)),
-      }) as LedgerTx)),
+      }) as LedgerTx) }),
     });
     const w = await world({ wrapLedger: wrap });
     const held = await authorizedScripted(w);
@@ -183,7 +183,7 @@ describe("capture/void: an ambiguous outcome blocks a conflicting dispatch until
     expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(100), idempotencyKey: "ck-1", grant: "g" })).toMatchObject({ ok: true, replayed: true });
     // Resolved (here: the provider's answer finally recorded): the same grant now works.
     const [open] = (await w.read(held.id)).attempts.filter((a) => a.op === "capture");
-    await w.ledger.transaction((tx) => tx.updateAttempt({ id: open!.id, patch: { outcome: "rejected", updatedAt: NOW } }));
+    await w.ledger.transaction({ fn: (tx) => tx.updateAttempt({ id: open!.id, patch: { outcome: "rejected", updatedAt: NOW } }) });
     expect(await w.service.void({ scope: SCRIPTED, paymentId: held.id, idempotencyKey: "vk-1", grant })).toMatchObject({ ok: true, payment: { status: "canceled" } });
   });
 
@@ -191,7 +191,7 @@ describe("capture/void: an ambiguous outcome blocks a conflicting dispatch until
     const w = await world();
     const held = await authorizedScripted(w);
     const [intent] = (await w.read(held.id)).attempts;
-    await w.ledger.transaction((tx) => tx.insertAttempt({ attempt: { ...intent!, id: "att_v", op: "void", operationKey: "void:vk-0", outcome: "dispatched" } }));
+    await w.ledger.transaction({ fn: (tx) => tx.insertAttempt({ attempt: { ...intent!, id: "att_v", op: "void", operationKey: "void:vk-0", outcome: "dispatched" } }) });
     expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(100), idempotencyKey: "ck-1", grant: await captureGrant(w, held.id, 100) }))
       .toMatchObject({ ok: false, error: { code: "INVALID_REQUEST", message: "a void of this payment is still unresolved; retry once it is reconciled" } });
   });

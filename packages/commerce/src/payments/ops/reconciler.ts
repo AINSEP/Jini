@@ -86,7 +86,7 @@ function couldBe({ candidate, row, refunds }: { candidate: RefundEvidence; row: 
 async function judgeRefund(
   { deps, payment, refundId, snapshot }: { deps: OpsDeps; payment: PaymentRecord; refundId: string; snapshot: { evidence: PaymentEvidence; provider: PaymentProvider } }
 ): Promise<Verdict> {
-  const refunds = await deps.ledger.transaction((tx) => tx.listRefunds({ paymentId: payment.id }));
+  const refunds = await deps.ledger.transaction({ fn: (tx) => tx.listRefunds({ paymentId: payment.id }) });
   // The refund row exists: it was listed by this run and refunds are never deleted.
   const row = refunds.find((r) => r.id === refundId) as RefundRecord;
   if (row.status === "succeeded" || row.status === "failed") return "settled";
@@ -96,19 +96,19 @@ async function judgeRefund(
   if (snapshot.evidence.refunds.some((candidate) => couldBe({ candidate, row, refunds }))) {
     return leave({ deps, payment, detail: `${label}: the snapshot lists a refund that may be it` });
   }
-  await deps.ledger.transaction((tx) => settleUnknownRefund({
+  await deps.ledger.transaction({ fn: (tx) => settleUnknownRefund({
     tx, deps: deps.writer, workspaceId: payment.workspaceId, mode: payment.mode, paymentId: payment.id, source: "retrieve", refundId: row.id, status: "failed",
-  }));
+  }) });
   return "failed";
 }
 
 async function reconcileRefund({ deps, refund }: { deps: OpsDeps; refund: RefundRecord }): Promise<Verdict> {
   const target = { workspaceId: refund.workspaceId, mode: refund.mode, paymentId: refund.paymentId };
   // A refund's payment exists in its scope: the composite foreign key guarantees it.
-  const payment = (await deps.ledger.transaction((tx) => tx.getPayment({ ...target, id: refund.paymentId }))) as PaymentRecord;
+  const payment = (await deps.ledger.transaction({ fn: (tx) => tx.getPayment({ ...target, id: refund.paymentId }) })) as PaymentRecord;
   if (refund.status === "reserved") {
     // Dispatched (Tx1 committed) but never settled: its outcome is unknown, never failed.
-    await deps.ledger.transaction((tx) => recordRefundDispatchOutcome({ tx, deps: deps.writer, ...target, refundId: refund.id, outcome: "unknown" }));
+    await deps.ledger.transaction({ fn: (tx) => recordRefundDispatchOutcome({ tx, deps: deps.writer, ...target, refundId: refund.id, outcome: "unknown" }) });
   }
   const snapshot = await retrieveSnapshot({ deps, payment });
   if (!snapshot.ok) return leave({ deps, payment, detail: `refund ${refund.id} is unsettled: ${snapshot.why}` });
@@ -149,11 +149,11 @@ export async function reconcileUnknown(
 ): Promise<ReconcileReport> {
   const updatedBefore = deps.now() - olderThanMs;
   const { scope, cursor } = optional;
-  const { payments, refunds, attempts } = await deps.ledger.transaction(async (tx) => ({
+  const { payments, refunds, attempts } = await deps.ledger.transaction({ fn: async (tx) => ({
     payments: await tx.listUnknownPayments({ updatedBefore, limit }, scanOptions({ scope, after: cursor?.payments })),
     refunds: await tx.listUnsettledRefunds({ updatedBefore, limit }, scanOptions({ scope, after: cursor?.refunds })),
     attempts: await tx.listOpenAttempts({ ops: RECONCILED_ATTEMPT_OPS, updatedBefore, limit }, scanOptions({ scope, after: cursor?.attempts })),
-  }));
+  }) });
   return {
     payments: await tally({ rows: payments, judge: (payment) => reconcilePayment({ deps, payment }) }),
     refunds: await tally({ rows: refunds, judge: (refund) => reconcileRefund({ deps, refund }) }),

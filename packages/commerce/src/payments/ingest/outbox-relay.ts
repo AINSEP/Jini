@@ -64,7 +64,7 @@ function messageOf(record: OutboxRecord): PaymentsOutboxMessage {
 export function createOutboxRelay(deps: OutboxRelayDeps, _optional: Record<string, never> = {}): OutboxRelay {
   return {
     runOnce: async ({ limit }) => {
-      const pending = await deps.ledger.transaction((tx) => tx.listPendingOutbox({ limit }));
+      const pending = await deps.ledger.transaction({ fn: (tx) => tx.listPendingOutbox({ limit }) });
       let published = 0;
       for (const record of pending) {
         try {
@@ -73,7 +73,7 @@ export function createOutboxRelay(deps: OutboxRelayDeps, _optional: Record<strin
         } catch {
           return { published, stopped: true };
         }
-        await deps.ledger.transaction((tx) => tx.markOutboxPublished({ id: record.id, publishedAt: deps.now() }));
+        await deps.ledger.transaction({ fn: (tx) => tx.markOutboxPublished({ id: record.id, publishedAt: deps.now() }) });
         published += 1;
       }
       return { published, stopped: false };

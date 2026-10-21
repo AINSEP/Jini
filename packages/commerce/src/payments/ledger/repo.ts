@@ -4,7 +4,7 @@
  * same semantics: `repo.sql.ts` (any `@jini-ai/db` storage kernel, SQLite or Postgres) and
  * `repo.memory.ts` (tests, fakes). One shared contract suite runs against both.
  *
- * Shape: `PaymentsLedger.transaction(fn)` hands `fn` a {@link LedgerTx}. Every read and write goes
+ * Shape: `PaymentsLedger.transaction({ fn })` hands `fn` a {@link LedgerTx}. Every read and write goes
  * through the tx so a writer composes "lock payment → read rows → decide → write rows + outbox" as
  * one atomic unit; a throw rolls all of it back.
  *
@@ -207,5 +207,5 @@ export interface PaymentsLedger {
    * it back and rethrows. Transactions are serialized per payment by `lockPayment`; a nested call
    * joins the outer transaction (no savepoint), as `@jini-ai/db`'s kernel does.
    */
-  transaction<T>(fn: (tx: LedgerTx) => Promise<T>, optional?: Record<string, never>): Promise<T>;
+  transaction<T>(required: { fn: (tx: LedgerTx) => Promise<T> }, optional?: Record<string, never>): Promise<T>;
 }

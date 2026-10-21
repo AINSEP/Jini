@@ -56,11 +56,11 @@ describe("refund: idempotency", () => {
   test("an idempotency race lost at the reservation insert turns into the winner's replay", async () => {
     let blind = false;
     const wrap = (ledger: PaymentsLedger): PaymentsLedger => ({
-      transaction: (fn) => ledger.transaction((tx) => fn(new Proxy(tx, {
+      transaction: ({ fn }) => ledger.transaction({ fn: (tx) => fn(new Proxy(tx, {
         get: (target, name) => (blind && name === "findRefundByIdempotencyKey"
           ? () => { blind = false; return Promise.resolve(null); }
           : Reflect.get(target, name).bind(target)),
-      }) as LedgerTx)),
+      }) as LedgerTx) }),
     });
     const w = await world({ wrapLedger: wrap });
     const paid = await paidLipay(w);

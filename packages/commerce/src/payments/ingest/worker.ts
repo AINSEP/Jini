@@ -155,7 +155,7 @@ async function settle({ env, tx, row, verdict }: { env: Env; tx: LedgerTx; row: 
 }
 
 const settleAlone = (env: Env, row: InboxRecord, verdict: Verdict): Promise<Settled> =>
-  env.deps.ledger.transaction((tx) => settle({ env, tx, row, verdict }));
+  env.deps.ledger.transaction({ fn: (tx) => settle({ env, tx, row, verdict }) });
 
 /** The evidence to apply: the fact's own, or a `retrieve` snapshot for an id-only event. */
 async function evidenceFor(env: Env, row: InboxRecord, fact: WebhookFact, provider: PaymentProvider): Promise<Located | { error: string }> {
@@ -220,7 +220,7 @@ function verdictForThrow(error: unknown, paymentId: string | null, evidence: Pay
 async function applyAndSettle(env: Env, row: InboxRecord, found: Located): Promise<Settled> {
   const seen: { paymentId: string | null } = { paymentId: null };
   try {
-    return await env.deps.ledger.transaction(async (tx) => settle({ env, tx, row, verdict: await applyInTx(env, tx, row, found, seen) }));
+    return await env.deps.ledger.transaction({ fn: async (tx) => settle({ env, tx, row, verdict: await applyInTx(env, tx, row, found, seen) }) });
   } catch (error) {
     return settleAlone(env, row, verdictForThrow(error, seen.paymentId, found.evidence));
   }
@@ -251,7 +251,7 @@ export function createInboxWorker(deps: InboxWorkerDeps, optional: InboxWorkerOp
   };
   return {
     runOnce: async ({ limit }) => {
-      const due = await deps.ledger.transaction((tx) => tx.listDueInbox({ now: deps.now(), limit }));
+      const due = await deps.ledger.transaction({ fn: (tx) => tx.listDueInbox({ now: deps.now(), limit }) });
       const counts = { seen: due.length, applied: 0, parked: 0, dead: 0, quarantined: 0 };
       for (const row of due) {
         const settled = await processRow(env, row);
@@ -261,10 +261,10 @@ export function createInboxWorker(deps: InboxWorkerDeps, optional: InboxWorkerOp
       }
       return counts;
     },
-    requeue: ({ id }) => deps.ledger.transaction(async (tx) => {
+    requeue: ({ id }) => deps.ledger.transaction({ fn: async (tx) => {
       const row = await tx.getInbox({ id });
       if (row?.state !== "dead" || row.factsJson === null) return false;
       return tx.reviveInbox({ id, nextAttemptAt: deps.now() });
-    }),
+    } }),
   };
 }

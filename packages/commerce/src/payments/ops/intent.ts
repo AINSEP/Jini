@@ -58,8 +58,8 @@ function checkIntent(
 /** Same key + same scope, amount, currency and reference = replay; same key, anything else = conflict. */
 async function lookupIntent({ deps, required }: { deps: OpsDeps; required: IntentRequired }): Promise<IntentResult | null> {
   const { scope, amount } = required;
-  const prior = await deps.ledger.transaction((tx) =>
-    tx.findPaymentByIdempotencyKey({ workspaceId: scope.workspaceId, mode: scope.mode, key: required.idempotencyKey }));
+  const prior = await deps.ledger.transaction({ fn: (tx) =>
+    tx.findPaymentByIdempotencyKey({ workspaceId: scope.workspaceId, mode: scope.mode, key: required.idempotencyKey }) });
   if (!prior) return null;
   const same = sameScope({ a: scopeOf(prior), b: scope }) && prior.amountMinor === amount.minorUnits
     && prior.currency === amount.currency && prior.reference === required.reference;
@@ -103,12 +103,12 @@ type Opened = { readonly kind: "opened"; readonly payment: PaymentRecord; readon
 function openIntent(
   { deps, required, optional, paymentId }: { deps: OpsDeps; required: IntentRequired; optional: IntentOptional; paymentId: string }
 ): Promise<Opened> {
-  const open = () => deps.ledger.transaction(async (tx): Promise<Opened> => {
+  const open = () => deps.ledger.transaction({ fn: async (tx): Promise<Opened> => {
     const payment = await tx.insertPayment({ payment: newPaymentRecord({ deps, required, optional, paymentId }) });
     const attempt = newAttempt({ deps, payment, op: "intent", operationKey: `intent:${required.idempotencyKey}` });
     await tx.insertAttempt({ attempt });
     return { kind: "opened", payment, attempt };
-  });
+  } });
   const lookup = async (): Promise<Opened | null> => {
     const result = await lookupIntent({ deps, required });
     return result ? { kind: "done", result } : null;
@@ -130,13 +130,13 @@ async function settleIntent(
   const { payment, attempt } = opened;
   const scope = scopeOf(payment);
   const target = { deps: deps.writer, workspaceId: payment.workspaceId, mode: payment.mode, paymentId: payment.id };
-  const result = await deps.ledger.transaction(async (tx) => {
+  const result = await deps.ledger.transaction({ fn: async (tx) => {
     await markAttempt({ tx, deps, attemptId: attempt.id, outcome });
     if (outcome.kind === "ok") return applyPaymentEvidence({ ...target, tx, source: "response", evidence: withNext(outcome.value) });
     return recordIntentDispatchOutcome({ ...target, tx, outcome: outcome.kind });
-  });
+  } });
   // The payment row was inserted by Tx1 and payments are never deleted.
-  const view = paymentView((await deps.ledger.transaction((tx) => readPayment({ tx, scope, paymentId: payment.id }))) as PaymentRecord);
+  const view = paymentView((await deps.ledger.transaction({ fn: (tx) => readPayment({ tx, scope, paymentId: payment.id }) })) as PaymentRecord);
   if (outcome.kind !== "ok") return { ok: false, error: outcome.error, payment: view };
   if (!(await noteApplied({ deps, payment, result }))) {
     return { ...fail({ code: "PROVIDER_ERROR", message: "the provider's response could not be applied and was quarantined for review" }), payment: view };

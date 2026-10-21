@@ -34,11 +34,11 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
       let seq = 0;
       const deps = { now: () => NOW, newId: () => `id_${++seq}` };
       const scope = { workspaceId: "ws", mode: "test" as const, paymentId: "pay_1" };
-      await ledger.transaction((tx) => tx.insertPayment({ payment: newPayment() }));
-      const apply = (evidence: PaymentEvidence) => ledger.transaction((tx) => applyPaymentEvidence({ tx, deps, ...scope, source: "response", evidence }));
+      await ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: newPayment() }) });
+      const apply = (evidence: PaymentEvidence) => ledger.transaction({ fn: (tx) => applyPaymentEvidence({ tx, deps, ...scope, source: "response", evidence }) });
       const base = { providerRef: "ch_1", correlationId: "pay_1", amount: USD(10_000), refunds: [], disputes: [] };
       expect(await apply({ ...base, status: "authorized", captured: USD(0) })).toEqual({ kind: "applied", quarantined: [], outbox: [], deferred: 0 });
-      const read = () => ledger.transaction((tx) => tx.getPayment({ workspaceId: "ws", mode: "test", id: "pay_1" }));
+      const read = () => ledger.transaction({ fn: (tx) => tx.getPayment({ workspaceId: "ws", mode: "test", id: "pay_1" }) });
       expect(await read()).toMatchObject({ intentStatus: "authorized", capturedMinor: 0, status: "authorized" });
       expect(await apply({ ...base, status: "succeeded", captured: USD(6_000) })).toMatchObject({ kind: "applied", quarantined: [], outbox: ["payment.succeeded"] });
       expect(await read()).toMatchObject({ intentStatus: "succeeded", capturedMinor: 6_000 });
@@ -90,10 +90,10 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
       const ledger = await openLedger(kind);
       let seq = 0;
       const deps = { now: () => NOW, newId: () => `id_${++seq}` };
-      await ledger.transaction((tx) => tx.insertPayment({ payment: newPayment() }));
+      await ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: newPayment() }) });
       const apply = (evidence: PaymentEvidence) =>
-        ledger.transaction((tx) => applyPaymentEvidence({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", source: "webhook", evidence }));
-      const next = async () => (await ledger.transaction((tx) => tx.getPayment({ workspaceId: "ws", mode: "test", id: "pay_1" })))!.nextActionJson;
+        ledger.transaction({ fn: (tx) => applyPaymentEvidence({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", source: "webhook", evidence }) });
+      const next = async () => (await ledger.transaction({ fn: (tx) => tx.getPayment({ workspaceId: "ws", mode: "test", id: "pay_1" }) }))!.nextActionJson;
       return { apply, next };
     }
     const base = { providerRef: "ch_1", correlationId: "pay_1", refunds: [], disputes: [] };
@@ -131,7 +131,7 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
       const snapshot = { providerRef: "ch_1", correlationId: "pay_1", status: "succeeded" as const, refunds: [] };
       const dispute = { providerDisputeRef: "dp_1", amount: USD(2_000), status: "open" as const };
       const observe = (d: PaymentEvidence["disputes"][number]) => w.payment({ ...snapshot, disputes: [d] });
-      const stored = async () => (await w.ledger.transaction((tx) => tx.listDisputes({ paymentId: "pay_1" }))).map((d) => [d.status, d.dueBy]);
+      const stored = async () => (await w.ledger.transaction({ fn: (tx) => tx.listDisputes({ paymentId: "pay_1" }) })).map((d) => [d.status, d.dueBy]);
       await observe(dispute);
       expect(await stored()).toEqual([["open", null]]);
       await observe({ ...dispute, dueBy: NOW + 1_000 });
@@ -153,16 +153,16 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
       let seq = 0;
       // Every id sorts BEFORE the previous one, and every message shares one created_at.
       const deps = { now: () => NOW, newId: () => `id_${String(9_999 - ++seq).padStart(4, "0")}` };
-      await ledger.transaction((tx) => tx.insertPayment({ payment: newPayment() }));
+      await ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: newPayment() }) });
       const apply = (evidence: PaymentEvidence) =>
-        ledger.transaction((tx) => applyPaymentEvidence({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", source: "webhook", evidence }));
+        ledger.transaction({ fn: (tx) => applyPaymentEvidence({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", source: "webhook", evidence }) });
       const base = { providerRef: "ch_1", correlationId: "pay_1", status: "succeeded" as const };
       await apply({
         ...base, refunds: [{ providerRefundRef: "re_1", amount: USD(1_000), status: "succeeded" }],
         disputes: [{ providerDisputeRef: "dp_1", amount: USD(500), status: "open" }],
       });
       await apply({ ...base, refunds: [{ providerRefundRef: "re_2", amount: USD(2_000), status: "succeeded" }], disputes: [] });
-      const pending = await ledger.transaction((tx) => tx.listPendingOutbox({ limit: 10 }));
+      const pending = await ledger.transaction({ fn: (tx) => tx.listPendingOutbox({ limit: 10 }) });
       expect(pending.map((m) => m.topic)).toEqual(["payment.succeeded", "refund.succeeded", "dispute.opened", "refund.succeeded"]);
       expect(pending.map((m) => m.createdAt)).toEqual([NOW, NOW, NOW, NOW]);
       const ids = pending.map((m) => m.id);

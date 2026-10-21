@@ -73,7 +73,7 @@ export async function ingestWorld(kind: LedgerKind = "memory", optional: { echoe
   const receiver = createWebhookReceiver({ ledger, providers, contexts, endpoints, now, newId });
   const alerts = recordingAlerts();
 
-  const tx = <T>(fn: (t: LedgerTx) => Promise<T>) => ledger.transaction(fn);
+  const tx = <T>(fn: (t: LedgerTx) => Promise<T>) => ledger.transaction({ fn });
 
   /** Insert our payment row (as the intent op does before dispatching), then charge the fake. */
   const charge = async (paymentId = "pay_1", overrides: Partial<NewPayment> = {}) => {

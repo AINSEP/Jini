@@ -69,9 +69,9 @@ describe("createIntent: idempotency", () => {
 
   function racingLedger(ledger: PaymentsLedger, error: Error): PaymentsLedger {
     return {
-      transaction: (fn) => ledger.transaction((tx) => fn(new Proxy(tx, {
+      transaction: ({ fn }) => ledger.transaction({ fn: (tx) => fn(new Proxy(tx, {
         get: (target, name) => (name === "insertPayment" ? () => Promise.reject(error) : Reflect.get(target, name).bind(target)),
-      }) as LedgerTx)),
+      }) as LedgerTx) }),
     };
   }
 
@@ -99,7 +99,7 @@ describe("createIntent: refusals write nothing", () => {
   ])("%s", async (_name, request, code, message) => {
     const w = await world();
     expect(await w.service.createIntent(request)).toEqual({ ok: false, error: { code, message, retryable: false } });
-    expect(await w.ledger.transaction((tx) => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: request.idempotencyKey }))).toBeNull();
+    expect(await w.ledger.transaction({ fn: (tx) => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: request.idempotencyKey }) })).toBeNull();
   });
 
   test("a currency the provider does not accept", async () => {
@@ -118,7 +118,7 @@ describe("createIntent: refusals write nothing", () => {
     const w = await world();
     w.failContextFor("lipay");
     expect(await w.service.createIntent(intent())).toMatchObject({ ok: false, error: { code: "NO_CREDENTIALS_CONFIGURED" } });
-    expect(await w.ledger.transaction((tx) => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: "ik-1" }))).toBeNull();
+    expect(await w.ledger.transaction({ fn: (tx) => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: "ik-1" }) })).toBeNull();
   });
 });
 
@@ -128,7 +128,7 @@ describe("createIntent: risk gate", () => {
     expect(await w.service.createIntent(intent(), { partyId: "party-1" })).toEqual({
       ok: false, error: { code: "RISK_DENIED", message: "the pre-charge risk gate denied this payment (velocity.party)", retryable: false },
     });
-    expect(await w.ledger.transaction((tx) => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: "ik-1" }))).toBeNull();
+    expect(await w.ledger.transaction({ fn: (tx) => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: "ik-1" }) })).toBeNull();
   });
 
   test("review authorizes only (manual capture) and is held for a person", async () => {
