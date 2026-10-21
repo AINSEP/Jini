@@ -24,9 +24,10 @@ export function createFakeLoginPort(_required: Record<string, never>, options: F
 
 const FAKE_WORKSPACE_ID = "fake-ws";
 
-function fakeUser(overrides: Partial<AdminIdentityUser> = {}): AdminIdentityUser {
+// Every caller mints a fresh id, so the id is required rather than defaulted.
+function fakeUser(overrides: Partial<AdminIdentityUser> & Pick<AdminIdentityUser, "principalId">): AdminIdentityUser {
   return {
-    principalId: overrides.principalId ?? "fake-user-1",
+    principalId: overrides.principalId,
     workspaceId: FAKE_WORKSPACE_ID,
     username: "fake",
     status: "active",
@@ -152,9 +153,9 @@ export function createFakeUsersPort(_required: Record<string, never>, options: F
 
 
 
-function fakeRole(overrides: Partial<AdminRole> = {}): AdminRole {
+function fakeRole(overrides: Partial<AdminRole> & Pick<AdminRole, "id">): AdminRole {
   return {
-    id: overrides.id ?? "fake-role-1",
+    id: overrides.id,
     workspaceId: FAKE_WORKSPACE_ID,
     name: "Fake role",
     isBuiltin: false,
@@ -162,9 +163,9 @@ function fakeRole(overrides: Partial<AdminRole> = {}): AdminRole {
   };
 }
 
-function fakePolicy(overrides: Partial<AdminPolicy> = {}): AdminPolicy {
+function fakePolicy(overrides: Partial<AdminPolicy> & Pick<AdminPolicy, "id">): AdminPolicy {
   return {
-    id: overrides.id ?? "fake-policy-1",
+    id: overrides.id,
     workspaceId: FAKE_WORKSPACE_ID,
     name: "Fake policy",
     isBuiltin: false,
