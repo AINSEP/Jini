@@ -127,14 +127,17 @@ describe('mountFiles characterization', () => {
     expect(fake.read).not.toHaveBeenCalled();
   });
 
-  it('permits parent traversal for mount, read and list (reported, not fixed)', async () => {
-    const fake = createHandle({});
-    const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
-    await session.mountFiles({ files: [{ path: '../outside', content: 'host' }] });
-    expect(fake.write).toHaveBeenCalledExactlyOnceWith({ files: [{ path: '/root/outside', data: 'host' }] });
-    expect(await session.readFile({ path: '../outside' })).toEqual(new TextEncoder().encode('host'));
-    expect(fake.read).toHaveBeenCalledExactlyOnceWith({ path: '/root/outside', format: 'bytes' });
-    expect(await session.listFiles({}, { directory: '..' })).toEqual([]);
-    expect(fake.list).toHaveBeenCalledExactlyOnceWith({ path: '/root' }, { depth: 20 });
-  });
+  it.each(['../outside', 'src/../../outside', '/etc/passwd', 'bad\0path'])(
+    'rejects escaped mount, read and list paths before file I/O: %j', async path => {
+      const fake = createHandle({});
+      const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
+      await expect(session.mountFiles({ files: [{ path: 'valid', content: 'ok' }, { path, content: 'host' }] })).rejects.toThrow('Sandbox path must stay inside the project root');
+      await expect(session.readFile({ path })).rejects.toThrow('Sandbox path must stay inside the project root');
+      await expect(session.listFiles({}, { directory: path })).rejects.toThrow('Sandbox path must stay inside the project root');
+      expect(fake.write).not.toHaveBeenCalled();
+      expect(fake.read).not.toHaveBeenCalled();
+      expect(fake.list).not.toHaveBeenCalled();
+      await session.teardown();
+    },
+  );
 });

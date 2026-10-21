@@ -1,3 +1,4 @@
+import { FOREIGN_SCHEMA_SIGNAL, COUNT_MISMATCH_SIGNAL } from "./signals.js";
 import { spawn } from "node:child_process";
 
 /**
@@ -21,8 +22,8 @@ export interface TargetDescription {
   readonly user: string;
 }
 
-/** `error` is psql's first ERROR line with every quoted part blanked (Postgres quotes the offending
- *  value there); `copyTable` names the table a failed `COPY` was loading. */
+/** `error` is a copier-owned failure code or a fixed safe message; server text is private.
+ * `copyTable` names the table a failed COPY was loading. */
 export type TargetResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string; readonly copyTable?: string };
 
 export interface PostgresTargetPort {
@@ -83,13 +84,17 @@ function environmentWithout(parent: NodeJS.ProcessEnv): Record<string, string> {
   return env;
 }
 
-/** psql's own `ERROR:` line (or its first line) with quoted parts blanked; never a CONTEXT or
- *  DETAIL line, which quote row data. */
-function failureFrom(stderr: string): { ok: false; error: string; copyTable?: string } {
+/** Classifies copier failure codes; arbitrary psql text never reaches public errors or logs.
+ * @complexity O(n) time/space in stderr length. */
+function failureFrom({ stderr }: { stderr: string }, _options = {}): { ok: false; error: string; copyTable?: string } {
   const lines = stderr.split("\n").map((line) => line.trim()).filter((line) => line !== "");
   const line = lines.find((candidate) => /\bERROR:|FATAL:|could not|timeout/i.test(candidate)) ?? lines[0] ?? "psql failed without a message";
-  const error = line.replace(/^psql:[^ ]*: /, "").replace(/"[^"]*"/g, '"…"');
-  const copyTable = /\bCOPY ([A-Za-z0-9_."]+), line \d+/.exec(stderr)?.[1]?.replace(/"/g, "");
+  const message = line.replace(/^psql:[^ ]*: /, "").replace(/^ERROR:\s*/, "");
+  const countMismatch = new RegExp(`^${COUNT_MISMATCH_SIGNAL} ([A-Za-z_][A-Za-z0-9_]{0,62})$`).exec(message);
+  const error = message === FOREIGN_SCHEMA_SIGNAL ? FOREIGN_SCHEMA_SIGNAL
+    : message.startsWith(`${COUNT_MISMATCH_SIGNAL} `) ? `${COUNT_MISMATCH_SIGNAL} ${countMismatch?.[1] ?? "[redacted]"}` : "psql request failed";
+  const copyMatch = /\bCOPY ([A-Za-z0-9_."]+), line \d+/.exec(stderr);
+  const copyTable = copyMatch ? copyMatch[1]!.replace(/"/g, "") : undefined;
   return copyTable === undefined ? { ok: false, error } : { ok: false, error, copyTable };
 }
 
@@ -101,8 +106,8 @@ function runPsql(env: Record<string, string>, args: readonly string[], chunks: I
     let stderr = "";
     child.stdout.setEncoding("utf8").on("data", (data: string) => (stdout += data));
     child.stderr.setEncoding("utf8").on("data", (data: string) => (stderr += data));
-    child.on("error", (err) => resolve({ ok: false, error: `psql could not be started (${err.message})` }));
-    child.on("close", (code) => resolve(code === 0 ? { ok: true, value: stdout } : failureFrom(stderr)));
+    child.on("error", () => resolve({ ok: false, error: "psql could not be started" }));
+    child.on("close", (code) => resolve(code === 0 ? { ok: true, value: stdout } : failureFrom({ stderr })));
     child.stdin.on("error", () => undefined);
     void (async () => {
       for (const chunk of chunks ?? []) {

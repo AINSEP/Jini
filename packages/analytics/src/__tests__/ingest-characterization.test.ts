@@ -195,12 +195,10 @@ test("hooks can transform or drop hits and hook/sink failures propagate", async 
   assert.equal(sink.all({}).length, 1);
 });
 
-test("email-shaped event names and UTM values reach the sink (reported, not fixed)", async () => {
+for (const label of ['eventName', 'source', 'medium', 'campaign', 'term', 'content']) test(`rejects an email-shaped ${label} before the sink`, async () => {
   const { required, sink } = fixture({});
-  required.input.beacon.eventName = "visitor@example.test";
-  required.input.beacon.path = "/article?utm_source=visitor%40example.test";
-  assert.deepEqual(await ingestHit(required), { accepted: true });
-  const hit = sink.all({})[0]!;
-  assert.equal(hit.eventName, "visitor@example.test");
-  assert.equal(hit.utm.source, "visitor@example.test");
+  if (label === 'eventName') required.input.beacon.eventName = 'visitor@example.test';
+  else required.input.beacon.path = `/article?utm_${label}=visitor%40example.test`;
+  assert.deepEqual(await ingestHit(required), { accepted: false, reason: 'pii_rejected' });
+  assert.deepEqual(sink.all({}), []);
 });

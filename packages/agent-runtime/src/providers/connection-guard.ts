@@ -1,3 +1,4 @@
+import { readProviderResponseText, MAX_PROVIDER_ERROR_BYTES } from './response-text.js';
 /**
  * @module providers/connection-guard
  *
@@ -343,13 +344,9 @@ export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; i
           ok: status >= 200 && status < 300,
           status,
           body: res,
-          text: () =>
-            new Promise<string>((resolveText, rejectText) => {
-              const chunks: Buffer[] = [];
-              res.on('data', (chunk: Buffer) => chunks.push(chunk));
-              res.on('end', () => resolveText(Buffer.concat(chunks).toString('utf8')));
-              res.on('error', rejectText);
-            }),
+          text: () => readProviderResponseText({ body: res }, {
+            maxBytes: status >= 200 && status < 300 ? 8 * 1024 * 1024 : MAX_PROVIDER_ERROR_BYTES,
+          }),
         });
       },
     );

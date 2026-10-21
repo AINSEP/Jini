@@ -101,11 +101,11 @@ function validateSupportingPath(value: unknown): string | null {
   if (value.length > MAX_SUPPORTING_FILE_LENGTH) {
     return `supportingFiles entries exceed max length (${MAX_SUPPORTING_FILE_LENGTH})`;
   }
-  if (/^[A-Za-z]:/.test(value) || value.startsWith('/')) {
+  const normalized = value.replace(/\\/g, '/');
+  if (/^[A-Za-z]:/.test(normalized) || normalized.startsWith('/')) {
     return 'supportingFiles cannot contain absolute paths';
   }
   if (value.includes('\u0000')) return 'supportingFiles cannot contain null bytes';
-  const normalized = value.replace(/\\/g, '/');
   if (normalized.includes('..')) return 'supportingFiles cannot contain traversal segments';
   const parts = normalized.split('/').filter(Boolean);
   if (parts.length === 0 || parts.some((p) => p === '.' || p === '..')) {

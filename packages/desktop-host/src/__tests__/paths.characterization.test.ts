@@ -32,9 +32,10 @@ describe('data-root fallback and validation before flattening', () => {
       .toThrow('DATA must be an absolute path; got: relative');
   });
 
-  it('allows namespace traversal outside the base root (reported, not fixed)', () => {
-    const roots = resolveDesktopHostPathRoots({ namespace: '../elsewhere', namespaceBaseRoot: '/base' }, { env: {} });
-    expect(roots.namespaceRoot).toBe('/elsewhere');
-    expect(roots.dataRoot).toBe('/elsewhere/data');
-  });
+  it.each(['../elsewhere', '..', '.', '', '/outside', 'a/b', 'a\\b', 'C:outside', 'bad\0name'])(
+    'refuses an unsafe namespace %j before resolving roots', namespace => {
+      expect(() => resolveDesktopHostPathRoots({ namespace, namespaceBaseRoot: '/base' }, { env: {} }))
+        .toThrow('namespace must be a single safe path segment');
+    },
+  );
 });

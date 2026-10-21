@@ -48,11 +48,18 @@ export function validatePluginRoute(required: { method: string; path: string }, 
   if (!/^\/(?:[a-zA-Z0-9_-]+|:[a-zA-Z][a-zA-Z0-9_]*)(?:\/(?:[a-zA-Z0-9_-]+|:[a-zA-Z][a-zA-Z0-9_]*))*\/?$/.test(required.path) && required.path !== '/') throw new Error('unsafe plugin route path');
 }
 
+/** Enforces the object-schema contract before and after plugin-controlled JSON serialization.
+ * Throws a fixed admission error. O(1) time/space. */
+function requireObjectSchema({ schema }: { schema: unknown }, _options = {}): Record<string, unknown> {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema) || !('type' in schema) || schema.type !== 'object') throw new Error('plugin tool input schema must describe an object');
+  return schema as Record<string, unknown>;
+}
+
 function serializePluginToolSchema(
   { schema }: { schema: Readonly<Record<string, unknown>> },
   _optional: Record<string, never> = {},
 ): string {
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema) || schema.type !== 'object') throw new Error('plugin tool input schema must describe an object');
+  requireObjectSchema({ schema });
   // Detach the JSON schema so later plugin mutations cannot alter the assistant contract.
   const json = JSON.stringify(schema);
   if (new TextEncoder().encode(json).byteLength > 65536) throw new Error('plugin tool schema is too large');
@@ -91,7 +98,9 @@ export function createPluginContributionCapture(required: { manifest: PluginMani
       if (tools.some(tool => tool.name === value.name)) throw new Error('duplicate plugin tool');
       if (typeof value.handler !== 'function' || typeof value.description !== 'string' || !value.description.trim() || value.description.length > 8000) throw new Error('plugin tool handler and description are required');
       const json = serializePluginToolSchema({ schema: value.inputSchema });
-      tools.push(Object.freeze({ ...value, inputSchema: JSON.parse(json) as Record<string, unknown> }));
+      const captured = { ...value };
+      const inputSchema = requireObjectSchema({ schema: JSON.parse(json) });
+      tools.push(Object.freeze({ ...captured, inputSchema }));
     } },
     widgets: { add(value: PluginWidgetContribution, _optional: Record<string, never> = {}) {
       check(); named(value.name, manifest.contributes?.widgets);

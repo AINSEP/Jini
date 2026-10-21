@@ -62,9 +62,9 @@ describe('manifest validation characterization', () => {
     expect(() => validateArtifactManifestInput({ manifest: { ...manifest, metadata: circular }, entry: 'index.html', taxonomy })).toThrow(TypeError);
   });
 
-  it('accepts a backslash absolute path after normalization (reported, not fixed)', () => {
+  it('refuses a backslash absolute path after normalization', () => {
     const result = validateArtifactManifestInput({ manifest, entry: '\\root\\file.html', taxonomy }, { now });
-    expect(result).toEqual({ ok: true, value: { version: 1, ...manifest, title: '/root/file.html', entry: '/root/file.html', status: 'complete', createdAt: 'clock', updatedAt: 'clock' } });
+    expect(result).toEqual({ ok: false, error: 'artifactManifest.entry supportingFiles cannot contain absolute paths' });
   });
 
   it.each(['streaming', 'complete', 'error'])('retains valid status %s and all optional fields', (status) => {

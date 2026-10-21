@@ -18,6 +18,8 @@ export function propNameToAttributeName(name: string): string {
   if (name === 'htmlFor') return 'for';
   if (name === 'srcDoc') return 'srcdoc';
   if (name === 'tabIndex') return 'tabindex';
+  if (name === 'referrerPolicy') return 'referrerpolicy';
+  if (name === 'allowFullScreen') return 'allowfullscreen';
   if (name.startsWith('data-') || name.startsWith('aria-')) return name;
   return name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`).toLowerCase();
 }

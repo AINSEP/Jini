@@ -141,6 +141,17 @@ function isExcludedPath(relativePath: string): boolean {
   return relativePath.split('/').some((segment) => EXCLUDED_DIR_NAMES.has(segment));
 }
 
+/** Resolves a caller's project-relative path; rejects escaped or malformed paths before I/O.
+ * @complexity O(n) time/space in path length. */
+function resolveProjectPath({ projectRoot, path }: { projectRoot: string; path: string }, _options = {}): string {
+  const resolved = posix.resolve(projectRoot, path);
+  const relative = posix.relative(projectRoot, resolved);
+  if (path.includes('\0') || posix.isAbsolute(path) || relative === '..' || relative.startsWith('../')) {
+    throw new SandboxOperationError({ category: 'permission-denied', message: 'Sandbox path must stay inside the project root' });
+  }
+  return resolved;
+}
+
 interface MountedFile {
   fingerprint: string;
 }
@@ -216,7 +227,7 @@ export async function wrapE2bSandbox(
       if (files.length === 0) return;
       const mounted = new Map<string, MountedFile>();
       for (const file of files) {
-        const path = relativeToRoot(posix.join(projectRoot, file.path), projectRoot);
+        const path = relativeToRoot(resolveProjectPath({ projectRoot, path: file.path }), projectRoot);
         mounted.set(path, { fingerprint: fingerprint(file.content) });
       }
       for (const [path, entry] of mounted) {
@@ -225,7 +236,7 @@ export async function wrapE2bSandbox(
       }
       try {
         await handle.files.write({ files: files.map((file) => {
-          const path = posix.join(projectRoot, file.path);
+          const path = resolveProjectPath({ projectRoot, path: file.path });
           const content = file.content;
           return {
             path,
@@ -247,15 +258,16 @@ export async function wrapE2bSandbox(
     },
 
     async readFile({ path }) {
+      const resolved = resolveProjectPath({ projectRoot, path });
       try {
-        return await handle.files.read({ path: posix.join(projectRoot, path), format: 'bytes' });
+        return await handle.files.read({ path: resolved, format: 'bytes' });
       } catch (error) {
         throw wrapE2bError(error, `Failed to read ${path}`);
       }
     },
 
     async listFiles(_required, { directory } = {}) {
-      const base = directory ? posix.join(projectRoot, directory) : projectRoot;
+      const base = resolveProjectPath({ projectRoot, path: directory ?? '.' });
       let entries;
       try {
         entries = await handle.files.list({ path: base }, { depth: MAX_LIST_DEPTH });

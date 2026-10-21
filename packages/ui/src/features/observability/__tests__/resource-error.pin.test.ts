@@ -36,12 +36,12 @@ describe('resource source selection pins', () => {
   );
 
   it.each([
-    ['raw src', 'relative.png', 'fallback.png', 'relative.png'],
-    ['raw href', null, 'fallback.png', 'fallback.png'],
+    ['raw src', 'relative.png', 'fallback.png', '/relative.png'],
+    ['raw href', null, 'fallback.png', '/fallback.png'],
     ['missing attributes', null, null, null],
     ['empty src blocks href fallback', '', 'fallback.png', null],
     ['empty href', null, '', null],
-    ['whitespace src', ' ', null, ' '],
+    ['whitespace src', ' ', null, null],
   ])('preserves fallback selection: %s', async (_name, src, href, expected) => {
     const { installResourceErrorObserver } = await import('../resource-error.js');
     const reporter = vi.fn();
@@ -71,7 +71,7 @@ describe('resource source selection pins', () => {
     expect(reporter.mock.calls).toEqual([]);
   });
 
-  it('reports URL credentials, queries and fragments unchanged (reported, not fixed)', async () => {
+  it('removes URL credentials, queries and fragments from resource events', async () => {
     const { installResourceErrorObserver } = await import('../resource-error.js');
     const reporter = vi.fn();
     teardown = installResourceErrorObserver({ reporter });
@@ -82,7 +82,7 @@ describe('resource source selection pins', () => {
     window.dispatchEvent(event);
     expect(reporter.mock.calls).toEqual([['client_resource_error', {
       tag: 'img', async_attr: false, defer_attr: false, crossorigin: null,
-      url: 'https://user:password@cdn.test/a?token=secret#private',
+      url: 'https://cdn.test/a',
     }]]);
   });
 });

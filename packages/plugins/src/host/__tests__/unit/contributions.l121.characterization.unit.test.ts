@@ -67,10 +67,10 @@ describe('tool contribution capture before L121', () => {
     capture.tools.add(tool);
     expect(capture.seal({ sdk }).tools).toEqual([tool]);
   });
-  it('accepts a toJSON result that no longer describes an object (reported, not fixed)', () => {
+  it.each([null, [], {}, { type: 'array' }])('refuses a serialized schema that no longer describes an object: %j', serialized => {
     const capture = createPluginContributionCapture({ manifest });
-    capture.tools.add({ ...tool, inputSchema: { type: 'object', toJSON: () => null } });
-    expect(capture.seal({ sdk }).tools[0]!.inputSchema).toBeNull();
+    expect(() => capture.tools.add({ ...tool, inputSchema: { type: 'object', toJSON: () => serialized } })).toThrow('plugin tool input schema must describe an object');
+    expect(capture.seal({ sdk }).tools).toEqual([]);
   });
   it('spreads tool properties before parsing the serialized schema', () => {
     const capture = createPluginContributionCapture({ manifest });

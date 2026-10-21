@@ -224,7 +224,11 @@ function mergedHeaders(required: Record<string, string>, extra: Record<string, s
   return { ...extra, ...required };
 }
 
-async function postJson(url: string, headers: Record<string, string>, body: unknown, resolved: ResolvedLlmCall, providerTag: string): Promise<unknown> {
+/** Posts a vendor request and parses its envelope; failures expose no upstream content.
+ * O(n) time/space in the successful response size; network effects use the caller's deadline. */
+async function postJson({ url, headers, body, resolved, providerTag }: {
+  url: string; headers: Record<string, string>; body: unknown; resolved: ResolvedLlmCall; providerTag: string;
+}, _options = {}): Promise<unknown> {
   let resp: Response;
   try {
     resp = await resolved.fetchFn(url, {
@@ -234,17 +238,18 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
       body: JSON.stringify(body),
       signal: resolved.timeoutSignal({ timeoutMs: resolved.timeoutMs }),
     });
-  } catch (err) {
-    throw new Error(describeFetchError({ err }));
+  } catch {
+    throw new Error(`${providerTag} request failed`);
   }
-  const text = await resp.text().catch(() => '');
   if (!resp.ok) {
-    throw new Error(`${providerTag} ${resp.status}: ${text}`);
+    await resp.body?.cancel().catch(() => undefined);
+    throw new Error(`${providerTag} ${resp.status}: request rejected`);
   }
+  const text = await resp.text().catch(() => { throw new Error(`${providerTag} response could not be read`); });
   try {
     return text === '' ? {} : JSON.parse(text);
   } catch {
-    throw new Error(`${providerTag} non-JSON response: ${text.slice(0, 200)}`);
+    throw new Error(`${providerTag} non-JSON response`);
   }
 }
 
@@ -258,18 +263,12 @@ async function callAnthropic(resolved: ResolvedLlmCall, system: string, user: st
     },
     resolved.extraHeaders,
   );
-  const json = await postJson(
-    url,
-    headers,
-    {
+  const json = await postJson({ url, headers, body: {
       model: resolved.model,
       max_tokens: ANTHROPIC_MAX_TOKENS,
       system,
       messages: [{ role: 'user', content: user }],
-    },
-    resolved,
-    'anthropic',
-  );
+    }, resolved, providerTag: 'anthropic' });
   const content = asRecord(json).content;
   const contentArr = Array.isArray(content) ? content : [];
   const block = contentArr.find((b) => stringField(b, 'type') === 'text');
@@ -285,20 +284,14 @@ async function callOpenAI(resolved: ResolvedLlmCall, system: string, user: strin
     },
     resolved.extraHeaders,
   );
-  const json = await postJson(
-    url,
-    headers,
-    {
+  const json = await postJson({ url, headers, body: {
       model: resolved.model,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
-    },
-    resolved,
-    'openai',
-  );
+    }, resolved, providerTag: 'openai' });
   return firstChoiceMessageContent(json);
 }
 
@@ -320,19 +313,13 @@ async function callAzure(resolved: ResolvedLlmCall, system: string, user: string
     },
     resolved.extraHeaders,
   );
-  const json = await postJson(
-    url,
-    headers,
-    {
+  const json = await postJson({ url, headers, body: {
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
       ],
-    },
-    resolved,
-    'azure',
-  );
+    }, resolved, providerTag: 'azure' });
   return firstChoiceMessageContent(json);
 }
 
@@ -347,17 +334,11 @@ async function callGoogle(resolved: ResolvedLlmCall, system: string, user: strin
   const model = encodeURIComponent(resolved.model);
   const url = `${resolved.baseUrl}/v1beta/models/${model}:generateContent?key=${encodeURIComponent(resolved.apiKey)}`;
   const headers = mergedHeaders({ 'content-type': 'application/json' }, resolved.extraHeaders);
-  const json = await postJson(
-    url,
-    headers,
-    {
+  const json = await postJson({ url, headers, body: {
       systemInstruction: { role: 'system', parts: [{ text: system }] },
       contents: [{ role: 'user', parts: [{ text: user }] }],
       generationConfig: { responseMimeType: 'application/json' },
-    },
-    resolved,
-    'google',
-  );
+    }, resolved, providerTag: 'google' });
   const parts = googleCandidateParts(json);
   if (!parts) return '';
   return parts.map((p) => stringField(p, 'text')).join('');
@@ -438,7 +419,7 @@ const JSON_OBJECT_RE = /\{[\s\S]*\}/;
  * @throws if `rawText` cannot be parsed as JSON even after fence-stripping
  *   and `{...}`-block extraction.
  */
-export function parseStrictJson<T = unknown>({ rawText }: { rawText: string }): T {
+export function parseStrictJson<T = unknown>({ rawText }: { rawText: string }, _options = {}): T {
   let text = rawText.trim();
   if (text.startsWith('```')) {
     text = text.replace(CODE_FENCE_START_RE, '').replace(CODE_FENCE_END_RE, '').trim();
@@ -454,9 +435,7 @@ export function parseStrictJson<T = unknown>({ rawText }: { rawText: string }): 
         // Fall through to the shared throw below.
       }
     }
-    const preview = rawText.trim();
-    const truncated = preview.length <= 200 ? preview : `${preview.slice(0, 199)}…`;
-    throw new Error(`llm-provider: response was not valid JSON: ${truncated}`);
+    throw new Error('llm-provider: response was not valid JSON');
   }
 }
 

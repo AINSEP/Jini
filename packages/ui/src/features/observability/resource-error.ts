@@ -8,6 +8,7 @@
  * canonical pattern for chunk-load failures: a missing static bundle
  * chunk results in a non-functional app with no JS exception.
  */
+import { telemetryUrl } from './telemetry-url.js';
 import { noopSafetyEventReporter, type SafetyEventReporter } from './ports.js';
 
 const RESOURCE_TAGS = new Set(['SCRIPT', 'LINK', 'IMG', 'IFRAME', 'AUDIO', 'VIDEO', 'SOURCE', 'TRACK']);
@@ -35,7 +36,7 @@ export function installResourceErrorObserver(
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (!RESOURCE_TAGS.has(target.tagName)) return;
-    const src = readSrc(target);
+    const src = telemetryUrl({ value: readSrc(target) });
     if (typeof src !== 'string' || src.length === 0) return;
     reporter('client_resource_error', {
       tag: target.tagName.toLowerCase(),

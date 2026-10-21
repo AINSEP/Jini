@@ -153,19 +153,19 @@ describe('parseStrictJson', () => {
     expect(() => parseStrictJson({ rawText: 'just plain text, no json here' })).toThrow(/response was not valid JSON/);
   });
 
-  it('truncates a long invalid preview in the thrown error message', () => {
+  it('omits a long invalid response from the thrown error', () => {
     const long = `x${'y'.repeat(250)}`;
-    expect(() => parseStrictJson({ rawText: long })).toThrow('…');
+    expect(() => parseStrictJson({ rawText: long })).toThrow(/^llm-provider: response was not valid JSON$/);
   });
 
-  it('does not truncate a short invalid preview', () => {
+  it('omits a short invalid response from the thrown error', () => {
     let caught: Error | null = null;
     try {
       parseStrictJson({ rawText: 'short invalid' });
     } catch (err) {
       caught = err as Error;
     }
-    expect(caught?.message).toContain('short invalid');
+    expect(caught?.message).toBe('llm-provider: response was not valid JSON');
     expect(caught?.message).not.toContain('…');
   });
 });
@@ -269,7 +269,7 @@ describe('callLlmProvider — anthropic', () => {
 
   it('throws a clear error on a non-OK status', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('invalid api key', { status: 401 })));
-    await expect(callLlmProvider({ config: anthropicConfig().config, systemPrompt: 's', userPrompt: 'u' }, anthropicConfig().options)).rejects.toThrow('anthropic 401: invalid api key');
+    await expect(callLlmProvider({ config: anthropicConfig().config, systemPrompt: 's', userPrompt: 'u' }, anthropicConfig().options)).rejects.toThrow('anthropic 401: request rejected');
   });
 
   it('throws a clear error on a non-JSON response body', async () => {
@@ -282,7 +282,7 @@ describe('callLlmProvider — anthropic', () => {
       cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
     });
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(networkError));
-    await expect(callLlmProvider({ config: anthropicConfig().config, systemPrompt: 's', userPrompt: 'u' }, anthropicConfig().options)).rejects.toThrow('fetch failed (ECONNRESET)');
+    await expect(callLlmProvider({ config: anthropicConfig().config, systemPrompt: 's', userPrompt: 'u' }, anthropicConfig().options)).rejects.toThrow('anthropic request failed');
   });
 
   it('merges extraHeaders under the required headers, without letting them override auth', async () => {

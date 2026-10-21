@@ -108,8 +108,8 @@ function hasRuleSubstring({ row, text, minimumLength }: {
   row: string;
   text: string;
   minimumLength: number;
-}): boolean {
-  return text.length >= minimumLength && (row.includes(text) || text.includes(row));
+}, _options: Record<string, never> = {}): boolean {
+  return row.length >= minimumLength && text.length >= minimumLength && (row.includes(text) || text.includes(row));
 }
 
 /**

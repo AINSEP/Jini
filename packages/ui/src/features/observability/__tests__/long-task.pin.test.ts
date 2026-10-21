@@ -63,7 +63,7 @@ describe('long-task compatibility pins', () => {
     ownerTeardown();
   });
 
-  it('reports relative attribution URLs with their query intact (reported, not fixed)', async () => {
+  it('strips queries from relative attribution URLs', async () => {
     const { installLongTaskObserver } = await import('../long-task.js');
     const reporter = vi.fn();
     const teardown = installLongTaskObserver({ reporter });
@@ -74,7 +74,7 @@ describe('long-task compatibility pins', () => {
     ObserverFake.instances[0]!.callback({ getEntries: () => [entry] });
     expect(reporter.mock.calls).toEqual([['client_long_task', {
       duration_ms: 100, start_time_ms: 1, container_type: undefined,
-      container_name: undefined, container_src_origin: '/frame?token=secret',
+      container_name: undefined, container_src_origin: '/frame',
     }]]);
     teardown();
   });

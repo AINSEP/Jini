@@ -35,16 +35,16 @@ describe('connection URL compatibility pins', () => {
   it('lets malformed percent escapes escape as URIError (reported, not fixed)', () => {
     expect(() => parseConnectionString({ raw: 'postgres://user:%ZZ@localhost/db' })).toThrow(URIError);
   });
-  it('leaves single-quoted server data in the public error (reported, not fixed)', async () => {
+  it.each([`ERROR: rejected 'private-value' and \"hidden-value\"\n`, 'ERROR: private@example.test unquoted-secret\n'])(
+    'omits arbitrary server text from the public error: %s', async stderr => {
     const directory = await mkdtemp(join(tmpdir(), 'jini-psql-redaction-'));
     try {
       // Exercise the existing parentEnv port with a disposable psql executable, without a database.
       const executable = join(directory, 'psql');
-      const stderr = `ERROR: rejected 'private-value' and "hidden-value"\n`;
       await writeFile(executable, `#!${process.execPath}\nprocess.stderr.write(${JSON.stringify(stderr)}); process.exit(1);\n`);
       await chmod(executable, 0o700);
       const target = createPsqlPostgresTarget({ connectionString: 'postgres://user@localhost/db' }, { parentEnv: { PATH: directory } });
-      expect(await target.query('SELECT 1')).toEqual({ ok: false, error: `ERROR: rejected 'private-value' and "…"` });
+      expect(await target.query('SELECT 1')).toEqual({ ok: false, error: "psql request failed" });
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

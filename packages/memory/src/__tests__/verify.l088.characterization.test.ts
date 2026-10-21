@@ -49,7 +49,7 @@ describe('verify L088 characterization', () => {
     expect(evaluate({ rules: [{ name: 'alpha' }], rows })).toEqual({ status: 'fail', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 1, hadArtifact: true });
   });
 
-  it('allows a single-character substring to satisfy a long rule (reported, not fixed)', () => {
-    expect(evaluate({ rules: [{ name: 'require encryption' }], rows: [{ rule: 'e', status: 'pass' }] })).toEqual({ status: 'pass', rulesActive: 1, rulesCovered: 1, uncoveredRules: [], rowsTotal: 1, rowsFailed: 0, hadArtifact: true });
+  it('refuses a single-character substring as coverage for a long rule', () => {
+    expect(evaluate({ rules: [{ name: 'require encryption' }], rows: [{ rule: 'e', status: 'pass' }] })).toEqual({ status: 'fail', rulesActive: 1, rulesCovered: 0, uncoveredRules: ['require encryption'], rowsTotal: 1, rowsFailed: 0, hadArtifact: true });
   });
 });

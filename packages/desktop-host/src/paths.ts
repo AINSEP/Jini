@@ -82,6 +82,9 @@ function resolveDataRoot(namespaceRoot: string, namespace: string, dataDirOverri
 }
 
 export function resolveDesktopHostPathRoots(requiredArgs: Pick<ResolvePathRootsOptions, 'namespace' | 'namespaceBaseRoot'>, optionalArgs: Omit<ResolvePathRootsOptions, 'namespace' | 'namespaceBaseRoot'> = {}): DesktopHostPathRoots {
+  if (!/^[A-Za-z0-9_-][A-Za-z0-9._-]*$/.test(requiredArgs.namespace)) {
+    throw new DesktopHostPathError({ message: 'namespace must be a single safe path segment' });
+  }
   const options = { ...optionalArgs, ...requiredArgs };
   const env = options.env ?? process.env;
   const namespaceRoot = join(options.namespaceBaseRoot, options.namespace);

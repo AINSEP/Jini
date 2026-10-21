@@ -10,6 +10,7 @@
  * the browser already filters at 50 ms; bumping to 100 ms here halves the
  * event volume while still catching every task a human notices.
  */
+import { telemetryUrl } from './telemetry-url.js';
 import { noopSafetyEventReporter, type SafetyEventReporter } from './ports.js';
 
 const DEFAULT_MIN_DURATION_MS = 100;
@@ -61,7 +62,7 @@ export function installLongTaskObserver(options: LongTaskObserverOptions = {}): 
         container_type: attribution?.containerType,
         container_name: attribution?.containerName,
         // containerSrc can carry a query string; trimmed to origin+pathname.
-        container_src_origin: stripUrlQuery(attribution?.containerSrc),
+        container_src_origin: telemetryUrl({ value: attribution?.containerSrc }),
       });
     }
   });
@@ -92,14 +93,4 @@ function observeLongTasks(
     }
   }
   return true;
-}
-
-function stripUrlQuery(value: string | undefined): string | undefined {
-  if (typeof value !== 'string' || value.length === 0) return undefined;
-  try {
-    const parsed = new URL(value);
-    return `${parsed.origin}${parsed.pathname}`;
-  } catch {
-    return value;
-  }
 }

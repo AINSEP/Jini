@@ -55,50 +55,17 @@ const require = createRequire(import.meta.url);
 /** This package's own version, the default a composition reports when a host names none. */
 const packageVersion = (require('../package.json') as { readonly version: string }).version;
 
-/**
- * The identity a delegated tool call runs as when the host supplies no resolver. Carries **no
- * roles**, deliberately.
- *
- * ## What actually makes this inert, because an earlier version of this comment named the wrong
- * mechanism
- *
- * It previously claimed inertness came from "every registered tool's own deny-by-default
- * `ToolPolicy`". That is **false**, and believing it is dangerous. `@jini-ai/cms` registers every
- * one of its tools with a pass-through `policy: { authorize: () => 'allow' }` — deliberately, and
- * documented as such in `core/tools/registration-kit.ts`: each tool's permission is evaluated
- * exactly once, inside the domain function or via that file's `requireToolPermission`, so a second
- * evaluator in the policy would be the bug rather than the guard.
- *
- * What actually denies this principal is the identity layer being fail-closed on an UNKNOWN
- * subject: `identity/authorize.ts` starts with `principals.findById(...)` and returns
- * `{ allowed: false, reason: 'principal_disabled' }` when no row comes back. `anonymous-delegated`
- * has no row, so every permission-gated tool refuses it.
- *
- * ## The residual risk that follows from that, stated plainly
- *
- * The protection is the *tool's own* permission check, not this identity and not the registry. A
- * tool registered by some other host with a permissive `ToolPolicy` **and** no internal permission
- * check would execute for this principal. That is exactly why `@jini-ai/http-kit`'s
- * `DelegatedToolsHttpDeps.resolvePrincipal` documents itself as mandatory, and why the fallback
- * below warns rather than staying silent.
- */
+/** @deprecated Compatibility export only; never selected as a default delegated identity. */
 export const ANONYMOUS_DELEGATED_PRINCIPAL: Principal = { id: 'anonymous-delegated' };
 
-/**
- * The `resolvePrincipal` fallback, wrapped so the fallback is announced once at composition rather
- * than taken silently. Warns at wiring time, not per request: a per-request warning on a route that
- * can be called in a loop is a log-flood, and the thing worth knowing is a deployment fact, not a
- * request fact.
- */
-function warnAndUseAnonymousDelegatedPrincipal(): () => Principal {
-  // eslint-disable-next-line no-console
-  console.warn(
-    '[@jini-ai/server] delegatedToolCalls is enabled without `resolvePrincipal`; delegated tool ' +
-      `calls will run as "${ANONYMOUS_DELEGATED_PRINCIPAL.id}", which every permission-gated tool ` +
-      'refuses (the identity layer is fail-closed on an unknown subject) but a tool with a ' +
-      'permissive ToolPolicy and no internal permission check would still execute for.',
-  );
-  return () => ANONYMOUS_DELEGATED_PRINCIPAL;
+/** Resolves a delegated caller through the host's identity owner, refusing absent resolution.
+ * @throws Error when the host supplies no resolver. O(1) plus the host resolver's work. */
+export function resolveDelegatedToolPrincipal({ request, resolvePrincipal }: {
+  request: DelegatedToolExecuteRequest;
+  resolvePrincipal: ((request: DelegatedToolExecuteRequest) => Principal | Promise<Principal>) | undefined;
+}, _options = {}): Principal | Promise<Principal> {
+  if (!resolvePrincipal) throw new Error('Delegated tool calls require a host principal resolver');
+  return resolvePrincipal(request);
 }
 
 /** Per-feature configuration, closed over when the catalog is built. */
@@ -533,17 +500,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
               // gate — an unverifiable constraint is refused, never waived — it would just make the
               // read-only gateway refuse everything, so a kernel host gets it wired by default.
               toolRegistry: services.context.kernel.registry,
-              // `DelegatedToolsHttpDeps.resolvePrincipal` documents itself as MANDATORY — "there is
-              // no safe default identity this package could assume on a host's behalf" — and this
-              // line supplied one anyway, silently. The default stays (removing it is a breaking
-              // change for hosts already relying on it, and is the owner's call, not this file's)
-              // but it no longer happens quietly: a host that enables this route without deciding
-              // who its calls run as should learn that from a startup line, not from an audit.
-              // See ANONYMOUS_DELEGATED_PRINCIPAL for what does and does not make it inert.
-              resolvePrincipal:
-                resolveDelegatedPrincipal
-                  ? ({ request }) => resolveDelegatedPrincipal(request)
-                  : warnAndUseAnonymousDelegatedPrincipal(),
+              resolvePrincipal: ({ request }) => resolveDelegatedToolPrincipal({ request, resolvePrincipal: resolveDelegatedPrincipal }),
             }, adapter: services.context.adapter }),
       }),
     }),

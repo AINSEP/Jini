@@ -22,7 +22,7 @@ describe('propNameToAttributeName', () => {
   });
 
   it('kebab-cases any other camelCase prop name', () => {
-    expect(propNameToAttributeName('allowFullScreen')).toBe('allow-full-screen');
+    expect(propNameToAttributeName('allowFullScreen')).toBe('allowfullscreen');
     expect(propNameToAttributeName('title')).toBe('title');
   });
 });

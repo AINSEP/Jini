@@ -176,8 +176,24 @@ test("plain text preserves dotted code-vendor formats without an explicit opt-in
   expect(redactSecretShapes({ text, policy: {} })).toEqual({ text, redactions: 0 });
 });
 
-test("escaped static vendor credentials remain visible (reported, not fixed)", () => {
-  // This literal evaluates to a vendor key, but the scanner checks its raw source spelling.
-  const text = "const value = 'sk\\x2dproj-" + "Ab3".repeat(8) + "';";
+test.each(["sk\\x2dproj-", "sk\\u002dproj-", "\\u{73}k-proj-", "\\163k-proj-"])("redacts escaped static vendor credentials: %s", prefix => {
+  const text = "const value = '" + prefix + "Ab3".repeat(8) + "';";
+  const result = redactSecretShapes({ text, policy: codePolicy });
+  expect(result).toEqual({ text: "const value = '[REDACTED:openai_key]';", redactions: 1 });
+  expect(redactSecretShapes({ text: result.text, policy: codePolicy })).toEqual({ ...result, redactions: 0 });
+});
+
+test("preserves nonsecret escaped spelling and decodes escaped secret labels", () => {
+  const text = String.raw`const value = 'hello\nworld';`;
   expect(redactSecretShapes({ text, policy: codePolicy })).toEqual({ text, redactions: 0 });
+  expect(redactSecretShapes({ text: String.raw`{ 'to\x6ben': 'abcdefgh' }`, policy: codePolicy })).toEqual({
+    text: String.raw`{ 'to\x6ben': '[REDACTED:labeled_secret]' }`, redactions: 1,
+  });
+});
+
+test('keeps escaped-secret replacements valid inside their original delimiters', () => {
+  const text = "const value = 'prefix\\n" + "sk\\x2dproj-" + "Ab3".repeat(8) + "';";
+  expect(redactSecretShapes({ text, policy: codePolicy })).toEqual({
+    text: "const value = '[REDACTED:openai_key]';", redactions: 1,
+  });
 });

@@ -9,8 +9,8 @@
  * rather than having it ride along with every `@jini-ai/artifacts` import, is what lets the main
  * entry point stay genuinely runtime-universal.
  */
-import type { Dirent } from 'node:fs';
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { constants, type Dirent } from 'node:fs';
+import { open, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import {
   artifactIdentifiersMatch,
@@ -24,15 +24,36 @@ import {
 
 /** Injectable filesystem for sibling scans. */
 export interface ArtifactStubFilesystemPort {
-  readFile(required: { path: string }): Promise<string>;
+  readFile(required: { path: string; maxBytes: number }): Promise<string>;
   readdir(required: { path: string }): Promise<Dirent[]>;
   stat(required: { path: string }): Promise<{ size: number }>;
 }
 const nativeFilesystem: ArtifactStubFilesystemPort = {
-  readFile: ({ path }) => readFile(path, 'utf8'),
+  readFile: readBoundedSidecar,
   readdir: ({ path }) => readdir(path, { withFileTypes: true }),
   stat: ({ path }) => stat(path),
 };
+
+const MAX_SIDECAR_BYTES = 64 * 1024;
+
+/** Reads at most maxBytes+1 from one regular, nonlink sidecar; oversized input is refused.
+ * Closes its descriptor on every exit. O(maxBytes) space/time. */
+async function readBoundedSidecar({ path, maxBytes }: { path: string; maxBytes: number }, _options = {}): Promise<string> {
+  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try {
+    const info = await file.stat();
+    if (!info.isFile() || info.size > maxBytes) throw new Error('Invalid artifact sidecar');
+    const bytes = Buffer.alloc(maxBytes + 1);
+    let length = 0;
+    while (length < bytes.length) {
+      const read = await file.read(bytes, length, bytes.length - length, null);
+      if (read.bytesRead === 0) break;
+      length += read.bytesRead;
+    }
+    if (length > maxBytes) throw new Error('Artifact sidecar exceeds the byte limit');
+    return bytes.toString('utf8', 0, length);
+  } finally { await file.close(); }
+}
 
 export interface EvaluateArtifactStubGuardInput {
   readonly scanDir: string;
@@ -47,7 +68,8 @@ function escapeRegExp(value: string): string {
 
 async function readSidecarIdentifier(scanDir: string, entryName: string, filesystem: ArtifactStubFilesystemPort): Promise<string | null> {
   try {
-    const raw = await filesystem.readFile({ path: path.join(scanDir, `${entryName}.artifact.json`) });
+    const raw = await filesystem.readFile({ path: path.join(scanDir, `${entryName}.artifact.json`), maxBytes: MAX_SIDECAR_BYTES });
+    if (Buffer.byteLength(raw, 'utf8') > MAX_SIDECAR_BYTES) return null;
     const parsed = JSON.parse(raw) as { metadata?: { identifier?: unknown } } | null;
     const id = parsed?.metadata?.identifier;
     return typeof id === 'string' && id.length > 0 ? id : null;

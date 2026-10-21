@@ -257,7 +257,7 @@ function hasSecretLiteralContext(
   const separator = previous.at(-1)?.value;
   const name = previous.at(-2);
   if (!name || (name.type !== "IdentifierName" && name.type !== "StringLiteral")) return false;
-  const label = name.type === "StringLiteral" ? name.value.slice(1, -1) : name.value;
+  const label = name.type === "StringLiteral" ? decodeStaticLiteral({ content: name.value.slice(1, -1) }) : name.value;
   if (!/(pass(word|wd)?|secret|token|api[-_]?key|access[-_]?key|private[-_]?key|client[-_]?secret|auth(orization)?|bearer|cookie|credential)s?$/i.test(label)) return false;
   if (separator === ":" || separator === "=") return true;
   return isFirstNamedCallArgument({ previous, separator, name });
@@ -296,6 +296,22 @@ function redactUnclassifiedLiteral(
   return { text: content, redactions: 0 };
 }
 
+/** Decodes static JavaScript escapes for classification without evaluating source.
+ * O(n) time/space in literal length; nonsecret source keeps its original spelling. */
+function decodeStaticLiteral({ content }: { content: string }, _options = {}): string {
+  const escapes: Readonly<Record<string, string>> = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f", v: "\v" };
+  return content.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|[0-7]{1,3}|\r\n|[\s\S])/g, (_match, escape: string) => {
+    if (escape.startsWith("u{")) {
+      const point = Number.parseInt(escape.slice(2, -1), 16);
+      return point <= 0x10ffff ? String.fromCodePoint(point) : "";
+    }
+    if (/^[ux]/.test(escape) && escape.length > 1) return String.fromCharCode(Number.parseInt(escape.slice(1), 16));
+    if (/^[0-7]+$/.test(escape)) return String.fromCharCode(Number.parseInt(escape, 8));
+    if (/^[\r\n]/.test(escape)) return "";
+    return escapes[escape] ?? escape;
+  });
+}
+
 function redactCodeTokenContent(
   { content, literal, adjacentSecret, policy }: {
     content: string; literal: boolean; adjacentSecret: boolean; policy: RedactionPolicy;
@@ -309,6 +325,14 @@ function redactCodeTokenContent(
     return redactUnclassifiedLiteral({ content, adjacentSecret });
   }
   return { text: vendor.text, redactions: strict.redactions + vendor.redactions };
+}
+
+/** Preserves nonsecret source spelling; escaped secrets become one syntax-safe replacement.
+ * O(n) time/space in token length. */
+function renderRedactedLiteral({ content, classified, result }: { content: string; classified: string; result: SecretRedaction }, _options = {}): string {
+  if (result.redactions === 0) return content;
+  if (content === classified) return result.text;
+  return result.text.match(/\[REDACTED:[^\]]+\]/)?.[0] ?? "[REDACTED:escaped_secret]";
 }
 
 /** Only tokenizer-delimited static literal text and comments reach the existing strict policy.
@@ -335,9 +359,11 @@ function redactCodeLiterals(
       continue;
     }
     const { start, end, literal } = span;
-    const result = redactCodeTokenContent({ content: token.value.slice(start, end), literal, adjacentSecret, policy });
+    const content = token.value.slice(start, end);
+    const classified = literal ? decodeStaticLiteral({ content }) : content;
+    const result = redactCodeTokenContent({ content: classified, literal, adjacentSecret, policy });
     redactions += result.redactions;
-    parts.push(token.value.slice(0, start), result.text, token.value.slice(end));
+    parts.push(token.value.slice(0, start), renderRedactedLiteral({ content, classified, result }), token.value.slice(end));
   }
   return { text: parts.join(""), redactions };
 }

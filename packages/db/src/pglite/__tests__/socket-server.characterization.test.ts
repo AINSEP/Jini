@@ -102,12 +102,16 @@ test("unsupported startup protocols close without forwarding to the backend", as
   expect(stream.mock.calls).toEqual([]);
 });
 
-test("an SSL request shorter than its header is still answered N (reported, not fixed)", async () => {
+test("an SSL request shorter than its header is refused without an answer", async () => {
   const stream = vi.spyOn(db, "execProtocolRawStream");
   const malformed = startup({ code: 80877103, body: Buffer.alloc(0) });
   malformed.writeInt32BE(4, 0);
-  const answer = await exchange({ chunks: [malformed], complete: bytes => bytes.length === 1 });
-  expect(answer.toString()).toBe("N");
+  const chunks: Buffer[] = [];
+  socket.on("data", chunk => chunks.push(chunk));
+  const ended = once(socket, "end");
+  socket.write(malformed);
+  await ended;
+  expect(Buffer.concat(chunks).length).toBe(0);
   expect(stream.mock.calls).toEqual([]);
 });
 

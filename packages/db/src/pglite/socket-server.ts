@@ -39,6 +39,9 @@ const GSSENC_REQUEST_CODE = 80877104;
 const CANCEL_REQUEST_CODE = 80877102;
 const PROTOCOL_3 = 196608;
 
+/** Per-connection pending input ceiling, including the typed-message tag byte. */
+export const MAX_CLIENT_FRAME_BYTES = 16 * 1024 * 1024;
+
 /** Typed messages after which PGlite's ReadyForQuery is legitimate: Sync, Query, FunctionCall, CopyDone, CopyFail. */
 const ENDS_EXCHANGE = new Set(["S", "Q", "F", "c", "f"].map((c) => c.charCodeAt(0)));
 const READY_FOR_QUERY = "Z".charCodeAt(0);
@@ -56,6 +59,11 @@ export interface PgliteSocketServerOptions {
   /** A client idle inside an open transaction this long is disconnected and rolled back. Default 30 s; 0 = never. */
   idleInTransactionTimeoutMs?: number | undefined;
   log?: ((message: string) => void) | undefined;
+}
+
+/** Refuses invalid protocol lengths before buffering or slicing. O(1) time/space. */
+function assertClientFrameSize({ size, minimum }: { size: number; minimum: number }, _options = {}): void {
+  if (size < minimum || size > MAX_CLIENT_FRAME_BYTES) throw new Error("Invalid client frame length");
 }
 
 interface Job {
@@ -223,7 +231,10 @@ class Connection {
   ) {
     socket.setNoDelay(true);
     socket.on("data", (data) => {
-      this.chain = this.chain.then(() => this.handle(data)).catch((error: unknown) => this.close(error));
+      socket.pause();
+      this.chain = this.chain.then(() => this.handle(data)).catch((error: unknown) => this.close(error)).then(() => {
+        if (!this.closed) socket.resume();
+      });
     });
     socket.on("error", (error) => this.close(error));
     socket.on("close", () => this.close());
@@ -251,6 +262,7 @@ class Connection {
 
   private async handle(data: Buffer): Promise<void> {
     if (this.closed) return;
+    if (this.buffer.length + data.length > MAX_CLIENT_FRAME_BYTES) throw new Error("Client frame exceeds the byte limit");
     this.buffer = Buffer.concat([this.buffer, data]);
     for (;;) {
       const message = this.nextMessage();
@@ -267,8 +279,10 @@ class Connection {
    */
   private nextMessage(): { bytes: Buffer; startup: boolean } | "skip" | undefined {
     if (!this.started) {
-      if (this.buffer.length < 8) return undefined;
+      if (this.buffer.length < 4) return undefined;
       const size = this.buffer.readInt32BE(0);
+      assertClientFrameSize({ size, minimum: 8 });
+      if (this.buffer.length < 8) return undefined;
       const code = this.buffer.readInt32BE(4);
       if (this.buffer.length < size) return undefined;
       const bytes = this.buffer.subarray(0, size);
@@ -277,6 +291,7 @@ class Connection {
     }
     if (this.buffer.length < 5) return undefined;
     const size = 1 + this.buffer.readInt32BE(1);
+    assertClientFrameSize({ size, minimum: 5 });
     if (this.buffer.length < size) return undefined;
     const bytes = this.buffer.subarray(0, size);
     this.buffer = this.buffer.subarray(size);

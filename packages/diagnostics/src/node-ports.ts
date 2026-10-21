@@ -1,4 +1,5 @@
-import { open, readFile, readdir, stat } from "node:fs/promises";
+import { constants } from "node:fs";
+import { open, readdir, lstat } from "node:fs/promises";
 import { arch, hostname, platform, release, totalmem, type } from "node:os";
 import JSZip from "jszip";
 import type { DiagnosticsPorts } from "./ports.js";
@@ -10,24 +11,26 @@ export function createNodeDiagnosticsPorts(_required: Record<string, never>): Di
   return {
     filesystem: {
       async readFile({ absolutePath }, { tailBytes } = {}) {
-        if (tailBytes == null || tailBytes <= 0) return await readFile(absolutePath);
-        const info = await stat(absolutePath);
-        if (info.size <= tailBytes) return await readFile(absolutePath);
-        const fd = await open(absolutePath, "r");
+        const fd = await open(absolutePath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
         try {
-          const buffer = Buffer.alloc(tailBytes);
-          const { bytesRead } = await fd.read(buffer, 0, tailBytes, info.size - tailBytes);
+          const info = await fd.stat();
+          if (!info.isFile()) throw new Error("Diagnostic source is not a regular file");
+          if (tailBytes == null || tailBytes <= 0) return await fd.readFile();
+          const length = Math.min(info.size, tailBytes);
+          const buffer = Buffer.alloc(length);
+          const { bytesRead } = await fd.read(buffer, 0, length, info.size - length);
           return buffer.subarray(0, bytesRead);
         } finally {
           await fd.close();
         }
       },
       async readDirectory({ absolutePath }) {
+        if (!(await lstat(absolutePath)).isDirectory()) throw new Error("Diagnostic source is not a directory");
         return (await readdir(absolutePath, { withFileTypes: true }))
           .map((entry) => ({ name: entry.name, isDirectory: entry.isDirectory() }));
       },
       async stat({ absolutePath }) {
-        const info = await stat(absolutePath);
+        const info = await lstat(absolutePath);
         return { isFile: info.isFile(), mtimeMs: info.mtimeMs };
       },
     },

@@ -1,3 +1,6 @@
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Dirent } from 'node:fs';
 import { expect, it } from 'vitest';
 import { DEFAULT_ARTIFACT_STUB_GUARD_CONFIG as config } from '../../stub-guard.js';
@@ -71,4 +74,31 @@ it('short-circuits empty inputs and recovers from directory failures', async () 
   expect(calls).toEqual([]);
   expect(await findPriorArtifactSiblings({ scanDir: '/scan', identifier: 'id', config }, { filesystem })).toEqual([]);
   expect(calls).toEqual(['readdir']);
+});
+
+it('bounds sidecar reads before JSON interpretation', async () => {
+  const reads: number[] = [];
+  const filesystem: ArtifactStubFilesystemPort = {
+    readdir: async () => [file({ name: 'report.html' })],
+    readFile: async ({ maxBytes }) => {
+      reads.push(maxBytes);
+      return JSON.stringify({ padding: 'x'.repeat(65536), metadata: { identifier: 'different' } });
+    },
+    stat: async () => ({ size: 5000 }),
+  };
+  expect(await findPriorArtifactSiblings({ scanDir: '/scan', identifier: 'report', config }, { filesystem }))
+    .toEqual([{ name: 'report.html', size: 5000 }]);
+  expect(reads).toEqual([65536]);
+});
+
+it('native sidecar reads refuse oversized data before trusting its identifier', async () => {
+  const scanDir = await mkdtemp(join(tmpdir(), 'jini-sidecar-bound-'));
+  try {
+    await writeFile(join(scanDir, 'report.html'), 'prior');
+    await writeFile(join(scanDir, 'report.html.artifact.json'), JSON.stringify({
+      metadata: { identifier: 'different' }, padding: 'x'.repeat(65536),
+    }));
+    expect(await findPriorArtifactSiblings({ scanDir, identifier: 'report', config }))
+      .toEqual([{ name: 'report.html', size: 5 }]);
+  } finally { await rm(scanDir, { recursive: true, force: true }); }
 });

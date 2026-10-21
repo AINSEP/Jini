@@ -134,7 +134,7 @@ describe('syncIframeProps characterization', () => {
     expect(appliedAttributes).toEqual(new Set());
   });
 
-  it('hyphenates referrerPolicy and allowFullScreen into ineffective HTML attributes (reported, not fixed)', () => {
+  it('maps referrerPolicy and allowFullScreen to effective HTML attributes', () => {
     const frame = document.createElement('iframe');
     const appliedAttributes = new Set<string>();
 
@@ -142,10 +142,10 @@ describe('syncIframeProps characterization', () => {
       cacheKey: 'preview', src: 'about:blank', referrerPolicy: 'no-referrer', allowFullScreen: true,
     }, appliedAttributes, new Set());
 
-    expect(frame.getAttribute('referrer-policy')).toBe('no-referrer');
-    expect(frame.hasAttribute('referrerpolicy')).toBe(false);
-    expect(frame.getAttribute('allow-full-screen')).toBe('');
-    expect(frame.hasAttribute('allowfullscreen')).toBe(false);
-    expect(appliedAttributes).toEqual(new Set(['referrer-policy', 'allow-full-screen']));
+    expect(frame.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(frame.hasAttribute('referrer-policy')).toBe(false);
+    expect(frame.getAttribute('allowfullscreen')).toBe('');
+    expect(frame.hasAttribute('allow-full-screen')).toBe(false);
+    expect(appliedAttributes).toEqual(new Set(['referrerpolicy', 'allowfullscreen']));
   });
 });

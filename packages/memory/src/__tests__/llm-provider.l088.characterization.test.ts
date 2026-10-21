@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { callLlmProvider, DEFAULT_TIMEOUT_MS, describeFetchError, type LlmProviderConfig, type LlmProviderOptions } from '../llm-provider.js';
+import { callLlmProvider, DEFAULT_TIMEOUT_MS, describeFetchError, parseStrictJson, type LlmProviderConfig, type LlmProviderOptions } from '../llm-provider.js';
 
 const config: LlmProviderConfig = { provider: 'openai', apiKey: ' key ', model: ' model ', baseUrl: 'https://api.openai.com/v1' };
 
@@ -50,9 +50,9 @@ describe('llm-provider L088 characterization', () => {
     expect(f.timeoutSignal).toHaveBeenCalledWith({ timeoutMs: 12 });
   });
 
-  it('echoes unredacted provider error bodies (reported, not fixed)', async () => {
+  it('omits provider error bodies', async () => {
     const fetchFn: typeof fetch = async () => new Response('credential=secret-value', { status: 401 });
-    await expect(callLlmProvider({ config, systemPrompt: '', userPrompt: '' }, { fetchFn })).rejects.toThrow('openai 401: credential=secret-value');
+    await expect(callLlmProvider({ config, systemPrompt: '', userPrompt: '' }, { fetchFn })).rejects.toThrow('openai 401: request rejected');
   });
 
   it.each([
@@ -74,4 +74,23 @@ describe('llm-provider L088 characterization', () => {
   it.each([['thrown text', 'thrown text'], [null, 'null'], [9, '9']])('stringifies a non-Error throw: %j', (err, expected) => {
     expect(describeFetchError({ err })).toBe(expected);
   });
+});
+
+it('omits invalid provider JSON from errors', async () => {
+  const fetchFn: typeof fetch = async () => new Response('private@example.test');
+  await expect(callLlmProvider({ config, systemPrompt: '', userPrompt: '' }, { fetchFn })).rejects.toThrow(/^openai non-JSON response$/);
+});
+
+it('omits malformed model output from JSON parsing errors', () => {
+  expect(() => parseStrictJson({ rawText: 'private@example.test' }))
+    .toThrow(/^llm-provider: response was not valid JSON$/);
+});
+
+it('omits transport and response-read failure details', async () => {
+  const input = { config, systemPrompt: '', userPrompt: '' };
+  await expect(callLlmProvider(input, { fetchFn: async () => { throw new Error('private@example.test'); } }))
+    .rejects.toThrow(/^openai request failed$/);
+  await expect(callLlmProvider(input, { fetchFn: async () => new Response(new ReadableStream({
+    start(controller) { controller.error(new Error('private@example.test')); },
+  })) })).rejects.toThrow(/^openai response could not be read$/);
 });

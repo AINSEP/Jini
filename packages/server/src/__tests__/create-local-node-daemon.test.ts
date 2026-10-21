@@ -359,7 +359,7 @@ describe('createLocalNodeDaemon', () => {
 
     it('executes a host registration through the shared ToolExecutor', async () => {
       const seen: unknown[] = [];
-      const daemon = await createLocalNodeDaemon({ open: openSqlite,
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, resolveDelegatedPrincipal: () => ({ id: 'test-host' }),
         dataDir: makeTempDataDir(),
         packs: [makePingPack()],
         toolRegistrations: [{
@@ -386,7 +386,7 @@ describe('createLocalNodeDaemon', () => {
     // Inertness must come from the policy, not from the route being absent — an unreachable route
     // is indistinguishable from a broken build, which is why this preset mounts it regardless.
     it('is reachable but refused when the tool keeps a deny-by-default policy', async () => {
-      const daemon = await createLocalNodeDaemon({ open: openSqlite,
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, resolveDelegatedPrincipal: () => ({ id: 'test-host' }),
         dataDir: makeTempDataDir(),
         packs: [makePingPack()],
         toolRegistrations: [{
@@ -406,7 +406,7 @@ describe('createLocalNodeDaemon', () => {
       expect(json).toMatchObject({ error: { code: 'TOOL_OPERATION_DENIED' } });
     });
 
-    it('runs as the anonymous principal when the host supplies no resolver', async () => {
+    it('refuses tool execution when the host supplies no principal resolver', async () => {
       const principals: string[] = [];
       const daemon = await createLocalNodeDaemon({ open: openSqlite,
         dataDir: makeTempDataDir(),
@@ -425,9 +425,10 @@ describe('createLocalNodeDaemon', () => {
       daemonsToStop.push(daemon);
       const runId = await startRun(daemon.url);
 
-      await callDelegatedTool(daemon.url, { runId, toolUseId: 'u', toolId: 'page.click', input: {} });
+      const response = await callDelegatedTool(daemon.url, { runId, toolUseId: 'u', toolId: 'page.click', input: {} });
 
-      expect(principals).toEqual(['anonymous-delegated']);
+      expect(response.status).toBe(500);
+      expect(principals).toEqual([]);
     });
 
     it('runs as the host-resolved principal, and passes it the request', async () => {
@@ -471,7 +472,7 @@ describe('createLocalNodeDaemon', () => {
      * no reachable terminal tool.
      */
     it('a disabled feature is unreachable through the delegated-tool route too, not just missing its own routes', async () => {
-      const daemon = await createLocalNodeDaemon({ open: openSqlite,
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, resolveDelegatedPrincipal: () => ({ id: 'test-host' }),
         dataDir: makeTempDataDir(),
         packs: [makePingPack()],
         features: { terminal: false },
@@ -492,7 +493,7 @@ describe('createLocalNodeDaemon', () => {
     });
 
     it('and with the default (enabled) composition the very same call reaches the tool and is refused by POLICY, not by absence', async () => {
-      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir: makeTempDataDir(), packs: [makePingPack()] });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, resolveDelegatedPrincipal: () => ({ id: 'test-host' }), dataDir: makeTempDataDir(), packs: [makePingPack()] });
       daemonsToStop.push(daemon);
       const runId = await startRun(daemon.url);
 
@@ -1762,16 +1763,13 @@ describe('L039a preset option forwarding pins', () => {
   });
 });
 
-it('leaves a rejected cleanup continuation after a bind failure (reported, not fixed)', async () => {
+it('handles rejected cleanup after a bind failure without discarding a rejection', async () => {
   const cleanupError = new Error('cleanup failed');
-  let observeCleanup: (error: unknown) => void = () => undefined;
-  const rejectedContinuation = new Promise<unknown>((resolve) => { observeCleanup = resolve; });
-  // Observe the discarded child promise at the injected port so the runner does not receive an
-  // unhandled rejection. Production currently drops this child after attaching its finally hook.
+  const discarded: unknown[] = [];
   class ObservedCleanup extends Promise<void> {
     override finally(onfinally?: (() => void) | null): Promise<void> {
       const child = super.finally(onfinally);
-      void child.catch(observeCleanup);
+      void child.catch(error => { discarded.push(error); });
       return child;
     }
   }
@@ -1786,7 +1784,8 @@ it('leaves a rejected cleanup continuation after a bind failure (reported, not f
     await expect(createLocalNodeDaemon({ open: openSqlite, dataDir: makeTempDataDir(), packs: [],
       env: {}, discoveryFile: false, port: -1, profile: 'agent-core-v1',
     })).rejects.toThrow(/port/i);
-    await expect(rejectedContinuation).resolves.toBe(cleanupError);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(discarded).toEqual([]);
   } finally { composeSpy.mockRestore(); }
 });
 

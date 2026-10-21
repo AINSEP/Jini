@@ -491,6 +491,15 @@ function extractUtm(pathWithMaybeQuery: string): UtmParams {
   };
 }
 
+/** Applies the existing property privacy rules to the six stored beacon labels.
+ * Throws a value-free policy error before normalization or sink I/O. O(n) in bounded label bytes. */
+function validateBeaconLabels({ beacon, privacyPolicy }: { beacon: IngestBeacon; privacyPolicy: AnalyticsPrivacyPolicy }, _options = {}): void {
+  const labels = { eventName: beacon.eventName, ...extractUtm(beacon.path) };
+  for (const [key, value] of Object.entries(labels)) {
+    validateEventPropEntry({ key, value, maxLength: privacyPolicy.maxEventPropStringLength, pending: [] });
+  }
+}
+
 function buildNormalizedHit(required: {
   beacon: IngestBeacon;
   context: IngestContext;
@@ -568,6 +577,7 @@ export async function ingestHit(required: IngestHitRequired, optional: IngestHit
   let eventProps: JsonObject | null;
   try {
     eventProps = validateEventProps({ props: beacon.eventProps, privacyPolicy: deps.privacyPolicy });
+    validateBeaconLabels({ beacon, privacyPolicy: deps.privacyPolicy });
   } catch (err) {
     if (err instanceof AnalyticsPiiRejectedError) {
       return { accepted: false, reason: "pii_rejected" };

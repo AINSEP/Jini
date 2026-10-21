@@ -121,9 +121,17 @@ describe('copy result pins', () => {
       expect(await runCopy(fixture({ read }).input)).toEqual({ ok: true, tables: [{ name: 'items', rows: 2 }], unvalidatedConstraints: [], warning: 'the copy finished, but its list of unchecked constraints could not be read back' });
     },
   );
-  it('rejects after committing when marker JSON is malformed (reported, not fixed)', async () => {
-    const f = fixture({ read: { ok: true, value: [['invalid JSON']] } });
-    await expect(runCopy(f.input)).rejects.toBeInstanceOf(SyntaxError);
+  it.each(['invalid JSON', 'null', '{}', '[1]'])('reports a committed-copy warning for malformed marker %s', async cell => {
+    const f = fixture({ read: { ok: true, value: [[cell]] } });
+    await expect(runCopy(f.input)).resolves.toEqual({ ok: true, tables: [{ name: 'items', rows: 2 }], unvalidatedConstraints: [], warning: 'the copy finished, but its list of unchecked constraints could not be read back' });
     expect(f.script()).toMatch(/COMMIT;\n$/);
   });
+});
+
+it('preserves a committed copy when marker readback throws', async () => {
+  const f = fixture({});
+  f.target.query = async () => { throw new Error('private upstream details'); };
+  expect(await runCopy(f.input)).toEqual({ ok: true, tables: [{ name: 'items', rows: 2 }], unvalidatedConstraints: [],
+    warning: 'the copy finished, but its list of unchecked constraints could not be read back' });
+  expect(f.script()).toMatch(/COMMIT;\n$/);
 });

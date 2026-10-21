@@ -79,7 +79,7 @@ describe("run log discovery characterization", () => {
 });
 
 describe("agent CLI log discovery characterization", () => {
-  it("collects a .log symlink's target outside the log directory (reported, not fixed)", async () => {
+  it("refuses a .log symlink outside the log directory at discovery and read", async () => {
     const root = await mkdtemp(join(tmpdir(), "diagnostics-l170-"));
     try {
       const homeDir = join(root, "home");
@@ -91,14 +91,9 @@ describe("agent CLI log discovery characterization", () => {
       await symlink(target, absolutePath);
       const { filesystem } = createNodeDiagnosticsPorts({});
       const sources = await buildAgentCliLogSources({ homeDir, filesystem });
-      expect(sources).toEqual([{
-        name: "agent-cli-logs/claude/linked.log", absolutePath, kind: "text", tailBytes: defaultTail,
-      }]);
-      expect(await collectLogSources({ sources, filesystem })).toEqual([{
-        name: "agent-cli-logs/claude/linked.log", absolutePath,
-        content: '{"privateNote":"outside the log directory"}',
-        bytes: Buffer.byteLength('{"privateNote":"outside the log directory"}'),
-      }]);
+      expect(sources).toEqual([]);
+      await expect(filesystem.readFile({ absolutePath }, { tailBytes: defaultTail })).rejects.toThrow();
+      expect(await collectLogSources({ sources, filesystem })).toEqual([]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -190,4 +185,18 @@ describe("agent CLI log discovery characterization", () => {
     }];
     expect(await buildAgentCliLogSources({ homeDir: "/home/test", filesystem }, { maxFilesPerAgent, tailBytes: 0 })).toEqual(expected);
   });
+});
+
+it('refuses a linked log directory before discovering outside files', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'diagnostics-linked-dir-'));
+  try {
+    const homeDir = join(root, 'home');
+    const outside = join(root, 'outside');
+    await mkdir(homeDir);
+    await mkdir(outside);
+    await writeFile(join(outside, 'outside.log'), 'private bytes');
+    await symlink(outside, join(homeDir, '.claude'));
+    const { filesystem } = createNodeDiagnosticsPorts({});
+    expect(await buildAgentCliLogSources({ homeDir, filesystem })).toEqual([]);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

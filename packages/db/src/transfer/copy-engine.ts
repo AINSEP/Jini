@@ -1,3 +1,4 @@
+import { FOREIGN_SCHEMA_SIGNAL, COUNT_MISMATCH_SIGNAL } from "./signals.js";
 import { createHash } from "node:crypto";
 import { defaultDbMessages, type DbMessages } from "../core/messages.js";
 
@@ -191,8 +192,7 @@ function* copyTableData(source: TransferSource, schema: string, table: TransferT
   yield `${batch}\\.\n`;
 }
 
-const FOREIGN_SCHEMA_SIGNAL = "TRANSFER_TARGET_NOT_OURS";
-const COUNT_MISMATCH_SIGNAL = "TRANSFER_COUNT_MISMATCH";
+
 
 /**
  * Aborts the transaction unless `schema` is absent or holds only this site's copy. The marker is read
@@ -266,12 +266,20 @@ export type CopyResult =
     }
   | { readonly ok: false; readonly code: "TARGET_NOT_OURS" | "COPY_FAILED" | "COUNT_MISMATCH"; readonly message: string; readonly logDetail?: string };
 
-/** The constraints the committed copy left NOT VALID, from its marker. */
-async function readUnvalidated(target: PostgresTargetPort, schema: string, TRANSFER_MARKER_TABLE: string): Promise<{ unvalidatedConstraints: string[]; warning?: string }> {
-  const read = await target.query(`SELECT unvalidated FROM ${qualified(schema, TRANSFER_MARKER_TABLE)} LIMIT 1`);
-  const cell = read.ok ? read.value[0]?.[0] : undefined;
-  if (cell === undefined) return { unvalidatedConstraints: [], warning: "the copy finished, but its list of unchecked constraints could not be read back" };
-  return { unvalidatedConstraints: JSON.parse(cell) as string[] };
+/** Reads the committed constraint list; malformed or failed readback yields a safe warning.
+ * O(n) time/space in marker bytes; performs one target query. */
+async function readUnvalidated({ target, schema, markerTable }: { target: PostgresTargetPort; schema: string; markerTable: string }, _options = {}): Promise<{ unvalidatedConstraints: string[]; warning?: string }> {
+  const unreadable = { unvalidatedConstraints: [], warning: "the copy finished, but its list of unchecked constraints could not be read back" };
+  try {
+    const read = await target.query(`SELECT unvalidated FROM ${qualified(schema, markerTable)} LIMIT 1`);
+    const cell = read.ok ? read.value[0]?.[0] : undefined;
+    if (cell === undefined) return unreadable;
+    const constraints: unknown = JSON.parse(cell);
+    if (!Array.isArray(constraints) || !constraints.every(value => typeof value === "string")) return unreadable;
+    return { unvalidatedConstraints: constraints };
+  } catch {
+    return unreadable;
+  }
 }
 
 /**
@@ -320,7 +328,7 @@ export async function runCopy(input: RunCopyInput, _optional: { messages?: Pick<
     if (err instanceof SourceSchemaMismatchError) return { ok: false, code: "COPY_FAILED", message: `${err.message}. Nothing was changed.` };
     throw err;
   }
-  if (result.ok) return { ok: true, tables: counts.map(({ table, rows }) => ({ name: table.name, rows })), ...(await readUnvalidated(input.target, schema, input.naming.markerTable)) };
+  if (result.ok) return { ok: true, tables: counts.map(({ table, rows }) => ({ name: table.name, rows })), ...(await readUnvalidated({ target: input.target, schema, markerTable: input.naming.markerTable })) };
   if (result.error.includes(FOREIGN_SCHEMA_SIGNAL)) {
     return { ok: false, code: "TARGET_NOT_OURS", message: `the destination already has a '${schema}' area that holds other data. Nothing was written, and it was left untouched.` };
   }

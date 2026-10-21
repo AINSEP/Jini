@@ -59,15 +59,15 @@ describe('extract-facts L088 characterization', () => {
 
   it.each([true, false])('preserves parse failure and optional failure logging (logging=%s)', async (logging) => {
     const f = fixture({ raw: 'bad JSON' });
-    await expect(extractFacts({ llmConfig, content: 'content' }, { llm: { fetchFn: f.fetchFn }, ...(logging ? { logging: { log: f.log, kind: 'pin' } } : {}) })).rejects.toThrow('llm-provider: response was not valid JSON: bad JSON');
+    await expect(extractFacts({ llmConfig, content: 'content' }, { llm: { fetchFn: f.fetchFn }, ...(logging ? { logging: { log: f.log, kind: 'pin' } } : {}) })).rejects.toThrow('llm-provider: response was not valid JSON');
     expect(f.failed).toHaveBeenCalledTimes(logging ? 1 : 0);
     expect(f.proposed).not.toHaveBeenCalled();
     expect(f.success).not.toHaveBeenCalled();
   });
 
-  it.each([true, false])('preserves transport failure and optional failure logging (logging=%s)', async (logging) => {
+  it.each([true, false])('omits transport details and preserves optional failure logging (logging=%s)', async (logging) => {
     const f = fixture({ error: new Error('network failed') });
-    await expect(extractFacts({ llmConfig, content: 'content' }, { llm: { fetchFn: f.fetchFn }, ...(logging ? { logging: { log: f.log, kind: 'pin' } } : {}) })).rejects.toThrow('network failed');
+    await expect(extractFacts({ llmConfig, content: 'content' }, { llm: { fetchFn: f.fetchFn }, ...(logging ? { logging: { log: f.log, kind: 'pin' } } : {}) })).rejects.toThrow(/^openai request failed$/);
     expect(f.failed).toHaveBeenCalledTimes(logging ? 1 : 0);
     expect(f.proposed).not.toHaveBeenCalled();
     expect(f.success).not.toHaveBeenCalled();

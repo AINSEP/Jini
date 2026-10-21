@@ -472,7 +472,7 @@ export async function createLocalNodeDaemon(
   return await new Promise<LocalNodeDaemon>((resolve, reject) => {
     const failToBind = (error: unknown) => {
       // Best-effort: a failed boot must not leave any resource this call already opened dangling.
-      void kernel.close().finally(() => reject(error));
+      void kernel.close().then(() => reject(error), () => reject(error));
     };
 
     listen()
