@@ -24,9 +24,10 @@
  *   `claim()` is what exchanges those ids for real paths, server-side.
  *
  * **What `claim()` guarantees.** Exactly once per registered attachment, and only if the file is
- * still the same file: `lstat` must report a regular non-symlink whose `dev`/`ino`/`size` match
- * what was recorded at registration, and `realpath` must equal the recorded path (so neither the
- * file nor any parent directory was swapped for a symlink between upload and run start). Every
+ * still the same file: `lstat` must report a regular non-symlink whose `dev`/`ino`/`size` and
+ * recorded modification/change timestamps match, and `realpath` must equal the recorded path
+ * (so neither the file nor any parent directory was swapped for a symlink between upload and run
+ * start). Legacy sidecars establish their timestamp baseline on first verified read. Every
  * claimed attachment must belong to one batch, so the single `batchDirectory` a host grants the
  * agent read access to cannot be widened by mixing batches.
  *
@@ -106,6 +107,7 @@ import { createApiError, type ApiError } from '@jini-ai/protocol';
 import type { AdapterContext } from '@jini-ai/http-kit';
 import { guardSameOrigin } from '@jini-ai/http-kit';
 import { sendApiError, sendJson } from '@jini-ai/http-kit';
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 
 /**
  * A staged upload as it crosses the wire and as `claim()` returns it.
@@ -455,6 +457,9 @@ export interface AttachmentRecord {
   batchDirectory: string;
   dev: number;
   ino: number;
+  /** Absent only for legacy sidecars; filled after their first successful integrity check. */
+  mtimeMs?: number;
+  ctimeMs?: number;
   createdAt: number;
   claimedRunId?: string;
   /**
@@ -486,6 +491,8 @@ export interface RecordedAttachmentIdentity {
   readonly dev: number;
   readonly ino: number;
   readonly size: number;
+  readonly mtimeMs?: number;
+  readonly ctimeMs?: number;
 }
 
 /**
@@ -502,6 +509,8 @@ export interface ObservedAttachmentIdentity {
   readonly dev: number;
   readonly ino: number;
   readonly size: number;
+  readonly mtimeMs: number;
+  readonly ctimeMs: number;
   /** `realpath` of the file — differs from its own path when any path component became a symlink. */
   readonly canonicalPath: string;
 }
@@ -512,7 +521,9 @@ export interface ObservedAttachmentIdentity {
  * Every condition is a distinct real attack: a regular file swapped for a symlink or directory, a
  * parent directory swapped for a symlink pointing elsewhere, the file replaced by a different file
  * at the same path (new inode), the same inode truncated or appended to (new size), or the path
- * now resolving onto a different device.
+ * now resolving onto a different device. Modification/change timestamps also detect same-size
+ * rewrites and replacement files whose inode was recycled. Legacy records lack timestamps and
+ * use their original identity checks until the first verified read establishes that baseline.
  *
  * Pure and exported on purpose. Staging a *device* change for a file that keeps its path is not
  * something a test can do on a real filesystem, and a check that can only be exercised in
@@ -524,7 +535,9 @@ export function isUnchangedAttachment({ recorded, observed }: { readonly recorde
     && observed.canonicalPath === recorded.filePath
     && observed.dev === recorded.dev
     && observed.ino === recorded.ino
-    && observed.size === recorded.size;
+    && observed.size === recorded.size
+    && (recorded.mtimeMs === undefined || observed.mtimeMs === recorded.mtimeMs)
+    && (recorded.ctimeMs === undefined || observed.ctimeMs === recorded.ctimeMs);
 }
 
 /**
@@ -575,6 +588,7 @@ export function reserveAttachmentRecords({ attachments, records, runId, maxAttac
  * Throws without releasing `claimed`'s reservations; releasing is the caller's job (`claim`'s own
  * `catch`), so a rejected claim still leaves nothing half-claimed and the caller can retry with a
  * corrected set.
+ * Missing legacy timestamps are filled from the verified stat; adoption persists that baseline.
  *
  * Exported so the integrity and mixed-batch checks can be exercised directly against fabricated
  * records over real files on disk, without a full `createDiskAttachmentStore` around them.
@@ -591,6 +605,8 @@ export async function verifyClaimedAttachments({ claimed }: { readonly claimed: 
         dev: info.dev,
         ino: info.ino,
         size: info.size,
+        mtimeMs: info.mtimeMs,
+        ctimeMs: info.ctimeMs,
         canonicalPath,
       }
     })) {
@@ -599,6 +615,8 @@ export async function verifyClaimedAttachments({ claimed }: { readonly claimed: 
     if (index > 0 && record.batchDirectory !== batchDirectory) {
       throw new AttachmentRejectedError({ reason: 'mixed-batch', message: 'Attachments must belong to one batch' });
     }
+    record.mtimeMs ??= info.mtimeMs;
+    record.ctimeMs ??= info.ctimeMs;
     batchDirectory = record.batchDirectory;
   }
   return batchDirectory;
@@ -766,6 +784,8 @@ export interface PersistedAttachmentRecord {
   readonly batchId: string;
   readonly dev: number;
   readonly ino: number;
+  readonly mtimeMs?: number;
+  readonly ctimeMs?: number;
   readonly createdAt: number;
   readonly ownerId?: string;
 }
@@ -785,7 +805,8 @@ const PERSISTED_FIELD_TYPES: Readonly<Record<string, string>> = {
 
 function hasPersistedFieldTypes(candidate: Record<string, unknown>): boolean {
   return Object.entries(PERSISTED_FIELD_TYPES)
-    .every(([field, type]) => typeof candidate[field] === type);
+    .every(([field, type]) => typeof candidate[field] === type)
+    && ['mtimeMs', 'ctimeMs'].every((field) => candidate[field] === undefined || typeof candidate[field] === 'number');
 }
 
 function isPersistedAttachmentShape(raw: unknown): raw is PersistedAttachmentRecord {
@@ -799,6 +820,7 @@ function isPersistedAttachmentShape(raw: unknown): raw is PersistedAttachmentRec
 /**
  * Turns one sidecar's parsed JSON back into an `AttachmentRecord`, or `undefined` for anything that
  * is not a well-formed record naming a file inside its own batch directory.
+ * Legacy sidecars may lack timestamps; adoption verifies their recorded identity before backfill.
  *
  * `batchDirectory` is re-derived here and `filePath`'s containment is re-checked against it with
  * the same parent-equality test `register` uses — the two checks that make an adopted record no
@@ -822,6 +844,8 @@ export function parsePersistedAttachment({ raw, canonicalUploadDirectory }: { re
     batchDirectory,
     dev: raw.dev,
     ino: raw.ino,
+    ...(raw.mtimeMs === undefined ? {} : { mtimeMs: raw.mtimeMs }),
+    ...(raw.ctimeMs === undefined ? {} : { ctimeMs: raw.ctimeMs }),
     createdAt: raw.createdAt,
     ...(raw.ownerId === undefined ? {} : { ownerId: raw.ownerId }),
   };
@@ -836,6 +860,26 @@ export function parsePersistedAttachment({ raw, canonicalUploadDirectory }: { re
  */
 export function attachmentSidecarFileName({ id }: { readonly id: string }, _optional: Record<string, never> = {}): string {
   return `${id.replaceAll(/[^a-zA-Z0-9-]/gu, '_')}.json`;
+}
+
+/** Writes only persisted fields, atomically, so an interrupted backfill preserves the old sidecar.
+ * Propagates write failures; callers must not treat a failed migration as an invalid attachment. */
+async function writePersistedAttachment({ record, sidecarPath }: { readonly record: AttachmentRecord; readonly sidecarPath: string }, _optional: Record<string, never> = {}): Promise<void> {
+  const persisted: PersistedAttachmentRecord = {
+    id: record.id,
+    filePath: record.filePath,
+    name: record.name,
+    kind: record.kind,
+    size: record.size,
+    batchId: record.batchId,
+    dev: record.dev,
+    ino: record.ino,
+    ...(record.mtimeMs === undefined ? {} : { mtimeMs: record.mtimeMs }),
+    ...(record.ctimeMs === undefined ? {} : { ctimeMs: record.ctimeMs }),
+    createdAt: record.createdAt,
+    ...(record.ownerId === undefined ? {} : { ownerId: record.ownerId }),
+  };
+  await writeJsonFileAtomicAsync({ filePath: sidecarPath, data: persisted }, { mode: 0o600 });
 }
 
 async function readPersistedAttachment(
@@ -874,6 +918,8 @@ async function isAdoptableAttachment(record: AttachmentRecord): Promise<boolean>
  * file registration accepted. Anything failing any of those is deleted — sidecar first, then the
  * file it named, and the file ONLY when containment passed, so an unparseable sidecar can never
  * make this an arbitrary-file-delete primitive for whatever the daemon can unlink.
+ * Legacy records use their original identity checks before timestamps are backfilled atomically.
+ * A backfill write failure propagates before cleanup, preserving the attachment for a later retry.
  *
  * **The retention consequence, stated rather than assumed harmless.** Because `claimedRunId` is not
  * persisted (see {@link PersistedAttachmentRecord}), a file claimed by a run that died with the
@@ -896,7 +942,9 @@ export async function loadPersistedAttachments(requiredArgs: Omit<{ readonly can
   for (const entry of await readdir(sidecarDirectory)) {
     const sidecarPath = resolve(sidecarDirectory, entry);
     const record = await readPersistedAttachment(sidecarPath, canonicalUploadDirectory);
+    const needsBackfill = record?.mtimeMs === undefined || record?.ctimeMs === undefined;
     if (record && now - record.createdAt < retentionMs && await isAdoptableAttachment(record)) {
+      if (needsBackfill) await writePersistedAttachment({ record, sidecarPath });
       adopted.set(record.id, record);
       continue;
     }
@@ -1000,20 +1048,8 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
    */
   const persistRecord = async (record: AttachmentRecord): Promise<void> => {
     if (!retainAcrossRestarts) return;
-    const persisted: PersistedAttachmentRecord = {
-      id: record.id,
-      filePath: record.filePath,
-      name: record.name,
-      kind: record.kind,
-      size: record.size,
-      batchId: record.batchId,
-      dev: record.dev,
-      ino: record.ino,
-      createdAt: record.createdAt,
-      ...(record.ownerId === undefined ? {} : { ownerId: record.ownerId }),
-    };
     try {
-      await writeFile(sidecarPathFor(record), JSON.stringify(persisted), { mode: 0o600 });
+      await writePersistedAttachment({ record, sidecarPath: sidecarPathFor(record) });
     } catch (error) {
       records.delete(record.id);
       throw error;
@@ -1134,6 +1170,8 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
           batchDirectory,
           dev: info.dev,
           ino: info.ino,
+          mtimeMs: info.mtimeMs,
+          ctimeMs: info.ctimeMs,
           createdAt: Date.now(),
           ...(input.ownerId === undefined ? {} : { ownerId: input.ownerId }),
         };

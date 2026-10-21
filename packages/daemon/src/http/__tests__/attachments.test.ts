@@ -23,11 +23,13 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   realpath,
   rm,
   rmdir,
   stat,
   symlink,
+  utimes,
   writeFile,
 } from 'node:fs/promises';
 import express from 'express';
@@ -368,8 +370,8 @@ describe('hasAvifSignature', () => {
 // ---------------------------------------------------------------------------
 
 describe('isUnchangedAttachment', () => {
-  const recorded = { filePath: '/uploads/batch/a.bin', dev: 1, ino: 2, size: 3 };
-  const observed = { isRegularFile: true, dev: 1, ino: 2, size: 3, canonicalPath: recorded.filePath };
+  const recorded = { filePath: '/uploads/batch/a.bin', dev: 1, ino: 2, size: 3, mtimeMs: 4, ctimeMs: 5 };
+  const observed = { isRegularFile: true, dev: 1, ino: 2, size: 3, mtimeMs: 4, ctimeMs: 5, canonicalPath: recorded.filePath };
 
   it('accepts a file whose identity is unchanged since registration', () => {
     expect(isUnchangedAttachment({ recorded, observed })).toBe(true);
@@ -382,6 +384,8 @@ describe('isUnchangedAttachment', () => {
     expect(isUnchangedAttachment({ recorded, observed: { ...observed, dev: 99 } })).toBe(false);
     expect(isUnchangedAttachment({ recorded, observed: { ...observed, ino: 99 } })).toBe(false);
     expect(isUnchangedAttachment({ recorded, observed: { ...observed, size: 99 } })).toBe(false);
+    expect(isUnchangedAttachment({ recorded, observed: { ...observed, mtimeMs: 99 } })).toBe(false);
+    expect(isUnchangedAttachment({ recorded, observed: { ...observed, ctimeMs: 99 } })).toBe(false);
   });
 });
 
@@ -401,6 +405,8 @@ describe('reserveAttachmentRecords', () => {
       batchDirectory: '/uploads/batch-aaaaaaaa',
       dev: 1,
       ino: 1,
+      mtimeMs: 0,
+      ctimeMs: 0,
       createdAt: Date.now(),
       ...overrides,
     };
@@ -497,6 +503,8 @@ describe('verifyClaimedAttachments', () => {
       batchDirectory,
       dev: info.dev,
       ino: info.ino,
+      mtimeMs: info.mtimeMs,
+      ctimeMs: info.ctimeMs,
       createdAt: Date.now(),
       ...overrides,
     };
@@ -871,9 +879,10 @@ describe('createDiskAttachmentStore', () => {
   it('rejects a file replaced by a different file of the same size after registration', async () => {
     const { store } = await diskStore();
     const { attachment, filePath } = await stage(store, 'batch-0010', 'swap.txt', 'aaaaaa');
-    // Same path, same byte count, different inode — the identity check has to notice.
+    const registered = await stat(filePath);
     await rm(filePath);
     await writeFile(filePath, 'bbbbbb', { mode: 0o600 });
+    await utimes(filePath, registered.atime, new Date(registered.mtimeMs + 1000));
 
     await expect(store.claim({ attachments: [attachment], runId: 'run-swapped' })).rejects.toThrow('changed after upload');
   });
@@ -1780,7 +1789,80 @@ function sidecarPath(root: string, id: string): string {
   return resolve(root, SIDECAR_DIRECTORY, attachmentSidecarFileName({ id }));
 }
 
+/** Recreates the pre-timestamp disk format without changing the registered file's identity. */
+async function makeLegacySidecar({ root, id }: { readonly root: string; readonly id: string }, _optional: Record<string, never> = {}): Promise<Record<string, unknown>> {
+  const path = sidecarPath(root, id);
+  const legacy = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
+  delete legacy.mtimeMs;
+  delete legacy.ctimeMs;
+  await writeFile(path, JSON.stringify(legacy));
+  return legacy;
+}
+
 describe('createDiskAttachmentStore — retainAcrossRestarts', () => {
+  it('accepts a legacy sidecar and atomically backfills timestamps from the verified file', async () => {
+    const root = await tempDirectory();
+    const first = await retainingStore(root);
+    const staged = await stage(first, 'batch-legacy-1', 'upload.bin', 'the only copy', 'admin-1');
+    const legacy = await makeLegacySidecar({ root, id: staged.attachment.path });
+    const sidecar = sidecarPath(root, staged.attachment.path);
+    const before = await stat(sidecar);
+    const fileInfo = await stat(staged.filePath);
+
+    const second = await retainingStore(root);
+
+    expect(JSON.parse(await readFile(sidecar, 'utf8'))).toEqual({
+      ...legacy, mtimeMs: fileInfo.mtimeMs, ctimeMs: fileInfo.ctimeMs,
+    });
+    // A new inode proves replacement rather than an in-place write that a crash could truncate.
+    expect((await stat(sidecar)).ino).not.toBe(before.ino);
+    expect((await stat(sidecar)).mode & 0o777).toBe(0o600);
+    expect(await readdir(resolve(root, SIDECAR_DIRECTORY))).toEqual([attachmentSidecarFileName({ id: staged.attachment.path })]);
+    await expect(second.claim({ attachments: [staged.attachment], runId: 'run-legacy' })).resolves.toEqual({
+      attachments: [{ path: staged.filePath, name: 'upload.bin', kind: 'file', size: 13 }],
+      batchDirectory: staged.batchDirectory,
+    });
+    expect(await readFile(staged.filePath, 'utf8')).toBe('the only copy');
+  });
+
+  it('still rejects a different-size file described by a legacy sidecar', async () => {
+    const root = await tempDirectory();
+    const first = await retainingStore(root);
+    const staged = await stage(first, 'batch-legacy-2', 'upload.bin', 'original', 'admin-1');
+    await makeLegacySidecar({ root, id: staged.attachment.path });
+    const before = await stat(staged.filePath);
+    await writeFile(staged.filePath, 'different size');
+    expect((await stat(staged.filePath)).ino).toBe(before.ino);
+
+    const second = await retainingStore(root);
+
+    expect(await second.listPendingForOwner({ ownerId: 'admin-1' })).toEqual([]);
+    await expect(second.claim({ attachments: [staged.attachment], runId: 'run-legacy-size' })).rejects.toMatchObject({ reason: 'attachment-unknown-or-claimed' });
+  });
+
+  it('keeps every valid legacy entry, including ownerless files, across repeated restarts', async () => {
+    const root = await tempDirectory();
+    const first = await retainingStore(root);
+    const owned = await stage(first, 'batch-legacy-3', 'owned.bin', 'owned bytes', 'admin-1');
+    const ownerless = await stage(first, 'batch-legacy-4', 'ownerless.bin', 'ownerless bytes');
+    for (const staged of [owned, ownerless]) await makeLegacySidecar({ root, id: staged.attachment.path });
+
+    await retainingStore(root);
+    const third = await retainingStore(root);
+
+    expect((await third.listPendingForOwner({ ownerId: 'admin-1' })).map((entry) => entry.ref)).toEqual([owned.attachment.path]);
+    for (const staged of [owned, ownerless]) {
+      expect(await readFile(staged.filePath, 'utf8')).toBe(staged === owned ? 'owned bytes' : 'ownerless bytes');
+      expect(JSON.parse(await readFile(sidecarPath(root, staged.attachment.path), 'utf8'))).toMatchObject({
+        id: staged.attachment.path, mtimeMs: (await stat(staged.filePath)).mtimeMs, ctimeMs: (await stat(staged.filePath)).ctimeMs,
+      });
+    }
+    expect((await readdir(root)).sort()).toEqual([SIDECAR_DIRECTORY, 'batch-legacy-3', 'batch-legacy-4']);
+    expect((await readdir(resolve(root, SIDECAR_DIRECTORY))).sort()).toEqual([
+      attachmentSidecarFileName({ id: owned.attachment.path }), attachmentSidecarFileName({ id: ownerless.attachment.path }),
+    ].sort());
+  });
+
   it('keeps an unclaimed upload AND its listing across a restart (the acceptance bar)', async () => {
     const root = await tempDirectory();
     const first = await retainingStore(root);
@@ -1840,9 +1922,14 @@ describe('createDiskAttachmentStore — retainAcrossRestarts', () => {
     const root = await tempDirectory();
     const first = await retainingStore(root);
     const staged = await stage(first, 'batch-swapped-1', 'upload.bin', 'original', 'admin-1');
-    // Same path, different bytes and a different size: exactly what `claim()`'s integrity gate
-    // exists to catch, applied at adoption so a restart is not a hole in it.
-    await writeFile(staged.filePath, 'tampered with', { mode: 0o600 });
+    const registered = await stat(staged.filePath);
+    expect(JSON.parse(await readFile(sidecarPath(root, staged.attachment.path), 'utf8'))).toMatchObject({
+      mtimeMs: registered.mtimeMs, ctimeMs: registered.ctimeMs,
+    });
+    await writeFile(staged.filePath, 'tampered', { mode: 0o600 });
+    await utimes(staged.filePath, registered.atime, new Date(registered.mtimeMs + 1000));
+    expect((await stat(staged.filePath)).ino).toBe(registered.ino);
+    expect((await stat(staged.filePath)).size).toBe(registered.size);
 
     const second = await retainingStore(root);
 
@@ -1964,6 +2051,8 @@ describe('parsePersistedAttachment', () => {
     batchId: 'batch-valid-1',
     dev: 1,
     ino: 2,
+    mtimeMs: 4,
+    ctimeMs: 5,
     createdAt: 3,
   };
 
@@ -2006,7 +2095,22 @@ describe('parsePersistedAttachment', () => {
     }
   });
 
-  it('rejects a record with a missing or mistyped field', () => {
+  it('accepts missing legacy timestamps, including either timestamp on its own', () => {
+    for (const fields of [['mtimeMs'], ['ctimeMs'], ['mtimeMs', 'ctimeMs']]) {
+      const legacy: Record<string, unknown> = { ...valid };
+      for (const field of fields) delete legacy[field];
+      expect(parsePersistedAttachment({ raw: legacy, canonicalUploadDirectory: root })).toEqual({
+        ...legacy, batchDirectory: '/uploads/batch-valid-1',
+      });
+    }
+  });
+
+  it('rejects a record with a missing required field or any mistyped field', () => {
+    for (const field of Object.keys(valid).filter((field) => field !== 'mtimeMs' && field !== 'ctimeMs')) {
+      const missing: Record<string, unknown> = { ...valid };
+      delete missing[field];
+      expect(parsePersistedAttachment({ raw: missing, canonicalUploadDirectory: root })).toBeUndefined();
+    }
     for (const field of Object.keys(valid)) {
       expect(parsePersistedAttachment({ raw: { ...valid, [field]: null }, canonicalUploadDirectory: root })).toBeUndefined();
     }
@@ -2063,6 +2167,8 @@ describe('removeUnadoptedUploads', () => {
         batchDirectory: staged.batchDirectory,
         dev: 0,
         ino: 0,
+        mtimeMs: 0,
+        ctimeMs: 0,
         createdAt: 0,
       }],
     ]);

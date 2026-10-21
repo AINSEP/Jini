@@ -10,12 +10,12 @@
  *   driven by a host-injected `adapter.env` whose read throws (the environment `guardSameOrigin`
  *   actually reads). A malformed allowed-origins entry no longer throws — `configuredAllowedOrigins`
  *   drops and logs it — so a throwing env read is the remaining way to make the guard throw.
- * - A pin of the same-inode, same-size content swap that `isUnchangedAttachment` cannot see.
+ * - Rejection of same-inode, same-size content swaps after registration.
  */
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import express from 'express';
 import type { AdapterContext } from '@jini-ai/http-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -185,13 +185,7 @@ describe('registerAttachmentRoutes — origin guard throwing', () => {
 });
 
 describe('createDiskAttachmentStore — same-inode content swap', () => {
-  // `isUnchangedAttachment` compares regular-file/path/dev/inode/size only — no mtime, ctime or
-  // content hash — so rewriting the registered file *in place* (same inode on every filesystem,
-  // because `writeFile` truncates the existing file) with different bytes of the same length is
-  // indistinguishable from the file registration accepted. This pins that TOCTOU window
-  // deterministically; the companion "replaced by a different file of the same size" test in
-  // `attachments.test.ts` only catches the swap when the filesystem hands out a fresh inode.
-  it('accepts a registered file rewritten in place with same-size different bytes (reported, not fixed)', async () => {
+  it('rejects a registered file rewritten in place with same-size different bytes', async () => {
     const store = await diskStore();
     const batchDirectory = await store.createBatchDirectory({ batchId: 'batch-inplace' });
     const filePath = resolve(batchDirectory, 'swap.txt');
@@ -199,11 +193,13 @@ describe('createDiskAttachmentStore — same-inode content swap', () => {
     const attachment = await store.register({
       input: { batchId: 'batch-inplace', path: filePath, name: 'swap.txt', kind: 'file', size: 6 },
     });
+    const registered = await stat(filePath);
     await writeFile(filePath, 'bbbbbb', { mode: 0o600 });
+    await utimes(filePath, registered.atime, new Date(registered.mtimeMs + 1000));
+    expect((await stat(filePath)).ino).toBe(registered.ino);
 
-    const claimed = await store.claim({ attachments: [attachment], runId: 'run-inplace' });
-
-    expect(claimed.attachments.map((entry) => entry.path)).toEqual([await realpath(filePath)]);
+    await expect(store.claim({ attachments: [attachment], runId: 'run-inplace' })).rejects.toMatchObject({ reason: 'attachment-integrity', message: 'Attachment changed after upload' });
+    await expect(store.resolveForRun({ ref: attachment.path, runId: 'run-retry' })).rejects.toMatchObject({ reason: 'attachment-integrity' });
     expect(await readFile(filePath, 'utf8')).toBe('bbbbbb');
   });
 });
