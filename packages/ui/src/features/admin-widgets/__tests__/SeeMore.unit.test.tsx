@@ -216,6 +216,23 @@ describe("SeeMore hook injection", () => {
   });
 });
 
+describe("SeeMore agent handle", () => {
+  it("tags the rendered toggle with the agent handle, labelled by its accessible name", () => {
+    const fakeUseClamp: typeof useSeeMoreClamp = () => ({ expanded: false, setExpanded: () => {}, overflows: true, textRef: { current: null }, regionId: "r", lineCount: 2 });
+    render(<SeeMore useClamp={fakeUseClamp} agentHandle="field-help" toggleAriaLabel="See more about classes">{LONG_TEXT}</SeeMore>);
+    const toggle = screen.getByRole("button", { name: "See more about classes" });
+    expect(toggle).toHaveAttribute("data-agent-element", "field-help");
+    expect(toggle).toHaveAttribute("data-agent-role", "button");
+    expect(toggle).toHaveAttribute("data-agent-label", "See more about classes");
+  });
+
+  it("falls back to the visible toggle label for the agent label when no accessible name is given", () => {
+    const fakeUseClamp: typeof useSeeMoreClamp = () => ({ expanded: true, setExpanded: () => {}, overflows: true, textRef: { current: null }, regionId: "r", lineCount: 2 });
+    render(<SeeMore useClamp={fakeUseClamp} agentHandle="field-help">{LONG_TEXT}</SeeMore>);
+    expect(screen.getByRole("button", { name: "See less" })).toHaveAttribute("data-agent-label", "See less");
+  });
+});
+
 describe("resolveSeeMoreView", () => {
   // Direct coverage of the pure function extracted out of `SeeMore`'s own render body — the
   // rendered-component tests above already pin the same behavior end-to-end (a `className` prop

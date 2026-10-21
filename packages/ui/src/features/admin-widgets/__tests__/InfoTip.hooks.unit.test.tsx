@@ -1,7 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { useInfoTip } from "../components/InfoTip.hooks";
+import { TIP_BOUNDS_ATTRIBUTE, useInfoTip } from "../components/InfoTip.hooks";
+import { placeInfoTipBubble } from "../components/InfoTip.rules";
 
 /**
  * @file `useInfoTip` — the open/close state and placement measurement extracted out of `InfoTip.tsx`
@@ -165,5 +166,40 @@ describe("useInfoTip", () => {
     expect(result.current.open).toBe(true);
     act(() => result.current.toggle());
     expect(result.current.open).toBe(false);
+  });
+
+  it("keeps a measured bubble inside a host panel marked with the bounds attribute and reports the arrow offset", () => {
+    const { result } = renderHook(() => useInfoTip());
+    const panel = document.createElement("div");
+    panel.setAttribute(TIP_BOUNDS_ATTRIBUTE, "");
+    panel.getBoundingClientRect = () => ({ left: 600, right: 900 }) as DOMRect;
+    const icon = document.createElement("span");
+    icon.getBoundingClientRect = () => ({ top: 400, bottom: 420, left: 860, width: 20 }) as DOMRect;
+    panel.append(icon);
+    result.current.iconRef.current = icon;
+    const bubble = document.createElement("span");
+    bubble.getBoundingClientRect = () => ({ width: 200, height: 40 }) as DOMRect;
+    result.current.bubbleRef!.current = bubble;
+    act(() => result.current.show());
+    const expected = placeInfoTipBubble(
+      { anchor: { left: 860, top: 400, width: 20, height: 20 }, bubble: { width: 200, height: 40 }, viewport: { width: window.innerWidth, height: window.innerHeight } },
+      { bounds: { left: 600, right: 900 } },
+    );
+    expect(result.current.coords).toEqual({ top: expected.top, left: expected.left, arrowLeft: expected.arrowLeft });
+    // Centre x stays far enough inside the panel's right edge for the 200px bubble to fit.
+    expect(result.current.coords.left + 100).toBeLessThanOrEqual(900);
+  });
+
+  it("re-measures an open tip when the page scrolls or resizes, so it follows its icon", () => {
+    const { result } = renderHook(() => useInfoTip());
+    attachIcon(result, { top: 400, bottom: 420, left: 500, width: 20 });
+    act(() => result.current.show());
+    expect(result.current.coords.top).toBe(400);
+    attachIcon(result, { top: 300, bottom: 320, left: 500, width: 20 });
+    act(() => { window.dispatchEvent(new Event("scroll")); });
+    expect(result.current.coords.top).toBe(300);
+    attachIcon(result, { top: 250, bottom: 270, left: 500, width: 20 });
+    act(() => { window.dispatchEvent(new Event("resize")); });
+    expect(result.current.coords.top).toBe(250);
   });
 });

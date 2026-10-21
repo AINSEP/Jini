@@ -52,6 +52,16 @@ describe("image content", () => {
 });
 
 describe("closing", () => {
+  it("tags the close button for agents only when an agent handle is given, using the caller's close label", () => {
+    const { unmount } = render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={vi.fn()} agentHandle="theme-preview" closeLabel="Cerrar" />);
+    const close = screen.getByRole("button", { name: "Cerrar" });
+    expect(close).toHaveAttribute("data-agent-element", "theme-preview");
+    expect(close).toHaveAttribute("data-agent-label", "Cerrar");
+    unmount();
+    render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Close preview" })).not.toHaveAttribute("data-agent-element");
+  });
+
   it("calls onClose when the close button is clicked", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

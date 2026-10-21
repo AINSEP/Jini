@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { defaultAdminTheme } from '../default.js';
 import { renderAdminThemeVariables } from '../stylesheet.js';
+import type { ColorScheme } from '../../core/theme/types.js';
 import { resolveAnnotationTheme } from '../../renderers/annotation-canvas/theme.js';
 
 it('gives an isolated preview concrete values from the same theme data', () => {
@@ -26,4 +27,17 @@ it('resolves canvas drawing colors and font through an injected computed-style r
   canvas.remove();
   resolveAnnotationTheme({ canvas }, { getComputedStyle });
   expect(getComputedStyle).toHaveBeenLastCalledWith(document.documentElement);
+});
+
+it('fills an omitted mono font and radius from the default theme, and refuses an unresolved color scheme', () => {
+  const { mono: _mono, ...fonts } = defaultAdminTheme.fonts;
+  const { radius: _radius, ...theme } = defaultAdminTheme;
+  const css = renderAdminThemeVariables({ theme: { ...theme, fonts } });
+  expect(css).toContain(`--jini-font-mono:${defaultAdminTheme.fonts.mono};`);
+  expect(css).toContain(`--jini-radius:${defaultAdminTheme.radius};`);
+  expect(css.startsWith(':root{color-scheme:light;')).toBe(true);
+  // An untyped persisted preference ('system') must be resolved to light/dark before an isolated
+  // preview is rendered; the runtime check is the only guard for such a value.
+  const persisted = 'system' as unknown as ColorScheme;
+  expect(() => renderAdminThemeVariables({ theme: defaultAdminTheme }, { colorScheme: persisted })).toThrow('Invalid resolved color scheme');
 });
