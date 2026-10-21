@@ -69,6 +69,12 @@ export interface PlaywrightAdapterOptions {
  readonly launchOptions?: { headless?: boolean; args?: string[]; chromiumSandbox?: boolean };
 }
 
+/** Default {@link PlaywrightAdapterOptions.moduleLoader}: a real dynamic import by module name, wired
+ * here at the composition edge so the optional `playwright` dependency is only resolved on use. */
+export const nodeModuleLoader: NonNullable<PlaywrightAdapterOptions["moduleLoader"]> = {
+  load: async ({ moduleName }) => (await import(moduleName)) as unknown as PlaywrightLike,
+};
+
 /** Opens the optional browser capability; import and launch failures become availability results. */
 // A successful launch transfers process ownership to the caller; close the browser in a finally
 // block so an unreachable or unstable page cannot leak the browser process.
@@ -76,11 +82,9 @@ export async function openPlaywrightRenderBrowser(
  _required: Record<string, never>, options: PlaywrightAdapterOptions = {},
 ): Promise<{ available: true; browser: RenderBrowser } | { available: false; reason: string }> {
   let playwright: PlaywrightLike;
+  const { moduleLoader = nodeModuleLoader } = options;
   try {
-    const moduleName = "playwright";
-    playwright = options.moduleLoader
-      ? await options.moduleLoader.load({ moduleName })
-      : (await import(moduleName)) as unknown as PlaywrightLike;
+    playwright = await moduleLoader.load({ moduleName: "playwright" });
   } catch (error) {
     return {
       available: false,

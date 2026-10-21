@@ -716,3 +716,21 @@ test("a claimed row with no recorded envelope fails (envelope-store gap)", async
   });
   assert.match(delivery?.lastError ?? "", /no envelope recorded/);
 });
+
+test("a transport failure that throws a non-Error value is recorded with a generic message and retried", async () => {
+  const rig = makeRig();
+  const { signer } = await seedActiveSubscription(rig, Buffer.from("shared-secret"));
+  const { enqueued } = await enqueueDelivery({
+    deps: { subscriptionRepo: rig.subscriptionRepo, deliveryRepo: rig.deliveryRepo, envelopeStore: rig.envelopeStore, idGenerator: rig.idGenerator, clock: rig.clock },
+    input: { event: { id: "event-1", name: "post.published", workspaceId: "workspace-1", occurredAt: nowIso({ clock: rig.clock }), payload: { id: "post-1" } } },
+  });
+  const httpClient = new RecordingHttpClient({ responses: [() => { throw "socket closed"; }] });
+  const result = await processDueDeliveries({
+    deps: { deliveryRepo: rig.deliveryRepo, subscriptionRepo: rig.subscriptionRepo, envelopeStore: rig.envelopeStore, httpClient, signer, clock: rig.clock, headers },
+  }, { random: () => 0 });
+  assert.deepEqual(result, { delivered: 0, failed: 1, dead: 0, processed: 1 });
+  const row = await rig.deliveryRepo.findById({ workspaceId: "workspace-1", id: enqueued[0]!.id });
+  assert.equal(row?.status, "pending");
+  assert.equal(row?.lastResponseStatus, null);
+  assert.equal(row?.lastError, "unknown webhook delivery error");
+});

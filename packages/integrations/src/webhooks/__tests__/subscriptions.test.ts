@@ -207,3 +207,31 @@ test("deleteSubscription soft-disables rather than removing the row", async () =
   assert.ok(stillThere, "row must still exist after 'delete'");
   assert.equal(stillThere?.status, "disabled");
 });
+
+test("createSubscription rejects a label that is empty after trimming, before validating the target", async () => {
+  let targetChecks = 0;
+  const deps = makeDeps({ isAllowedTarget: async () => { targetChecks += 1; return true; } });
+
+  await assert.rejects(createSubscription({ deps, input: { ...baseInput, label: "   " } }), (error: unknown) =>
+    error instanceof WebhookSubscriptionValidationError && error.message === "label is required");
+  assert.equal(targetChecks, 0);
+});
+
+test("createSubscription rejects a target_url that is not a URL at all, quoting it as given", async () => {
+  const deps = makeDeps();
+
+  await assert.rejects(createSubscription({ deps, input: { ...baseInput, targetUrl: "not a url" } }), (error: unknown) =>
+    error instanceof WebhookSubscriptionValidationError && error.message === "target_url 'not a url' is not a valid URL");
+});
+
+test("pauseSubscription and deleteSubscription on an unknown id throw WebhookSubscriptionNotFoundError without writing", async () => {
+  const repo = new InMemoryWebhookSubscriptionRepo();
+  const deps = makeDeps({ repo });
+  const input = { workspaceId: "workspace-1", id: "missing" };
+  const isNotFound = (error: unknown) => error instanceof WebhookSubscriptionNotFoundError && error.message === "webhook subscription 'missing' was not found";
+
+  await assert.rejects(pauseSubscription({ deps, input }), isNotFound);
+  await assert.rejects(pauseSubscription({ deps, input }, { paused: false }), isNotFound);
+  await assert.rejects(deleteSubscription({ deps, input }), isNotFound);
+  assert.equal(await repo.findById({ workspaceId: "workspace-1", id: "missing" }), null);
+});

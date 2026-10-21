@@ -112,20 +112,22 @@ export function createRenderBrowserPool(
       // its lazy reference, without closing a browser another capture may already be using.
       void acquisition.then(() => { acquired = true; if (released) lazy.release(); }, () => {});
       let onAbort: (() => void) | undefined;
+      let browser: RenderBrowser;
       try {
-        const browser = signal ? await Promise.race([
+        browser = signal ? await Promise.race([
           acquisition,
+          // No await separates the entry `signal?.throwIfAborted()` from this registration, so the
+          // signal cannot already be aborted here and the listener alone observes cancellation.
           new Promise<never>((_resolve, reject) => {
             onAbort = () => reject(signal.reason);
             signal.addEventListener("abort", onAbort, { once: true });
-            if (signal.aborted) onAbort();
           }),
         ]) : await acquisition;
         acquired = true;
         signal?.throwIfAborted();
-        return { browser, release };
       } catch (error) { release(); throw error; }
       finally { if (onAbort) signal?.removeEventListener("abort", onAbort); }
+      return { browser, release };
     },
     close: () => lazy.close(),
   };

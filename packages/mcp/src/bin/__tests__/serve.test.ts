@@ -716,3 +716,32 @@ it('finishes every startup lookup before constructing the server and pins one da
   expect(createServer).toHaveBeenCalledTimes(1);
   expect(resolveDaemonUrl).toHaveBeenCalledTimes(1);
 });
+
+// Without an injected fetchImpl, startup descriptor lookups go through the platform's global fetch.
+it('resolves startup descriptors over the global fetch when no fetchImpl is injected', async () => {
+  const { createServer } = await import('node:http');
+  const requested: string[] = [];
+  const daemon = createServer((req, res) => {
+    requested.push(`${req.method} ${req.url}`);
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(startupDescriptor));
+  });
+  await new Promise<void>(resolve => daemon.listen(0, '127.0.0.1', resolve));
+  onTestFinished(() => new Promise<void>(resolve => daemon.close(() => resolve())));
+  const address = daemon.address();
+  if (address === null || typeof address === 'string') throw new Error('daemon fixture has no TCP address');
+
+  let initialTools: unknown;
+  const createMcpToolServer = castMcpToolServer((_required: McpToolServerRequiredArgs, options: McpToolServerOptions) => {
+    initialTools = options.delegatedTools?.initialTools;
+    return { run: async () => {} };
+  });
+  await serve({}, makeDeps({
+    env: { [RUN_ID_ENV_VAR]: 'run', [STARTUP_TOOL_IDS_ENV_VAR]: '["content.read"]', [DAEMON_URL_ENV_VAR]: `http://127.0.0.1:${address.port}` },
+    createMcpToolServer,
+  }));
+
+  expect(requested).toHaveLength(1);
+  expect(requested[0]).toMatch(/^GET \S*content\.read/);
+  expect(initialTools).toEqual([expect.objectContaining({ id: 'content.read', description: 'Read content' })]);
+});

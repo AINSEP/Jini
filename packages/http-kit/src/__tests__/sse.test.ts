@@ -1,6 +1,7 @@
-import type { ServerResponse } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
-import { createSseChannel, requestedAfterCursor, DEFAULT_MAX_QUEUED_SSE_EVENTS, type SseEvent } from '../sse.js';
+import { createSseChannel, requestedAfterCursor, sendRawApiError, DEFAULT_MAX_QUEUED_SSE_EVENTS, type SseEvent } from '../sse.js';
 
 interface TestEvent extends SseEvent {
   readonly payload?: string;
@@ -306,5 +307,22 @@ describe('@jini-ai/http-kit — sse — requestedAfterCursor', () => {
   it('ignores a non-string or empty-string afterCursor query value', () => {
     expect(requestedAfterCursor({ get: () => undefined, query: { afterCursor: 42 } })).toBeNull();
     expect(requestedAfterCursor({ get: () => undefined, query: { afterCursor: '' } })).toBeNull();
+  });
+});
+
+describe('@jini-ai/http-kit — sse — sendRawApiError', () => {
+  it('writes the status and the standard { error } JSON envelope onto a raw Node response', async () => {
+    const error = { code: 'RUN_NOT_FOUND', message: 'No run with that id', retryable: false, details: { runId: 'run-9' } };
+    const server = createServer((_req, res) => { sendRawApiError({ res, status: 404, error }); });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const response = await fetch(`http://127.0.0.1:${port}/api/runs/run-9/events`);
+      expect(response.status).toBe(404);
+      expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
+      expect(await response.json()).toEqual({ error });
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
   });
 });

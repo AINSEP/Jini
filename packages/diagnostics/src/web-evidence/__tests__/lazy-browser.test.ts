@@ -1,6 +1,6 @@
 /** Shared render leases against injected launch/timer ports; no browser process or module mocks. */
 import { expect, test } from "vitest";
-import { createRenderBrowserPool, type LazyBrowserTimers } from "../lazy-browser.js";
+import { createLazyBrowser, createRenderBrowserPool, type LazyBrowserTimers } from "../lazy-browser.js";
 import type { RenderBrowser } from "../render-page.js";
 import { renderPublicPage } from "../public-page.js";
 
@@ -74,4 +74,42 @@ test("borrowed launch failures expose availability, while busy capacity retains 
   const held = await busy.acquire({});
   await expect(renderPublicPage({ input, httpClient }, { browserPool: busy })).rejects.toMatchObject({ code: "WEB_RENDER_BUSY" });
   held.release(); await busy.close();
+});
+
+test("the lazy owner closes on its own after the idle window using the default Node timers", async () => {
+  const closed: string[] = [];
+  const lazy = createLazyBrowser({ launch: async () => ({ close: async () => { closed.push("closed"); } }) }, { idleCloseMs: 5 });
+  await lazy.acquire(); lazy.release();
+  await new Promise(resolve => setTimeout(resolve, 40));
+  expect(closed).toEqual(["closed"]);
+});
+
+test("re-acquiring inside the idle window cancels the pending default-timer close", async () => {
+  const closed: string[] = [];
+  const lazy = createLazyBrowser({ launch: async () => ({ close: async () => { closed.push("closed"); } }) }, { idleCloseMs: 5 });
+  await lazy.acquire(); lazy.release();
+  await lazy.acquire();
+  await new Promise(resolve => setTimeout(resolve, 40));
+  expect(closed).toEqual([]);
+  await lazy.close();
+  expect(closed).toEqual(["closed"]);
+});
+
+test("a browser whose close fails is still dropped, so the next acquire launches a fresh one", async () => {
+  let launches = 0;
+  const lazy = createLazyBrowser({ launch: async () => { launches += 1; return { close: async () => { throw new Error("already gone"); } }; } });
+  await lazy.acquire();
+  await expect(lazy.close()).resolves.toBeUndefined();
+  await lazy.acquire();
+  expect(launches).toBe(2);
+});
+
+test("releasing after an explicit close schedules no idle timer", async () => {
+  const fake = fixture();
+  const lazy = createLazyBrowser({ launch: fake.launch }, { idleCloseMs: 1_000, timers: fake.timerPort });
+  await lazy.acquire();
+  await lazy.close();
+  lazy.release();
+  expect(fake.timers.size).toBe(0);
+  expect(fake.events).toEqual(["launch", "browser-close"]);
 });

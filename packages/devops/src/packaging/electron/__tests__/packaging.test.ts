@@ -101,6 +101,15 @@ test('moving paths compare snapshots across an injected observation interval', a
   const moving = await observeMovingPaths({ roots: ['/surface'], intervalMs: 100, snapshots: { snapshot: () => ++calls === 1 ? new Map([['a', 'old'], ['removed', 'old']]) : new Map([['a', 'new'], ['added', 'new']]) }, clock: { sleep: async ({ milliseconds }) => { slept = milliseconds; } } });
   assert.deepEqual(moving, ['a', 'added', 'removed']); assert.equal(slept, 100);
 });
+test('moving-path observation refuses a non-positive or non-finite interval and an empty root set before sampling', async () => {
+  let snapshots = 0; let sleeps = 0;
+  const ports = { snapshots: { snapshot: () => { snapshots++; return new Map<string, string>(); } }, clock: { sleep: async () => { sleeps++; } } };
+  for (const intervalMs of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    await assert.rejects(observeMovingPaths({ roots: ['/surface'], intervalMs, ...ports }), { message: 'intervalMs must be positive' });
+  }
+  await assert.rejects(observeMovingPaths({ roots: [], intervalMs: 100, ...ports }), { message: 'packaged surface roots are required' });
+  assert.equal(snapshots, 0); assert.equal(sleeps, 0);
+});
 test('npm staging drops caller-selected docs/wrappers, keeps cmd files and rejects native bytes without changing output', () => fixture(root => {
   const npmSource = path.join(root, 'npm'); const outDir = path.join(root, 'out');
   for (const relative of ['bin/npx-cli.js', 'bin/npm.cmd', 'bin/npm.ps1', 'docs/help.md', 'node_modules/pkg/man/help.md', 'node_modules/pkg/index.js']) write(path.join(npmSource, relative), 'javascript');

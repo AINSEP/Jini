@@ -80,3 +80,12 @@ test("createKeyringBackedSigner derives per-subscription using workspaceId/subsc
 
   assert.deepEqual(capturedInput, { workspaceId: "ws-9", subscriptionId: "sub-42", version: 3 });
 });
+
+test("createFixedSecretSigner refuses to sign for a subscription it holds no secret for", async () => {
+  const signer = createFixedSecretSigner({ secrets: new Map([["sub-1", Buffer.from("a".repeat(64), "hex")]]), vocabulary });
+
+  await assert.rejects(
+    signer.signForSubscription({ subscription: makeSubscription({ id: "sub-2" }), rawBody: "{}", timestampSeconds: 1_700_000_000 }),
+    { message: "no signing secret configured for subscription 'sub-2'" },
+  );
+});

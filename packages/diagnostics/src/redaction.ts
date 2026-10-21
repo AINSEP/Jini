@@ -63,8 +63,9 @@ export function redactText({ text }: { text: string }, opts: RedactionOptions = 
   // Bundle redaction shares only the credential catalog; diagnostic IDs and paths must remain
   // readable, so the kernel's general-purpose redaction policy is deliberately not invoked.
   for (const { pattern } of SECRET_SHAPE_PATTERNS) {
-    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
-    out = out.replace(new RegExp(pattern.source, flags), REDACTED);
+    // `String.replace` needs a global pattern to replace every match; strip-then-append keeps a
+    // pattern that is already global valid (a duplicated `g` flag would throw).
+    out = out.replace(new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`), REDACTED);
   }
   const username = opts.username;
   if (username && username.length > 1) {
