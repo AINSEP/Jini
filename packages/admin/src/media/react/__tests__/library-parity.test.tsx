@@ -160,7 +160,7 @@ describe('preview and lightbox parity', () => {
     const trigger = document.createElement('button'); document.body.append(trigger); trigger.focus();
     const props = { api, items: [image, clip], onNavigate: navigate, onClose: close };
     const view = render(<MediaLightbox {...props} activeIndex={0} />);
-    const dialog = screen.getByRole('dialog', { name: 'Media preview: zebra.png' });
+    const dialog = screen.getByRole('dialog', { name: 'zebra.png' });
     expect(screen.getByText('1 / 2')).toBeInTheDocument();
     expect(document.querySelector('[data-agent-element="media-lightbox-close"]')).toHaveFocus();
     fireEvent.keyDown(dialog, { key: 'ArrowLeft' }); expect(navigate).not.toHaveBeenCalled();

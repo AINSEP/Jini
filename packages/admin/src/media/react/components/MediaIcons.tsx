@@ -14,15 +14,6 @@ export function EyeIcon(_required: Record<string, never>, _optional: Record<stri
 export function ExpandIcon(_required: Record<string, never>, _optional: Record<string, never> = {}) {
   return <svg className="jini-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path className="jini-icon-path" d="M6 2H2v4m10-4h4v4M2 12v4h4m10-4v4h-4" /></svg>;
 }
-export function CloseIcon(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-  return <svg className="jini-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path className="jini-icon-path" d="m4 4 10 10M14 4 4 14" /></svg>;
-}
-export function PreviousIcon(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-  return <svg className="jini-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path className="jini-icon-path" d="m11 4-5 5 5 5" /></svg>;
-}
-export function NextIcon(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-  return <svg className="jini-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path className="jini-icon-path" d="m7 4 5 5-5 5" /></svg>;
-}
 export function AllIcon(_required: Record<string, never>, _optional: Record<string, never> = {}) {
   return <svg className="jini-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect className="jini-icon-rect" x="4" y="4" width="6.5" height="6.5" rx="1.2" /><rect className="jini-icon-rect" x="13.5" y="4" width="6.5" height="6.5" rx="1.2" /><rect className="jini-icon-rect" x="4" y="13.5" width="6.5" height="6.5" rx="1.2" /><rect className="jini-icon-rect" x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2" /></svg>;
 }
