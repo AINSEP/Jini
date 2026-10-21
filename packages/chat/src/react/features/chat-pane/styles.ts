@@ -921,7 +921,7 @@ export const CHAT_PANE_STYLES = `
 }
 .jini-chat-pane .jini-composer-workdir-confirm {
   padding: 6px 10px;
-  color: white;
+  color: var(--jini-chat-panel);
   white-space: nowrap;
   background: var(--jini-chat-text-strong);
   border: 0;
@@ -959,21 +959,24 @@ export const CHAT_PANE_STYLES = `
 }
 /* After the cluster, the send group sits right beside it instead of splitting the free space. */
 .jini-chat-pane .jini-composer-footer-accessories ~ .jini-composer-send-group { margin-left: 0; }
+/* Inverse ink: the fill is the strong text colour, so the icon takes the panel colour rather than a
+   fixed white. A host dark theme flips text-strong to near-white, and fixed white icons then drew a
+   blank white square (owner report, 2026-10-21). Disabled uses the theme's subtle/faint pair too. */
 .jini-chat-pane .jini-composer-send {
   display: grid;
   place-items: center;
   width: 32px;
   height: 32px;
   padding: 0;
-  color: white;
+  color: var(--jini-chat-panel);
   background: var(--jini-chat-text-strong);
   border: 0;
   border-radius: 8px;
   cursor: pointer;
 }
 .jini-chat-pane .jini-composer-send:disabled {
-  color: #aaa59e;
-  background: #ece8e2;
+  color: var(--jini-chat-faint);
+  background: var(--jini-chat-subtle);
   cursor: default;
 }
 .jini-chat-pane__workdir {

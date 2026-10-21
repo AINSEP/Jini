@@ -24,6 +24,24 @@ describe('lone composer send button', () => {
     expect(getComputedStyle(sendGroup).marginLeft).toBe('auto');
   });
 
+  // Owner, 2026-10-21: a fixed white icon on the text-strong fill was a blank white square in a dark host theme.
+  it('draws the send icon in the panel colour so it inverts with the theme', () => {
+    const { result } = renderHook(() => useComposer());
+    render(
+      <div className="jini-chat-pane">
+        <style>{CHAT_PANE_STYLES}</style>
+        <Composer composer={result.current} onSend={() => {}} />
+      </div>,
+    );
+    const send = getComputedStyle(screen.getByRole('button', { name: 'Send' }));
+
+    // Empty composer, so this is the disabled state; jsdom keeps var() unresolved, which is the point.
+    // jsdom drops var() backgrounds, so the fills are checked on the stylesheet text.
+    expect(send.color).toBe('var(--jini-chat-faint)');
+    expect(CHAT_PANE_STYLES).toMatch(/\.jini-composer-send:disabled \{[^}]*background: var\(--jini-chat-subtle\);/);
+    expect(CHAT_PANE_STYLES).toMatch(/\.jini-composer-send \{[^}]*color: var\(--jini-chat-panel\);[^}]*background: var\(--jini-chat-text-strong\);/);
+  });
+
   // Owner, 2026-10-18: the model/effort cluster moved from beside the "+" to beside send.
   it('pushes the runtime picker slot to the trailing edge, right next to the send group', () => {
     const { result } = renderHook(() => useComposer());
