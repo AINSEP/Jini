@@ -71,7 +71,9 @@ export function createMemoryGrantStore(
     mint: async ({ binding, expiresAt }) => {
       const token = newToken();
       if (live.has(token)) throw new Error("commerce: grant token source repeated a live token");
-      live.set(token, { binding: { ...binding }, expiresAt });
+      // A deep copy: the caller's binding (and its nested amount) may be changed after minting.
+      const amount = binding.amount === null ? null : { ...binding.amount };
+      live.set(token, { binding: { ...binding, amount }, expiresAt });
       return token;
     },
     // No await between the check and the delete: the consume is atomic within the event loop.

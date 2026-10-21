@@ -71,6 +71,22 @@ describe("createMemoryGrantStore", () => {
     expect(await grants.redeem({ grant, binding })).toBe(true);
   });
 
+  test("the nested amount is copied too: growing the caller's amount after minting cannot enlarge the approval", async () => {
+    const { grants } = store();
+    const amount = { minorUnits: 3_000, currency: "USD" };
+    const grant = await grants.mint({ binding: { ...binding, amount }, expiresAt: 5_000 });
+    (amount as { minorUnits: number }).minorUnits = 9_000;
+    expect(await grants.redeem({ grant, binding: { ...binding, amount: { minorUnits: 9_000, currency: "USD" } } })).toBe(false);
+    expect(await grants.redeem({ grant, binding })).toBe(true);
+  });
+
+  test("a void binding (no amount) is stored and redeemed as such", async () => {
+    const { grants } = store();
+    const voidBinding: MoneyGrantBinding = { ...binding, op: "void", amount: null };
+    const grant = await grants.mint({ binding: voidBinding, expiresAt: 5_000 });
+    expect(await grants.redeem({ grant, binding: voidBinding })).toBe(true);
+  });
+
   test("concurrent redeems of one grant: exactly one wins", async () => {
     const { grants } = store();
     const grant = await grants.mint({ binding, expiresAt: 5_000 });
