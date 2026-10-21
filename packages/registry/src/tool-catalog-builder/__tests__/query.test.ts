@@ -106,3 +106,12 @@ test('search and describe project validated readOnly and sideEffects even when t
   expect(query.search({ query: 'page' })).toMatchObject(expected);
   for (const entry of expected) expect(query.describe({ id: entry.id })).toMatchObject(entry);
 });
+
+test('a backend hit outside this snapshot still never leaks indexed keywords as its description', () => {
+  // A host-owned store may carry rows this build did not seed (e.g. a persistent index rebound late).
+  const stale = { id: 'legacy_tool', source: 'legacy', description: `Old tool.${marker}secret synonym list`, score: 1 };
+  const storeFactory: CatalogStoreFactory = { create: () => ({ search: () => [stale], describe: ({ id }) => (id === stale.id ? stale : null) }) };
+  const query = buildToolCatalogQuery({ ...fixture().required, storeFactory });
+  expect(query.search({ query: 'old' })).toEqual([{ ...stale, description: 'Old tool.' }]);
+  expect(query.describe({ id: 'legacy_tool' })?.description).toBe('Old tool.');
+});

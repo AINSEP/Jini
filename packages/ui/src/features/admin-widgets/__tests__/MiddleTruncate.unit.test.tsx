@@ -41,6 +41,12 @@ describe("MiddleTruncate", () => {
     expect(root.textContent).toBe("woodnest-cabin-booking.mp4");
   });
 
+  it("passes a custom keepChars through to the split", () => {
+    const { container } = render(<MiddleTruncate text="holiday-photo.png" keepChars={5} />);
+    expect(container.querySelector(".jini-middle-truncate__head")).toHaveTextContent("holiday-");
+    expect(container.querySelector(".jini-middle-truncate__tail")).toHaveTextContent("photo.png");
+  });
+
   it("omits the tail element when there is nothing to cut", () => {
     const { container } = render(<MiddleTruncate text="a.png" />);
     expect(container.querySelector(".jini-middle-truncate__tail")).toBeNull();

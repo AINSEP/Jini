@@ -60,6 +60,11 @@ describe('DatabaseRegistryBackend', () => {
     await expect(backend.list({})).resolves.toEqual([]);
   });
 
+  it('stamps doctor reports with the injected clock rather than wall time', async () => {
+    const backend = new DatabaseRegistryBackend({ id: 'fixture', db }, { clock: { nowMs: () => 1_790_000_000_000 } });
+    await expect(backend.doctor({})).resolves.toMatchObject({ ok: true, backendId: 'fixture', checkedAt: 1_790_000_000_000, entriesChecked: 0 });
+  });
+
   it('keeps behavior equivalent to a static backend seeded with the same entries', async () => {
     const staticBackend = new StaticRegistryBackend({ id: 'fixture', trust: 'trusted', manifest: { specVersion: '1.0.0', name: 'fixture', version: '1.0.0', entries: [entry] } });
     ensureRegistryTables({ db });

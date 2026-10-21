@@ -56,6 +56,22 @@ describe('A2uiSurfaceRenderer', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('renders a bound Text that does not resolve as a visible reason, and a non-string bound value as JSON', () => {
+    const registry = makeRegistry();
+    const catalog = buildA2uiCatalogFromRegistry({ registry, catalogId: 'merged' }, { base: createLabCatalog({}) });
+    const interpreter = createA2uiInterpreter({ catalog, clock: { nowMs: () => 1_000 }, ids: { next: () => 'fixture-action' } });
+    interpreter.applyAgentMessage({ raw: { version: 'v1.0', createSurface: { surfaceId: SURFACE_ID, catalogId: 'merged', dataModel: { stats: { count: 3, tags: ['a', 'b'] } }, components: [
+      { id: 'root', component: 'Column', children: ['missing', 'count', 'tags'] },
+      { id: 'missing', component: 'Text', text: { path: '/stats/absent' } },
+      { id: 'count', component: 'Text', text: { path: '/stats/count' } },
+      { id: 'tags', component: 'Text', text: { path: '/stats/tags' } },
+    ] } } });
+    render(<A2uiSurfaceRenderer interpreter={interpreter} surfaceId={SURFACE_ID} registry={registry} />);
+    expect(screen.getByText('⚠ unresolved (PATH_NOT_FOUND)')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('["a","b"]')).toBeInTheDocument();
+  });
+
   it('renders a basic Text root', () => {
     const registry = makeRegistry();
     const interpreter = setUpSurface(registry, [{ id: 'root', component: 'Text', text: 'hello' }]);

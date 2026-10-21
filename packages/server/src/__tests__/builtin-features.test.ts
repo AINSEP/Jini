@@ -221,6 +221,10 @@ describe('toolCatalog', () => {
 
     const searched = (await (await fetch(`${url}/api/tools/search?q=publish`)).json()) as { hits: { id: string }[] };
     expect(searched.hits.map((h) => h.id)).toContain('product.publish');
+
+    // An explicit limit reaches the durable catalog's ranking query.
+    const limited = (await (await fetch(`${url}/api/tools/search?q=publish&limit=1`)).json()) as { hits: { id: string }[] };
+    expect(limited.hits).toHaveLength(1);
   });
 });
 
@@ -352,6 +356,20 @@ describe('remoteRunEvents', () => {
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ recorded: true });
+  });
+});
+
+describe('runs: mid-run messages', () => {
+  it('routes a mid-run message to the kernel executor, which reports a run it is not driving as not-running', async () => {
+    const { url, kernel } = await boot({ security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1' });
+    const { run } = await kernel.base.lifecycle.start({ contextRef: 'ctx-1' });
+    const response = await fetch(`${url}/api/runs/${run.id}/messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: url },
+      body: JSON.stringify({ text: 'also check the footer' }),
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: { code: 'CONFLICT', details: { delivery: 'not-running' } } });
   });
 });
 

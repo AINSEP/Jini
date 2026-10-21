@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadPlugin } from '../support/loader.js';
+import { admitBrowserProviderAssets } from '../../node/index.js';
 import { createInvocationCoreDeps } from '../support/fixture-bindings.js';
 import type { PluginManifest } from '../../manifest.js';
 import type { BundledBrowserProviderApproval } from '../../ports.js';
@@ -68,5 +69,29 @@ describe('bundled browser-provider asset admission', () => {
       .toEqual({ loaded: false, reason: 'SDK_RANGE_UNSATISFIED' });
     expect(await loadPlugin(required(root, manifest, [approval]), { importModule: async () => ({ default: { definition: { setup() { throw new Error('failed'); } } } }) }))
       .toEqual({ loaded: false, reason: 'PLUGIN_SETUP_FAILED' });
+  }));
+
+  it('admits a reviewed built-in that declares no browser providers with an empty provider list', async () => fixture(async ({ root, manifest, approval }) => {
+    const { browserProviders: _providers, ...bare } = manifest;
+    const record = { id: manifest.id, name: manifest.name, version: manifest.version, source: 'built-in' as const, status: 'valid' as const, errors: [] };
+    expect(await admitBrowserProviderAssets({ record, manifest: bare, pluginRoot: root, approvals: [{ ...approval, browserProviders: [] }] }))
+      .toEqual({ admitted: true, providers: [] });
+  }));
+
+  it('serves only the script when a provider declares no stylesheet', async () => fixture(async ({ root, manifest, approval }) => {
+    const { stylesheet: _css, ...scriptOnly } = manifest.browserProviders![0]!;
+    const candidate = { ...manifest, browserProviders: [scriptOnly] };
+    const record = { id: manifest.id, name: manifest.name, version: manifest.version, source: 'built-in' as const, status: 'valid' as const, errors: [] };
+    const result = await admitBrowserProviderAssets({ record, manifest: candidate, pluginRoot: root, approvals: [{ ...approval, browserProviders: [scriptOnly] }] });
+    if (!result.admitted) throw new Error(result.reason);
+    expect(result.providers[0]!.assets.map(({ path, contentType }) => [path, contentType])).toEqual([['client/provider.js', 'text/javascript']]);
+  }));
+
+  it('refuses with INTEGRITY_FAILED when the bytes on disk change after the loader verified them', async () => fixture(async ({ root, manifest, approval }) => {
+    // The loader verifies before admission; a swap between the two reads must still be caught here.
+    await writeFile(path.join(root, 'client/styles.css'), '.chart { color: blue; }');
+    const record = { id: manifest.id, name: manifest.name, version: manifest.version, source: 'built-in' as const, status: 'valid' as const, errors: [] };
+    expect(await admitBrowserProviderAssets({ record, manifest, pluginRoot: root, approvals: [approval] }))
+      .toEqual({ admitted: false, reason: 'INTEGRITY_FAILED' });
   }));
 });

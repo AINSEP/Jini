@@ -74,3 +74,15 @@ test("an eval-bootstrap worker emits no V8 coverage profile into its supplied ag
     assert.deepEqual(readdirSync(probeDir), []);
   } finally { rmSync(probeDir, { recursive: true, force: true }); }
 });
+
+test("TypeScript bootstrap refuses a relative path or URL entry before creating any worker", async () => {
+  let created = 0;
+  const factory = createNodeWorkerFactory({ env: {} }, {
+    typescriptBootstrap: { registerModulePath: "/host/register.cjs" },
+    createWorker: () => { created++; throw new Error("must not create"); },
+  });
+  for (const workerEntry of ["worker.ts", new URL("file:///host/worker.ts")]) {
+    assert.throws(() => factory.spawn({ workerEntry, payload: {}, resourceLimits: {} }), { name: "TypeError", message: "TypeScript bootstrap requires an absolute filesystem entry path" });
+  }
+  assert.equal(created, 0);
+});

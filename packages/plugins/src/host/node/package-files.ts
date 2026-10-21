@@ -27,6 +27,10 @@
 import { constants, type Dirent } from "node:fs";
 import { lstat, open, readdir, realpath, type FileHandle } from "node:fs/promises";
 import path from "node:path";
+import { readNoFollowFlags } from "./open-flags.js";
+
+/** Every packaged file is opened read-only and without following a final-component symlink. */
+const READ_NO_FOLLOW = readNoFollowFlags({ constants });
 
 export interface PluginPackageFileLimits {
   readonly maxFiles: number;
@@ -145,8 +149,7 @@ function admitEntry(state: WalkState): boolean {
 
 async function openNoFollow(absolutePath: string): Promise<FileHandle | PluginPackageFileOmission> {
   try {
-    // `O_NOFOLLOW` is undefined on Windows; `?? 0` keeps the open valid there.
-    return await open(absolutePath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    return await open(absolutePath, READ_NO_FOLLOW);
   } catch (error) {
     const code = errnoCode(error);
     return code === "ELOOP" || code === "EMLINK" ? "symlink" : "unreadable";

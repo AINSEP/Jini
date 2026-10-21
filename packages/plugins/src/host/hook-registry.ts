@@ -117,7 +117,11 @@ function compareTb01(a: readonly [string, Attachment], b: readonly [string, Atta
   return a[0].localeCompare(b[0]);
 }
 
-/** The four JSON-primitive field types BR-06's declared-field vocabulary supports. */
+/** The four JSON-primitive field types BR-06's declared-field vocabulary supports. The switch is
+ * exhaustive over `HookRegistryFieldDecl["type"]`, and `validateManifest` (`VALID_FIELD_TYPES`)
+ * refuses any other declared type before a plugin can attach, so there is no `default` arm: a type
+ * outside the union would fall through to `undefined`, which the only caller reads as a mismatch
+ * (still fail-closed). */
 function matchesDeclaredType(value: unknown, type: HookRegistryFieldDecl["type"]): boolean {
   switch (type) {
     case "integer":
@@ -128,16 +132,14 @@ function matchesDeclaredType(value: unknown, type: HookRegistryFieldDecl["type"]
       return typeof value === "string";
     case "boolean":
       return typeof value === "boolean";
-    default:
-      return false;
   }
 }
 
 /** Last dot-segment of a declared `ext.{pluginId}.{field}` path — the field name a returned patch
  * key is checked against. */
 function fieldNameOf(declaredPath: string): string {
-  const segments = declaredPath.split(".");
-  return segments[segments.length - 1] ?? declaredPath;
+  // `lastIndexOf` is -1 for a path with no dot, so the whole path is its own last segment.
+  return declaredPath.slice(declaredPath.lastIndexOf(".") + 1);
 }
 
 /** Calls one plugin's filter, re-shaping a thrown error into the module's own

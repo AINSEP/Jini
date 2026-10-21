@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ScrollJumpButtons } from "../components/ScrollJump/ScrollJump.js";
 import { useScrollJump } from "../components/ScrollJump/ScrollJump.hooks.js";
@@ -96,5 +96,59 @@ describe("useScrollJump", () => {
     render(<Probe container={el} reducedMotion={() => true} />);
     fireEvent.click(screen.getByRole("button", { name: "go" }));
     expect(el.scrollTo).toHaveBeenCalledWith({ top: 3000, behavior: "auto" });
+  });
+
+  describe("environment observers", () => {
+    afterEach(() => { vi.unstubAllGlobals(); });
+
+    it("re-reads visibility when the container or a child resizes, and re-observes children a route swaps in", () => {
+      const observed: Element[][] = [];
+      let resized: (() => void) | undefined;
+      class FakeResizeObserver {
+        private targets: Element[] = [];
+        constructor(callback: () => void) { resized = callback; observed.push(this.targets); }
+        observe(target: Element) { this.targets.push(target); }
+        disconnect() { this.targets.length = 0; }
+      }
+      vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+      const el = tallBox();
+      const first = document.createElement("p");
+      el.append(first);
+      render(<Probe container={el} />);
+      expect(observed[0]).toEqual([el, first]);
+      // Content grows without a scroll event: only the resize observer can notice.
+      Object.defineProperty(el, "scrollHeight", { value: 1000, configurable: true });
+      act(() => resized!());
+      expect(screen.getByTestId("state")).toHaveTextContent("false/false");
+      // A route swaps the children out: the mutation observer re-observes the new ones.
+      const second = document.createElement("section");
+      Object.defineProperty(el, "scrollHeight", { value: 3000, configurable: true });
+      act(() => { el.replaceChildren(second); });
+      return vi.waitFor(() => {
+        expect(observed[0]).toEqual([el, second]);
+        expect(screen.getByTestId("state")).toHaveTextContent("false/true");
+      });
+    });
+
+    it("still tracks scroll events where neither observer exists", () => {
+      vi.stubGlobal("ResizeObserver", undefined);
+      vi.stubGlobal("MutationObserver", undefined);
+      const el = tallBox();
+      render(<Probe container={el} />);
+      act(() => { el.scrollTop = 1000; el.dispatchEvent(new Event("scroll")); });
+      expect(screen.getByTestId("state")).toHaveTextContent("true/true");
+    });
+
+    it("by default reads the operating system's reduced-motion preference", () => {
+      const matchMedia = vi.fn((query: string) => ({ matches: query === "(prefers-reduced-motion: reduce)" }));
+      vi.stubGlobal("matchMedia", matchMedia);
+      const el = tallBox(1000);
+      render(<Probe container={el} />);
+      fireEvent.click(screen.getByRole("button", { name: "go" }));
+      expect(el.scrollTo).toHaveBeenCalledWith({ top: 3000, behavior: "auto" });
+      vi.stubGlobal("matchMedia", undefined);
+      fireEvent.click(screen.getByRole("button", { name: "go" }));
+      expect(el.scrollTo).toHaveBeenLastCalledWith({ top: 3000, behavior: "smooth" });
+    });
   });
 });

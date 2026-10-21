@@ -61,35 +61,63 @@ export async function writeDaemonRegistryRecord({ registryPath, record }: { regi
   await writeJsonFile({ filePath: registryPath, payload: record });
 }
 
+/** The two path moves `removeDaemonRegistryRecordIfCurrent` makes; injectable so a race lost to
+ *  another remover, or a refused restore, can be reproduced without a real filesystem race. */
+export interface DaemonRegistryFilePorts {
+  rename(oldPath: string, newPath: string): Promise<void>;
+  link(existingPath: string, newPath: string): Promise<void>;
+}
+
+/** Options for {@link removeDaemonRegistryRecordIfCurrent}. */
+export interface RemoveDaemonRegistryRecordOptions {
+  /** Defaults to `node:fs/promises`' `rename` and `link`. */
+  readonly files?: DaemonRegistryFilePorts;
+}
+
+const DEFAULT_REGISTRY_FILE_PORTS: DaemonRegistryFilePorts = { rename, link };
+
+/** Moves the public record aside; `false` when another remover already detached it (ENOENT). */
+async function detachRecord(files: DaemonRegistryFilePorts, registryPath: string, tombstonePath: string): Promise<boolean> {
+  try {
+    await files.rename(registryPath, tombstonePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+/** Puts a captured record that turned out to be foreign back, unless a newer one already exists. */
+async function restoreCapturedRecord(files: DaemonRegistryFilePorts, tombstonePath: string, registryPath: string): Promise<void> {
+  try {
+    // A hard link restores the captured file atomically ONLY if no newer record exists.
+    // Rename would overwrite that newer writer. Keep the tombstone if restoration fails.
+    await files.link(tombstonePath, registryPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+}
+
 /**
  * Remove a daemon's registry record at `registryPath`, but only if it still names `pid` as the
  * owning process — the same guarded-removal shape `json-file.ts`'s `removePointerIfCurrent` uses
  * for its own pointer file. Guards a fast crash-restart race on a reused `dataDir`: an old
  * daemon's delayed shutdown cleanup must never delete a newer daemon's already-written record.
  */
-export async function removeDaemonRegistryRecordIfCurrent({ registryPath, pid }: { registryPath: string; pid: number }): Promise<void> {
+export async function removeDaemonRegistryRecordIfCurrent(
+  { registryPath, pid }: { registryPath: string; pid: number },
+  options: RemoveDaemonRegistryRecordOptions = {},
+): Promise<void> {
   const record = await readJsonFile<{ pid?: unknown }>({ filePath: registryPath });
   if (record?.pid !== pid) return;
+  const files = options.files ?? DEFAULT_REGISTRY_FILE_PORTS;
 
   // Detach first, then check the captured record: a writer may replace the public path
   // between the initial read and this rename. Only the captured file is ever removed.
   const tombstonePath = `${registryPath}.${process.pid}.${randomUUID()}.removed`;
-  try {
-    await rename(registryPath, tombstonePath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    throw error;
-  }
+  if (!(await detachRecord(files, registryPath, tombstonePath))) return;
   const captured = await readJsonFile<{ pid?: unknown }>({ filePath: tombstonePath });
-  if (captured?.pid !== pid) {
-    try {
-      // A hard link restores the captured file atomically ONLY if no newer record exists.
-      // Rename would overwrite that newer writer. Keep the tombstone if restoration fails.
-      await link(tombstonePath, registryPath);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    }
-  }
+  if (captured?.pid !== pid) await restoreCapturedRecord(files, tombstonePath, registryPath);
   await removeFile({ filePath: tombstonePath });
 }
 
