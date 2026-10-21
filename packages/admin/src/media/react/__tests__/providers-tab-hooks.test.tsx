@@ -87,6 +87,32 @@ describe('media useProvidersTab', () => {
     expect(view.result.current.empty).toBe(true);
   });
 
+  it('keeps host provider IDs distinct through reads, edits and saves', async () => {
+    const port = service([
+      { id: 'nano-banana', label: 'Host provider', configured: false, model: 'host-model' },
+      { id: 'nanobanana', label: 'Other provider', configured: true, apiKeyTail: '1234', model: 'other-model' },
+    ]);
+    const view = mount(port);
+    await loaded(view);
+    expect(row(view, 'nano-banana').model).toBe('host-model');
+    expect(row(view, 'nanobanana').model).toBe('other-model');
+    act(() => row(view, 'nano-banana').onModel(change('updated-model')));
+    act(() => view.result.current.save());
+    await waitFor(() => expect(view.result.current.saved).toBe(true));
+    expect(port.saveSettings).toHaveBeenCalledTimes(1);
+    expect(port.saveSettings).toHaveBeenCalledWith(
+      { id: 'nano-banana', baseUrl: '', model: 'updated-model' }, { signal: expect.any(AbortSignal) },
+    );
+    expect(row(view, 'nano-banana').model).toBe('updated-model');
+    expect(row(view, 'nanobanana').model).toBe('other-model');
+    expect(await port.list()).toEqual([
+      { id: 'nano-banana', label: 'Host provider', configured: false, baseUrl: '', model: 'updated-model' },
+      { id: 'nanobanana', label: 'Other provider', configured: true, apiKeyTail: '1234', model: 'other-model' },
+    ]);
+    expect(port.saveCredential).not.toHaveBeenCalled();
+    expect(port.removeCredential).not.toHaveBeenCalled();
+  });
+
   it('disables Clear on rows already discovered once the provider port goes away', async () => {
     let port: MediaProvidersPort | undefined = service([{ id: 'x', label: 'X', configured: true, apiKeyTail: '1234' }]);
     const wrapper = ({ children }: { children: ReactNode }) => (

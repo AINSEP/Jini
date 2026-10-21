@@ -293,6 +293,8 @@ it('renders the optional credential tab without exposing saved secrets', async (
   );
   // A cold lazy Providers import alone can take more than 5s on a loaded machine.
   const credential = await screen.findByLabelText('Example credential', {}, { timeout: 15000 });
+  expect(credential).toHaveValue('');
+  expect(credential).toHaveAttribute('data-agent-private', 'true');
   expect(credential).toHaveAttribute('type', 'password');
   fireEvent.change(credential, { target: { value: 'private-secret' } });
   expect(screen.getByText('Unsaved')).toBeInTheDocument();

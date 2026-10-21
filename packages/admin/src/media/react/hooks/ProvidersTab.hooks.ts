@@ -7,6 +7,14 @@ import { useMediaProvidersTab, sortProvidersByConfigured, isEntryPresent, isMark
 import type { MediaProvider, MediaProviderOption, MediaProviderConfigurationMap } from '../../models.js';
 import { useMediaPorts } from './MediaPorts.hooks.js';
 import type { MediaProvidersPort } from '../../ports.js';
+import type { MediaProviderCatalogPolicy } from '@jini-ai/core';
+
+/** Host adapters supply canonical IDs (media/PORT.md); keep them literal in the editor.
+ * Pure operations preserve values and copy maps in O(n) time/space; ID lookup is O(1). */
+const catalogPolicy: MediaProviderCatalogPolicy = {
+  canonicalMediaProviderId: ({ id }, _options = {}) => id,
+  normalizeMediaProviderMap: ({ providers }, _options = {}) => ({ ...providers }),
+};
 
 function configuration({ items }: { items: readonly MediaProvider[] }, _optional: Record<string, never> = {}): MediaProviderConfigurationMap {
   return Object.fromEntries(items.filter(item => item.configured || item.apiKeyTail || item.baseUrl?.trim() || item.model?.trim())
@@ -178,7 +186,7 @@ export function useProvidersTab(_required: Record<string, never> = {}, _optional
     },
     saveMediaProviders: (providers: MediaProviderConfigurationMap) => saves.current.mutate({ input: providers }),
   }), [rawEditorPort]);
-  const editor = useMediaProvidersTab({ port: editorPort });
+  const editor = useMediaProvidersTab({ port: editorPort, catalogPolicy });
   const catalog = mediaProviders?.catalog ?? discoveredCatalog;
   const pinnedIds = mediaProviders?.pinnedProviderIds ?? [];
   const ordered = sortProvidersByConfigured(catalog, editor.providers, pinnedIds);

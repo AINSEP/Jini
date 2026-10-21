@@ -215,6 +215,7 @@ it('displays endpoint/model controls, persists them through one Save changes wit
   fireEvent.change(url, { target: { value: 'https://new' } });
   fireEvent.change(screen.getByLabelText('Example model'), { target: { value: 'new-model' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await screen.findByText('Saved.');
   await waitFor(async () => expect(await mediaProviders.list({})).toEqual([
     { id: 'example', label: 'Example', configured: true, baseUrl: 'https://new', model: 'new-model' },
     { id: 'sibling', label: 'Sibling', configured: true, baseUrl: 'https://sibling', model: 'sibling-model' },

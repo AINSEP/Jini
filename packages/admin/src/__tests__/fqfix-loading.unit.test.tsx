@@ -101,6 +101,8 @@ describe.each(['builtin', 'tanstack'] as const)('editor/cache regressions with %
     const { result } = renderHook(() => ({ providers: useProvidersTab(), library: useMediaLibraryQuery({ api }), catalogue: useMediaProvidersQuery({ port }) }), { wrapper: portsWrapper });
     await waitFor(() => expect(result.current.providers.reloadDisabled).toBe(false));
     await waitFor(() => expect(result.current.catalogue.query.data).toHaveLength(1));
+    expect(result.current.providers.rows.map(item => item.id)).toEqual(['example']);
+    expect(result.current.providers.unreachable).toBe(false);
     expect(reads).toBe(1);
     await act(async () => { await result.current.library.api.upload({ filename: 'example.png', contentType: 'image/png', dataBase64: 'test-bytes' }); });
     await waitFor(() => expect(result.current.library.query.data).toHaveLength(1));
