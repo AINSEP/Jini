@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { renderInWorkerSandbox, resolveDefaultTimeoutMs, runInWorkerSandbox } from "../node-worker.js";
 import type { WorkerSandboxRequired, WorkerHandle } from "../node-worker.js";
 
-function harness() {
+function harness(terminate?: () => Promise<number>) {
   const emitter = new EventEmitter();
   let terminated = 0;
   let timer: (() => void) | undefined;
@@ -13,7 +13,7 @@ function harness() {
     if (input.event === "message") emitter.once("message", (message) => input.listener({ message }));
     else if (input.event === "error") emitter.once("error", (error) => input.listener({ error }));
     else emitter.once("exit", (code) => input.listener({ code }));
-  }, terminate: async () => ++terminated };
+  }, terminate: terminate ?? (async () => ++terminated) };
   const required: WorkerSandboxRequired<{ value: number }> = {
     workerEntry: "/host/worker.js", input: { value: 7 }, errorLabel: "Example", defaultTimeoutMs: 5000,
     defaultResourceLimits: { maxOldGenerationSizeMb: 64 }, workerFactory: { spawn: () => worker },
@@ -107,4 +107,45 @@ test("a failing event subscription rejects and terminates the spawned worker", a
     terminate: async () => ++terminated,
   }) } }), { message: "event registration unavailable" });
   assert.equal(terminated, 1); assert.equal(h.hasTimer(), false);
+});
+
+test("a render reply that is not an object (null, a string) is rejected as an invalid reply", async () => {
+  for (const message of [null, "rendered"]) {
+    const h = harness(); const result = renderInWorkerSandbox(h.required);
+    h.emitter.emit("message", message);
+    await assert.rejects(result, { message: "invalid worker render reply" });
+    assert.equal(h.terminated(), 1);
+  }
+});
+
+test("only the first outcome settles: an exit after the reply neither rejects nor terminates twice", async () => {
+  const h = harness();
+  const result = runInWorkerSandbox({ ...h.required, decodeResult: ({ message }) => message });
+  h.emitter.emit("message", "done");
+  h.emitter.emit("exit", 1);
+  assert.equal(await result, "done");
+  assert.equal(h.terminated(), 1);
+});
+
+test("a worker handle that cannot accept listeners rejects with that error and is still terminated", async () => {
+  const h = harness();
+  const listenerError = new Error("worker already gone");
+  let terminated = 0;
+  const result = runInWorkerSandbox({ ...h.required, decodeResult: ({ message }) => message,
+    workerFactory: { spawn: () => ({ once: () => { throw listenerError; }, terminate: async () => { terminated++; return 0; } }) } });
+  await assert.rejects(result, listenerError);
+  assert.equal(terminated, 1);
+  assert.equal(h.hasTimer(), false, "no timeout is armed for a worker that never started listening");
+});
+
+test("teardown is best effort: a terminate that throws synchronously or rejects never disturbs the settled result", async () => {
+  const failures: Array<() => Promise<number>> = [() => { throw new Error("already terminated"); }, () => Promise.reject(new Error("terminate failed"))];
+  for (const failure of failures) {
+    let calls = 0;
+    const h = harness(() => { calls++; return failure(); });
+    const result = runInWorkerSandbox({ ...h.required, decodeResult: ({ message }) => message });
+    h.emitter.emit("message", "kept");
+    assert.equal(await result, "kept");
+    assert.equal(calls, 1);
+  }
 });

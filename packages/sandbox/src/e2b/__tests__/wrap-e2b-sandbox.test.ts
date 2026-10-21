@@ -188,6 +188,78 @@ describe('wrapE2bSandbox', () => {
       expect(events).toEqual([{ path: 'a.bin', kind: 'deleted' }]);
     });
 
+    it('forwards a change to a mounted file when its bytes cannot be read back to compare', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
+      const events: Array<{ path: string; kind: string }> = [];
+      session.onFileChange({ listener: event => events.push(event) });
+      await session.mountFiles({ files: [{ path: 'a.txt', content: 'host' }] });
+      fake.read.mockRejectedValueOnce(new Error('file vanished'));
+      fake.emitFileEvent({ name: 'a.txt', type: 'write' });
+      await vi.waitFor(() => expect(events).toEqual([{ path: 'a.txt', kind: 'modified' }]));
+      // The mount record was dropped, so the next sandbox write is forwarded without a read-back.
+      fake.read.mockClear();
+      fake.emitFileEvent({ name: 'a.txt', type: 'write' });
+      expect(fake.read).not.toHaveBeenCalled();
+      expect(events).toEqual([{ path: 'a.txt', kind: 'modified' }, { path: 'a.txt', kind: 'modified' }]);
+    });
+
+    it('keeps suppressing when a failed read-back races a new mount of the same path', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
+      const events: Array<{ path: string; kind: string }> = [];
+      session.onFileChange({ listener: event => events.push(event) });
+      await session.mountFiles({ files: [{ path: 'a.txt', content: 'host' }] });
+      let rejectRead!: (error: Error) => void;
+      fake.read.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectRead = reject; }));
+      fake.emitFileEvent({ name: 'a.txt', type: 'write' });
+      let resolveWrite!: () => void;
+      fake.write.mockImplementationOnce(() => new Promise<void>(resolve => { resolveWrite = resolve; }));
+      const remount = session.mountFiles({ files: [{ path: 'a.txt', content: 'host again' }] });
+      rejectRead(new Error('read interrupted'));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(events).toEqual([]);
+      resolveWrite();
+      await remount;
+      expect(events).toEqual([]);
+    });
+
+    it('keeps suppressing when a successful read-back lands during a new mount of the same path', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
+      const events: Array<{ path: string; kind: string }> = [];
+      session.onFileChange({ listener: event => events.push(event) });
+      await session.mountFiles({ files: [{ path: 'a.txt', content: 'host' }] });
+      let resolveRead!: (bytes: Uint8Array) => void;
+      fake.read.mockImplementationOnce(() => new Promise(resolve => { resolveRead = resolve; }));
+      fake.emitFileEvent({ name: 'a.txt', type: 'write' });
+      let resolveWrite!: () => void;
+      fake.write.mockImplementationOnce(() => new Promise<void>(resolve => { resolveWrite = resolve; }));
+      const remount = session.mountFiles({ files: [{ path: 'a.txt', content: 'host again' }] });
+      resolveRead(new TextEncoder().encode('a different sandbox edit'));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(events).toEqual([]);
+      resolveWrite();
+      await remount;
+      expect(events).toEqual([]);
+    });
+
+    it('forwards a write whose mount record was removed while its read-back was pending', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
+      const events: Array<{ path: string; kind: string }> = [];
+      session.onFileChange({ listener: event => events.push(event) });
+      await session.mountFiles({ files: [{ path: 'a.txt', content: 'host' }] });
+      let resolveRead!: (bytes: Uint8Array) => void;
+      fake.read.mockImplementationOnce(() => new Promise(resolve => { resolveRead = resolve; }));
+      fake.emitFileEvent({ name: 'a.txt', type: 'write' });
+      fake.emitFileEvent({ name: 'a.txt', type: 'remove' });
+      resolveRead(new TextEncoder().encode('host'));
+      await vi.waitFor(() => expect(events).toEqual([{ path: 'a.txt', kind: 'deleted' }, { path: 'a.txt', kind: 'modified' }]));
+    });
+
     it('writes every file in one batched call, not one per file', async () => {
       const fake = createFakeHandle();
       const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
