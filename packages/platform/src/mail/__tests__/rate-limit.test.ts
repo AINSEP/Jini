@@ -35,3 +35,12 @@ test("invalid limits are refused at composition", () => {
   assert.throws(() => createMailLaneLimiter({ limit: { perSecond: 0, burst: 1 } }), RangeError);
   assert.throws(() => createMailLaneLimiter({ limit: { perSecond: 1, burst: 0 } }), RangeError);
 });
+
+test("Resend's real limit (2/s, burst 2) with default options keeps one token for transactional mail", () => {
+  let now = 0;
+  const limiter = createMailLaneLimiter({ limit: { perSecond: 2, burst: 2 } }, { now: () => now });
+  assert.deepEqual(limiter.tryTake({ lane: "bulk" }), { ok: true });
+  // floor(2 * 0.2) = 0 would let bulk take the last token too; a sign-in link must still go out.
+  assert.deepEqual(limiter.tryTake({ lane: "bulk" }), { ok: false, retryAfterMs: 500 });
+  assert.deepEqual(limiter.tryTake({ lane: "transactional" }), { ok: true });
+});
