@@ -12,6 +12,8 @@ Personas: vendored /home/user/Jini/AI-Dev-Shop/agents (tdd, programmer, software
 | 3 | 071-072 | MERGED — all at 100 except core/src/fetch/cache.ts br 99.14 (line 138 `?? Promise.resolve` only reachable by external writes to public CacheEntry.pending); 2 *.typecheck.ts skipped (compile-only) |
 | 4 | 073-074 | MERGED (partial) — core settings + 13 daemon files 100; left: daemon events.ts/launch.ts/mcp-bridge.ts, http/xai.ts:300 (third-party guarantee), all 15 lot-074 db files. Bug fixed: core renameDefinition silently renamed to `.` on missing target |
 | 5 | 075-076 | MERGED — 23/23 files 100 (db suite 66 files/524 tests, *.postgres.test.ts excluded = LOCAL-RUN NEEDED) |
-| 6 | 077-078 | running |
-| 7 | 079-081 | running |
+| 6 | 077-078 | MERGED — 27/27 files 100 (db, desktop-host 662 tests, devops agent-jobs). Review flag: db transfer-tools approval-path guard removed as unreachable (relies on core createApprovalHandler invariant) |
+| 7 | 079-081 | MERGED — 4/4 files 100 (3 were already 100: NEVER-LOADED only because devops vitest.config narrows coverage.include to src/deploy/**) |
 | 8 | 073b-074b (remainder) | running |
+| 9 | 082-089 | running (devops 082-088: only 6 files not already 100) |
+| 10 | 090-091 | running |
