@@ -3,7 +3,8 @@
  * gets identical, testable semantics; providers only list and (later) apply.
  *
  * Rule (lifted from the first host deploy plugin's DNS planner): preserve by default. Only address
- * records (A/AAAA/CNAME/ALIAS) at a name that needs a different address are changed. Mail, TXT,
+ * records (A/AAAA/CNAME/ALIAS) this engine owns (`managedBy: 'self'`) at a name that needs a
+ * different address are changed; a foreign or unmarked one blocks the name instead. Mail, TXT,
  * CAA, wildcard and unrelated records are never removed — new values are merged into them and
  * the untouched rest is disclosed in `preserved`.
  */
@@ -119,10 +120,8 @@ function nameBlocker(ctx: PlanContext, name: string): DnsPlanBlocker | undefined
   return { code: 'cname_coexistence', name, message: `A CNAME at ${name} cannot coexist with its ${[...new Set(others.map(record => record.type))].join('/')} record(s).`, suggestion: 'Point the name with A/AAAA records instead, or move the other records to a different name.' };
 }
 
-/** Replace conflicting address records at one name with the desired address RRsets. */
-function planAddressName(ctx: PlanContext, name: string): DnsChange[] {
-  const desired = ctx.desired.filter(record => record.name === name && DNS_ADDRESS_TYPES.has(record.type));
-  const existing = ctx.current.filter(record => record.name === name && DNS_ADDRESS_TYPES.has(record.type));
+/** The address changes (deletes, updates, creates) that make one name serve `desired`. */
+function addressChanges(name: string, desired: readonly DnsRecord[], existing: readonly DnsRecord[]): DnsChange[] {
   const wanted = desired.map(record => record.type).join('/');
   const changes: DnsChange[] = existing
     .filter(record => !desired.some(want => want.type === record.type))
@@ -138,6 +137,31 @@ function planAddressName(ctx: PlanContext, name: string): DnsChange[] {
     }
   }
   return changes;
+}
+
+function ownershipBlocker(name: string, foreign: readonly DnsRecord[], desired: readonly DnsRecord[]): DnsPlanBlocker {
+  const types = [...new Set(foreign.map(record => record.type))].join('/');
+  const target = desired.map(record => `${record.type} ${(record.values as readonly DnsRecordValue[]).map(value => dnsValueKey({ value })).join(', ')}`).join('; ');
+  return {
+    code: 'record_not_owned', name,
+    message: `The existing ${types} record at ${name} was not created for this site, so it is left untouched instead of being replaced or deleted.`,
+    suggestion: `If it is no longer needed, change it by hand at your DNS host to ${target}, then plan again.`,
+  };
+}
+
+/**
+ * Replace conflicting address records at one name with the desired address RRsets. Only a name
+ * that needs an address is touched, and only records marked `managedBy: 'self'` are ever replaced
+ * or deleted: anything else belongs to someone else, so the name is blocked instead.
+ */
+function planAddressName(ctx: PlanContext, name: string): Planned {
+  const desired = ctx.desired.filter(record => record.name === name && DNS_ADDRESS_TYPES.has(record.type));
+  // A TXT/MX/CAA-only requirement must not "replace" the name's addresses with nothing.
+  if (desired.length === 0) return { changes: [], blockers: [] };
+  const existing = ctx.current.filter(record => record.name === name && DNS_ADDRESS_TYPES.has(record.type));
+  const changes = addressChanges(name, desired, existing);
+  const foreign = changes.flatMap(change => (change.before !== undefined && change.before.managedBy !== 'self' ? [change.before] : []));
+  return foreign.length === 0 ? { changes, blockers: [] } : { changes: [], blockers: [ownershipBlocker(name, foreign, desired)] };
 }
 
 /** Fold desired TXT values into an existing set; SPF is merged, never duplicated. */
@@ -218,7 +242,9 @@ function planNames(ctx: PlanContext, skip: ReadonlySet<string>): Planned {
       blockers.push(blocker);
       continue;
     }
-    changes.push(...planAddressName(ctx, name));
+    const address = planAddressName(ctx, name);
+    changes.push(...address.changes);
+    blockers.push(...address.blockers);
     for (const want of ctx.desired.filter(record => record.name === name && !DNS_ADDRESS_TYPES.has(record.type))) {
       const planned = planAdditive(ctx, want);
       changes.push(...planned.changes);

@@ -7,6 +7,8 @@ const zone = 'example.test';
 const req = (records: DomainRecordRequirement[], extra: Partial<DnsPlanRequirement> = {}): DnsPlanRequirement => ({ purpose: 'site', domain: 'www.example.test', providerId: 'host', records, ...extra });
 const plan = (current: DnsRecord[], requirements: DnsPlanRequirement[], optional = {}) => planDnsChanges({ providerId: 'manual', zone, current, requirements, inventory: 'complete' }, optional);
 const A = (name: string, ...values: string[]): DnsRecord => ({ name, type: 'A', ttl: 300, values });
+/** A record this engine created, so the planner may replace or delete it. */
+const own = (record: DnsRecord): DnsRecord => ({ ...record, managedBy: 'self' });
 
 describe('inventory gate', () => {
   test.each(['partial', 'unknown'] as const)('a %s inventory yields zero changes and a blocker', inventory => {
@@ -37,7 +39,7 @@ describe('address records', () => {
     const mx: DnsRecord = { name: 'example.test', type: 'MX', ttl: 300, values: [{ priority: 10, exchange: 'mx.mail.test' }] };
     const wildcard = A('*.example.test', '192.0.2.50');
     const txt: DnsRecord = { name: 'www.example.test', type: 'TXT', ttl: 300, values: ['keep-me'] };
-    const current: DnsRecord[] = [A('www.example.test', '192.0.2.9'), { name: 'www.example.test', type: 'AAAA', ttl: 300, values: ['2001:db8::9'] }, mx, wildcard, txt];
+    const current: DnsRecord[] = [own(A('www.example.test', '192.0.2.9')), own({ name: 'www.example.test', type: 'AAAA', ttl: 300, values: ['2001:db8::9'] }), mx, wildcard, txt];
     const result = plan(current, [req([{ type: 'A', name: 'www.example.test', value: '192.0.2.1' }])]);
     expect(result.changes.map(change => change.op)).toEqual(['delete', 'update']);
     expect(result.changes[0]?.before?.type).toBe('AAAA');
@@ -46,7 +48,7 @@ describe('address records', () => {
   });
 
   test('replaces an existing CNAME with required A and AAAA records, deletes first', () => {
-    const current: DnsRecord[] = [{ name: 'app.example.test', type: 'CNAME', ttl: 300, values: ['old.host.test'] }];
+    const current: DnsRecord[] = [own({ name: 'app.example.test', type: 'CNAME', ttl: 300, values: ['old.host.test'] })];
     const result = plan(current, [req([{ type: 'AAAA', name: 'app.example.test', value: '2001:db8::1' }, { type: 'A', name: 'app.example.test', value: '192.0.2.1' }])]);
     expect(result.changes.map(change => `${change.op}:${(change.after ?? change.before)?.type}`)).toEqual(['delete:CNAME', 'create:A', 'create:AAAA']);
     expect(result.changes[0]?.reason).toContain('A/AAAA');
@@ -55,8 +57,9 @@ describe('address records', () => {
   test('leaves a satisfied record alone and keeps the provider handle on update', () => {
     const have: DnsRecord = { ...A('www.example.test', '192.0.2.1', '192.0.2.2'), providerRef: 'rec-1', managedBy: 'other' };
     expect(plan([have], [req([{ type: 'A', name: 'www.example.test', value: '192.0.2.2' }, { type: 'A', name: 'www.example.test', value: '192.0.2.1' }])]).changes).toEqual([]);
-    const updated = plan([have], [req([{ type: 'A', name: 'www.example.test', value: '192.0.2.3', ttl: 60 }])]).changes[0];
-    expect(updated).toMatchObject({ op: 'update', before: have, after: { providerRef: 'rec-1', ttl: 60, values: ['192.0.2.3'] } });
+    const owned = own(have);
+    const updated = plan([owned], [req([{ type: 'A', name: 'www.example.test', value: '192.0.2.3', ttl: 60 }])]).changes[0];
+    expect(updated).toMatchObject({ op: 'update', before: owned, after: { providerRef: 'rec-1', ttl: 60, values: ['192.0.2.3'] } });
   });
 
   test('refuses an apex CNAME without flattening and suggests ALIAS/A', () => {
@@ -68,7 +71,7 @@ describe('address records', () => {
 
   test('allows a flattened apex CNAME beside apex mail records', () => {
     const mx: DnsRecord = { name: 'example.test', type: 'MX', ttl: 300, values: [{ priority: 10, exchange: 'mx.test' }] };
-    const result = plan([mx, A('example.test', '192.0.2.9')], [req([{ type: 'CNAME', name: 'example.test', value: 'target.host.test.' }])], { apexFlattening: true });
+    const result = plan([mx, own(A('example.test', '192.0.2.9'))], [req([{ type: 'CNAME', name: 'example.test', value: 'target.host.test.' }])], { apexFlattening: true });
     expect(result.blockers).toEqual([]);
     expect(result.changes.map(change => change.op)).toEqual(['delete', 'create']);
     expect(result.changes[1]?.after?.values).toEqual(['target.host.test']);
@@ -85,6 +88,40 @@ describe('address records', () => {
     expect(blocked.blockers).toMatchObject([{ code: 'cname_coexistence', name: 'www.example.test' }]);
     expect(blocked.changes).toEqual([]);
     expect(plan([existingCname], [req([desiredCname])]).changes).toEqual([]);
+  });
+});
+
+describe('address records: what may be replaced', () => {
+  // Regression (review 13-dns #1): a TXT/MX-only requirement used to plan the deletion of every
+  // address record at its name, because an empty desired address set "conflicted" with them all.
+  test('a TXT/MX-only requirement preserves the A/AAAA records at its name', () => {
+    const a = own(A('example.test', '192.0.2.9'));
+    const aaaa: DnsRecord = own({ name: 'example.test', type: 'AAAA', ttl: 300, values: ['2001:db8::9'] });
+    const result = plan([a, aaaa], [req([{ type: 'TXT', name: 'example.test', value: 'v=spf1 include:mail.test -all' }, { type: 'MX', name: 'example.test', value: 'mx.mail.test' }])]);
+    expect(result.changes.map(change => `${change.op}:${(change.after ?? change.before)?.type}`)).toEqual(['create:MX', 'create:TXT']);
+    expect(result.preserved).toEqual([a, aaaa]);
+    expect(result.blockers).toEqual([]);
+  });
+
+  // Regression (review 13-dns #2): records nobody marked as ours were deleted or overwritten.
+  test.each([['other' as const], [undefined]])('a record managed by %s is preserved behind an ownership blocker', managedBy => {
+    const foreignA: DnsRecord = { ...A('www.example.test', '192.0.2.9'), ...(managedBy ? { managedBy } : {}) };
+    const replaced = plan([foreignA], [req([{ type: 'A', name: 'www.example.test', value: '192.0.2.1' }])]);
+    expect(replaced.changes).toEqual([]);
+    expect(replaced.preserved).toEqual([foreignA]);
+    expect(replaced.blockers).toMatchObject([{ code: 'record_not_owned', name: 'www.example.test' }]);
+    expect(replaced.blockers[0]?.message).toContain('A record at www.example.test');
+    expect(replaced.blockers[0]?.suggestion).toContain('A 192.0.2.1');
+    const foreignCname: DnsRecord = { name: 'www.example.test', type: 'CNAME', ttl: 300, values: ['old.host.test'], ...(managedBy ? { managedBy } : {}) };
+    const deleted = plan([foreignCname], [req([{ type: 'A', name: 'www.example.test', value: '192.0.2.1' }])]);
+    expect(deleted.changes).toEqual([]);
+    expect(deleted.blockers).toMatchObject([{ code: 'record_not_owned', name: 'www.example.test' }]);
+  });
+
+  test('an owned record beside a foreign one at the same name still blocks the whole name', () => {
+    const result = plan([own(A('www.example.test', '192.0.2.9')), { name: 'www.example.test', type: 'AAAA', ttl: 300, values: ['2001:db8::9'], managedBy: 'other' }], [req([{ type: 'A', name: 'www.example.test', value: '192.0.2.1' }, { type: 'TXT', name: 'www.example.test', value: 'keep-going' }])]);
+    expect(result.changes.map(change => `${change.op}:${(change.after ?? change.before)?.type}`)).toEqual(['create:TXT']);
+    expect(result.blockers).toMatchObject([{ code: 'record_not_owned', name: 'www.example.test' }]);
   });
 });
 

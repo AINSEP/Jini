@@ -76,7 +76,7 @@ describe('manual instructions', () => {
 
   test('renders add/change/remove rows with relative hosts, priorities and an apex note', () => {
     const current: DnsRecord[] = [
-      { name: 'example.test', type: 'A', ttl: 300, values: ['192.0.2.9'] },
+      { name: 'example.test', type: 'A', ttl: 300, values: ['192.0.2.9'], managedBy: 'self' },
       { name: 'mail.example.test', type: 'MX', ttl: 300, values: [{ priority: 10, exchange: 'old.mx.test' }] },
     ];
     const computed = planDnsChanges({ providerId: 'manual', zone: 'example.test', current, inventory: 'complete', requirements: [requirement([

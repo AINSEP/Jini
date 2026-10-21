@@ -105,7 +105,9 @@ export type DnsPlanBlockerCode =
   | 'caa_excludes_issuer'
   | 'multiple_spf'
   | 'unsupported_record_type'
-  | 'invalid_requirement';
+  | 'invalid_requirement'
+  /** An address record not marked `managedBy: 'self'` would have been replaced or deleted. */
+  | 'record_not_owned';
 
 export interface DnsPlanBlocker {
   readonly code: DnsPlanBlockerCode;
