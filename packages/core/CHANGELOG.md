@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New `./object-store` (also on the root): the one `ObjectStore` contract (put with atomic `ifAbsent` / get→null / head / delete, optional `publicAccess`), `ObjectStoreProvider.create()` returning `ProviderResult`, and `createObjectStoreRegistry()` (contract `object_store`, default `local`). Absorbs cms `BlobStorePort`, capability-providers `StorageProvider`, devops `ArtifactStorePort` and platform `BlobStorage` as views.
 - New `./provider-registry` (also on the root): `createProviderRegistry<T>()` — keyed register/get/has/list/getDefault, frozen entries, core registrations throw while plugin contributions are recorded in `refusals()` — plus shared `ProviderResult<T>`, `ProviderContext` and `DomainRequirement` types. Frozen contract: `docs/provider-registry.md`.
 
 ## 0.4.8 — 2026-10-16

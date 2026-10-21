@@ -19,6 +19,7 @@
       "./model-facing-tool-errors": "universal",
       "./contribution-registry": "universal",
       "./provider-registry": "universal",
+      "./object-store": "universal",
       "./naming": "universal",
       "./records": "universal",
       "./primitives": "universal",
@@ -103,6 +104,11 @@
       "types": "./dist/provider-registry.d.ts",
       "import": "./dist/provider-registry.js",
       "default": "./dist/provider-registry.js"
+    },
+    "./object-store": {
+      "types": "./dist/object-store.d.ts",
+      "import": "./dist/object-store.js",
+      "default": "./dist/object-store.js"
     },
     "./naming": {
       "types": "./dist/naming.d.ts",

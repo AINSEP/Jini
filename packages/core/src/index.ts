@@ -36,6 +36,7 @@ export * from './gated-mutations.js';
 export * from './model-facing-tool-errors.js';
 export * from './contribution-registry.js';
 export * from './provider-registry.js';
+export * from './object-store.js';
 export * from './naming.js';
 
 export type { AgentToolSideEffect, AgentToolActorClassRule, AgentToolDefinition } from './agent-tools.js';
