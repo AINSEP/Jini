@@ -25,8 +25,10 @@ const INTERNAL_REMOVED = '[REDACTED:chat_secret]';
 const REDACTION_MARKER = /\[REDACTED:[^\]\r\n]+\]/g;
 const CHAT_RULES: readonly RedactionRule[] = [
   { kind: 'chat_key', pattern: /(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}/g, replacement: () => INTERNAL_REMOVED },
-  // No Slack rule here: `@jini-ai/core`'s base `slack_token` rule (word-bounded, 10+ chars) runs first
-  // and already removes every `xox[baprs]-…` token a chat-level 16+ char rule could match.
+  // Kept on top of the shared Slack rule: that rule refuses a token preceded by `-` (e.g. a URL path
+  // segment `/-xoxb-…`) and the entropy fallback below exempts URLs, so without this rule such a token
+  // would reach storage and model history. Only drop it once the shared rule covers that case.
+  { kind: 'chat_key', pattern: /(?<![A-Za-z0-9_])xox[baprs]-[A-Za-z0-9-]{16,}/g, replacement: () => INTERNAL_REMOVED },
   // Explicit authorization syntax catches even short values. Exempt scheme descriptions in prose.
   { kind: 'chat_bearer', pattern: /\bBearer[ \t]+(?!\[REDACTED)(?!(?:token|tokens|authentication|authorization|auth|scheme|credentials?)\b)[A-Za-z0-9._~+\/=-]+/gi, replacement: () => 'Bearer ' + INTERNAL_REMOVED },
 ];
