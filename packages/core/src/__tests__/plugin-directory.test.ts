@@ -113,3 +113,78 @@ describe('plugin identity review regressions', () => {
     expect(readPluginIdentity({ manifest: { name: 'bridge' }, namespace: 'example' }).id).toBe('unknown/bridge');
   });
 });
+
+// Structural refusals: each one returns before any identity field is interpreted.
+describe('plugin identity structural validation', () => {
+  it.each([null, 'manifest', ['name'], 7])('refuses a non-object manifest %j', manifest => {
+    expect(validatePluginIdentity({ manifest, namespace: 'example' }).errors).toEqual(['Plugin manifest must be an object.']);
+  });
+
+  it.each(['example', ['example'], null])('refuses non-object extensions %j and reads nothing further', extensions => {
+    const manifest = { name: 'bridge', extensions, keywords: 'not-an-array' };
+    expect(validatePluginIdentity({ manifest, namespace: 'example' }).errors).toEqual(['Plugin extensions must be an object.']);
+    expect(() => readPluginIdentity({ manifest, namespace: 'example' })).toThrow(new TypeError('Plugin extensions must be an object.'));
+  });
+
+  it('treats a manifest whose extensions omit the namespace as legacy rather than invalid', () => {
+    expect(validatePluginIdentity({ manifest: { extensions: { other: { id: 'bad id' } } }, namespace: 'example' }).errors).toEqual([]);
+  });
+
+  it.each([42, 'a'.repeat(64) + '/' + 'b'.repeat(65)])('refuses a non-string or over-long declared id %j', id => {
+    expect(validatePluginIdentity({ manifest: { extensions: { example: { id } } }, namespace: 'example' }).errors).toEqual([
+      'Plugin id must have the form publisher/name (lowercase letters, digits, dots and hyphens).',
+    ]);
+  });
+
+  it('accepts an id at exactly the 129-character limit', () => {
+    const id = 'a'.repeat(64) + '/' + 'b'.repeat(64);
+    expect(readPluginIdentity({ manifest: { extensions: { example: { id } } }, namespace: 'example' }).id).toBe(id);
+  });
+
+  it.each([{}, { name: 42 }, { name: 'Has Spaces' }, { name: '../escape' }])('refuses a legacy identity without a valid local name %j', manifest => {
+    expect(() => readPluginIdentity({ manifest, namespace: 'example' })).toThrow(new TypeError('A valid plugin name is required for a legacy identity.'));
+  });
+
+  it('keeps an extension that declares only provides as a legacy identity that still publishes capabilities', () => {
+    expect(readPluginIdentity({ manifest: { name: 'bridge', extensions: { example: { provides: ['source-control'] } } }, namespace: 'example' })).toEqual({
+      id: 'unknown/bridge', keywords: [], provides: ['source-control'], warnings: ["Plugin 'bridge' has no publisher-qualified id; using 'unknown/bridge'."],
+    });
+  });
+
+  it('lets an explicit storage name rescue a manifest whose own name is unusable', () => {
+    expect(readPluginIdentity({ manifest: { name: 'Has Spaces' }, name: 'has-spaces', namespace: 'example' }).id).toBe('unknown/has-spaces');
+  });
+
+  it('refuses a provides list that is not an array or holds an over-long capability', () => {
+    const errors = (provides: unknown) => validatePluginIdentity({ manifest: { extensions: { example: { id: 'example/x', provides } } }, namespace: 'example' }).errors;
+    expect(errors('source-control')).toEqual(['Plugin provides must be an array of capability names.']);
+    expect(errors(['a'.repeat(130)])).toEqual(['Plugin provides must be an array of capability names.']);
+    expect(errors(['deploy-target:fly'])).toEqual([]);
+  });
+});
+
+describe('plugin identity admission across slots', () => {
+  const provider = (overrides: Record<string, unknown>) => ({ id: 'example/github', family: 'agent-plugin', localId: 'github', version: '1.0.0', enabled: true, provides: [], keywords: [], ...overrides }) as Parameters<typeof assertPluginIdentityAvailable>[0]['installed'][number];
+
+  it('admits a reinstall of the same identity into its own slot and ignores unrelated providers', () => {
+    const candidate = { id: 'example/github', family: 'agent-plugin', localId: 'github' };
+    expect(() => assertPluginIdentityAvailable({ candidate, installed: [provider({}), provider({ id: 'vendor/other', localId: 'other' })] })).not.toThrow();
+    expect(() => assertPluginIdentityAvailable({ candidate, installed: [] })).not.toThrow();
+  });
+
+  it('refuses a qualified id reused by another slot of the same family', () => {
+    const candidate = { id: 'example/github', family: 'agent-plugin', localId: 'github-fork' };
+    expect(() => assertPluginIdentityAvailable({ candidate, installed: [provider({})] })).toThrow("Duplicate plugin id 'example/github'.");
+  });
+
+  it('refuses a legacy fallback id that collides inside one family under a different slot', () => {
+    // Same family, so the family-scoped legacy exemption does not apply.
+    const candidate = { id: 'unknown/bridge', family: 'agent-plugin', localId: 'bridge' };
+    expect(() => assertPluginIdentityAvailable({ candidate, installed: [provider({ id: 'unknown/bridge', localId: 'renamed' })] })).toThrow("Duplicate plugin id 'unknown/bridge'.");
+  });
+
+  it('checks every installed provider, not only the first', () => {
+    const candidate = { id: 'example/github', family: 'agent-plugin', localId: 'github' };
+    expect(() => assertPluginIdentityAvailable({ candidate, installed: [provider({ id: 'vendor/other', localId: 'other' }), provider({ id: 'vendor/github' })] })).toThrow("Plugin 'github' belongs to a different publisher identity.");
+  });
+});

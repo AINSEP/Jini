@@ -1,4 +1,4 @@
-import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
+import type { AgentToolDefinition } from "@jini-ai/core";
 /**
  * @file The Workspace domain's agent-tool catalog, instantiating this package's shared
  * naming/callability convention (the same shape every other domain catalog in this package

@@ -206,3 +206,35 @@ it('returns a new empty array for an empty catalog without consulting host ports
   expect(result).toEqual([]); expect(result).not.toBe(registrations);
   expect(host.resolveTarget).not.toHaveBeenCalled(); expect(host.isCurrentTarget).not.toHaveBeenCalled();
 });
+
+// normalizeInput is the pre-policy gate: a foreign target on an unscoped tool must be refused
+// before any approval plan is built, after the tool's own domain normalization has run.
+it('refuses a foreign or non-string target on an unscoped tool during normalization, after domain normalization', async () => {
+  const write = { ...registration({ id: 'write', readOnly: false }), normalizeInput: vi.fn(async ({ input }: { input: Readonly<Record<string, unknown>> }) => ({ input: { ...input, normalized: true }, notes: ['domain'] })) };
+  const port = ports();
+  const [wrapped] = applyTargetScope({ registrations: [write], ...port });
+
+  expect(await wrapped!.normalizeInput!({ input: { site: 'a', title: 't' } })).toEqual({ input: { site: 'a', title: 't', normalized: true }, notes: ['domain'] });
+  expect(port.isCurrentTarget).toHaveBeenCalledWith({ target: 'a' });
+  await expect(wrapped!.normalizeInput!({ input: { site: 'b' } })).rejects.toThrow(new ToolInputError({ message: 'This tool runs only on the current target.' }));
+  await expect(wrapped!.normalizeInput!({ input: { site: 3 } })).rejects.toThrow(new ToolInputError({ message: 'site must be a string' }));
+  expect(await wrapped!.normalizeInput!({ input: { title: 't' } })).toEqual({ input: { title: 't', normalized: true }, notes: ['domain'] });
+  expect(write.normalizeInput).toHaveBeenCalledTimes(4);
+});
+
+it('passes input through normalization untouched for a tool without its own normalizer, and never checks a scoped read', async () => {
+  const port = ports();
+  const [read, write] = applyTargetScope({ registrations: [registration(), registration({ id: 'write', readOnly: false })], ...port }, { refuseMessage: 'Wrong site.' });
+
+  expect(await read!.normalizeInput!({ input: { site: 'b' } })).toEqual({ input: { site: 'b' }, notes: [] });
+  expect(port.isCurrentTarget).not.toHaveBeenCalled();
+  await expect(write!.normalizeInput!({ input: { site: 'b' } })).rejects.toThrow('Wrong site.');
+});
+
+it('leaves a non-object normalized input for the handler to reject', async () => {
+  const write = { ...registration({ id: 'write', readOnly: false }), normalizeInput: async () => ({ input: ['site'] as unknown as Record<string, unknown>, notes: [] }) };
+  const port = ports();
+  const [wrapped] = applyTargetScope({ registrations: [write], ...port });
+  expect(await wrapped!.normalizeInput!({ input: { site: 'b' } })).toEqual({ input: ['site'], notes: [] });
+  expect(port.isCurrentTarget).not.toHaveBeenCalled();
+});

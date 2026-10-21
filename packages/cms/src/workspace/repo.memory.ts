@@ -65,14 +65,22 @@ export class InMemoryWorkspaceRepo implements WorkspaceRepoPort {
     let release!: () => void;
     this.transactionTail = new Promise<void>((resolve) => { release = resolve; });
     await previous;
+    try {
+      return await this.restoringRowsOnFailure({ fn });
+    } finally {
+      release();
+    }
+  }
+
+  /** Runs `fn` against a snapshot of the rows, restoring that snapshot if `fn` rejects. Split from
+   * `transaction` so the queue release (`finally`) and the rollback (`catch`) are separate scopes. */
+  private async restoringRowsOnFailure<T>({ fn }: { fn: () => Promise<T> }): Promise<T> {
     const before = this.rows.map((row) => ({ ...row }));
     try {
       return await fn();
     } catch (error) {
       this.rows = before;
       throw error;
-    } finally {
-      release();
     }
   }
 }
