@@ -130,7 +130,14 @@
 }
 .jini-lightbox-button:hover:not(:disabled) { background: oklch(100% 0 0 / 0.15); border-color: oklch(100% 0 0 / 0.28); }
 .jini-lightbox-button:focus-visible { outline: 2px solid var(--jini-lightbox-ink); outline-offset: 2px; }
-.jini-lightbox-button:disabled { opacity: 0.3; cursor: default; }
+/* Same chip, only fainter: a host `button:disabled` fill (the Tovu admin's light `--surface-3`) would
+   otherwise turn the end-of-set arrow into a bright pressed-looking disc. */
+.jini-lightbox-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+  color: var(--jini-lightbox-ink);
+  background: oklch(100% 0 0 / 0.07);
+}
 
 @media (prefers-reduced-motion: no-preference) {
   .jini-lightbox[open] { animation: jini-lightbox-in 160ms ease-out; }
