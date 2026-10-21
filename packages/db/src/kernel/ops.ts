@@ -65,12 +65,12 @@ export function outsideTransactionOf(kernel: StorageKernel<unknown>): (op: keyof
  * @throws {StorageOpError} the ledger cannot be read, or holds no rows.
  */
 export async function verifyLedgerReadBack(kernel: StorageKernel<unknown>, ledgerTable: string): Promise<void> {
-  let steps: number;
+  let anyStep: unknown[];
   try {
-    const [row] = await kernel.query<{ n: number }>(sql`SELECT count(*)::int AS n FROM ${sql.table(ledgerTable)}`);
-    steps = row?.n ?? 0;
+    // One row when the ledger holds any step, none when it is empty: no count to null-check.
+    anyStep = await kernel.query(sql`SELECT 1 AS present FROM ${sql.table(ledgerTable)} LIMIT 1`);
   } catch (err) {
     throw new StorageOpError(`the migration ledger ${ledgerTable} cannot be read back: ${(err as Error).message}`);
   }
-  if (steps === 0) throw new StorageOpError(`the migration ledger ${ledgerTable} is empty after compacting`);
+  if (anyStep.length === 0) throw new StorageOpError(`the migration ledger ${ledgerTable} is empty after compacting`);
 }
