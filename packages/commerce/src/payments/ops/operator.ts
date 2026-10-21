@@ -37,9 +37,9 @@ export type ResolveUnknownResult =
 function checkResolve({ deps, required }: { deps: OpsDeps; required: ResolveUnknownRequired }): Failure | null {
   const checked = checkProvider({ deps, scope: required.scope });
   if (!checked.ok) return checked;
-  const blank = checkText({ paymentId: required.paymentId, actor: required.actor, reason: required.reason, ...(required.refundId === undefined ? {} : { refundId: required.refundId }) });
+  const blank = checkText({ fields: { paymentId: required.paymentId, actor: required.actor, reason: required.reason, ...(required.refundId === undefined ? {} : { refundId: required.refundId }) } });
   if (blank) return blank;
-  return required.outcome === "succeeded" || required.outcome === "failed" ? null : fail("INVALID_REQUEST", 'outcome must be "succeeded" or "failed"');
+  return required.outcome === "succeeded" || required.outcome === "failed" ? null : fail({ code: "INVALID_REQUEST", message: 'outcome must be "succeeded" or "failed"' });
 }
 
 function settle({ tx, deps, required }: { tx: LedgerTx; deps: OpsDeps; required: ResolveUnknownRequired }): Promise<SettleResult> {
@@ -52,14 +52,14 @@ function settle({ tx, deps, required }: { tx: LedgerTx; deps: OpsDeps; required:
 function refused(required: ResolveUnknownRequired, settled: Exclude<SettleResult, { kind: "settled" }>): Failure {
   const subject = required.refundId === undefined ? `payment ${required.paymentId}` : `refund ${required.refundId}`;
   const why = "status" in settled ? `is ${settled.status}; only an unknown outcome can be resolved` : "not found";
-  return fail("INVALID_REQUEST", `${subject} ${why}`);
+  return fail({ code: "INVALID_REQUEST", message: `${subject} ${why}` });
 }
 
 type Resolved = { readonly payment: PaymentRecord; readonly refund: RefundRecord | null };
 
 async function resolveInTx({ tx, deps, required }: { tx: LedgerTx; deps: OpsDeps; required: ResolveUnknownRequired }): Promise<Resolved | Failure> {
   const before = await readPayment({ tx, scope: required.scope, paymentId: required.paymentId });
-  if (!before) return fail("INVALID_REQUEST", `payment ${required.paymentId} not found in this scope`);
+  if (!before) return fail({ code: "INVALID_REQUEST", message: `payment ${required.paymentId} not found in this scope` });
   const settled = await settle({ tx, deps, required });
   if (settled.kind !== "settled") return refused(required, settled);
   await tx.appendOperatorAction({

@@ -73,10 +73,10 @@ function checkOp(
   if (!checked.ok) return checked;
   const { provider } = checked;
   const problem = (spec.amount ? checkAmount({ amount: spec.amount, provider }) : null)
-    ?? checkText({ paymentId: required.paymentId, idempotencyKey: required.idempotencyKey });
+    ?? checkText({ fields: { paymentId: required.paymentId, idempotencyKey: required.idempotencyKey } });
   if (problem) return problem;
   const call = spec.method(provider);
-  return call ? { ok: true, provider, call } : fail("CAPABILITY_UNSUPPORTED", `provider '${provider.id}' does not support ${spec.op}`);
+  return call ? { ok: true, provider, call } : fail({ code: "CAPABILITY_UNSUPPORTED", message: `provider '${provider.id}' does not support ${spec.op}` });
 }
 
 type Done = { readonly kind: "done"; readonly result: IntentResult };
@@ -87,16 +87,16 @@ async function lookupOp({ tx, spec, required }: { tx: LedgerTx; spec: OpSpec; re
   const prior = await tx.findAttemptByOperationKey({ workspaceId: scope.workspaceId, mode: scope.mode, operationKey: `${spec.op}:${required.idempotencyKey}` });
   if (!prior) return null;
   const payment = prior.paymentId === required.paymentId ? await readPayment({ tx, scope, paymentId: prior.paymentId }) : null;
-  if (!payment) return { kind: "done", result: fail("IDEMPOTENCY_CONFLICT", `idempotency key already used for a different ${spec.op} request`) };
+  if (!payment) return { kind: "done", result: fail({ code: "IDEMPOTENCY_CONFLICT", message: `idempotency key already used for a different ${spec.op} request` }) };
   return { kind: "done", result: { ok: true, payment: paymentView(payment), replayed: true, risk: REPLAY_RISK } };
 }
 
 function paymentProblem({ payment, spec, required }: { payment: PaymentRecord | null; spec: OpSpec; required: VoidRequired }): Failure | null {
-  if (!payment) return fail("INVALID_REQUEST", `payment '${required.paymentId}' not found in this scope`);
-  if (!spec.from.has(payment.intentStatus)) return fail("INVALID_REQUEST", `cannot ${spec.op} a payment that is ${payment.intentStatus}`);
+  if (!payment) return fail({ code: "INVALID_REQUEST", message: `payment '${required.paymentId}' not found in this scope` });
+  if (!spec.from.has(payment.intentStatus)) return fail({ code: "INVALID_REQUEST", message: `cannot ${spec.op} a payment that is ${payment.intentStatus}` });
   const amount = spec.amount;
   if (amount && (amount.currency !== payment.currency || amount.minorUnits > payment.amountMinor)) {
-    return fail("INVALID_REQUEST", `capture must be in ${payment.currency} and at most the authorized ${payment.amountMinor} minor units`);
+    return fail({ code: "INVALID_REQUEST", message: `capture must be in ${payment.currency} and at most the authorized ${payment.amountMinor} minor units` });
   }
   return null;
 }
@@ -107,18 +107,18 @@ async function openOp({ deps, spec, required }: { deps: OpsDeps; spec: OpSpec; r
     const prior = await lookupOp({ tx, spec, required });
     if (prior) return prior;
     // The lock serializes this check against a concurrent capture/void and the evidence writers.
-    const payment = owned(await tx.lockPayment({ workspaceId: scope.workspaceId, mode: scope.mode, id: required.paymentId }), scope);
+    const payment = owned({ record: await tx.lockPayment({ workspaceId: scope.workspaceId, mode: scope.mode, id: required.paymentId }), scope });
     const problem = paymentProblem({ payment, spec, required });
     if (problem) return { kind: "done", result: problem };
     const binding = { op: spec.op, workspaceId: scope.workspaceId, mode: scope.mode, paymentId: required.paymentId, amount: spec.amount, idempotencyKey };
     if (!(await deps.grants.redeem({ grant: required.grant, binding }))) {
-      return { kind: "done", result: fail("GRANT_INVALID", `the ${spec.op} grant is missing, expired, used or bound to another request`) };
+      return { kind: "done", result: fail({ code: "GRANT_INVALID", message: `the ${spec.op} grant is missing, expired, used or bound to another request` }) };
     }
     const attempt = newAttempt({ deps, payment: payment as PaymentRecord, op: spec.op, operationKey: `${spec.op}:${idempotencyKey}` });
     await tx.insertAttempt({ attempt });
     return { kind: "opened", payment: payment as PaymentRecord, attempt };
   });
-  return onUniqueRace(open, () => deps.ledger.transaction((tx) => lookupOp({ tx, spec, required })));
+  return onUniqueRace({ open, lookup: () => deps.ledger.transaction((tx) => lookupOp({ tx, spec, required })) });
 }
 
 async function settleOp({ deps, opened, outcome }: { deps: OpsDeps; opened: Opened; outcome: Outcome<PaymentEvidence> }): Promise<IntentResult> {
@@ -133,7 +133,7 @@ async function settleOp({ deps, opened, outcome }: { deps: OpsDeps; opened: Open
   if (outcome.kind !== "ok") return { ok: false, error: outcome.error, payment: view };
   // An ok outcome always went through applyPaymentEvidence above.
   if (!(await noteApplied({ deps, payment, result: result as ApplyResult }))) {
-    return { ...fail("PROVIDER_ERROR", "the provider's response could not be applied and was quarantined for review"), payment: view };
+    return { ...fail({ code: "PROVIDER_ERROR", message: "the provider's response could not be applied and was quarantined for review" }), payment: view };
   }
   return { ok: true, payment: view, replayed: false, risk: NOT_ASSESSED_RISK };
 }
@@ -147,7 +147,7 @@ async function runOp({ deps, spec, required }: { deps: OpsDeps; spec: OpSpec; re
   if (opened.kind === "done") return opened.result;
   // Allowed statuses (authorized/pending/requires_action) only ever come from evidence, which always carries the provider ref.
   const providerRef = opened.payment.providerRef as string;
-  const outcome = await dispatch(() => checked.call({ providerRef, idempotencyKey: opened.attempt.id, ctx: resolved.ctx }));
+  const outcome = await dispatch({ call: () => checked.call({ providerRef, idempotencyKey: opened.attempt.id, ctx: resolved.ctx }) });
   return settleOp({ deps, opened, outcome });
 }
 

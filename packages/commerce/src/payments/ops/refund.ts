@@ -43,10 +43,10 @@ function checkRefund(
   if (!checked.ok) return checked;
   const { provider } = checked;
   const problem = checkAmount({ amount: required.amount, provider })
-    ?? checkText({ paymentId: required.paymentId, idempotencyKey: required.idempotencyKey });
+    ?? checkText({ fields: { paymentId: required.paymentId, idempotencyKey: required.idempotencyKey } });
   if (problem) return problem;
   if (provider.capabilities.refunds === "none" || typeof provider.refund !== "function") {
-    return fail("CAPABILITY_UNSUPPORTED", `provider '${provider.id}' does not support refunds`);
+    return fail({ code: "CAPABILITY_UNSUPPORTED", message: `provider '${provider.id}' does not support refunds` });
   }
   return { ok: true, provider, call: provider.refund.bind(provider) };
 }
@@ -58,7 +58,7 @@ type Opened = { readonly kind: "opened"; readonly payment: PaymentRecord; readon
 async function replayOrConflict({ tx, required, prior }: { tx: LedgerTx; required: RefundRequired; prior: RefundRecord }): Promise<Done> {
   const same = sameScope({ a: scopeOf(prior), b: required.scope }) && prior.paymentId === required.paymentId
     && prior.amountMinor === required.amount.minorUnits && prior.currency === required.amount.currency;
-  if (!same) return { kind: "done", result: fail("IDEMPOTENCY_CONFLICT", "idempotency key already used for a different refund request") };
+  if (!same) return { kind: "done", result: fail({ code: "IDEMPOTENCY_CONFLICT", message: "idempotency key already used for a different refund request" }) };
   // A refund row's payment exists in the same scope: the composite foreign key guarantees it.
   const payment = (await readPayment({ tx, scope: required.scope, paymentId: prior.paymentId })) as PaymentRecord;
   return { kind: "done", result: { ok: true, refund: refundView(prior), payment: paymentView(payment), replayed: true } };
@@ -72,12 +72,12 @@ async function lookupRefund({ tx, required }: { tx: LedgerTx; required: RefundRe
 
 /** Why this payment cannot take this refund, judged before the grant is spent; the reservation re-checks under the lock. */
 function paymentProblem({ payment, required, provider }: { payment: PaymentRecord | null; required: RefundRequired; provider: PaymentProvider }): Failure | null {
-  if (!payment) return fail("INVALID_REQUEST", `payment '${required.paymentId}' not found in this scope`);
-  if (payment.currency !== required.amount.currency) return fail("INVALID_REQUEST", `refund currency ${required.amount.currency} differs from the payment's ${payment.currency}`);
-  if (payment.providerRef === null) return fail("INVALID_REQUEST", "the payment has no provider reference to refund against");
+  if (!payment) return fail({ code: "INVALID_REQUEST", message: `payment '${required.paymentId}' not found in this scope` });
+  if (payment.currency !== required.amount.currency) return fail({ code: "INVALID_REQUEST", message: `refund currency ${required.amount.currency} differs from the payment's ${payment.currency}` });
+  if (payment.providerRef === null) return fail({ code: "INVALID_REQUEST", message: "the payment has no provider reference to refund against" });
   const refundable = Math.max(0, payment.capturedMinor - payment.refundedMinor - payment.refundHeldMinor - payment.disputedMinor);
   if (provider.capabilities.refunds === "full" && required.amount.minorUnits !== refundable) {
-    return fail("INVALID_REQUEST", `provider '${provider.id}' refunds only the whole refundable amount (${refundable} minor units)`);
+    return fail({ code: "INVALID_REQUEST", message: `provider '${provider.id}' refunds only the whole refundable amount (${refundable} minor units)` });
   }
   return null;
 }
@@ -91,7 +91,7 @@ const RESERVE_REFUSED: Readonly<Record<Exclude<ReserveResult["kind"], "reserved"
 
 function reserveFailure(reserved: Exclude<ReserveResult, { kind: "reserved" }>): Done {
   const left = "refundableMinor" in reserved ? ` (${reserved.refundableMinor} minor units left)` : "";
-  return { kind: "done", result: fail("INVALID_REQUEST", `${RESERVE_REFUSED[reserved.kind]}${left}`) };
+  return { kind: "done", result: fail({ code: "INVALID_REQUEST", message: `${RESERVE_REFUSED[reserved.kind]}${left}` }) };
 }
 
 /** Tx1, in the owner's order. */
@@ -107,7 +107,7 @@ async function openRefund(
     if (problem) return { kind: "done", result: problem };
     const binding = { op: "refund" as const, workspaceId: scope.workspaceId, mode: scope.mode, paymentId: required.paymentId, amount, idempotencyKey };
     if (!(await deps.grants.redeem({ grant: required.grant, binding }))) {
-      return { kind: "done", result: fail("GRANT_INVALID", "the refund grant is missing, expired, used or bound to another request") };
+      return { kind: "done", result: fail({ code: "GRANT_INVALID", message: "the refund grant is missing, expired, used or bound to another request" }) };
     }
     const reserved = await reserveRefund(
       { tx, deps: deps.writer, workspaceId: scope.workspaceId, mode: scope.mode, paymentId: required.paymentId, refundId: deps.newId(), amountMinor: amount.minorUnits, idempotencyKey },
@@ -118,7 +118,7 @@ async function openRefund(
     await tx.insertAttempt({ attempt });
     return { kind: "opened", payment: payment as PaymentRecord, refund: reserved.refund, attempt };
   });
-  return onUniqueRace(open, () => deps.ledger.transaction((tx) => lookupRefund({ tx, required })));
+  return onUniqueRace({ open, lookup: () => deps.ledger.transaction((tx) => lookupRefund({ tx, required })) });
 }
 
 /** Tx2 and the caller's view. */
@@ -132,7 +132,7 @@ async function settleRefund({ deps, opened, outcome }: { deps: OpsDeps; opened: 
   });
   if (outcome.kind !== "ok") return { ok: false, error: outcome.error };
   if (!(await noteApplied({ deps, payment, result }))) {
-    return fail("PROVIDER_ERROR", "the provider's refund response could not be applied and was quarantined for review");
+    return fail({ code: "PROVIDER_ERROR", message: "the provider's refund response could not be applied and was quarantined for review" });
   }
   const scope = scopeOf(payment);
   // Both rows exist (Tx1 wrote them; nothing deletes payments or refunds).
@@ -154,6 +154,6 @@ export async function refund(
   const opened = await openRefund({ deps, required, provider: checked.provider, reason: optional.reason });
   if (opened.kind === "done") return opened.result;
   const req = { providerRef: opened.payment.providerRef as string, amount: required.amount, idempotencyKey: opened.refund.id, correlationId: opened.refund.id };
-  const outcome = await dispatch(() => checked.call({ req, ctx: resolved.ctx }, optional.reason === undefined ? {} : { reason: optional.reason }));
+  const outcome = await dispatch({ call: () => checked.call({ req, ctx: resolved.ctx }, optional.reason === undefined ? {} : { reason: optional.reason }) });
   return settleRefund({ deps, opened, outcome });
 }

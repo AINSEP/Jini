@@ -57,7 +57,7 @@ async function retrieveSnapshot(deps: OpsDeps, payment: PaymentRecord): Promise<
   if (providerRef === null) return { ok: false, why: "no provider reference (the provider never answered)" };
   const resolved = await resolveContext({ deps, scope: scopeOf(payment), provider });
   if (!resolved.ok) return { ok: false, why: resolved.error.message };
-  const outcome = await dispatch(() => retrieve.call(provider, { providerRef, ctx: resolved.ctx }));
+  const outcome = await dispatch({ call: () => retrieve.call(provider, { providerRef, ctx: resolved.ctx }) });
   return outcome.kind === "ok" ? { ok: true, evidence: outcome.value, provider } : { ok: false, why: outcome.error.message };
 }
 

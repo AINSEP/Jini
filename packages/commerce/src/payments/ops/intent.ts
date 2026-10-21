@@ -47,10 +47,10 @@ function checkIntent(
   const checked = checkProvider({ deps, scope: required.scope });
   if (!checked.ok) return checked;
   const problem = checkAmount({ amount: required.amount, provider: checked.provider })
-    ?? checkText({ idempotencyKey: required.idempotencyKey, reference: required.reference });
+    ?? checkText({ fields: { idempotencyKey: required.idempotencyKey, reference: required.reference } });
   if (problem) return problem;
   if (optional.captureMode === "manual" && checked.provider.capabilities.capture !== "manual") {
-    return fail("CAPABILITY_UNSUPPORTED", `provider '${checked.provider.id}' cannot authorize without capturing`);
+    return fail({ code: "CAPABILITY_UNSUPPORTED", message: `provider '${checked.provider.id}' cannot authorize without capturing` });
   }
   return checked;
 }
@@ -63,7 +63,7 @@ async function lookupIntent({ deps, required }: { deps: OpsDeps; required: Inten
   if (!prior) return null;
   const same = sameScope({ a: scopeOf(prior), b: scope }) && prior.amountMinor === amount.minorUnits
     && prior.currency === amount.currency && prior.reference === required.reference;
-  if (!same) return fail("IDEMPOTENCY_CONFLICT", "idempotency key already used for a different payment request");
+  if (!same) return fail({ code: "IDEMPOTENCY_CONFLICT", message: "idempotency key already used for a different payment request" });
   return { ok: true, payment: paymentView(prior), replayed: true, risk: REPLAY_RISK };
 }
 
@@ -76,10 +76,10 @@ async function riskGate(
   const input = { scope: required.scope, amount: required.amount, paymentId, ...(optional.partyId === undefined ? {} : { partyId: optional.partyId }) };
   const risk = deps.risk ? await assessPreChargeRisk({ deps: deps.risk, input }) : ALLOW;
   const codes = risk.reasons.join(", ");
-  if (risk.verdict === "deny") return fail("RISK_DENIED", `the pre-charge risk gate denied this payment (${codes})`);
+  if (risk.verdict === "deny") return fail({ code: "RISK_DENIED", message: `the pre-charge risk gate denied this payment (${codes})` });
   if (risk.verdict === "allow") return { ok: true, risk, captureMode: optional.captureMode ?? "auto" };
   if (provider.capabilities.capture !== "manual") {
-    return fail("RISK_DENIED", `held for risk review (${codes}), but provider '${provider.id}' cannot authorize without capturing`);
+    return fail({ code: "RISK_DENIED", message: `held for risk review (${codes}), but provider '${provider.id}' cannot authorize without capturing` });
   }
   return { ok: true, risk, captureMode: "manual" };
 }
@@ -113,7 +113,7 @@ function openIntent(
     const result = await lookupIntent({ deps, required });
     return result ? { kind: "done", result } : null;
   };
-  return onUniqueRace(open, lookup);
+  return onUniqueRace({ open, lookup });
 }
 
 function withNext(value: { readonly evidence: PaymentEvidence; readonly next: NextAction }): PaymentEvidence {
@@ -139,7 +139,7 @@ async function settleIntent(
   const view = paymentView((await deps.ledger.transaction((tx) => readPayment({ tx, scope, paymentId: payment.id }))) as PaymentRecord);
   if (outcome.kind !== "ok") return { ok: false, error: outcome.error, payment: view };
   if (!(await noteApplied({ deps, payment, result }))) {
-    return { ...fail("PROVIDER_ERROR", "the provider's response could not be applied and was quarantined for review"), payment: view };
+    return { ...fail({ code: "PROVIDER_ERROR", message: "the provider's response could not be applied and was quarantined for review" }), payment: view };
   }
   return { ok: true, payment: view, replayed: false, risk };
 }
@@ -165,6 +165,6 @@ export async function createIntent(
     ...(optional.partyId === undefined ? {} : { partyId: optional.partyId }),
     ...(optional.providerOptions === undefined ? {} : { providerOptions: optional.providerOptions }),
   };
-  const outcome = await dispatch(() => provider.createIntent({ req, ctx: resolved.ctx }));
+  const outcome = await dispatch({ call: () => provider.createIntent({ req, ctx: resolved.ctx }) });
   return settleIntent({ deps, opened, outcome, risk: gate.risk });
 }
