@@ -338,3 +338,33 @@ describe('unavailable backend', () => {
       .rejects.toThrow('ensureIndex threw instead of returning a result: ECONNREFUSED');
   });
 });
+
+const OVERLAP = 'overlapping writes issued before earlier ones settle still honour revision order';
+/** Applies the matching documents above their real revision (a write that ignores revision order), reporting the real one. */
+const bumpUpsert = (base: SearchProvider, bumped: (document: SearchDocument) => boolean): Partial<SearchProvider> => ({
+  async upsert(ctx, required) {
+    const result = await base.upsert(ctx, { documents: required.documents.map(document => (bumped(document) ? { ...document, revision: document.revision + 100 } : document)) });
+    if (result.status !== 'ok') return result;
+    return providerOk({ value: { ...result.value, outcomes: result.value.outcomes.map((outcome, index) => ({ ...outcome, revision: (required.documents[index] as SearchDocument).revision })) } });
+  },
+});
+
+describe('overlapping writes', () => {
+  test('a lower revision queued behind a tombstone that resurrects the document', async () => {
+    await expect(runCase(broken(base => bumpUpsert(base, document => document.title === 'Resurrected overlap')), OVERLAP))
+      .rejects.toThrow('an upsert issued below a not-yet-settled tombstone resurrected the document');
+  });
+  test('an older concurrent upsert that wins over the newer one', async () => {
+    await expect(runCase(broken(base => bumpUpsert(base, document => document.title === 'Older overlap')), OVERLAP))
+      .rejects.toThrow(/concurrent upserts left .*expected revision 2/);
+  });
+  test('a revisionOf that loses the tombstone after overlapping writes', async () => {
+    const forgetful = broken(base => ({
+      async revisionOf(ctx, required) {
+        const result = await base.revisionOf(ctx, required);
+        return result.status === 'ok' ? providerOk({ value: result.value.map(state => ({ ...state, deleted: false })) }) : result;
+      },
+    }));
+    await expect(runCase(forgetful, OVERLAP)).rejects.toThrow('expected the revision-5 tombstone');
+  });
+});

@@ -58,6 +58,9 @@ interface Session {
   readonly remove: (ctx: SearchProviderContext, tombstones: readonly SearchTombstone[]) => Promise<readonly SearchWriteOutcome[]>;
   readonly search: (ctx: SearchProviderContext, query: Omit<SearchQuery, 'text'> & { readonly text?: string }) => Promise<SearchPage>;
   readonly revisions: (ctx: SearchProviderContext, keys: readonly SearchDocumentKey[]) => Promise<readonly SearchRevisionState[]>;
+  /** One write sent WITHOUT settling its task (for overlapping-write cases); `settle` it later. */
+  readonly send: (ctx: SearchProviderContext, items: { readonly documents: readonly SearchDocument[] } | { readonly tombstones: readonly SearchTombstone[] }) => Promise<SearchWriteResult>;
+  readonly settle: (ctx: SearchProviderContext, value: SearchWriteResult, label: string) => Promise<void>;
   /** Status sets a write may report; `pending` is added for async providers (settled by the kit). */
   readonly applied: readonly Status[];
   readonly stale: readonly Status[];
@@ -192,6 +195,15 @@ function createSession(required: SearchProviderConformanceRequired & { readonly 
       checkPage(page, query.limit ?? 10);
       return page;
     },
+    async send(ctx, items) {
+      const [label, inputs, call] = 'documents' in items
+        ? ['upsert', items.documents, () => provider.upsert(ctx, items)] as const
+        : ['remove', items.tombstones, () => provider.remove(ctx, items)] as const;
+      const value = expectOk(await attempt(label, call), label);
+      checkOutcomes(value.outcomes, inputs, label);
+      return value;
+    },
+    settle,
     async revisions(ctx, keys) {
       const states = expectOk(await attempt('revisionOf', () => provider.revisionOf(ctx, { keys })), 'revisionOf');
       check(states.length === keys.length, `revisionOf returned ${states.length} states for ${keys.length} keys`);
@@ -315,6 +327,32 @@ async function indexIsolationCase(s: Session): Promise<void> {
   }
 }
 
+/**
+ * Writes issued before earlier ones settled (a delayed event racing a newer one, or an event racing
+ * a reconcile retry) must still honour revision order once every task ran: a lower revision queued
+ * behind a tombstone never resurrects the document, and of two concurrent upserts the higher wins.
+ */
+async function overlappingWritesCase(s: Session): Promise<void> {
+  const ctx = await s.open({ suffix: 'x' });
+  const removed = keyOf('overlap_removed');
+  const kept = keyOf('overlap_kept');
+  const queued = [
+    await s.send(ctx, { tombstones: [{ key: removed, revision: 5 }] }),
+    await s.send(ctx, { documents: [doc({ key: removed, revision: 3, title: 'Resurrected overlap' })] }),
+  ];
+  const concurrent = await Promise.all([
+    s.send(ctx, { documents: [doc({ key: kept, revision: 2, title: 'Newer overlap' })] }),
+    s.send(ctx, { documents: [doc({ key: kept, revision: 1, title: 'Older overlap' })] }),
+  ]);
+  for (const value of [...queued, ...concurrent]) await s.settle(ctx, value, 'an overlapping write');
+  const page = await s.search(ctx, {});
+  check(hitFor(page, removed) === undefined, 'an upsert issued below a not-yet-settled tombstone resurrected the document');
+  const hit = hitFor(page, kept);
+  check(hit?.title === 'Newer overlap' && hit.revision === 2, `concurrent upserts left ${JSON.stringify(hit)}, expected revision 2 ('Newer overlap')`);
+  const [state] = await s.revisions(ctx, [removed]);
+  check(state?.revision === 5 && state.deleted, `revisionOf after overlapping writes is ${JSON.stringify(state)}, expected the revision-5 tombstone`);
+}
+
 function localeCase(locales: readonly string[]): (s: Session) => Promise<void> {
   return async s => {
     const ctx = await s.open({ suffix: 'x' });
@@ -435,6 +473,7 @@ function casesFor(provider: SearchProvider, optional: SearchProviderConformanceO
     ['limit and cursor pagination is stable and non-overlapping', paginationCase],
     ['empty or whitespace query text is rejected as invalid_request', emptyTextCase],
     ['revisionOf agrees with the last write', revisionOfCase],
+    ['overlapping writes issued before earlier ones settle still honour revision order', overlappingWritesCase],
     ['dropIndex removes everything in the index', dropIndexCase],
   ];
   if (testLocales.length > 0) cases.push(['locale filter', localeCase(testLocales)]);

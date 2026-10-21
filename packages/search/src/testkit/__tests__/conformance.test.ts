@@ -34,7 +34,7 @@ test('without makeUnavailableContext the unavailable case is not registered', ()
     test: title => { titles.push(title); },
   });
   expect(returned).toEqual(titles);
-  expect(titles).toHaveLength(15);
+  expect(titles).toHaveLength(16);
   expect(titles.every(title => title.startsWith('plain › '))).toBe(true);
   expect(titles.some(title => title.includes('unavailable'))).toBe(false);
 });
