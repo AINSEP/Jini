@@ -262,7 +262,7 @@ describe('useMcpUiHost — onEvent observability, teardown', () => {
     const { current } = renderHarness({ html: '<p>hi</p>', sandboxProxyUrl: SANDBOX_URL });
     const teardownResource = vi.fn();
     // Stands in for the AppRenderer instance React would attach through `ref={rendererRef}`.
-    (current().rendererRef as { current: unknown }).current = { teardownResource };
+    (current() as unknown as { rendererRef: { current: unknown } }).rendererRef.current = { teardownResource };
     act(() => current().rendererProps.onSizeChanged!({ width: 1, height: 1 }));
     act(() => current().requestTeardown());
     expect(teardownResource).toHaveBeenCalledTimes(1);

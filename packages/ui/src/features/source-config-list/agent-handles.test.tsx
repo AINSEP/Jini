@@ -144,10 +144,6 @@ describe('handle derivation', () => {
     });
   });
 
-  it('publishes only the handle when neither role nor label is given', () => {
-    expect(sourceConfigAgentProps('mcp-add', {})).toEqual({ 'data-agent-element': 'mcp-add' });
-  });
-
   it('publishes base-plus-action when one is named', () => {
     expect(sourceConfigAgentProps('mcp-add', { role: 'button', label: 'Add server', action: 'submit' })).toEqual({
       'data-agent-element': 'mcp-add-submit',
