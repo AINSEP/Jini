@@ -169,6 +169,8 @@ describe("L3 review fixes (planner)", () => {
     const lost: RefundState = { ...reserved, status: "unknown" };
     expect(planRefundEvidence({ payment: paid, refunds: [lost], evidence: noEcho, newId: "n" })).toMatchObject({ kind: "refund", write: "update", row: { id: "rf_1", providerRefundRef: "re_9" } });
     expect(planRefundEvidence({ payment: paid, refunds: [lost], evidence: ev({ correlationId: undefined, status: "failed" }), newId: "n" })).toEqual({ kind: "deferred" });
+    // R1-F1: a pending guess could later fail and release our hold, so it never binds by amount.
+    expect(planRefundEvidence({ payment: paid, refunds: [lost], evidence: ev({ correlationId: undefined, status: "pending" }), newId: "n" })).toEqual({ kind: "deferred" });
     const twin: RefundState = { ...lost, id: "rf_2" };
     expect(planRefundEvidence({ payment: paid, refunds: [lost, twin], evidence: noEcho, newId: "n" })).toEqual({ kind: "deferred" });
     const other: RefundState = { ...lost, amountMinor: 1_000 };

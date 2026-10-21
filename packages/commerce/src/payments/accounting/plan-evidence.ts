@@ -170,11 +170,14 @@ function writeKind<T>(existing: T | undefined, row: T): "insert" | "update" | "n
  *    ref), DEFER: the response will bind the ref, then this evidence matches by ref or is a new
  *    refund. Guessing here could let a dashboard refund of the same amount take our row and cancel
  *    our hold (re-review blocker);
- *  - a refund whose outcome was lost (`unknown`, no ref) has no response coming, so a SUCCESS or
- *    PENDING of exactly that amount binds to it when it is the only such row — otherwise a timeout
- *    would wait forever. A failure never binds by amount (it would release our hold on a guess).
- *    If the guess picked a foreign refund, totals stay right: our own refund then arrives by ref
- *    as a new row; only the label on the unknown row is the other refund's.
+ *  - a refund whose outcome was lost (`unknown`, no ref) has no response coming, so a SUCCESS of
+ *    exactly that amount binds to it when it is the only such row — otherwise a timeout would wait
+ *    forever. A failure never binds by amount (it would release our hold on a guess), and neither
+ *    does a PENDING (R1-F1): binding it hands our row the foreign ref, so that refund later failing
+ *    would release our hold while our dispatch is still unresolved. Both defer until a success
+ *    arrives or the reconciler settles the row. If a success guess picked a foreign refund, totals
+ *    stay right: our own refund then arrives by ref as a new row; only the label on the unknown row
+ *    is the other refund's.
  */
 function resolveRefund({ refunds, evidence }: { refunds: readonly RefundState[]; evidence: RefundEvidence }): { existing: RefundState | undefined } | Deferred {
   const matched = matchRefund({ refunds, evidence });
@@ -183,7 +186,7 @@ function resolveRefund({ refunds, evidence }: { refunds: readonly RefundState[];
   if (unbound.some((r) => r.status !== "unknown")) return { kind: "deferred" };
   const candidates = unbound.filter((r) => r.amountMinor === evidence.amount.minorUnits);
   if (candidates.length === 0) return { existing: undefined };
-  return candidates.length === 1 && evidence.status !== "failed" ? { existing: candidates[0] } : { kind: "deferred" };
+  return candidates.length === 1 && evidence.status === "succeeded" ? { existing: candidates[0] } : { kind: "deferred" };
 }
 
 function refundProblem({ payment, existing, evidence }: { payment: PaymentState; existing: RefundState | undefined; evidence: RefundEvidence }): EvidenceQuarantineReason | null {
