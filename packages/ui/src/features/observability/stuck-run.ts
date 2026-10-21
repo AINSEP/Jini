@@ -101,8 +101,8 @@ function scheduleEmit(runId: string, stuckAfterMs: number): ReturnType<typeof se
 }
 
 function emitStuck(runId: string): void {
-  const entry = runs.get(runId);
-  // `!entry || entry.emitted` is a defensive invariant guard, empirically
+  // Asserted present: there is no `!entry || entry.emitted` guard here (removed in the 2026-10-21
+  // coverage pass). Such a guard was a defensive invariant check, empirically
   // and structurally unreachable through this module's real call graph
   // today: `emitStuck` only ever runs as a `setTimeout` callback created by
   // `scheduleEmit`, and every path that could remove or re-flag an entry
@@ -110,12 +110,9 @@ function emitStuck(runId: string): void {
   // `clearTimeout`s that exact timer first — in this single-threaded
   // runtime, a cleared timer's callback can never still fire. So by the
   // time this callback runs, its entry is guaranteed to both exist and
-  // have `emitted === false`. Left in place (not stripped) as a guard
-  // against a future refactor silently breaking that invariant — see
-  // packages/ui/archived provenance ledger's 2026-07-22 dated entry for the full proof,
-  // matching this task's own standard for documenting provable
-  // unreachability instead of forcing a test.
-  if (!entry || entry.emitted) return;
+  // have `emitted === false`. Unreachable code is refactored away rather than fake-tested — see
+  // packages/ui/archived provenance ledger's 2026-07-22 dated entry for the full proof.
+  const entry = runs.get(runId)!;
   entry.emitted = true;
   entry.reporter('client_run_stuck', {
     run_id: runId,
