@@ -42,9 +42,9 @@ import { ErrorCode, McpError, ToolListChangedNotificationSchema } from '@modelco
 import { createToolRegistrationScope, createToolRegistry, type ToolDescriptor, type ToolRegistration } from '@jini-ai/core';
 // Exercise the existing daemon owners without adding a production MCP -> daemon dependency.
 // This checkout's prebuilt daemon is the same one a packed consumer uses; no build runs here.
-import { createInMemoryEventLog, createRunLifecycle, createToolExecutor, type ExecutionDelegate } from '../../../../daemon/dist/index.js';
-import { delegatedToolExecuteRoute } from '../../../../daemon/dist/http/delegated-tools.js';
-import { defaultDaemonMessages, withReadOnlyToolConstraint } from '../../../../daemon/dist/core/read-only-tools.js';
+import { createInMemoryEventLog, createRunLifecycle, createToolExecutor, type ExecutionDelegate } from '@jini-ai/daemon';
+import { delegatedToolExecuteRoute } from '@jini-ai/daemon/http';
+import { defaultDaemonMessages, withReadOnlyToolConstraint } from '@jini-ai/daemon/read-only-tools';
 import { federateSession } from '../../federation/registrations.js';
 import { defaultFederationMessages } from '../../federation/messages.js';
 import { InMemoryMcpSession } from '../../federation/testing/adapter.memory.js';

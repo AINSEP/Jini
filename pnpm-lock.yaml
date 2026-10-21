@@ -858,6 +858,9 @@ importers:
       '@cfworker/json-schema':
         specifier: ^4.1.1
         version: 4.1.1
+      '@jini-ai/daemon':
+        specifier: workspace:^
+        version: link:../daemon
       '@jini-ai/platform':
         specifier: workspace:^
         version: link:../platform

@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { CallToolResult, InitializeResult, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
 import { createToolRegistry } from '@jini-ai/core';
 // The existing daemon owners exercise confirmation without a listener or a new execution path.
-import { createInMemoryEventLog, createRunLifecycle, createToolExecutor } from '../../../../daemon/dist/index.js';
-import { delegatedToolExecuteRoute } from '../../../../daemon/dist/http/delegated-tools.js';
+import { createInMemoryEventLog, createRunLifecycle, createToolExecutor } from '@jini-ai/daemon';
+import { delegatedToolExecuteRoute } from '@jini-ai/daemon/http';
 import { createMcpToolServer, type McpToolServerHandle, type McpToolServerRequiredArgs, type McpToolServerOptions } from '../../server/tool-server.js';
 import { DAEMON_TOKEN_ENV_VAR, DAEMON_URL_ENV_VAR, RUN_ID_ENV_VAR, STARTUP_TOOL_IDS_ENV_VAR, serve, type ServeDeps } from '../serve.js';
 

@@ -15,11 +15,16 @@ import { manifestHost } from '../support/fixture-bindings.js';
 // rename faults drive the publish rollback branches and handle hooks the read-race guards;
 // every other call passes through.
 const renameFaults: Array<(from: string, to: string) => boolean> = [];
+let mkdirFault: { path: string; error: NodeJS.ErrnoException } | undefined;
 type Handle = Awaited<ReturnType<typeof import('node:fs/promises')['open']>>;
 let handleHook: ((handle: Handle) => Handle) | undefined;
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
   return { ...actual,
+    mkdir: async (...args: Parameters<typeof actual.mkdir>) => {
+      if (String(args[0]) === mkdirFault?.path) throw mkdirFault.error;
+      return actual.mkdir(...args);
+    },
     rename: async (from: string, to: string) => {
       if (renameFaults.some((fault) => fault(String(from), String(to)))) throw Object.assign(new Error('rename fault'), { code: 'EIO' });
       return actual.rename(from, to);
@@ -33,6 +38,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 const roots: string[] = [];
 afterEach(async () => {
   renameFaults.length = 0; handleHook = undefined;
+  mkdirFault = undefined;
   vi.restoreAllMocks();
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
@@ -97,10 +103,10 @@ describe('install lock and helpers', () => {
     await writeFile(path.join(root, 'plugins-install-lock-parent'), 'x');
     const blocked = makeDeps(root, { installDir: path.join(root, 'plugins-install-lock-parent', 'plugins') });
     await expect(installSitePlugin({ sourceDir: source, expectedDigest: preview.digest, deps: blocked })).rejects.toMatchObject({ code: 'ENOTDIR' });
-    const sealed = path.join(root, 'sealed'); await mkdir(sealed); await filesystem.chmod(sealed, 0o555);
-    try {
-      await expect(installSitePlugin({ sourceDir: source, expectedDigest: preview.digest, deps: makeDeps(root, { installDir: path.join(sealed, 'plugins') }) })).rejects.toMatchObject({ code: 'EACCES' });
-    } finally { await filesystem.chmod(sealed, 0o755); }
+    const fault = Object.assign(new Error('injected lock creation fault'), { code: 'EACCES' });
+    mkdirFault = { path: deps.installDir + '-install-lock', error: fault };
+    await expect(installSitePlugin({ sourceDir: source, expectedDigest: preview.digest, deps })).rejects.toBe(fault);
+    await expect(filesystem.lstat(deps.installDir)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
 

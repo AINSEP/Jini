@@ -110,6 +110,7 @@
   "devDependencies": {
     "@cfworker/json-schema": "^4.1.1",
     "@jini-ai/core": "workspace:^",
+    "@jini-ai/daemon": "workspace:^",
     "@jini-ai/platform": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.29.0"
   }
