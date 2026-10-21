@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { planMergeTerm } from "../merge-term.js";
+import { confirmMergeTerm, executeMergeTerm, planMergeTerm } from "../merge-term.js";
 
 /**
  * @file `mergeTerm`'s gated-mutation instantiation via `core/gated-mutations`.
@@ -85,4 +85,68 @@ test("AC-21: no direct single-call mergeTerm entry point exists — only planMer
     (name) => /merge/i.test(name) && !["planMergeTerm", "confirmMergeTerm", "executeMergeTerm", "SameTermMergeError"].includes(name)
   );
   assert.deepEqual(disallowed, [], "no export beyond the plan/confirm/execute trio may perform a merge directly");
+});
+
+test("planMergeTerm: when the gateway echoes no details back, the plan still carries the domain's own disclosure", async () => {
+  const plan = await planMergeTerm({
+    principalId: "u-1",
+    principalKind: "user",
+    fromTermId: "term-1",
+    intoTermId: "term-2",
+    computeOverlap: async () => ({ overlappingContentCount: 0 }),
+    gatewayPlan: async () => ({ planId: "p-9", planHash: "h-9", details: undefined }),
+  });
+
+  assert.deepEqual(plan, {
+    planId: "p-9",
+    planHash: "h-9",
+    details: { fromTermId: "term-1", intoTermId: "term-2", overlapLossDisclosed: false, overlappingContentCount: 0 },
+  });
+});
+
+test("confirmMergeTerm: forwards exactly the plan id/hash to the gateway's confirm and returns its token", async () => {
+  const calls: unknown[] = [];
+  const result = await confirmMergeTerm({
+    principalId: "u-1",
+    principalKind: "user",
+    planId: "p-1",
+    planHash: "h-1",
+    gatewayConfirm: async (params) => {
+      calls.push(params);
+      return { token: "tok-1" };
+    },
+  });
+
+  assert.deepEqual(result, { token: "tok-1" });
+  assert.deepEqual(calls, [{ planId: "p-1", planHash: "h-1" }]);
+});
+
+test("confirmMergeTerm: a gateway refusal (e.g. an agent confirming) propagates unchanged", async () => {
+  const refusal = new Error("agents may not confirm");
+  await assert.rejects(
+    confirmMergeTerm({
+      principalId: "a-1",
+      principalKind: "agent",
+      planId: "p-1",
+      planHash: "h-1",
+      gatewayConfirm: async () => {
+        throw refusal;
+      },
+    }),
+    (err: unknown) => err === refusal
+  );
+});
+
+test("executeMergeTerm: redeems only the confirmation token through the gateway and returns the merged count", async () => {
+  const calls: unknown[] = [];
+  const result = await executeMergeTerm({
+    confirmationToken: "tok-1",
+    gatewayExecute: async (params) => {
+      calls.push(params);
+      return { mergedCount: 4 };
+    },
+  });
+
+  assert.deepEqual(result, { mergedCount: 4 });
+  assert.deepEqual(calls, [{ confirmationToken: "tok-1" }]);
 });

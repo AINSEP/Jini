@@ -70,3 +70,27 @@ test("hide then unhide restores the stored payload and marker with a fresh times
   assert.deepEqual(await adapter.unhide({ workspaceId: WS, entityId: original.id, at: restoredAt, expectedVersion: 4 }), { ok: true, version: 5 });
   assert.deepEqual(await postRepo.findById({ workspaceId: WS, id: original.id }), { ...original, deletedAt: null, updatedAt: restoredAt, version: 5 });
 });
+
+test("hide/unhide report not-found for an unknown id and never write", async () => {
+  const store = new MemoryRecordStore([seed()]);
+  let saves = 0;
+  const save = store.save.bind(store);
+  store.save = async (required) => { saves += 1; await save(required); };
+  const adapter = adapterOver(store, { withHardDelete: false });
+
+  assert.deepEqual(await adapter.hide({ workspaceId: WS, entityId: "nope", at: AT, expectedVersion: null }), { ok: false, reason: "not-found" });
+  assert.deepEqual(await adapter.unhide({ workspaceId: WS, entityId: "nope", at: AT, expectedVersion: null }), { ok: false, reason: "not-found" });
+  assert.equal(saves, 0);
+});
+
+test("a stale expectedVersion makes hide stand down with version-changed and leaves the record untouched", async () => {
+  const store = new MemoryRecordStore([seed()]);
+  const adapter = adapterOver(store, { withHardDelete: false });
+
+  assert.deepEqual(await adapter.hide({ workspaceId: WS, entityId: "post-1", at: AT, expectedVersion: 2 }), { ok: false, reason: "version-changed" });
+  assert.equal(store.records.get("post-1")!.version, 3);
+  assert.equal(store.records.get("post-1")!.deletedAt, undefined);
+
+  // A null expectedVersion (an unversioned caller) skips the compare and flips.
+  assert.deepEqual(await adapter.hide({ workspaceId: WS, entityId: "post-1", at: AT, expectedVersion: null }), { ok: true, version: 4 });
+});

@@ -40,3 +40,8 @@ test("missing, malformed and empty-sided cursors restart pagination without thro
     assert.equal(decodeTrashCursor({ cursor: input }), null, String(input));
   }
 });
+
+test("a non-string cursor (an untyped query parser turning ?cursor[a]=1 into an object) restarts pagination instead of throwing", () => {
+  const fromUntypedQuery = { a: "1" } as unknown as string;
+  assert.equal(decodeTrashCursor({ cursor: fromUntypedQuery }), null);
+});
