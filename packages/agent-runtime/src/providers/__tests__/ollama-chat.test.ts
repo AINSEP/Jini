@@ -337,6 +337,16 @@ describe('runOllamaToolTurn', () => {
     expect(result.finishReason).toBeNull();
   });
 
+  it('ends cleanly when the connection closes right after a newline-terminated content line with no done marker', async () => {
+    // Nothing is left buffered at end of stream, so the decoder has no trailing line to parse.
+    const body = ndjsonBody(textLine('complete line'));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
+    const events: OllamaTurnEvent[] = [];
+    const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    expect(events.filter((e) => e.type === 'text_delta')).toEqual([{ type: 'text_delta', delta: 'complete line' }]);
+    expect(result.finishReason).toBeNull();
+  });
+
   it('ignores a line whose message field is not an object', async () => {
     const body = ndjsonBody(JSON.stringify({ model: 'llama3', message: 'oops', done: false }), doneLine());
     vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));

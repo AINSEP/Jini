@@ -169,3 +169,55 @@ describe('Gemini numeric enum representations', () => {
     expect(result.decodeInput({ code: '302' })).toEqual({ code: 302 });
   });
 });
+
+describe('every unsupported construct falls back with a value-free reason', () => {
+  const nullable = (member: unknown, extra: Record<string, unknown> = {}) => ({ anyOf: [member, { type: 'null' }], ...extra });
+  test.each([
+    { name: 'a reference to a non-schema value', schema: { ...closed({ x: { $ref: '#/$defs/n' } }), $defs: { n: 5 } }, reason: 'unresolved-reference' },
+    { name: 'a single-member union', schema: closed({ x: { anyOf: [{ type: 'string' }] } }, ['x']), reason: 'unsupported-schema' },
+    { name: 'a union of two nulls', schema: closed({ x: { anyOf: [{ type: 'null' }, { type: 'null' }] } }, ['x']), reason: 'unsupported-schema' },
+    { name: 'a nullable union with a non-schema member', schema: closed({ x: { anyOf: [{ type: 'null' }, 'string'] } }, ['x']), reason: 'unsupported-schema' },
+    { name: 'a nullable union carrying sibling constraints', schema: closed({ x: nullable({ type: 'string' }, { examples: ['a'] }) }, ['x']), reason: 'unsupported-schema' },
+    { name: 'a nullable union whose member has no single type', schema: closed({ x: nullable({ enum: ['a'] }) }, ['x']), reason: 'unsupported-schema' },
+    { name: 'an unknown type name', schema: closed({ x: { type: 'date' } }, ['x']), reason: 'unsupported-schema' },
+    { name: 'a repeated type name', schema: closed({ x: { type: ['string', 'string'] } }, ['x']), reason: 'unsupported-schema' },
+    { name: 'a non-null type pair', schema: closed({ x: { type: ['string', 'integer'] } }, ['x']), reason: 'unsupported-schema' },
+    { name: 'const alongside enum', schema: closed({ x: { type: 'string', enum: ['a'], const: 'a' } }, ['x']), reason: 'unsupported-schema' },
+    { name: 'an empty enum', schema: closed({ x: { type: 'string', enum: [] } }, ['x']), reason: 'unsupported-schema' },
+    { name: 'a non-literal enum member', schema: closed({ x: { type: 'string', enum: [{}] } }, ['x']), reason: 'unsupported-schema' },
+    { name: 'properties given as an array', schema: { type: 'object', additionalProperties: false, properties: [] }, reason: 'unsupported-schema' },
+    { name: 'required given as a string', schema: { type: 'object', additionalProperties: false, properties: {}, required: 'x' }, reason: 'unsupported-schema' },
+  ])('$name', ({ schema, reason }) => {
+    const result = compileOperationSchema({ schema, protocol: 'openai' }, { strict: true });
+    expect(result).toMatchObject({ strict: false, fallbackReason: reason });
+    expect(result.schema).toBe(schema);
+  });
+
+  test('a closed object with no properties keyword projects as a strict parameterless object', () => {
+    const result = compileOperationSchema({ schema: { type: 'object', additionalProperties: false }, protocol: 'openai' }, { strict: true });
+    expect(result).toMatchObject({ strict: true, schema: { type: 'object', additionalProperties: false, properties: {}, required: [] } });
+  });
+
+  test('a non-object argument schema falls back to the closed empty schema', () => {
+    const result = compileOperationSchema({ schema: 'string', protocol: 'anthropic' }, { strict: true });
+    expect(result).toMatchObject({ strict: false, fallbackReason: 'unsupported-schema', schema: { type: 'object', additionalProperties: false, properties: {}, required: [] } });
+  });
+
+  test('an unexpected error while reading the schema propagates instead of being reported as a fallback', () => {
+    const schema = { type: 'object', additionalProperties: false, get properties(): never { throw new TypeError('schema getter failed'); } };
+    expect(() => compileOperationSchema({ schema, protocol: 'openai' }, { strict: true })).toThrow(new TypeError('schema getter failed'));
+  });
+});
+
+describe('Gemini enum decoding edge cases', () => {
+  test('a string enum needs no numeric decoding and round-trips unchanged', () => {
+    const result = compileOperationSchema({ schema: closed({ mode: { type: 'string', enum: ['fast', 'slow'] } }, ['mode']), protocol: 'google' }, { strict: true });
+    expect(result.strict).toBe(true);
+    expect(result.decodeInput({ mode: 'fast' })).toEqual({ mode: 'fast' });
+  });
+
+  test('a numeric enum that lists null without a nullable type is refused', () => {
+    const result = compileOperationSchema({ schema: closed({ code: { type: 'integer', enum: [1, null] } }, ['code']), protocol: 'google' }, { strict: true });
+    expect(result).toMatchObject({ strict: false, fallbackReason: 'unsupported-schema' });
+  });
+});
