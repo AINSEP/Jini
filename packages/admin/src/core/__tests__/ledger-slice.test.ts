@@ -42,7 +42,7 @@ describe('shared settings ledger contracts', () => {
   it('maps every effective row of a registered namespace by key', async () => {
     const asked: string[] = [];
     const port: Pick<AdminSettingsPort, 'getSettingsEffective'> = {
-      getSettingsEffective: async ({ namespace }) => { asked.push(namespace); return [{ key: 'title', value: 'Site' }, { key: 'enabled', value: true }] as Awaited<ReturnType<AdminSettingsPort['getSettingsEffective']>>; },
+      getSettingsEffective: async ({ namespace }) => { asked.push(namespace); return [{ key: 'title', value: 'Site', sourceLayer: 'workspace', defVersion: 1 }, { key: 'enabled', value: true, sourceLayer: 'default', defVersion: 1 }]; },
     };
     const values = await loadNamespaceValues({ namespace: 'appearance', port }, { isUnregisteredNamespace: () => true });
     expect([...values]).toEqual([['title', 'Site'], ['enabled', true]]);

@@ -36,7 +36,7 @@ function settingsController(overrides: Partial<CommentSettingsController> = {}):
 describe("comments module page", () => {
   it("lazily loads the queue page through the bound module and renders it with the host translator", async () => {
     const feature = comments({}, { t: shout });
-    const session = { me: async () => ({ effectivePermissions: ["comments.read"] }) };
+    const session = { me: async () => ({ user: { id: "operator", username: "operator" }, effectivePermissions: ["comments.read"] }) };
     const admin = createAdmin({ modules: [feature], ports: { commentsApi: createMemoryCommentsApi({ items: [COMMENT] }), commentsSession: session } }, { permissions: ["comments.read"] });
     const { Page } = feature.react.pages.queue;
     render(
