@@ -158,11 +158,12 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
   const kernel = chatKernelTables<DB, ChatDatabase>({ kernel: hostKernel }, {});
   /** The run's own message row, with its events only when asked: never another message's. */
   async function runRow({ match }: { match: RunMatch }, { events = false }: ReadOptions = {}): Promise<RunRow | undefined> {
+    const eventsColumn = events ? sql<string | null>`${sql.ref("ai_chat_messages.events_json")}` : sql<string | null>`null`;
     return kernel.run((db) => db.selectFrom("ai_chat_messages")
       .innerJoin("ai_chats", "ai_chats.id", "ai_chat_messages.conversation_id")
       .select(["ai_chat_messages.id", "conversation_id", "role", "content", "agent_id", "agent_name", "attachments_json",
         "run_id", "run_status", "position", "ai_chat_messages.created_at", "started_at", "ended_at", "owner_kind", "owner_id", "scope_id"])
-      .select(sql<string | null>`${events ? sql.ref("ai_chat_messages.events_json") : sql`null`}`.as("events_json"))
+      .select(eventsColumn.as("events_json"))
       .where(match.column, "=", match.value).where("role", "=", "assistant").executeTakeFirst());
   }
 
