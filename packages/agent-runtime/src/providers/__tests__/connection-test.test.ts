@@ -281,3 +281,164 @@ describe('testProviderConnection', () => {
     expect(init.headers).toMatchObject({ 'api-key': 'sk-ant-test' });
   });
 });
+
+describe('testProviderConnection through injected transport', () => {
+  const KEY = ['sk', 'probe', 'secret', '42'].join('-');
+  function probe(overrides: Partial<ProviderConnectionTestInput>, fetchFn: typeof fetch, extra: Partial<ProviderConnectionTestInput> = {}) {
+    const { protocol, baseUrl, apiKey, model, ...optional } = baseInput({ apiKey: KEY, ...overrides });
+    return testProviderConnection({ protocol, baseUrl, apiKey, model }, { ...optional, fetchFn, ...extra });
+  }
+  function respond(status: number, body: string): typeof fetch & { calls: Array<[string, RequestInit]> } {
+    const calls: Array<[string, RequestInit]> = [];
+    const fn = async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push([String(url), init ?? {}]);
+      return new Response(body, { status });
+    };
+    return Object.assign(fn, { calls });
+  }
+
+  describe('HTTP status classification', () => {
+    it.each([
+      { status: 400, body: { error: { message: 'Invalid API key provided' } }, kind: 'auth_failed' },
+      { status: 400, body: { error: { message: 'max_tokens too large' } }, kind: 'unknown' },
+      { status: 403, body: { error: 'Permission denied for this project' }, kind: 'auth_failed' },
+      { status: 403, body: { message: 'Region not allowed' }, kind: 'forbidden' },
+      { status: 404, body: { error: { message: 'The model `gpt-x` does not exist' } }, kind: 'not_found_model' },
+      { status: 404, body: { error: { message: 'Route missing' } }, kind: 'invalid_base_url' },
+      { status: 418, body: {}, kind: 'unknown' },
+    ])('$status "$body" → $kind', async ({ status, body, kind }) => {
+      const result = await probe({}, respond(status, JSON.stringify(body)));
+      expect(result).toMatchObject({ ok: false, kind, status });
+    });
+
+    it('explains an empty 404 as a Base URL path problem and leaves other empty failures blank', async () => {
+      expect((await probe({}, respond(404, ''))).detail).toBe('HTTP 404 from provider; check the Base URL path.');
+      expect((await probe({}, respond(502, ''))).detail).toBe('');
+    });
+
+    it('uses the provider error text: a plain string error, a top-level message, or the raw non-JSON body', async () => {
+      expect((await probe({}, respond(500, JSON.stringify({ error: 'quota exhausted' })))).detail).toBe('quota exhausted');
+      expect((await probe({}, respond(500, JSON.stringify({ error: { message: '  ' }, message: 'top-level reason' })))).detail).toBe('top-level reason');
+      expect((await probe({}, respond(500, JSON.stringify({ error: { code: 7 } })))).detail).toBe('{"error":{"code":7}}');
+      expect((await probe({}, respond(500, 'null'))).detail).toBe('null');
+      expect((await probe({}, respond(503, '<html>Service Unavailable</html>'))).detail).toBe('<html>Service Unavailable</html>');
+    });
+
+    it('redacts the key from a provider error that echoes it back', async () => {
+      const result = await probe({}, respond(401, JSON.stringify({ error: { message: `bad key ${KEY}` } })));
+      expect(result.detail).not.toContain(KEY);
+    });
+  });
+
+  describe('2xx bodies without the smoke reply', () => {
+    it('reports an OpenAI finish_reason when the choice carried no content', async () => {
+      const result = await probe({ protocol: 'openai', baseUrl: 'https://api.openai.com', model: 'gpt-4o' }, respond(200, JSON.stringify({ choices: [{ message: {}, finish_reason: 'length' }] })));
+      expect(result.detail).toBe('Provider returned a 2xx response without assistant text (finish reason: length)');
+    });
+
+    it('accepts a legacy completions-style choice text as the reply', async () => {
+      const result = await probe({ protocol: 'openai', baseUrl: 'https://api.openai.com', model: 'gpt-4o' }, respond(200, JSON.stringify({ choices: [{ text: ' OK ' }] })));
+      expect(result).toMatchObject({ ok: true, kind: 'success' });
+    });
+
+    it.each([
+      { name: 'openai with no choices', protocol: 'openai', body: { choices: [] } },
+      { name: 'anthropic with no content array', protocol: 'anthropic', body: { content: 'ok' } },
+      { name: 'anthropic with only non-text blocks', protocol: 'anthropic', body: { content: [null, { type: 'tool_use' }, { type: 'text', text: 7 }] } },
+      { name: 'google with no candidates', protocol: 'google', body: { candidates: [] } },
+      { name: 'google with no parts', protocol: 'google', body: { candidates: [{ content: {} }] } },
+      { name: 'an empty body', protocol: 'anthropic', body: '' },
+      { name: 'a non-JSON body', protocol: 'anthropic', body: 'plain ok' },
+    ] as const)('$name has no assistant text and no finish reason', async ({ protocol, body }) => {
+      const baseUrl = protocol === 'google' ? 'https://generativelanguage.googleapis.com' : 'https://api.provider.test';
+      const result = await probe({ protocol, baseUrl }, respond(200, typeof body === 'string' ? body : JSON.stringify(body)));
+      expect(result).toMatchObject({ ok: false, kind: 'unknown', status: 200, detail: 'Provider returned a 2xx response without assistant text' });
+    });
+
+    it('treats a non-string Gemini part as empty text rather than "undefined"', async () => {
+      const result = await probe({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com' }, respond(200, JSON.stringify({ candidates: [{ content: { parts: [{ text: 'o' }, { inlineData: {} }, { text: 'k' }] } }] })));
+      expect(result).toMatchObject({ ok: true, kind: 'success' });
+    });
+  });
+
+  describe('Azure request shapes', () => {
+    it('uses the caller-supplied api-version on a deployment URL', async () => {
+      const fetchFn = respond(200, JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+      await probe({ protocol: 'azure', baseUrl: 'https://res.openai.azure.com', model: 'my deploy', apiVersion: ' 2099-01-01 ' }, fetchFn);
+      expect(fetchFn.calls[0]![0]).toBe('https://res.openai.azure.com/openai/deployments/my%20deploy/chat/completions?api-version=2099-01-01');
+    });
+
+    it('targets the v1 chat endpoint with the model in the body and no default api-version', async () => {
+      const fetchFn = respond(200, JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+      const result = await probe({ protocol: 'azure', baseUrl: 'https://res.openai.azure.com/openai/v1/', model: 'gpt-4o' }, fetchFn);
+      expect(result.ok).toBe(true);
+      expect(fetchFn.calls[0]![0]).toBe('https://res.openai.azure.com/openai/v1/chat/completions');
+      expect(JSON.parse(String(fetchFn.calls[0]![1].body))).toMatchObject({ model: 'gpt-4o' });
+    });
+
+    it('reports a request that cannot be built (an unencodable deployment name) without sending it', async () => {
+      const fetchFn = respond(200, '{}');
+      const result = await probe({ protocol: 'azure', baseUrl: 'https://res.openai.azure.com', model: 'bad\uD800name' }, fetchFn);
+      expect(result).toMatchObject({ ok: false, kind: 'unknown', detail: 'URI malformed' });
+      expect(fetchFn.calls).toEqual([]);
+    });
+  });
+
+  describe('transport failures and cancellation', () => {
+    it.each([
+      { name: 'an Error without a cause', error: new Error('socket closed'), kind: 'unknown', detail: 'socket closed' },
+      { name: 'an Error with an unrecognised cause code', error: Object.assign(new Error('weird'), { cause: { code: 'EPROTO' } }), kind: 'unknown', detail: 'weird' },
+      { name: 'a non-Error rejection', error: 'boom', kind: 'unknown', detail: 'boom' },
+    ])('classifies $name', async ({ error, kind, detail }) => {
+      const result = await probe({}, async () => { throw error; });
+      expect(result).toMatchObject({ ok: false, kind, detail });
+    });
+
+    it('times out a provider that never answers', async () => {
+      const hang: typeof fetch = (_url, init) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+      });
+      const result = await probe({}, hang, { timeoutMs: 20 });
+      expect(result).toMatchObject({ ok: false, kind: 'timeout' });
+    });
+
+    it('aborts immediately when the caller signal is already aborted', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      let sawAborted = false;
+      const fetchFn: typeof fetch = async (_url, init) => {
+        sawAborted = init?.signal?.aborted === true;
+        throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+      };
+      const result = await probe({}, fetchFn, { signal: controller.signal });
+      expect(sawAborted).toBe(true);
+      expect(result.kind).toBe('timeout');
+    });
+
+    it('forwards a later caller abort to the in-flight request and detaches its listener afterwards', async () => {
+      const controller = new AbortController();
+      const removed: string[] = [];
+      const signal = controller.signal;
+      const originalRemove = signal.removeEventListener.bind(signal);
+      signal.removeEventListener = ((type: string, listener: EventListenerOrEventListenerObject) => {
+        removed.push(type);
+        originalRemove(type, listener);
+      }) as typeof signal.removeEventListener;
+      const fetchFn: typeof fetch = (_url, init) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        controller.abort();
+      });
+      const result = await probe({}, fetchFn, { signal });
+      expect(result.kind).toBe('timeout');
+      expect(removed).toEqual(['abort']);
+    });
+  });
+
+  it('skips DNS for an IP-literal base URL even with no resolver injected', async () => {
+    const fetchFn = respond(200, JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }));
+    const { protocol, apiKey, model } = baseInput({});
+    const result = await testProviderConnection({ protocol, baseUrl: 'https://93.184.216.34', apiKey, model }, { fetchFn });
+    expect(result).toMatchObject({ ok: true, kind: 'success' });
+    expect(fetchFn.calls[0]![0]).toBe('https://93.184.216.34/v1/messages');
+  });
+});

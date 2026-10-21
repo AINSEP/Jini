@@ -44,6 +44,10 @@ export type ProviderConnectionTestInput = ProviderConnectionTestRequest & {
   requestInit?: Pick<RequestInit, 'dispatcher'>;
   /** Injectable DNS resolver for the base-URL SSRF guard; defaults to `node:dns`. */
   dnsLookup?: DnsLookupFn;
+  /** Injectable HTTP transport (same port `listProviderModels` takes); defaults to the global `fetch`. */
+  fetchFn?: typeof fetch;
+  /** Hard ceiling on the whole probe; defaults to {@link CONNECTION_TEST_TIMEOUT_MS}. */
+  timeoutMs?: number;
 };
 
 export interface ConnectionTestResponse {
@@ -87,8 +91,8 @@ function appendVersionedApiPath(baseUrl: string, suffix: string): string {
   return url.toString();
 }
 
-function truncateSample(text: unknown): string {
-  if (typeof text !== 'string') return '';
+/** Only ever called with the redacted string `extractText` produced, so no non-string guard is needed. */
+function truncateSample(text: string): string {
   const trimmed = text.replace(/\s+/g, ' ').trim();
   if (trimmed.length <= SAMPLE_MAX_CHARS) return trimmed;
   return `${trimmed.slice(0, SAMPLE_MAX_CHARS - 1)}…`;
@@ -284,9 +288,11 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
     case 'azure':
       return buildAzureProviderCall({ input });
     case 'google': {
-      const effectiveBaseUrl = baseUrl.trim() || 'https://generativelanguage.googleapis.com';
+      // No empty-base-URL default here: `testProviderConnection` only reaches this builder after
+      // `validateBaseUrlResolved` parsed `baseUrl` as an http(s) URL, so it is never blank. `trim()`
+      // stays because the WHATWG parser accepts (and ignores) surrounding spaces the URL builder would not.
       return {
-        url: googleGenerateContentUrl({ baseUrl: effectiveBaseUrl, model: model }),
+        url: googleGenerateContentUrl({ baseUrl: baseUrl.trim(), model: model }),
         headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
         body: {
           contents: [{ role: 'user', parts: [{ text: SMOKE_PROMPT }] }],
@@ -417,13 +423,15 @@ export async function testProviderConnection(requiredArgs: Pick<ProviderConnecti
   }
 
   const validated = await validateBaseUrlResolved({ baseUrl: input.baseUrl, lookup: input.dnsLookup ?? defaultDnsLookup });
-  if (validated.error || !validated.parsed) {
+  // `validateBaseUrlResolved` reports every rejection through `error`; a result without one always
+  // carries the parsed URL, so `error` alone decides.
+  if (validated.error !== undefined) {
     return {
       ok: false,
       kind: validated.forbidden ? 'forbidden' : 'invalid_base_url',
       latencyMs: Date.now() - start,
       model,
-      detail: validated.error ?? '',
+      detail: validated.error,
     };
   }
 
@@ -459,11 +467,11 @@ async function performProviderCall(
   } else {
     input.signal?.addEventListener('abort', abortFromParent, { once: true });
   }
-  const timer = setTimeout(() => controller.abort(), CONNECTION_TEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), input.timeoutMs ?? CONNECTION_TEST_TIMEOUT_MS);
 
   let result: ConnectionTestResponse;
   try {
-    const response = await fetch(call.url, {
+    const response = await (input.fetchFn ?? fetch)(call.url, {
       ...input.requestInit,
       method: 'POST',
       headers: call.headers,
