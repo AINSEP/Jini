@@ -171,7 +171,10 @@ export function registerProtectedElementType(
       init(this: Component) {
         // Keep default move/copy/delete toolbar commands, then append the host navigation action.
         if (!this.get('sourceNonvisual') && options.onRequestEditHtml) {
-          const toolbar = (this.get('toolbar') ?? []) as { command: string }[];
+          // GrapesJS's `Component.initToolbar` fills `toolbar` (even over an explicit `null`) before a
+          // type's `init` runs, and a component cannot be constructed without the editor model it
+          // needs for that — so the old `?? []` fallback here could not run.
+          const toolbar = this.get('toolbar') as { command: string }[];
           this.set('toolbar', [...toolbar.filter(item => item.command !== command), {
             label: options.editHtmlLabel ?? 'Edit HTML', command,
             // GrapesJS sizes every toolbar item as a 26px icon square; a text label overflowed past the

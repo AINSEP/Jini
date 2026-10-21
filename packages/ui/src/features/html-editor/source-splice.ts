@@ -68,10 +68,14 @@ function recordInnerRange(
   _options: object = {},
 ): void {
   const location = node.sourceCodeLocation;
-  if (location) {
+  // parse5 attaches a location only to elements created from a start-tag token, so a located
+  // element always has `startTag` (implied elements — a `tbody`, a `</p>`- or `</br>`-created
+  // element — carry no location at all and are skipped). Requiring `startTag` here replaces the old
+  // `: location.endOffset` fallback, which no parsed element could reach.
+  if (location?.startTag) {
     // Void elements (`<br>`, `<img>`) have no `endTag` and no inner content: their range is
     // empty (`start === end`), anchored at the end of the start tag.
-    const start = location.startTag ? location.startTag.endOffset : location.endOffset;
+    const start = location.startTag.endOffset;
     const end = location.endTag ? location.endTag.startOffset : start;
     out.set(pathKey(currentPath), { start, end, tagName: node.tagName });
   }
