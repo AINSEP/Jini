@@ -122,13 +122,18 @@ test('host-selected form redirects use 303 and keep pending/rejected records pri
   for (const accepted of [true, false]) {
     const { deps } = harness({ submit: async () => accepted
       ? { ok: true, comment: ACCEPTED, autoClassified: 'pending' }
-      : { ok: false, reason: 'honeypot-tripped' } });
+      : { ok: false, reason: 'entry-not-found' } });
     let redirect: unknown;
     const response = { redirect: (status: number, location: string) => { redirect = { status, location }; } };
     await createCommentSubmitHandler(deps, { formRedirect: () => '/entry' })(
       { body: {} } as Request, response as unknown as Response, () => undefined);
     assert.deepEqual(redirect, { status: 303, location: `/entry#${accepted ? 'comment-pending' : 'comment-error'}` });
   }
+  const { deps: trapped } = harness({ submit: async () => ({ ok: false, reason: 'honeypot-tripped' }) });
+  let trappedRedirect: unknown;
+  await createCommentSubmitHandler(trapped, { formRedirect: () => '/entry' })({ body: {} } as Request,
+    { redirect: (status: number, location: string) => { trappedRedirect = { status, location }; } } as unknown as Response, () => undefined);
+  assert.deepEqual(trappedRedirect, { status: 303, location: '/entry#comment-pending' }, 'a bot cannot tell it was trapped');
   const { deps } = harness();
   let payload: unknown;
   const response = { status() { return response; }, json(value: unknown) { payload = value; } };

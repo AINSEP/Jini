@@ -81,6 +81,13 @@ function assertSubmitDeps(deps: CommentSubmitRequired): void {
   }
 }
 
+/** The no-JS landing fragment. A tripped honeypot lands exactly like an accepted (held) comment, so a bot
+ * filling the hidden field learns nothing; a real visitor never fills it, so no human is misled.
+ * @complexity O(1). */
+function formOutcome(result: CommentSubmitResult): "comment-pending" | "comment-error" {
+  return result.ok || result.reason === "honeypot-tripped" ? "comment-pending" : "comment-error";
+}
+
 /** Builds the anonymous submission handler; the host owns route mounting and salt policy.
  * @throws {TypeError} When ingressPolicy, workspaceId, ipHashSalt, rateLimiter or clientIp is missing or invalid.
  * @returns An Express handler preserving the source route's normalization and HTTP responses.
@@ -99,7 +106,7 @@ export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional
 
       const redirect = optional.formRedirect?.({ request: req });
       if (redirect !== undefined) {
-        res.redirect(303, `${redirect}#${result.ok ? 'comment-pending' : 'comment-error'}`);
+        res.redirect(303, `${redirect}#${formOutcome(result)}`);
         return;
       }
       if (!result.ok) {
