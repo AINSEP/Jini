@@ -1,3 +1,4 @@
+import type { Express } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import {
   bearerTokenFromHeader,
@@ -32,9 +33,9 @@ function makeReq(overrides: {
   authorization?: string;
   origin?: string;
   host?: string;
-  extraHeaders?: Record<string, string>;
+  extraHeaders?: Record<string, string | string[]>;
 } = {}) {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string | string[]> = {};
   if (overrides.authorization !== undefined) headers.authorization = overrides.authorization;
   if (overrides.origin !== undefined) headers.origin = overrides.origin;
   if (overrides.host !== undefined) headers.host = overrides.host;
@@ -48,6 +49,13 @@ function makeReq(overrides: {
     socket: { remoteAddress: overrides.remoteAddress },
     get: (name: string) => headers[name.toLowerCase()],
   };
+}
+
+/** The bearer gate registered on the minimal app fake (it implements only `use`, hence the cast). */
+function loopbackTrustingBearerGate(): MiddlewareHandler {
+  const { app, middlewares } = makeApp();
+  registerApiBearerAuthMiddleware({ app: app as unknown as Express, env: { JINI_API_TOKEN: 'secret' }, tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
+  return middlewares[0]!;
 }
 
 function makeRes() {
@@ -146,6 +154,29 @@ describe('registerApiBearerAuthMiddleware', () => {
     middlewares[0]!(makeReq({ remoteAddress: '127.0.0.1', extraHeaders: { [header]: value } }), res, next);
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  // Node's IncomingHttpHeaders type allows a list value for any header; a host adapter or an
+  // upstream framework that keeps repeated headers as a list must not slip past the proxy check.
+  it('refuses the loopback exemption when a forwarding header arrives as a non-empty list', () => {
+    const gate = loopbackTrustingBearerGate();
+    const next = vi.fn();
+    const res = makeRes();
+    gate(makeReq({ remoteAddress: '127.0.0.1', extraHeaders: { forwarded: ['for=203.0.113.9', 'for=198.51.100.7'] } }), res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it.each([
+    ['an empty string', ''],
+    ['an empty list', []],
+  ])('keeps the loopback exemption when a forwarding header is present but carries %s', (_label, value) => {
+    const gate = loopbackTrustingBearerGate();
+    const next = vi.fn();
+    const res = makeRes();
+    gate(makeReq({ remoteAddress: '127.0.0.1', extraHeaders: { 'x-forwarded-for': value } }), res, next);
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
   });
 
   it('still lets a proxied loopback request through when it forwards a valid bearer token', () => {

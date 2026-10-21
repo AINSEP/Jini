@@ -131,7 +131,9 @@ function checkDecodedSitePathname(pathname: string, reservedSegments: ReadonlySe
   }
   if (decoded.includes("\\") || hasControlCharacter({ value: decoded }, {})) return { kind: "disallowed-character" };
 
-  const first = (resolveDotSegments(decoded).split("/")[1] ?? "").toLowerCase();
+  // `resolveDotSegments` always returns a path with a leading "/", so the first segment is
+  // everything after it up to the next "/" — `split(..., 1)` yields exactly that one element.
+  const first = resolveDotSegments(decoded).slice(1).split("/", 1).join("").toLowerCase();
   if (reservedSegments.has(first)) return { kind: "reserved", surface: first };
   return { kind: "ok" };
 }
