@@ -179,6 +179,20 @@ describe("reconcileUnknown: refunds", () => {
     expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).refunds).toEqual({ ...zero, scanned: 1, failed: 1 });
   });
 
+  test("a snapshot the writer refused (quarantined) is not judged: an empty refund list there proves nothing, the hold stays", async () => {
+    const alerts = recordingAlerts();
+    const w = await world({ alerts, scripted: { capture: "auto", retrieve: "payment+refunds" } });
+    const { id, refundId } = await unknownRefund(w, "payment+refunds");
+    // An amount that contradicts the payment's: the writer quarantines the whole observation.
+    w.scripted.queue("retrieve", { kind: "ok", value: { providerRef: `sp_${id}`, status: "succeeded", amount: USD(1), refunds: [], disputes: [] } });
+    expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).refunds).toEqual({ ...zero, scanned: 1, left: 1 });
+    const after = await w.read(id);
+    expect(after.refunds).toEqual([expect.objectContaining({ id: refundId, status: "unknown" })]);
+    expect(after.payment?.refundHeldMinor).toBe(3_000);
+    expect(alerts.raised.map((a) => a.kind)).toEqual(["quarantine", "unknown-aged"]);
+    expect(alerts.raised.at(-1)?.detail).toBe(`refund ${refundId} is unsettled: its snapshot was quarantined`);
+  });
+
   test("no snapshot: left with an alert", async () => {
     const alerts = recordingAlerts();
     const w = await world({ alerts, scripted: { capture: "auto", retrieve: "payment+refunds" } });
