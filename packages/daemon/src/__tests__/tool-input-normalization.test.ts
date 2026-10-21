@@ -120,10 +120,14 @@ describe('ToolExecutor normalization gate', () => {
     const authorize = vi.fn(() => 'allow' as const);
     registry.register({ descriptor: { id: 'write', inputSchema }, policy: { authorize }, handler });
     const executor = createToolExecutor({ registry });
-    for (const input of [{ expectedVersion: 3, expected_version: 4 }, { expectedVersoin: '3' }]) {
+    // MOVE: Near misses now name the unknown field and suggest the declared property without rewriting it.
+    for (const { input, error } of [
+      { input: { expectedVersion: 3, expected_version: 4 }, error: "Conflicting inputs 'expectedVersion' and 'expected_version' both name 'expectedVersion'. Send only 'expectedVersion'." },
+      { input: { expectedVersoin: '3' }, error: "Unknown input 'expectedVersoin'. Declared inputs: expectedVersion (required), enabled (optional). Did you mean 'expectedVersion'? Resend with the declared name." },
+    ]) {
       const result = await executor.execute({ principal: { id: 'owner' }, run: { id: 'run' }, toolId: 'write', input });
       expect(result).toMatchObject({ status: 'failed', errorKind: 'validation' });
-      expect(result.error).toMatch(/Send only 'expectedVersion'|Use the canonical property explicitly/);
+      expect(result.error).toBe(error);
     }
     expect(authorize).not.toHaveBeenCalled();
     expect(handler).not.toHaveBeenCalled();

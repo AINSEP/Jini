@@ -9,7 +9,17 @@
  * See docs/decisions/DR-005-proxy-argument-shapes.md.
  */
 import type { OutputUnit } from '@cfworker/json-schema';
-import type { McpToolDef } from './tool-protocol.js';
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+
+/** Argument normalization's input contract, shared with the dispatcher without a reverse import. */
+export interface McpToolArgumentContract {
+  readonly inputSchema: Tool['inputSchema'];
+  /** Compatibility rules applied once before strict schema validation; never sent on the wire. */
+  readonly argumentNormalization?: {
+    readonly aliases?: Readonly<Record<string, string>>;
+    readonly foldIntoInput?: true;
+  };
+}
 
 /** True for a plain JSON object (not `null`, not an array). */
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -54,7 +64,7 @@ function foldExtraKeysIntoInput({ args, extraKeys }: { args: Record<string, unkn
  * Any other shape is left for schema validation to report.
  * @throws Error naming the nested key to move.
  */
-function assertNoMisplacedInputKey({ args, schema }: { args: Record<string, unknown>; schema: McpToolDef['inputSchema'] }): void {
+function assertNoMisplacedInputKey({ args, schema }: { args: Record<string, unknown>; schema: McpToolArgumentContract['inputSchema'] }): void {
   if (schema.additionalProperties !== false || schema.patternProperties) return;
   const properties = schema.properties ?? {};
   if (!isRecord(args.input) || Object.hasOwn(properties, 'input')) return;
@@ -71,7 +81,7 @@ function assertNoMisplacedInputKey({ args, schema }: { args: Record<string, unkn
  * @complexity O(k + a + i) time and space for k argument keys, a aliases, and i input keys.
  */
 export function normalizeToolArguments(
-  { tool, rawArgs }: { tool: McpToolDef; rawArgs: unknown },
+  { tool, rawArgs }: { tool: McpToolArgumentContract; rawArgs: unknown },
   _options: Record<string, never> = {},
 ): Record<string, unknown> {
   if (!isRecord(rawArgs)) throw new Error('replace `arguments` with a JSON object');

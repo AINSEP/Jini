@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import {
-  askChoice, createAskChoiceTool, createAskChoiceAnswerTicketStore, ASK_CHOICE_ANSWER_TICKET_PARAM,
+  ASK_CHOICE_INPUT_SCHEMA, askChoice, createAskChoiceTool, createAskChoiceAnswerTicketStore, ASK_CHOICE_ANSWER_TICKET_PARAM,
   type AskChoiceCall, type AskChoicePolicy,
 } from '../index.js';
 import { createSurfaceExchangeStore, messages, presentation, SURFACE_TYPED_ANSWER_PARAM, SURFACE_DISMISSED_PARAM } from './fixtures.js';
@@ -164,7 +164,11 @@ test.each([
   const tool = createAskChoiceTool({ ...deps,
     policy: { ...policy, shapeError: ({ message, toolId, inputSchema }) => {
       seen.push(toolId);
-      expect(inputSchema.required).toEqual(['title']);
+      // MOVE: Flat questions and legacy selects now declare their required fields per union branch.
+      expect(inputSchema).toEqual(ASK_CHOICE_INPUT_SCHEMA);
+      expect(inputSchema.anyOf).toEqual([
+        { required: ['question', 'options'] }, { required: ['title', 'singleSelect'] }, { required: ['title', 'multiSelect'] },
+      ]);
       return new Error(message);
     } },
     pendingQuestions: { mint: () => { throw new Error('must not mint'); }, redeem: () => { throw new Error('must not redeem'); } },

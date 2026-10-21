@@ -437,13 +437,15 @@ describe('xaiOauthCompleteRoute — non-Error failures and token defaults', () =
     expect(reported.message).not.toContain('atk-leaked-9');
   });
 
-  it('persists a token response with no token_type as a Bearer token', async () => {
+  it('rejects a token response with no token_type without persisting it', async () => {
     const pending = new PendingAuthCache({}, { ttlMs: 30 * 60 * 1000 });
     const state = seedPendingState(pending);
     const deps = makeDeps({ pending, fetchImpl: vi.fn(async () => Response.json({ access_token: 'atk-no-type' })) });
-    await expect(xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps })).resolves.toEqual({ ok: true, value: { ok: true } });
-    const stored = JSON.parse(await readFile(path.join(dataDir, 'xai-oauth-token.json'), 'utf8'));
-    expect(stored.token).toMatchObject({ accessToken: 'atk-no-type', tokenType: 'Bearer' });
+    // MOVE: openid-client validates required token_type before the route can persist a token.
+    await expect(xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps })).resolves.toEqual({
+      ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+    });
+    await expect(readFile(path.join(dataDir, 'xai-oauth-token.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
 
@@ -530,13 +532,11 @@ describe('xaiAuthStatusRoute', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  // A token endpoint may legally omit `token_type`, `expires_in`, and `scope`. The stored token must
-  // then default to Bearer and report the two unknown fields as null rather than `undefined`, which
-  // would drop them from the JSON response body entirely and break the declared response shape.
-  it('defaults token_type to Bearer and reports absent expiry/scope as null, still connected', async () => {
+  // MOVE: openid-client requires token_type; optional expiry/scope still report explicit nulls.
+  it('reports absent expiry/scope as null for a valid Bearer token, still connected', async () => {
     const pending = new PendingAuthCache({}, { ttlMs: 30 * 60 * 1000 });
     const state = seedPendingState(pending);
-    const minimalToken = { access_token: 'atk-minimal' };
+    const minimalToken = { access_token: 'atk-minimal', token_type: 'Bearer' };
     const deps = makeDeps({
       pending,
       fetchImpl: vi.fn(async () => Response.json(minimalToken)),

@@ -17,7 +17,8 @@ describe('site guide MCP resource uses the existing authorization gateway', () =
   });
   it('propagates an authorization rejection instead of attaching an empty overview', async () => {
     const resource = createSiteGuideResource({ runId: 'host-run' });
-    await expect(resource.read({ ctx: { baseUrl: 'http://127.0.0.1:3000', fetchImpl: async () => new Response('Forbidden', { status: 403 }) } })).rejects.toThrow('daemon 403 on http://127.0.0.1:3000/api/delegated-tool-calls: HTTP 403');
+    // MOVE: HTTP diagnostics now expose the status without repeating the daemon endpoint.
+    await expect(resource.read({ ctx: { baseUrl: 'http://127.0.0.1:3000', fetchImpl: async () => new Response('Forbidden', { status: 403 }) } })).rejects.toThrow('HTTP 403');
   });
   it('refuses a noncompleted envelope and never returns arbitrary failure output', async () => {
     const resource = createSiteGuideResource({ runId: 'host-run' });

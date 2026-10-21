@@ -175,7 +175,7 @@ function groupProjectionTools({ loaded, additionalTools, refusals, toolIdFor }: 
 }
 
 /** Counts all declarations, including refused tools, and appends ambiguous-id refusals.
- * @complexity O(t) time and space for t declarations. */
+ * @complexity O(t * (r + 1)) time and O(t) space for t declarations and r prior refusals. */
 function countProjectionClaims({ loaded, additionalTools, refusals, idFor }: {
   loaded: readonly LoadedAgentPluginTool[];
   additionalTools: readonly AgentPluginAdditionalTool[] | undefined;
@@ -187,7 +187,12 @@ function countProjectionClaims({ loaded, additionalTools, refusals, idFor }: {
   const claimedIds = [...loaded.map(tool => idFor({ pluginId: tool.pluginId, name: tool.descriptor.name })),
     ...(additionalTools ?? []).map(entry => idFor({ pluginId: entry.pluginId, name: entry.tool.name }))];
   for (const id of claimedIds) counts.set(id, (counts.get(id) ?? 0) + 1);
-  for (const [id, count] of counts) if (count > 1) refusals.push(`agent tool '${id}' was not loaded: more than one contribution declares it`);
+  for (const [id, count] of counts) {
+    if (count <= 1) continue;
+    // MOVE: Admission already reports executable collisions with their owners; preserve that diagnostic once.
+    if (refusals.some(reason => reason.startsWith(`agent tool '${id}' was not loaded:`))) continue;
+    refusals.push(`agent tool '${id}' was not loaded: more than one contribution declares it`);
+  }
   return counts;
 }
 

@@ -7,6 +7,7 @@
 import { expect, test } from 'vitest';
 import { parseAdminSurfacesFile } from '../descriptor.js';
 
+// MOVE: Omitted action effects now normalize to write; optional surface fields still stay absent.
 const input = { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] };
 const raw = (surface: Record<string, unknown>) => JSON.stringify({ schemaVersion: 1, surfaces: [surface] });
 const base = { id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'], actions: [{ name: 'save', input }] };
@@ -14,7 +15,7 @@ const base = { id: 'settings', title: 'Settings', entry: 'surface/index.html', f
 test('a surface without handler fields parses to exactly id, title, entry, files, actions and csp', () => {
   expect(parseAdminSurfacesFile({ raw: raw(base) })).toStrictEqual({
     ok: true,
-    descriptors: [{ id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'], actions: [{ name: 'save', input }], csp: {} }],
+    descriptors: [{ id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'], actions: [{ name: 'save', effect: 'write', input }], csp: {} }],
   });
 });
 
@@ -33,7 +34,7 @@ test('a surface with a handler module but no capability declarations parses to e
   const handled = { ...base, actions: [{ name: 'save', input, result: input }], handlerModule: 'server/handlers.mjs' };
   expect(parseAdminSurfacesFile({ raw: raw(handled) })).toStrictEqual({
     ok: true,
-    descriptors: [{ id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'], actions: [{ name: 'save', input, result: input }], csp: {}, handlerModule: 'server/handlers.mjs' }],
+    descriptors: [{ id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'], actions: [{ name: 'save', effect: 'write', input, result: input }], csp: {}, handlerModule: 'server/handlers.mjs' }],
   });
 });
 
@@ -44,7 +45,7 @@ test('a handled surface with connections and publicConfig parses to exactly its 
   expect(parseAdminSurfacesFile({ raw: raw(handled) })).toStrictEqual({
     ok: true,
     descriptors: [{
-      id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'], actions: [{ name: 'save', input, result: input }], csp: {},
+      id: 'settings', title: 'Settings', entry: 'surface/index.html', files: ['surface/app.mjs'], actions: [{ name: 'save', effect: 'write', input, result: input }], csp: {},
       handlerModule: 'server/handlers.mjs', connections: [{ id: 'account', startParams: [], callbackFields: [] }], publicConfig: ['ACME_APP_ID'],
     }],
   });

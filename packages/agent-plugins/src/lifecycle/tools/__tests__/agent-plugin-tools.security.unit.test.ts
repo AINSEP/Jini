@@ -61,9 +61,9 @@ function projectionFor(capabilities: AgentPluginToolCapabilities = fakeCapabilit
   return { registry, projection: createAgentPluginToolProjection({ issuedTokens: createIssuedTokenMemories(), registry, toolIdFor: pluginToolIdFor, capabilities: () => capabilities }) };
 }
 
-test('two plugins whose namespaced ids collide are both refused (ambiguous)', () => {
+test.each([['a-b', 'a_b'], ['a_b', 'a-b']])('two plugins whose namespaced ids collide are both refused (ambiguous): %s, %s', (first, second) => {
   const { registry, projection } = projectionFor();
-  expect(projection.sync({ loaded: [loaded('a-b'), loaded('a_b')], refusals: [] }).refusals)
+  expect(projection.sync({ loaded: [loaded(first), loaded(second)], refusals: [] }).refusals)
     .toEqual(["agent tool 'p_a_b__look' was not loaded: more than one plugin declares it ('a-b', 'a_b')"]);
   expect(registry.list({})).toEqual([]);
 });

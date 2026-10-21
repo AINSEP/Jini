@@ -10,6 +10,7 @@ import {
   type McpToolDef,
 } from '../tool-protocol.js';
 
+// MOVE: Daemon HTTP errors omit endpoint URLs while retaining trusted recovery hints and redaction.
 const ctx: McpToolContext = { baseUrl: 'http://d.example', fetchImpl: fetch };
 
 it('threads trusted registry IDs through daemon diagnostics and the final MCP error sanitizer', async () => {
@@ -22,7 +23,7 @@ it('threads trusted registry IDs through daemon diagnostics and the final MCP er
   }] });
   const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({ error: { message: diagnostic } }), { status: 400 });
   const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, fetchImpl, diagnosticToolIds } });
-  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `daemon 400 on http://d.example/api/x: ${diagnostic}` }] });
+  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: ${diagnostic}` }] });
 });
 
 it('preserves a trusted dotted recovery hint through both error sanitizers, masking glued and token secrets', async () => {
@@ -37,7 +38,7 @@ it('preserves a trusted dotted recovery hint through both error sanitizers, mask
   }] });
   const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({ error: { message } }), { status: 400 });
   const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, fetchImpl, diagnosticToolIds: [id] } });
-  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `daemon 400 on http://d.example/api/x: [redacted] 'missing' was not found — call ${id} without id to list valid ids; content_read.[redacted] api_key=[redacted] [redacted] [redacted]` }] });
+  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: [redacted] 'missing' was not found — call ${id} without id to list valid ids; content_read.[redacted] api_key=[redacted] [redacted] [redacted]` }] });
 });
 
 function makeTool(overrides: Partial<McpToolDef> = {}): McpToolDef {

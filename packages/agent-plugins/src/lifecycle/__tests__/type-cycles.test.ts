@@ -65,7 +65,7 @@ describe('shared contracts have no implementation import cycles', () => {
     expect(findCycle({ entry: resolve(packagesRoot, 'diagnostics/src/ports.ts') })).toEqual([]);
   });
 
-  // REGRESSION: fails if sdk-transport.ts imports McpTransportLike from './tool-server.js' again.
+  // MOVE: Both transport and argument contracts must stay below their consuming server/dispatcher.
   it('keeps the MCP server and its SDK adapter acyclic', () => {
     expect(findCycle({ entry: resolve(packagesRoot, 'mcp/src/server/tool-server.ts') })).toEqual([]);
   });

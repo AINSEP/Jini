@@ -116,12 +116,13 @@ describe('answered questions in the transcript', () => {
     const persisted = { ...message(openEvents()), runStatus };
     const view = render(<MessageRow message={persisted} runStreaming />);
     expect(screen.queryByRole('button', { name: 'Choose A26' })).toBeNull();
-    expect(screen.getByRole('status').textContent).toContain('This question expired');
+    // MOVE: Terminal failures also announce a run status; the expired-question notice remains unique.
+    expect(screen.getByText(`${question.title}: This question expired`)).toHaveAttribute('role', 'status');
     expect(bubbles(view.container)).toEqual([]);
     view.unmount();
     render(<MessageRow message={JSON.parse(JSON.stringify(persisted))} />);
     expect(screen.queryByRole('button', { name: 'Choose A26' })).toBeNull();
-    expect(screen.getByRole('status').textContent).toContain('This question expired');
+    expect(screen.getByText(`${question.title}: This question expired`)).toHaveAttribute('role', 'status');
   });
 
   it('does not reopen a question without evidence of an active run', () => {

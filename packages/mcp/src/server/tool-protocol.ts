@@ -49,7 +49,7 @@ import { sanitizeUntrustedText } from '@jini-ai/core/text';
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
-import { argumentShapeMessage, isRecord, normalizeToolArguments } from './tool-arguments.js';
+import { argumentShapeMessage, isRecord, normalizeToolArguments, type McpToolArgumentContract } from './tool-arguments.js';
 
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
@@ -110,16 +110,10 @@ export function daemonCallOptions({ ctx }: { ctx: McpToolContext }): { fetchImpl
  * `CallToolResult` shape by {@link handleToolCall}, so individual tools never construct MCP
  * protocol objects themselves.
  */
-export interface McpToolDef<Args extends Record<string, unknown> = Record<string, unknown>> {
+export interface McpToolDef<Args extends Record<string, unknown> = Record<string, unknown>> extends McpToolArgumentContract {
   readonly name: string;
   readonly description: string;
-  readonly inputSchema: Tool['inputSchema'];
   readonly annotations?: Tool['annotations'];
-  /** Compatibility rules applied once before strict schema validation; never sent on the wire. */
-  readonly argumentNormalization?: {
-    readonly aliases?: Readonly<Record<string, string>>;
-    readonly foldIntoInput?: true;
-  };
   readonly handler: (requiredArgs: { args: Args; ctx: McpToolContext }) => Promise<unknown> | unknown;
 }
 
