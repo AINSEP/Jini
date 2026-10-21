@@ -1,5 +1,5 @@
 # cov-J3 progress (Jini lots 067..098)
-Start: 2026-10-21 15:05 UTC. Hard stop for new work: 18:45 UTC; end 19:05 UTC.
+Start: 2026-10-21 15:05 UTC. Original hard stop 19:05 UTC; all 3 running subagents hit an account usage limit ~17:00 UTC (resets 19:40). OWNER extended: stop new work 21:30Z, end 21:45Z. Subagents resumed 19:50Z.
 Base: Jini b3c4144b (cloud/integration-2026-10-21). Result branch: cloud/cov-J3.
 Setup: Node 24.22.0 + pnpm install/build OK (BUILD_RC=0). Postgres 16 via apt, initdb -A trust in /tmp/pgdata, role `la` superuser on localhost:5432 — OK. Browser: not needed for Jini lots so far.
 OWNER UPDATE (mid-run): no Postgres-backed or Playwright/browser tests are run in the cloud; such tests are written but listed under LOCAL-RUN NEEDED.
