@@ -309,3 +309,20 @@ as plugin ids so package state cannot overlap migration inputs or installation s
 
 The `dev.tovu.memory` proposal is consumer policy and is not implemented by this neutral entry.
 No version bump or publishing accompanies this workspace implementation.
+
+Admin-screen actions can also be assistant tools. Declare `effect: "read" | "write" |
+"destructive"` on each action in the host-named admin-surfaces contribution file;
+omitting it means `write`. `buildAdminSurfaceActionTools` projects every declared
+action as `<surface>_<action>` (hyphens become underscores); pass the returned
+`additionalTools` to `createAgentPluginToolProjection.sync` alongside executable
+tools. The host's existing plugin registry supplies the `p_<plugin>__` namespace.
+Calls accept `{ payload: <declared input> }`, so object and scalar actions share
+one tool envelope. The existing screen dispatcher validates input/results and
+calls the same admitted handler host with the same scoped capabilities.
+
+Bind the adapter's authorization port to the screen action permission and a fresh
+active/trusted surface lookup, then use the host's existing confirmation policy
+for writes and destructive actions. Set discovery `readOnly`/`sideEffects` from
+the effect. Sync after activation changes: absent actions are withdrawn and held
+handlers are revoked. A host may collect its issued sign-in URLs around dispatch;
+return those URLs for the assistant to show. This adapter never opens a browser.

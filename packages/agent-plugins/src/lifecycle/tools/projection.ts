@@ -34,6 +34,12 @@ export interface AgentPluginContractTool {
   readonly effect?: AgentPluginToolEffect;
   handler(required: AgentPluginToolInvocation, optional?: Record<string, never>): unknown;
 }
+/** A host adapter over another admitted contribution, using its existing execution owner. */
+export interface AgentPluginAdditionalTool {
+  readonly pluginId: string;
+  readonly tool: AgentPluginContractTool;
+  readonly describeAffectedResources: (required: { readonly input: unknown }) => readonly string[] | Promise<readonly string[]>;
+}
 /** One plugin's generation in the contract's snapshot shape; routes and widgets stay empty. */
 export interface AgentPluginToolSnapshot {
   readonly pluginId: string;
@@ -56,7 +62,7 @@ export interface AgentPluginToolProjectionPorts {
 }
 
 interface AdmittedTool { readonly toolId: string; readonly loaded: LoadedAgentPluginTool; readonly validator: Validator }
-interface ProjectedPlugin { readonly snapshot: AgentPluginToolSnapshot; readonly tools: readonly AdmittedTool[] }
+interface ProjectedPlugin { readonly snapshot: AgentPluginToolSnapshot; readonly tools: readonly AdmittedTool[]; readonly additional: readonly AgentPluginAdditionalTool[] }
 
 /** What the host shows before confirming a call. */
 export interface AgentPluginToolDisclosure { readonly effect: AgentPluginToolEffect; readonly resources: readonly string[] }
@@ -126,8 +132,9 @@ function validatedInput(tool: AdmittedTool, input: unknown): Readonly<Record<str
 }
 
 /** True when both generations hold the same modules and declarations: no revocation needed. @complexity O(t). */
-function sameTools(previous: ProjectedPlugin | undefined, next: readonly AdmittedTool[]): previous is ProjectedPlugin {
-  if (!previous || previous.tools.length !== next.length) return false;
+function sameTools(previous: ProjectedPlugin | undefined, next: readonly AdmittedTool[], additional: readonly AgentPluginAdditionalTool[]): previous is ProjectedPlugin {
+  if (!previous || previous.tools.length !== next.length || previous.additional.length !== additional.length
+    || !previous.additional.every((tool, index) => tool === additional[index])) return false;
   return previous.tools.every((tool, index) => tool.loaded.module === next[index]!.loaded.module
     && JSON.stringify(tool.loaded.descriptor) === JSON.stringify(next[index]!.loaded.descriptor));
 }
@@ -159,6 +166,7 @@ function checkedResources(toolId: string, value: unknown, scan: AgentPluginCrede
 export function createAgentPluginToolProjection(required: AgentPluginToolProjectionPorts, _optional: Record<string, never> = {}) {
   const { registry } = required;
   let projected = new Map<string, ProjectedPlugin>();
+  let additionalById = new Map<string, { readonly entry: AgentPluginAdditionalTool; readonly snapshot: AgentPluginToolSnapshot }>();
   let byToolId = new Map<string, { readonly tool: AdmittedTool; readonly snapshot: AgentPluginToolSnapshot }>();
 
   /** One contract tool whose handler validates, scopes capabilities and gates the result. */
@@ -184,20 +192,26 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
   }
 
   /** A fresh generation for one plugin; its tools are live only while the registry holds it. */
-  function generation(pluginId: string, tools: readonly AdmittedTool[]): ProjectedPlugin {
+  function generation(pluginId: string, tools: readonly AdmittedTool[], additional: readonly AgentPluginAdditionalTool[]): ProjectedPlugin {
     let snapshot: AgentPluginToolSnapshot | undefined;
     const isLive = () => snapshot !== undefined && registry.list({}).includes(snapshot);
     const issued = required.issuedTokens.forPlugin({ pluginId });
     snapshot = Object.freeze({ pluginId, sdk: INERT_SDK, routes: Object.freeze([]), widgets: Object.freeze([]),
-      tools: Object.freeze(tools.map(tool => contractTool(tool, { isLive, issued }))) });
-    return { snapshot, tools };
+      tools: Object.freeze([...tools.map(tool => contractTool(tool, { isLive, issued })), ...additional.map(({ tool }) => Object.freeze({
+        ...tool,
+        handler(input: AgentPluginToolInvocation) {
+          if (!isLive()) throw new Error(REVOKED_MESSAGE);
+          return tool.handler(input);
+        },
+      }))]) });
+    return { snapshot, tools, additional };
   }
 
   /** Replaces one plugin's generation unless it is unchanged; a refused replacement detaches it. */
-  function place(pluginId: string, tools: readonly AdmittedTool[], refusals: string[]): ProjectedPlugin | undefined {
+  function place(pluginId: string, tools: readonly AdmittedTool[], additional: readonly AgentPluginAdditionalTool[], refusals: string[]): ProjectedPlugin | undefined {
     const previous = projected.get(pluginId);
-    if (sameTools(previous, tools)) return previous;
-    const next = generation(pluginId, tools);
+    if (sameTools(previous, tools, additional)) return previous;
+    const next = generation(pluginId, tools, additional);
     try { registry.replace({ contributions: next.snapshot }); return next; } catch (error) {
       registry.detach({ pluginId });
       refusals.push(`agent tools from '${pluginId}' were not loaded: ${error instanceof Error ? error.message : String(error)}`);
@@ -207,23 +221,50 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
 
   return {
     /** Projects one load result. @returns The loader's refusals plus this seam's own, in order. */
-    sync(input: { readonly loaded: readonly LoadedAgentPluginTool[]; readonly refusals: readonly string[] }, _options: Record<string, never> = {}): { readonly refusals: readonly string[] } {
+    sync(input: { readonly loaded: readonly LoadedAgentPluginTool[]; readonly refusals: readonly string[]; readonly additionalTools?: readonly AgentPluginAdditionalTool[] }, _options: Record<string, never> = {}): { readonly refusals: readonly string[] } {
       const refusals = [...input.refusals];
       const grouped = new Map<string, AdmittedTool[]>();
-      for (const tool of admitAll(input.loaded, refusals, required.toolIdFor)) grouped.set(tool.loaded.pluginId, [...(grouped.get(tool.loaded.pluginId) ?? []), tool]);
+      for (const tool of admitAll(input.loaded, refusals, required.toolIdFor)) {
+        const group = grouped.get(tool.loaded.pluginId);
+        if (group) group.push(tool); else grouped.set(tool.loaded.pluginId, [tool]);
+      }
+      const additional = new Map<string, AgentPluginAdditionalTool[]>();
+      for (const entry of input.additionalTools ?? []) {
+        const group = additional.get(entry.pluginId);
+        if (group) group.push(entry); else additional.set(entry.pluginId, [entry]);
+        if (!grouped.has(entry.pluginId)) grouped.set(entry.pluginId, []);
+      }
+      // All claimants lose an ambiguous id, including collisions between executable and surface tools.
+      const counts = new Map<string, number>();
+      const idFor = required.toolIdFor;
+      const claimedIds = [...input.loaded.map(tool => idFor({ pluginId: tool.pluginId, name: tool.descriptor.name })),
+        ...(input.additionalTools ?? []).map(entry => idFor({ pluginId: entry.pluginId, name: entry.tool.name }))];
+      for (const id of claimedIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+      for (const [id, count] of counts) if (count > 1) refusals.push(`agent tool '${id}' was not loaded: more than one contribution declares it`);
       const nextProjected = new Map<string, ProjectedPlugin>();
       for (const [pluginId, tools] of grouped) {
-        const placed = place(pluginId, tools, refusals);
+        const unique = tools.filter(tool => counts.get(tool.toolId) === 1);
+        const extras = (additional.get(pluginId) ?? []).filter(entry => counts.get(idFor({ pluginId, name: entry.tool.name })) === 1);
+        const placed = place(pluginId, unique, extras, refusals);
         if (placed) nextProjected.set(pluginId, placed);
       }
       for (const pluginId of projected.keys()) if (!grouped.has(pluginId)) registry.detach({ pluginId });
       projected = nextProjected;
+      additionalById = new Map([...nextProjected.values()].flatMap(plugin => plugin.additional.map(entry => [idFor({ pluginId: entry.pluginId, name: entry.tool.name }), { entry, snapshot: plugin.snapshot }] as const)));
       byToolId = new Map([...nextProjected.values()].flatMap(plugin => plugin.tools.map(tool => [tool.toolId, { tool, snapshot: plugin.snapshot }] as const)));
       return { refusals };
     },
     /** What a call would change, for the confirmation prompt; null for an unknown or withdrawn tool.
      * @throws ToolInputError for input that fails the schema; Error for an invalid hook answer. */
     async describeAffectedResources(input: { readonly toolId: string; readonly input: unknown }, _options: Record<string, never> = {}): Promise<AgentPluginToolDisclosure | null> {
+      const extra = additionalById.get(input.toolId);
+      if (extra && registry.list({}).includes(extra.snapshot)) {
+        const scan = openCredentialScan({ issued: required.issuedTokens.forPlugin({ pluginId: extra.entry.pluginId }) });
+        try {
+          const resources = await extra.entry.describeAffectedResources({ input: input.input });
+          return { effect: extra.entry.tool.effect ?? 'write', resources: checkedResources(input.toolId, resources, scan) };
+        } catch (error) { throw scan.sanitize({ error }); }
+      }
       const entry = byToolId.get(input.toolId);
       if (!entry || !registry.list({}).includes(entry.snapshot)) return null;
       const { tool } = entry;

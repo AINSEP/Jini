@@ -41,3 +41,5 @@ export type {
 } from './delivery-bindings.js';
 export { openAdminSurfaceLink, type AdminSurfaceOpenLinkPort, type AdminSurfaceLinkVerdict } from './external-links.js';
 export { createAdminSurfaceCallbackInbox, type AdminSurfaceCallbackFieldKey } from './callback-field-inbox.js';
+
+export { buildAdminSurfaceActionTools, type AdminSurfaceToolSource, type AdminSurfaceToolContext } from './action-tools.js';

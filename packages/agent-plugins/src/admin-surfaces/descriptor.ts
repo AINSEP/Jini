@@ -11,6 +11,7 @@
  * surface can reach. Containment on disk (symlinks) is the lifecycle's job (`readTrustedPluginFile`);
  * this file only guarantees the declared strings cannot name anything outside the package root.
  */
+import type { AgentPluginToolEffect } from '../lifecycle/tools/manifest.js';
 import { checkAdminSurfaceActionSchema, type AdminSurfaceActionSchema } from './action-schema.js';
 import { parseAdminSurfaceCapabilityDeclarations, type AdminSurfaceCapabilityDeclarations } from './capability-declarations.js';
 
@@ -20,6 +21,8 @@ export type AdminSurfaceCspDirective = (typeof ADMIN_SURFACE_CSP_DIRECTIVES)[num
 
 export interface AdminSurfaceAction {
   readonly name: string;
+  /** Assistant confirmation class; omitted declarations are writes. */
+  readonly effect?: AgentPluginToolEffect;
   readonly input: AdminSurfaceActionSchema;
   /** When declared, the dispatcher refuses a handler result that does not conform. */
   readonly result?: AdminSurfaceActionSchema;
@@ -199,12 +202,14 @@ function parseActions(value: unknown, at: string): Parsed<readonly AdminSurfaceA
 function parseAction(action: unknown, at: string): Parsed<AdminSurfaceAction> {
   if (!isPlainObject(action)) return `${at} must be an object`;
   if (!isId(action.name)) return `${at}.name must be a lowercase hyphenated id`;
+  const effect = action.effect === undefined ? 'write' : action.effect;
+  if (effect !== 'read' && effect !== 'write' && effect !== 'destructive') return `${at}.effect must be read, write or destructive`;
   const input = checkAdminSurfaceActionSchema({ schema: action.input });
   if (input !== null) return `${at}.input ${input}`;
-  if (action.result === undefined) return { name: action.name, input: action.input as AdminSurfaceActionSchema };
+  if (action.result === undefined) return { name: action.name, effect, input: action.input as AdminSurfaceActionSchema };
   const result = checkAdminSurfaceActionSchema({ schema: action.result });
   if (result !== null) return `${at}.result ${result}`;
-  return { name: action.name, input: action.input as AdminSurfaceActionSchema, result: action.result as AdminSurfaceActionSchema };
+  return { name: action.name, effect, input: action.input as AdminSurfaceActionSchema, result: action.result as AdminSurfaceActionSchema };
 }
 
 function parseCsp(value: unknown, at: string): Parsed<AdminSurfaceDescriptor['csp']> {

@@ -12,5 +12,5 @@ export {
 } from './capabilities.js';
 export {
   createAgentPluginToolProjection, type AgentPluginToolDisclosure, type AgentPluginToolProjectionPorts,
-  type AgentPluginToolSnapshot, type AgentPluginContractTool, type AgentPluginToolInvocation,
+  type AgentPluginAdditionalTool, type AgentPluginToolSnapshot, type AgentPluginContractTool, type AgentPluginToolInvocation,
 } from './projection.js';

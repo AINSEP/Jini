@@ -156,7 +156,7 @@ describe('actions', () => {
 
   test('keeps a declared result schema', () => {
     const parsed = withSurface({ actions: [{ name: 'save', input: INPUT, result: { type: 'boolean' } }] });
-    expect(parsed.ok && parsed.descriptors[0]!.actions).toEqual([{ name: 'save', input: INPUT, result: { type: 'boolean' } }]);
+    expect(parsed.ok && parsed.descriptors[0]!.actions).toEqual([{ name: 'save', effect: 'write', input: INPUT, result: { type: 'boolean' } }]);
   });
 });
 
