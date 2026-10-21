@@ -82,8 +82,9 @@ describe("rows the SQL vault normalizes", () => {
 
 /** A PGlite with the driver's own parsers (jsonb parsed into objects), as a host kernel over default node-postgres would be. */
 class JsonParsingPGlite extends PGlite {
-  constructor(options?: PGliteOptions) {
-    super({ ...options, parsers: {} });
+  constructor(dataDirOrOptions?: string | PGliteOptions, options?: PGliteOptions) {
+    const given = typeof dataDirOrOptions === "string" ? { ...options, dataDir: dataDirOrOptions } : dataDirOrOptions;
+    super({ ...given, parsers: {} });
   }
 }
 
