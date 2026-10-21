@@ -50,8 +50,14 @@ export interface DatabaseTransferToolPorts {
   readers: Pick<InputReaders, "inputRecord" | "string">;
   surfaces: TransferSurfacePorts;
 }
+/** The restore-point file the plan reads once and then deletes; defaults to `node:fs/promises`. */
+export interface SnapshotFilePort {
+  readFile(path: string): Promise<Buffer>;
+  unlink(path: string): Promise<void>;
+}
+const nodeSnapshotFiles: SnapshotFilePort = { readFile, unlink };
 /** Messages are bound once per factory; host ports remain live and prose never enters persisted naming. */
-interface TransferExecutionPorts { readonly ports: DatabaseTransferToolPorts; readonly messages: DbMessages; }
+interface TransferExecutionPorts { readonly ports: DatabaseTransferToolPorts; readonly messages: DbMessages; readonly files: SnapshotFilePort; }
 interface Refusal {
   readonly code: string;
   readonly message: string;
@@ -87,14 +93,16 @@ async function captureSnapshot(deps: TransferExecutionPorts): Promise<{ ok: true
     log(deps, `snapshot failed: ${deps.ports.describeError(err)}`);
     return { code: "DATABASE_SNAPSHOT_FAILED", message: "the site database could not be snapshotted; nothing was copied" };
   }
+  let bytes: Buffer;
   try {
-    return { ok: true, bytes: await readFile(artifactRef) };
+    bytes = await deps.files.readFile(artifactRef);
   } catch (err) {
     log(deps, `snapshot read failed: ${deps.ports.describeError(err)}`);
     return { code: "DATABASE_SNAPSHOT_FAILED", message: "the site database snapshot could not be read; nothing was copied" };
   } finally {
-    await unlink(artifactRef).catch(() => undefined);
+    await deps.files.unlink(artifactRef).catch(() => undefined);
   }
+  return { ok: true, bytes };
 }
 
 /** The site name copies are marked with; it also picks the site's schema (`copy-engine.ts`). */
@@ -130,6 +138,7 @@ function snapshotSources(deps: TransferExecutionPorts, snapshot: Buffer, chatSna
 /** Row counts and reasons use each physical source's own catalog; no raw-SQL tables disappear. */
 function countSnapshot(deps: TransferExecutionPorts, bytes: Buffer, chatSnapshot?: Buffer): { ok: true; tableCount: number; rowCount: number; leftOut: DatabaseTransferPlan["leftOut"] } | Refusal {
   let sources: TransferPlanSource[] = [];
+  let counted: { ok: true; tableCount: number; rowCount: number; leftOut: DatabaseTransferPlan["leftOut"] };
   try {
     sources = snapshotSources(deps, bytes, chatSnapshot);
     const counts = sources.flatMap(entry => countSourceRows({ source: entry.source, tables: entry.tables }, { messages: deps.messages }));
@@ -139,11 +148,12 @@ function countSnapshot(deps: TransferExecutionPorts, bytes: Buffer, chatSnapshot
       ...entry.leftOut.filter(item => item.reason !== LEFT_OUT_REASON.bookkeeping && item.reason !== LEFT_OUT_REASON.derived).map(item => ({ ...item, rows: entry.source.countRows(item.table) })),
       ...deps.ports.partialExclusions(entry.name, entry.source),
     ]);
-    return { ok: true, tableCount: counts.length, rowCount: counts.reduce((sum, count) => sum + count.rows, 0), leftOut };
+    counted = { ok: true, tableCount: counts.length, rowCount: counts.reduce((sum, count) => sum + count.rows, 0), leftOut };
   } catch (err) {
     if (err instanceof SourceSchemaMismatchError || err instanceof IncompleteTransferPlanError) return { code: "SCHEMA_MISMATCH", message: `${err.message}; ${deps.ports.schemaMismatchGuidance}` };
     throw err;
   } finally { for (const entry of sources) entry.source.close(); }
+  return counted;
 }
 
 function planResult(plan: DatabaseTransferPlan): Record<string, unknown> {
@@ -273,8 +283,10 @@ async function handleRun(deps: TransferExecutionPorts, surfaces: TransferSurface
       : { ask: prepared.plan.replaces !== null, description: prepared.plan },
     askHuman: ({ ctx: snapshot, description }, options) => {
       if (!options.emitSurface) throw new ToolInputError({ message: `${DATABASE_TRANSFER_RUN_TOOL_ID}: this execution context has no interactive confirmation channel (no emitSurface), so replacement cannot be confirmed here. Nothing was copied.` });
-      if (!description) throw new ToolInputError({ message: "No transfer plan can be approved. Nothing was copied." });
-      return surfaces.confirmApproval({ ctx: snapshot, plan: description }, options);
+      // core's createApprovalHandler asks only when `describe` set `ask`, and `ask` is true only beside a
+      // taken plan, so `description` is always that plan here; the former "No transfer plan can be
+      // approved" refusal could never run.
+      return surfaces.confirmApproval({ ctx: snapshot, plan: description as DatabaseTransferPlan }, options);
     },
     notConfirmed: ({ reason }) => reason === "declined" ? { copied: false, cancelled: true } : { copied: false, cancelled: false, reason },
     run: async ({ ctx: snapshot, prepared }) => {
@@ -360,11 +372,12 @@ async function handleStatus(deps: TransferExecutionPorts, ctx: ToolExecutionCont
  * Returns core registrations; the host applies its independent risk/error plumbing.
  * Descriptions reflect required persisted naming; optional messages replace model-facing copy only.
  * Construction performs no I/O. Host formatter exceptions propagate without mutating ports.
+ * `optional.files` reads and deletes the restore-point snapshot file; it defaults to `node:fs/promises`.
  * @complexity O(1) fixed tool records plus the description formatter's text length.
  * @example createDatabaseTransferTools(ports, { messages: defaultDbMessages })
  */
-export function createDatabaseTransferTools(deps: DatabaseTransferToolPorts, optional: { messages?: DbTransferMessages & Partial<DbMessages> } = {}): ToolRegistration[] {
-  const runtime: TransferExecutionPorts = { ports: deps, messages: { ...defaultDbMessages, ...optional.messages } };
+export function createDatabaseTransferTools(deps: DatabaseTransferToolPorts, optional: { messages?: DbTransferMessages & Partial<DbMessages>; files?: SnapshotFilePort } = {}): ToolRegistration[] {
+  const runtime: TransferExecutionPorts = { ports: deps, messages: { ...defaultDbMessages, ...optional.messages }, files: optional.files ?? nodeSnapshotFiles };
   const handlers: Record<string, ToolHandler> = {
     [PLAN_TOOL_ID]: ctx => handlePlan(runtime, ctx),
     [DATABASE_TRANSFER_RUN_TOOL_ID]: (ctx, optional) => handleRun(runtime, runtime.ports.surfaces, ctx, optional),

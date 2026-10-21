@@ -83,7 +83,8 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
       await ports.requirePermission({ principalId: ctx.principal.id, permission: "backup.create", entityType: "restore-point" });
 
       const capabilities = await ports.dbOps.getCapabilities();
-      let captured: { artifactRef: string; watermarkAtCapture: number } | undefined;
+      type Captured = { artifactRef: string; watermarkAtCapture: number };
+      let captured: Captured | undefined;
 
       const summary = await createDatabaseRestorePoint({
         costClass: capabilities.restorePoint.costClass,
@@ -94,6 +95,9 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
           return captured;
         },
       }, { messages });
+      // `createDatabaseRestorePoint` resolves only after awaiting `capture()` (restore-points.ts), so
+      // `captured` is always set here; the former `captured?.… ?? null` fallbacks could never apply.
+      const { watermarkAtCapture, artifactRef } = captured as Captured;
 
       await ports.restorePoints.save({
         restorePointId: summary.id,
@@ -106,8 +110,8 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
         createdBy: ctx.principal.id,
         costClass: summary.costClass,
         kind: summary.kind,
-        watermarkAtCapture: captured?.watermarkAtCapture ?? null,
-        artifactRef: captured?.artifactRef,
+        watermarkAtCapture,
+        artifactRef,
       });
 
       return { restorePoint: summary };

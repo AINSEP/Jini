@@ -54,10 +54,11 @@ export class DatabaseTransferPlanStore {
     for (const [id, plan] of this.plans) {
       if (plan.expiresAtMs <= nowMs) this.plans.delete(id);
     }
-    while (this.plans.size >= DEFAULT_MAX_PLANS) {
-      const oldest = this.plans.keys().next().value;
-      if (oldest === undefined) break;
-      this.plans.delete(oldest);
+    // Evict oldest-first (a Map iterates in insertion order) until there is room for this plan. The
+    // former `oldest === undefined` guard is gone: iterating the keys themselves cannot yield a missing one.
+    for (const id of this.plans.keys()) {
+      if (this.plans.size < DEFAULT_MAX_PLANS) break;
+      this.plans.delete(id);
     }
     const plan: DatabaseTransferPlan = { ...input.content, planId: randomUUID(), principalId: input.principalId, workspaceId: input.workspaceId, expiresAtMs: nowMs + DEFAULT_PLAN_TTL_MS };
     this.plans.set(plan.planId, plan);
