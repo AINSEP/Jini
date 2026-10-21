@@ -46,8 +46,11 @@ export interface SearchToolDeps {
   requirePermission(required: { readonly principalId: string; readonly permission: string }): Promise<void>;
   /** The host's confirmation transport (e.g. an approval card). */
   askHuman(required: { readonly ctx: ToolExecutionContext; readonly description: SearchApprovalDescription }, optional: ToolExecutionOptions): Promise<ApprovalAnswer>;
-  /** Persist the per-site `search.provider` setting. */
-  setProviderSetting(required: { readonly siteId: string; readonly providerId: string }): Promise<void>;
+  /**
+   * Persist the per-site `search.provider` setting. `principalId` is the calling tool principal, so
+   * the host's settings ledger records who made the change (added 2026-10-21, additive).
+   */
+  setProviderSetting(required: { readonly siteId: string; readonly providerId: string; readonly principalId: string }): Promise<void>;
 }
 
 const NO_INPUT = { type: 'object', additionalProperties: false, properties: {} } as const;
@@ -164,7 +167,7 @@ export function buildSearchToolRegistrations(required: SearchToolDeps, optional:
     prepare(ctx: ToolExecutionContext): Promise<Prepared>;
     rememberKey(providerId: string): string | undefined;
     summary(prepared: { providerId: string; fromProviderId: string | null }): string;
-    effect(providerId: string): Promise<void>;
+    effect(providerId: string, ctx: ToolExecutionContext): Promise<void>;
   }): ToolHandler => createApprovalHandler<Prepared, SearchApprovalDescription | undefined>({
     prepare: ({ ctx }) => spec.prepare(ctx),
     describe: ({ prepared }) => {
@@ -178,7 +181,7 @@ export function buildSearchToolRegistrations(required: SearchToolDeps, optional:
     run: async ({ ctx, prepared }) => {
       if ('refusal' in prepared) return prepared.refusal;
       await allow(ctx, SEARCH_MANAGE_PERMISSION);
-      await spec.effect(prepared.providerId);
+      await spec.effect(prepared.providerId, ctx);
       const targets = await indexer.startRebuild({ siteId, workspaceId, providerId: prepared.providerId });
       return { started: true, providerId: prepared.providerId, generation: targets.building?.generation ?? null };
     },
@@ -213,7 +216,7 @@ export function buildSearchToolRegistrations(required: SearchToolDeps, optional:
     // Never remembered: each switch moves the site's content to a different backend.
     rememberKey: () => undefined,
     summary: ({ providerId, fromProviderId }) => `Switch site search from '${fromProviderId ?? 'none'}' to '${providerId}' and copy every public document into it.`,
-    effect: providerId => required.setProviderSetting({ siteId, providerId }),
+    effect: (providerId, ctx) => required.setProviderSetting({ siteId, providerId, principalId: ctx.principal.id }),
   });
 
   return buildDomainRegistrations({

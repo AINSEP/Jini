@@ -163,7 +163,7 @@ describe('search_set_provider', () => {
     const { call, asked, settings, rebuilds } = setup({ remembered: store.port });
     expect(await call('search_set_provider', { providerId: 'builtin' })).toEqual({ started: true, providerId: 'builtin', generation: 2 });
     expect(asked).toEqual([{ action: 'set_provider', siteId: SITE, providerId: 'builtin', fromProviderId: 'vendor', summary: "Switch site search from 'vendor' to 'builtin' and copy every public document into it." }]);
-    expect(settings).toEqual([{ siteId: SITE, providerId: 'builtin' }]);
+    expect(settings).toEqual([{ siteId: SITE, providerId: 'builtin', principalId: 'user-1' }]);
     expect(rebuilds).toEqual([{ siteId: SITE, workspaceId: WS, providerId: 'builtin' }]);
     // Never remembered: the grant store is neither consulted nor written.
     expect(store.checks).toEqual([]);
