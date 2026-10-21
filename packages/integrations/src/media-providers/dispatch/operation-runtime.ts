@@ -99,11 +99,13 @@ async function performSigned(
   return fetchMediaOutbound({ url: signed.url, timeoutMs }, { ...deps, httpClient: requireMediaHttpClient(deps), init: signed.init });
 }
 
-/** Thread only the outbound capability into parsers; stores and signers remain runtime-private. */
+/** Thread only the outbound capability into parsers; stores and signers remain runtime-private.
+ *  Both callers parse a response that `performSigned` just fetched through the client, so the client
+ *  is always present here; `requireMediaHttpClient` states that invariant instead of branching on it. */
 function withRuntimeOutbound({ ctx, deps }: { ctx: RenderContext; deps: OperationRuntimeDeps }): RenderContext {
   return {
     ...ctx,
-    ...(deps.httpClient === undefined ? {} : { httpClient: deps.httpClient }),
+    httpClient: requireMediaHttpClient(deps),
     ...(deps.allowPrivateNetwork === undefined ? {} : { allowPrivateNetwork: deps.allowPrivateNetwork }),
     ...(deps.outboundMessages === undefined ? {} : { outboundMessages: deps.outboundMessages }),
   };

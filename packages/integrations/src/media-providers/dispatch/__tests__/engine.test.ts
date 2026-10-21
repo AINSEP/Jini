@@ -468,6 +468,19 @@ describe('host-owned media registries', () => {
       .toThrow('already registered');
   });
 
+  it('threads the deprecated engine-level allowPrivateNetwork option into the renderer context only when set', async () => {
+    const seen: (boolean | undefined)[] = [];
+    const registry = createVendorAdapterRegistry();
+    registry.register({ providerId: 'openai', routeKey: 'image', adapter: {
+      buildRequest: ({ ctx }) => { seen.push(ctx.allowPrivateNetwork); return { url: 'https://vendor.example/generate', init: {}, meta: undefined }; },
+      parseResponse: async () => ({ bytes: Buffer.from('ok'), providerNote: 'ok' }),
+    } });
+    await createMediaDispatchEngine({ registry, httpClient }, { allowPrivateNetwork: false }).generate({ surface: 'image', model: 'dall-e-3' });
+    await createMediaDispatchEngine({ registry, httpClient }, { allowPrivateNetwork: true }).generate({ surface: 'image', model: 'dall-e-3' });
+    await createMediaDispatchEngine({ registry, httpClient }).generate({ surface: 'image', model: 'dall-e-3' });
+    expect(seen).toEqual([false, true, undefined]);
+  });
+
   it('keeps an empty host registry empty even for a builtin route', async () => {
     const engine = createMediaDispatchEngine({ registry: createVendorAdapterRegistry(), httpClient });
     await expect(engine.generate({ surface: 'image', model: 'dall-e-3' }))

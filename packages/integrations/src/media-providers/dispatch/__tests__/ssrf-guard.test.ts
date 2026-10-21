@@ -107,6 +107,14 @@ describe('validateBaseUrlResolved', () => {
         const result = await validateBaseUrlResolved({ baseUrl: 'not a url' });
         expect(result).toEqual({ ok: false, error: 'Invalid baseUrl', forbidden: false });
     });
+    // Userinfo in a base URL would be replayed as credentials to whatever host it names.
+    it('refuses a base URL carrying a username or password, without calling lookup', async () => {
+        const lookup = vi.fn();
+        for (const baseUrl of ['https://user@media.example.com/v1', 'https://:pw@media.example.com/v1', 'https://user:pw@media.example.com/v1']) {
+            expect(await validateBaseUrlResolved({ baseUrl }, { lookup })).toEqual({ ok: false, error: 'URL credentials blocked', forbidden: true });
+        }
+        expect(lookup).not.toHaveBeenCalled();
+    });
     it('rejects a non-http(s) protocol', async () => {
         const result = await validateBaseUrlResolved({ baseUrl: 'ftp://example.com/file' });
         expect(result).toEqual({ ok: false, error: 'Only http/https allowed', forbidden: false });
