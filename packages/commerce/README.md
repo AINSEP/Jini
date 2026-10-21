@@ -13,8 +13,9 @@ Catalog repositories borrow the six existing `commerce_*` table contracts withou
 | --- | --- |
 | `@jini-ai/commerce` | Catalog contracts, checkout, inbox, status and storefront mapping |
 | `@jini-ai/commerce/repo` | Shared Kysely queries and row mapping |
-| `@jini-ai/commerce/payments` | Providers, registry, credentials, charge/refund/webhook lifecycle |
-| `@jini-ai/commerce/store` | Sample stock/checkout runtime |
+| `@jini-ai/commerce/payments/kernel` | Payments kernel: provider contract, `createPaymentsService` (`PaymentsPort`), reconciler/operator, grants, ledger port |
+| `@jini-ai/commerce/payments/ledger/sql` | SQL ledger adapter + migrations (needs `kysely`, `@jini-ai/db`) |
+| `@jini-ai/commerce/payments/testkit` | Provider conformance cases and the deterministic LiPay fake |
 | `@jini-ai/commerce/http` | Explicit raw-body payment webhook registrar |
 | `@jini-ai/commerce/tools` | Explicit read-only status contributor |
 | `@jini-ai/commerce/react` | Unregistered, read-only Payments overview; locale injected as a prop |

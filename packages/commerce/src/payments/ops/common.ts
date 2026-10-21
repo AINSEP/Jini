@@ -93,9 +93,13 @@ export async function dispatch<T>(call: () => Promise<Outcome<T>>): Promise<Outc
   } catch (error) {
     return unknownOutcome(`provider threw: ${error instanceof Error ? error.message : String(error)}`);
   }
-  if (outcome?.kind === "ok") return outcome;
-  const readable = (outcome?.kind === "rejected" || outcome?.kind === "unknown") && typeof outcome.error?.code === "string";
-  return readable ? outcome : unknownOutcome("provider returned no readable Outcome");
+  return readable(outcome) ? outcome : unknownOutcome("provider returned no readable Outcome");
+}
+
+/** `ok`, or a `rejected`/`unknown` that carries a PaymentError. A rejection we cannot read is NOT trusted as "no money moved". */
+function readable<T>(outcome: Outcome<T> | null | undefined): outcome is Outcome<T> {
+  if (outcome?.kind === "ok") return true;
+  return (outcome?.kind === "rejected" || outcome?.kind === "unknown") && typeof outcome.error?.code === "string";
 }
 
 /** A `dispatched` attempt row, written BEFORE the provider call. */

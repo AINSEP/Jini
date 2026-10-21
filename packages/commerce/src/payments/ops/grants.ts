@@ -35,16 +35,19 @@ export interface MoneyGrantPort {
   redeem(required: { grant: string; binding: MoneyGrantBinding }, optional?: Record<string, never>): Promise<boolean>;
 }
 
+const BINDING_FIELDS = ["op", "workspaceId", "mode", "paymentId", "idempotencyKey"] as const;
+
+function sameAmount(a: Money | null, b: Money | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.minorUnits === b.minorUnits && a.currency === b.currency;
+}
+
 /** True when two bindings name the same operation, payment, amount and key. */
 export function sameGrantBinding(
   { a, b }: { a: MoneyGrantBinding; b: MoneyGrantBinding },
   _optional: Record<string, never> = {}
 ): boolean {
-  const sameAmount = a.amount === null || b.amount === null
-    ? a.amount === b.amount
-    : a.amount.minorUnits === b.amount.minorUnits && a.amount.currency === b.amount.currency;
-  return sameAmount && a.op === b.op && a.workspaceId === b.workspaceId && a.mode === b.mode
-    && a.paymentId === b.paymentId && a.idempotencyKey === b.idempotencyKey;
+  return sameAmount(a.amount, b.amount) && BINDING_FIELDS.every((field) => a[field] === b[field]);
 }
 
 interface StoredGrant {

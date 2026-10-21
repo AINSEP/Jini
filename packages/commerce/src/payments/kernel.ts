@@ -29,3 +29,9 @@ export * from "./accounting/apply-evidence.js";
 export * from "./ingest/receive.js";
 export * from "./ingest/worker.js";
 export * from "./ingest/outbox-relay.js";
+// The payments operations (L4): the consumer `PaymentsPort` service, the back-office operator port, money grants.
+export * from "./ops/grants.js";
+export { createPaymentsService, createPaymentsOperator, type PaymentsOperatorPort } from "./ops/service.js";
+export type { PaymentsServiceOptional, PaymentsServiceRequired } from "./ops/deps.js";
+export type { ReconcileCounts, ReconcileReport } from "./ops/reconciler.js";
+export type { ResolveUnknownRequired, ResolveUnknownResult } from "./ops/operator.js";

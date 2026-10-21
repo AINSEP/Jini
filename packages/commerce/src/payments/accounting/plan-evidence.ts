@@ -239,14 +239,24 @@ export function planDisputeEvidence(
   const row: DisputeState = existing
     ? { ...existing, status: mergeDisputeStatus({ current: existing.status, incoming: evidence.status }) }
     : { id: newId, providerDisputeRef: evidence.providerDisputeRef, amountMinor: evidence.amount.minorUnits, status: evidence.status };
-  // Only `amount-mismatch` has an `existing` row; a CLOSING one is applied (owner 2026-10-21), an open/stale one is not.
-  const closesWithNewAmount = bad === "amount-mismatch" && row.status !== existing?.status;
-  if (bad && !closesWithNewAmount) return { kind: "quarantined", reason: bad };
+  const amountChanged = closingAmountChange({ bad, existing, row, evidence });
+  if (bad && !amountChanged) return { kind: "quarantined", reason: bad };
   const next = existing ? disputes.map((d) => (d.id === row.id ? row : d)) : [...disputes, row];
   return {
     kind: "dispute", write: writeKind(existing, row), row, disputes: next, outbox: disputeOutbox(existing?.status, row.status),
-    ...(closesWithNewAmount ? { amountChanged: { storedMinor: row.amountMinor, observedMinor: evidence.amount.minorUnits } } : {}),
+    ...(amountChanged ? { amountChanged } : {}),
   };
+}
+
+/**
+ * Only `amount-mismatch` comes with an `existing` row. A CLOSING observation with a new amount is
+ * applied (owner 2026-10-21) and only the difference is flagged; an open or stale one is not.
+ */
+function closingAmountChange(
+  { bad, existing, row, evidence }: { bad: EvidenceQuarantineReason | null; existing: DisputeState | undefined; row: DisputeState; evidence: DisputeEvidence }
+): DisputePlan["amountChanged"] {
+  if (bad !== "amount-mismatch" || row.status === existing?.status) return undefined;
+  return { storedMinor: row.amountMinor, observedMinor: evidence.amount.minorUnits };
 }
 
 /**
