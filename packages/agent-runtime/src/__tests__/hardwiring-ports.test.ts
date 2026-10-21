@@ -70,3 +70,20 @@ it('keeps executable configuration and toolchain caches per host', async () => {
     expect(a.executable.toolchainDirs).not.toBe(b.executable.toolchainDirs);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+it('a bound def\'s fetchModels uses the state\'s ACP model probe when it has one, else the caller\'s', async () => {
+  const seen: unknown[] = [];
+  const def = { ...getAgentDef({ id: 'claude' })!, id: 'probe-host-agent',
+    fetchModels: async (_required: { resolvedBin: string }, optional: unknown = {}) => { seen.push(optional); return null; } };
+  const callerProbe = { detectModels: async () => [] };
+  const stateProbe = { detectModels: async () => [] };
+  const plain = createAgentRuntimeState({});
+  const withProbe = { ...createAgentRuntimeState({}), acpModelProbe: stateProbe };
+  const required = { resolvedBin: '/bin/agent', env: {} };
+  await bindRuntimeAgentDef({ def, state: plain }).fetchModels!(required);
+  await bindRuntimeAgentDef({ def, state: plain }).fetchModels!(required, { acpModelProbe: callerProbe });
+  await bindRuntimeAgentDef({ def, state: withProbe }).fetchModels!(required, { acpModelProbe: callerProbe });
+  expect(seen).toEqual([{}, { acpModelProbe: callerProbe }, { acpModelProbe: stateProbe }]);
+  expect((seen[1] as { acpModelProbe: unknown }).acpModelProbe).toBe(callerProbe);
+  expect((seen[2] as { acpModelProbe: unknown }).acpModelProbe).toBe(stateProbe);
+});
