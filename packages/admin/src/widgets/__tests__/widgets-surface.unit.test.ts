@@ -38,6 +38,16 @@ describe('createHttpWidgetsApi', () => {
   });
 });
 
+describe('createHttpWidgetsApi cancellation', () => {
+  it('refuses an aborted request before it reaches the host transport', () => {
+    const { transport, calls } = recordingTransport();
+    const abort = new AbortController(); abort.abort();
+    // The guard runs before the transport is touched, so it throws synchronously.
+    expect(() => createHttpWidgetsApi({ transport, basePath: '/ws' }).getWidget({ id: 'w1' }, { signal: abort.signal })).toThrow('This operation was aborted');
+    expect(calls).toEqual([]);
+  });
+});
+
 describe('createMemoryWidgetsApi regions', () => {
   it('refuses to bind a region that already has a binding row', async () => {
     const api = createMemoryWidgetsApi({ regions: [{ workspaceId: 'fake-ws', regionKey: 'footer', areaEntryId: 'a1', updatedAt: 'then', placementCount: 0 }] });
@@ -66,6 +76,14 @@ describe('widget regions controller', () => {
     await controller.bind({});
     expect(bind).not.toHaveBeenCalled();
     expect(controller.getSnapshot().binding).toBe(false);
+  });
+
+  it('describes a plain bind failure with its own message', async () => {
+    const api = { ...createMemoryWidgetsApi({}), bindWidgetRegion: () => Promise.reject(new Error('bind transport down')) };
+    const controller = widgets.createWidgetRegionsController({ api });
+    controller.setNewRegionKey({ value: 'header' });
+    await controller.bind({});
+    expect(controller.getSnapshot()).toMatchObject({ error: 'bind transport down', binding: false, newRegionKey: 'header' });
   });
 
   it('keeps the typed key and reports a failed bind without navigating', async () => {
