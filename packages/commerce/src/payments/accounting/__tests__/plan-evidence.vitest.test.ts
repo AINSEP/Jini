@@ -116,12 +116,20 @@ describe("planIntentEvidence", () => {
     expect(planIntentEvidence({ payment: { ...created, intentStatus: "succeeded", capturedMinor: 6_000, providerRef: "ch_1" }, evidence: pe({ captured: USD(1_000) }) }))
       .toMatchObject({ payment: { capturedMinor: 6_000 } });
   });
+  test("R1-F4: an authorization reporting zero captured is applied, not quarantined", () => {
+    expect(planIntentEvidence({ payment: created, evidence: pe({ status: "authorized", amount: USD(10_000), captured: USD(0) }) })).toEqual({
+      kind: "intent", changed: true, outbox: [],
+      payment: { ...created, providerRef: "ch_1", intentStatus: "authorized", capturedMinor: 0 },
+    });
+  });
   test.each([
     ["another provider ref", { ...created, providerRef: "ch_other" }, pe(), "ref-conflict"],
     ["bad amount", created, pe({ amount: USD(0) }), "bad-amount"],
     ["other currency capture", created, pe({ captured: { minorUnits: 5, currency: "EUR" } }), "currency-mismatch"],
     ["different amount", created, pe({ amount: USD(9_999) }), "amount-mismatch"],
     ["capture above amount", created, pe({ captured: USD(10_001) }), "amount-mismatch"],
+    ["negative capture", created, pe({ captured: USD(-1) }), "bad-amount"],
+    ["fractional capture", created, pe({ captured: USD(0.5) }), "bad-amount"],
   ])("%s is quarantined", (_n, payment, evidence, reason) => {
     expect(planIntentEvidence({ payment, evidence })).toEqual({ kind: "quarantined", reason });
   });

@@ -120,10 +120,15 @@ export interface IntentPlan {
   readonly outbox: readonly OutboxTopic[];
 }
 
+/**
+ * `allowZero`: a captured total may be zero (an authorization has captured nothing yet — R1-F4);
+ * a charge, refund or dispute amount must be strictly positive.
+ */
 function amountProblem({ currency, amountMinor, minorUnits, evidenceCurrency }: {
   currency: string; amountMinor?: number; minorUnits: number; evidenceCurrency: string;
-}): EvidenceQuarantineReason | null {
-  if (!Number.isSafeInteger(minorUnits) || minorUnits <= 0) return "bad-amount";
+}, optional: { allowZero?: boolean } = {}): EvidenceQuarantineReason | null {
+  const floor = optional.allowZero === true ? 0 : 1;
+  if (!Number.isSafeInteger(minorUnits) || minorUnits < floor) return "bad-amount";
   if (evidenceCurrency !== currency) return "currency-mismatch";
   if (amountMinor !== undefined && amountMinor !== minorUnits) return "amount-mismatch";
   return null;
@@ -276,9 +281,10 @@ function nextCaptured({ payment, evidence, intent }: { payment: PaymentState; ev
 const MONEY_MOVED: ReadonlySet<string> = new Set(["authorized", "succeeded"]);
 
 function intentAmountProblem({ payment, evidence }: { payment: PaymentState; evidence: PaymentEvidence }): EvidenceQuarantineReason | null {
-  const checks = [evidence.amount, evidence.captured].filter((m) => m !== undefined);
-  for (const reported of checks) {
-    const bad = amountProblem({ currency: payment.currency, minorUnits: reported.minorUnits, evidenceCurrency: reported.currency });
+  const checks = [{ reported: evidence.amount, allowZero: false }, { reported: evidence.captured, allowZero: true }];
+  for (const { reported, allowZero } of checks) {
+    if (reported === undefined) continue;
+    const bad = amountProblem({ currency: payment.currency, minorUnits: reported.minorUnits, evidenceCurrency: reported.currency }, { allowZero });
     if (bad) return bad;
   }
   if (evidence.amount !== undefined && evidence.amount.minorUnits !== payment.amountMinor) return "amount-mismatch";
