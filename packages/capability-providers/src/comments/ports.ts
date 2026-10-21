@@ -5,19 +5,19 @@ export interface CommentThreadRendererPort {
     optional?: { nonce?: string; cursor?: string }): Promise<{ html: string }>;
 }
 export interface CommentModerationPort {
-  listQueue(required: { siteId: string; status: CommentStatus; limit: number; cursor?: string | null }): Promise<{
+  listQueue(required: { siteId: string; status: CommentStatus; limit: number; cursor?: string | null }, optional?: Record<string, never>): Promise<{
     items: readonly { id: string; entryId: string; status: CommentStatus; authorName: string; bodyText: string; version: number }[];
     nextCursor: string | null;
   }>;
-  get(required: { siteId: string; id: string }): Promise<{ id: string; entryId: string; status: CommentStatus; authorName: string; bodyText: string; version: number } | null>;
-  apply(required: { siteId: string; id: string; expectedVersion: number; action: 'approve' | 'mark_spam' | 'trash' | 'restore'; actorPrincipalId: string; actorPluginId?: string | null; note: string | null }): Promise<
+  get(required: { siteId: string; id: string }, optional?: Record<string, never>): Promise<{ id: string; entryId: string; status: CommentStatus; authorName: string; bodyText: string; version: number } | null>;
+  apply(required: { siteId: string; id: string; expectedVersion: number; action: 'approve' | 'mark_spam' | 'trash' | 'restore'; actorPrincipalId: string; actorPluginId?: string | null; note: string | null }, optional?: Record<string, never>): Promise<
     { ok: true } | { ok: false; reason: 'not-found' | 'conflict'; currentVersion?: number }>;
-  purge(required: { siteId: string; id: string; actorPrincipalId: string; note: string | null }): Promise<
+  purge(required: { siteId: string; id: string; actorPrincipalId: string; note: string | null }, optional?: Record<string, never>): Promise<
     { ok: true } | { ok: false; reason: 'not-found' | 'conflict' }>;
 }
 export interface CommentSubmissionPort {
   submit(required: { siteId: string; entryId: string; parentId: string | null; authorName: string; authorEmail: string | null;
-    authorUrl: string | null; bodyRaw: string; authorIpHash: string; honeypotValue: string }): Promise<
+    authorUrl: string | null; bodyRaw: string; authorIpHash: string; honeypotValue: string }, optional?: Record<string, never>): Promise<
       { ok: true; id: string; status: CommentStatus } | { ok: false; reason: string }>;
 }
 /** Separate bindings preserve the difference between stored and embedded providers. */
@@ -27,6 +27,6 @@ export type CommentsProviderAdapter =
 export interface CommentsSelection { providerId: string | null; revision: number }
 /** compareAndSet must compare and persist inside ONE storage transaction, including the revision. */
 export interface CommentsSelectionStorePort {
-  read(required: { siteId: string }): Promise<CommentsSelection>;
-  compareAndSet(required: { siteId: string; expectedRevision: number; providerId: string | null; actorPrincipalId: string }): Promise<boolean>;
+  read(required: { siteId: string }, optional?: Record<string, never>): Promise<CommentsSelection>;
+  compareAndSet(required: { siteId: string; expectedRevision: number; providerId: string | null; actorPrincipalId: string }, optional?: Record<string, never>): Promise<boolean>;
 }
