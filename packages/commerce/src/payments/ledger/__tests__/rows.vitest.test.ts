@@ -7,54 +7,54 @@ import {
 
 describe("decodeMinor: the one integer decoder every row mapper uses", () => {
   test("numbers, decimal strings (node-pg BIGINT) and bigints (safeIntegers, PGlite) decode to the same number", () => {
-    expect(decodeMinor(1999)).toBe(1999);
-    expect(decodeMinor("1999")).toBe(1999);
-    expect(decodeMinor(1999n)).toBe(1999);
-    expect(decodeMinor("-42")).toBe(-42);
-    expect(decodeMinor(0)).toBe(0);
-    expect(decodeMinor(String(Number.MAX_SAFE_INTEGER))).toBe(Number.MAX_SAFE_INTEGER);
+    expect(decodeMinor({ value: 1999 })).toBe(1999);
+    expect(decodeMinor({ value: "1999" })).toBe(1999);
+    expect(decodeMinor({ value: 1999n })).toBe(1999);
+    expect(decodeMinor({ value: "-42" })).toBe(-42);
+    expect(decodeMinor({ value: 0 })).toBe(0);
+    expect(decodeMinor({ value: String(Number.MAX_SAFE_INTEGER) })).toBe(Number.MAX_SAFE_INTEGER);
   });
 
   test("never rounds: beyond MAX_SAFE_INTEGER throws, from every representation", () => {
-    expect(() => decodeMinor(2 ** 53)).toThrow(TypeError);
-    expect(() => decodeMinor("9007199254740993")).toThrow(/safe integer.*9007199254740993/);
-    expect(() => decodeMinor(9007199254740993n)).toThrow(TypeError);
+    expect(() => decodeMinor({ value: 2 ** 53 })).toThrow(TypeError);
+    expect(() => decodeMinor({ value: "9007199254740993" })).toThrow(/safe integer.*9007199254740993/);
+    expect(() => decodeMinor({ value: 9007199254740993n })).toThrow(TypeError);
   });
 
   test("fractions, non-numeric text and other types throw", () => {
     for (const bad of [1.5, Number.NaN, Number.POSITIVE_INFINITY, "1.5", "", " 1", "1e3", "+1", "0x10", null, undefined, true, {}]) {
-      expect(() => decodeMinor(bad), String(bad)).toThrow(TypeError);
+      expect(() => decodeMinor({ value: bad }), String(bad)).toThrow(TypeError);
     }
   });
 
   test("-0 decodes to 0 from every representation", () => {
-    for (const zero of [-0, "-0", 0n]) expect(Object.is(decodeMinor(zero), 0), String(zero)).toBe(true);
+    for (const zero of [-0, "-0", 0n]) expect(Object.is(decodeMinor({ value: zero }), 0), String(zero)).toBe(true);
   });
 
   test("the NULLable variant keeps SQL NULL and decodes anything else", () => {
-    expect(decodeNullableMinor(null)).toBeNull();
-    expect(decodeNullableMinor("7")).toBe(7);
-    expect(() => decodeNullableMinor(undefined)).toThrow(TypeError);
+    expect(decodeNullableMinor({ value: null })).toBeNull();
+    expect(decodeNullableMinor({ value: "7" })).toBe(7);
+    expect(() => decodeNullableMinor({ value: undefined })).toThrow(TypeError);
   });
 });
 
 describe("encodeMinor: the one integer encoder every write uses", () => {
   test("a safe integer passes unchanged; -0 becomes 0", () => {
-    expect(encodeMinor(1999)).toBe(1999);
-    expect(encodeMinor(-42)).toBe(-42);
-    expect(encodeMinor(Number.MAX_SAFE_INTEGER)).toBe(Number.MAX_SAFE_INTEGER);
-    expect(Object.is(encodeMinor(-0), 0)).toBe(true);
+    expect(encodeMinor({ value: 1999 })).toBe(1999);
+    expect(encodeMinor({ value: -42 })).toBe(-42);
+    expect(encodeMinor({ value: Number.MAX_SAFE_INTEGER })).toBe(Number.MAX_SAFE_INTEGER);
+    expect(Object.is(encodeMinor({ value: -0 }), 0)).toBe(true);
   });
 
   test("anything a driver would round, truncate or store as REAL throws TypeError", () => {
     for (const bad of [1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53, "1", 1n, null, undefined]) {
-      expect(() => encodeMinor(bad as number), String(bad)).toThrow(/expected a safe integer to write/);
+      expect(() => encodeMinor({ value: bad as number }), String(bad)).toThrow(/expected a safe integer to write/);
     }
   });
 
   test("the NULLable variant keeps null; encodeColumns encodes only integer columns", () => {
-    expect(encodeNullableMinor(null)).toBeNull();
-    expect(encodeNullableMinor(-0)).toBe(0);
+    expect(encodeNullableMinor({ value: null })).toBeNull();
+    expect(encodeNullableMinor({ value: -0 })).toBe(0);
     expect(encodeColumns({ status: "x", amount_minor: -0, fee_minor: null, reference: "1.5" })).toEqual({ status: "x", amount_minor: 0, fee_minor: null, reference: "1.5" });
     expect(() => encodeColumns({ updated_at: 1.5 })).toThrow(TypeError);
   });

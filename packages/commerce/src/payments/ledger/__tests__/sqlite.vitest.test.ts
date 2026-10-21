@@ -23,21 +23,21 @@ ledgerContract("sql/sqlite", async () => {
 
 describe("SQL adapter: driver errors", () => {
   test("SQLite and Postgres constraint codes map to the ledger's kinds; anything else is not a constraint", () => {
-    expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_UNIQUE" })).toBe("unique");
-    expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_PRIMARYKEY" })).toBe("unique");
-    expect(constraintKindOf({ code: "23505" })).toBe("unique");
-    expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_FOREIGNKEY" })).toBe("foreign-key");
-    expect(constraintKindOf({ code: "23503" })).toBe("foreign-key");
-    expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_CHECK" })).toBe("check");
-    expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_NOTNULL" })).toBe("check");
-    expect(constraintKindOf({ code: "23514" })).toBe("check");
-    expect(constraintKindOf({ code: "23502" })).toBe("check");
-    expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_TRIGGER" })).toBeNull();
-    expect(constraintKindOf({ code: "toString" })).toBeNull();
-    expect(constraintKindOf({ code: 23505 })).toBeNull();
-    expect(constraintKindOf({})).toBeNull();
-    expect(constraintKindOf(null)).toBeNull();
-    expect(constraintKindOf("23505")).toBeNull();
+    expect(constraintKindOf({ error: { code: "SQLITE_CONSTRAINT_UNIQUE" } })).toBe("unique");
+    expect(constraintKindOf({ error: { code: "SQLITE_CONSTRAINT_PRIMARYKEY" } })).toBe("unique");
+    expect(constraintKindOf({ error: { code: "23505" } })).toBe("unique");
+    expect(constraintKindOf({ error: { code: "SQLITE_CONSTRAINT_FOREIGNKEY" } })).toBe("foreign-key");
+    expect(constraintKindOf({ error: { code: "23503" } })).toBe("foreign-key");
+    expect(constraintKindOf({ error: { code: "SQLITE_CONSTRAINT_CHECK" } })).toBe("check");
+    expect(constraintKindOf({ error: { code: "SQLITE_CONSTRAINT_NOTNULL" } })).toBe("check");
+    expect(constraintKindOf({ error: { code: "23514" } })).toBe("check");
+    expect(constraintKindOf({ error: { code: "23502" } })).toBe("check");
+    expect(constraintKindOf({ error: { code: "SQLITE_CONSTRAINT_TRIGGER" } })).toBeNull();
+    expect(constraintKindOf({ error: { code: "toString" } })).toBeNull();
+    expect(constraintKindOf({ error: { code: 23505 } })).toBeNull();
+    expect(constraintKindOf({ error: {} })).toBeNull();
+    expect(constraintKindOf({ error: null })).toBeNull();
+    expect(constraintKindOf({ error: "23505" })).toBeNull();
   });
 
   test("a write failing for another reason surfaces the driver's own error", async () => {

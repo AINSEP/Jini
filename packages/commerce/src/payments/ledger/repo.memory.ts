@@ -236,7 +236,7 @@ class MemoryLedgerTx implements LedgerTx {
   }
 
   async updatePayment({ id, expectedVersion, patch }: { id: string; expectedVersion: number; patch: PaymentPatch }): Promise<boolean> {
-    const set = { ...patchColumns({ patch, columns: PAYMENT_PATCH_COLUMNS }), version: encodeMinor(expectedVersion + 1) };
+    const set = { ...patchColumns({ patch, columns: PAYMENT_PATCH_COLUMNS }), version: encodeMinor({ value: expectedVersion + 1 }) };
     return this.t.payments.update({ id, set: () => set }, { when: (r) => r.version === expectedVersion });
   }
 

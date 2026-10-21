@@ -50,7 +50,7 @@ const CONSTRAINT_CODES: ReadonlyMap<string, LedgerConstraintKind> = new Map([
 ]);
 
 /** Which ledger constraint a driver error reports, or `null` when it is not one. */
-export function constraintKindOf(error: unknown, _optional: Record<string, never> = {}): LedgerConstraintKind | null {
+export function constraintKindOf({ error }: { error: unknown }, _optional: Record<string, never> = {}): LedgerConstraintKind | null {
   const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
   return typeof code === "string" ? (CONSTRAINT_CODES.get(code) ?? null) : null;
 }
@@ -67,7 +67,7 @@ class SqlLedgerTx implements LedgerTx {
     try {
       return await this.kernel.run(fn);
     } catch (error) {
-      const kind = constraintKindOf(error);
+      const kind = constraintKindOf({ error });
       throw kind === null ? error : new LedgerConstraintError({ kind, table }, { cause: error });
     }
   }
@@ -135,7 +135,7 @@ class SqlLedgerTx implements LedgerTx {
   }
 
   updatePayment({ id, expectedVersion, patch }: { id: string; expectedVersion: number; patch: PaymentPatch }): Promise<boolean> {
-    const set = { ...patchColumns({ patch, columns: PAYMENT_PATCH_COLUMNS }), version: encodeMinor(expectedVersion + 1) };
+    const set = { ...patchColumns({ patch, columns: PAYMENT_PATCH_COLUMNS }), version: encodeMinor({ value: expectedVersion + 1 }) };
     return this.updateById({ table: LEDGER_TABLES.payments, id, set }, { version: expectedVersion });
   }
 

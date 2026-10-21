@@ -34,9 +34,9 @@ function fail(value: unknown): never {
  * BIGINT) or a bigint (better-sqlite3 `safeIntegers`, PGlite); throws a `TypeError` on anything
  * else, on a fraction and on a value beyond `Number.MAX_SAFE_INTEGER` — never rounds.
  *
- * @example decodeMinor("1999") === 1999
+ * @example decodeMinor({ value: "1999" }) === 1999
  */
-export function decodeMinor(value: unknown, _optional: Record<string, never> = {}): number {
+export function decodeMinor({ value }: { value: unknown }, _optional: Record<string, never> = {}): number {
   if (typeof value === "string") return DECIMAL_INTEGER.test(value) ? checkedSafe(Number(value), value) : fail(value);
   if (typeof value === "bigint") return checkedSafe(Number(value), value);
   return typeof value === "number" ? checkedSafe(value, value) : fail(value);
@@ -49,8 +49,8 @@ function checkedSafe(decoded: number, original: unknown): number {
 }
 
 /** {@link decodeMinor} for a NULLable column: SQL NULL stays `null`. */
-export function decodeNullableMinor(value: unknown, _optional: Record<string, never> = {}): number | null {
-  return value === null ? null : decodeMinor(value);
+export function decodeNullableMinor({ value }: { value: unknown }, _optional: Record<string, never> = {}): number | null {
+  return value === null ? null : decodeMinor({ value });
 }
 
 /**
@@ -58,9 +58,9 @@ export function decodeNullableMinor(value: unknown, _optional: Record<string, ne
  * non-number, a fraction, NaN/Infinity and anything beyond `Number.MAX_SAFE_INTEGER` (the driver
  * would otherwise round, truncate or store REAL); normalizes `-0` to `0`.
  *
- * @example encodeMinor(1999) === 1999
+ * @example encodeMinor({ value: 1999 }) === 1999
  */
-export function encodeMinor(value: number, _optional: Record<string, never> = {}): number {
+export function encodeMinor({ value }: { value: number }, _optional: Record<string, never> = {}): number {
   if (!Number.isSafeInteger(value)) {
     throw new TypeError(`ledger: expected a safe integer to write, got ${typeof value} ${String(value)}`);
   }
@@ -68,8 +68,8 @@ export function encodeMinor(value: number, _optional: Record<string, never> = {}
 }
 
 /** {@link encodeMinor} for a NULLable column: `null` stays `null` (a NOT NULL column then refuses it). */
-export function encodeNullableMinor(value: number | null, _optional: Record<string, never> = {}): number | null {
-  return value === null ? null : encodeMinor(value);
+export function encodeNullableMinor({ value }: { value: number | null }, _optional: Record<string, never> = {}): number | null {
+  return value === null ? null : encodeMinor({ value });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -109,7 +109,7 @@ export const LEDGER_INTEGER_COLUMNS: ReadonlySet<string> = new Set([
 export function encodeColumns<S extends object>(set: S, _optional: Record<string, never> = {}): S {
   const out: Record<string, unknown> = { ...(set as Record<string, unknown>) };
   for (const [column, value] of Object.entries(set)) {
-    if (LEDGER_INTEGER_COLUMNS.has(column)) out[column] = encodeNullableMinor(value as number | null);
+    if (LEDGER_INTEGER_COLUMNS.has(column)) out[column] = encodeNullableMinor({ value: value as number | null });
   }
   return out as S;
 }
@@ -635,24 +635,24 @@ export function paymentFromRow(row: Selectable<PaymentsTable>, _optional: Record
     reference: row.reference,
     partyId: row.party_id,
     currency: row.currency,
-    amountMinor: decodeMinor(row.amount_minor),
-    capturedMinor: decodeMinor(row.captured_minor),
+    amountMinor: decodeMinor({ value: row.amount_minor }),
+    capturedMinor: decodeMinor({ value: row.captured_minor }),
     intentStatus: row.intent_status as IntentStatus,
-    refundedMinor: decodeMinor(row.refunded_minor),
-    refundHeldMinor: decodeMinor(row.refund_held_minor),
-    disputedMinor: decodeMinor(row.disputed_minor),
+    refundedMinor: decodeMinor({ value: row.refunded_minor }),
+    refundHeldMinor: decodeMinor({ value: row.refund_held_minor }),
+    disputedMinor: decodeMinor({ value: row.disputed_minor }),
     status: row.status as DerivedPaymentStatus,
     providerRef: row.provider_ref,
     nextActionJson: row.next_action_json,
     feeCurrency: row.fee_currency,
-    feeMinor: decodeNullableMinor(row.fee_minor),
+    feeMinor: decodeNullableMinor({ value: row.fee_minor }),
     netCurrency: row.net_currency,
-    netMinor: decodeNullableMinor(row.net_minor),
+    netMinor: decodeNullableMinor({ value: row.net_minor }),
     settlementCurrency: row.settlement_currency,
-    settlementMinor: decodeNullableMinor(row.settlement_minor),
-    version: decodeMinor(row.version),
-    createdAt: decodeMinor(row.created_at),
-    updatedAt: decodeMinor(row.updated_at),
+    settlementMinor: decodeNullableMinor({ value: row.settlement_minor }),
+    version: decodeMinor({ value: row.version }),
+    createdAt: decodeMinor({ value: row.created_at }),
+    updatedAt: decodeMinor({ value: row.updated_at }),
   };
 }
 
@@ -671,10 +671,10 @@ export function attemptFromRow(row: Selectable<AttemptsTable>, _optional: Record
     outcome: row.outcome as AttemptOutcome,
     errorCode: row.error_code,
     errorMessage: row.error_message,
-    createdAt: decodeMinor(row.created_at),
-    updatedAt: decodeMinor(row.updated_at),
+    createdAt: decodeMinor({ value: row.created_at }),
+    updatedAt: decodeMinor({ value: row.updated_at }),
     currency: row.currency,
-    amountMinor: decodeNullableMinor(row.amount_minor),
+    amountMinor: decodeNullableMinor({ value: row.amount_minor }),
   };
 }
 
@@ -690,11 +690,11 @@ export function refundFromRow(row: Selectable<RefundsTable>, _optional: Record<s
     idempotencyKey: row.idempotency_key,
     providerRefundRef: row.provider_refund_ref,
     currency: row.currency,
-    amountMinor: decodeMinor(row.amount_minor),
+    amountMinor: decodeMinor({ value: row.amount_minor }),
     status: row.status as RefundStatus,
     reason: row.reason,
-    createdAt: decodeMinor(row.created_at),
-    updatedAt: decodeMinor(row.updated_at),
+    createdAt: decodeMinor({ value: row.created_at }),
+    updatedAt: decodeMinor({ value: row.updated_at }),
   };
 }
 
@@ -709,11 +709,11 @@ export function disputeFromRow(row: Selectable<DisputesTable>, _optional: Record
     mode: row.mode as PaymentMode,
     providerDisputeRef: row.provider_dispute_ref,
     currency: row.currency,
-    amountMinor: decodeMinor(row.amount_minor),
+    amountMinor: decodeMinor({ value: row.amount_minor }),
     status: row.status as DisputeStatus,
-    dueBy: decodeNullableMinor(row.due_by),
-    createdAt: decodeMinor(row.created_at),
-    updatedAt: decodeMinor(row.updated_at),
+    dueBy: decodeNullableMinor({ value: row.due_by }),
+    createdAt: decodeMinor({ value: row.created_at }),
+    updatedAt: decodeMinor({ value: row.updated_at }),
   };
 }
 
@@ -731,9 +731,9 @@ export function evidenceFromRow(row: Selectable<EvidenceTable>, _optional: Recor
     subjectRef: row.subject_ref,
     observedStatus: row.observed_status,
     currency: row.currency,
-    amountMinor: decodeNullableMinor(row.amount_minor),
+    amountMinor: decodeNullableMinor({ value: row.amount_minor }),
     inboxId: row.inbox_id,
-    recordedAt: decodeMinor(row.recorded_at),
+    recordedAt: decodeMinor({ value: row.recorded_at }),
   };
 }
 
@@ -749,12 +749,12 @@ export function inboxFromRow(row: Selectable<InboxTable>, _optional: Record<stri
     factsJson: row.facts_json,
     bodySha256: row.body_sha256,
     state: row.state as InboxState,
-    attempts: decodeMinor(row.attempts),
-    nextAttemptAt: decodeMinor(row.next_attempt_at),
+    attempts: decodeMinor({ value: row.attempts }),
+    nextAttemptAt: decodeMinor({ value: row.next_attempt_at }),
     lastError: row.last_error,
-    receivedAt: decodeMinor(row.received_at),
-    appliedAt: decodeNullableMinor(row.applied_at),
-    purgedAt: decodeNullableMinor(row.purged_at),
+    receivedAt: decodeMinor({ value: row.received_at }),
+    appliedAt: decodeNullableMinor({ value: row.applied_at }),
+    purgedAt: decodeNullableMinor({ value: row.purged_at }),
   };
 }
 
@@ -766,8 +766,8 @@ export function outboxFromRow(row: Selectable<OutboxTable>, _optional: Record<st
     topic: row.topic as LedgerOutboxTopic,
     aggregateId: row.aggregate_id,
     payloadJson: row.payload_json,
-    createdAt: decodeMinor(row.created_at),
-    publishedAt: decodeNullableMinor(row.published_at),
+    createdAt: decodeMinor({ value: row.created_at }),
+    publishedAt: decodeNullableMinor({ value: row.published_at }),
   };
 }
 
@@ -780,8 +780,8 @@ export function quarantineFromRow(row: Selectable<QuarantineTable>, _optional: R
     subject: row.subject,
     reason: row.reason,
     evidenceJson: row.evidence_json,
-    createdAt: decodeMinor(row.created_at),
-    resolvedAt: decodeNullableMinor(row.resolved_at),
+    createdAt: decodeMinor({ value: row.created_at }),
+    resolvedAt: decodeNullableMinor({ value: row.resolved_at }),
   };
 }
 
@@ -876,7 +876,7 @@ export function operatorActionFromRow(row: Selectable<OperatorActionsTable>, _op
     outcome: row.outcome,
     actor: row.actor,
     reason: row.reason,
-    createdAt: decodeMinor(row.created_at),
+    createdAt: decodeMinor({ value: row.created_at }),
   };
 }
 
