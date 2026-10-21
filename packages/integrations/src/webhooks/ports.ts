@@ -45,13 +45,20 @@ export interface WebhookSubscriptionRepoPort {
 export interface WebhookDeliveryRepoPort {
   enqueue(required: { record: WebhookDeliveryRecord }, optional?: { envelope?: WebhookEventEnvelope }): Promise<void>;
 
-  claimPending(required: { batchSize: number; nowIso: ISODateTime }): Promise<WebhookDeliveryRecord[]>;
+  /**
+   * Atomically claim due `pending` rows, increment `attempts` and mark them `delivering`.
+   * With `claimLeaseMs`, also reclaim `delivering` rows whose lease has expired and persist
+   * nowIso + claimLeaseMs as each claimed row's lease (its `nextAttemptAt` while delivering): a
+   * claimer that died or was abandoned at shutdown must not strand its rows in `delivering` forever.
+   */
+  claimPending(required: { batchSize: number; nowIso: ISODateTime }, optional?: { claimLeaseMs?: number }): Promise<WebhookDeliveryRecord[]>;
+  /** With `claimedAttempts`, a stale outcome (the row was reclaimed since) must not overwrite the newer claim. */
   markDelivered(required: {
     workspaceId: UUID;
     id: IntegrationId;
     responseStatus: number;
     deliveredAtIso: ISODateTime;
-  }): Promise<void>;
+  }, optional?: { claimedAttempts?: number }): Promise<void>;
 
   markFailed(required: {
     workspaceId: UUID;
@@ -60,7 +67,18 @@ export interface WebhookDeliveryRepoPort {
     responseStatus: number | null;
     nextStatus: Extract<WebhookDeliveryStatus, "failed" | "dead">;
     nextAttemptAt: ISODateTime;
-  }, optional?: { deadAtIso?: ISODateTime }): Promise<void>;
+  }, optional?: { deadAtIso?: ISODateTime; claimedAttempts?: number }): Promise<void>;
+  /**
+   * Return a claim that was never attempted (the batch was cancelled first) to `pending`, due at
+   * `nextAttemptAt`, undoing the claim's `attempts` increment. Fenced on `claimedAttempts`: a
+   * row reclaimed since is left alone. Optional: without it, the claim lease recovers the row.
+   */
+  releaseClaim?(required: {
+    workspaceId: UUID;
+    id: IntegrationId;
+    claimedAttempts: number;
+    nextAttemptAt: ISODateTime;
+  }, optional?: Record<string, never>): Promise<void>;
   findById(required: { workspaceId: UUID; id: IntegrationId }): Promise<WebhookDeliveryRecord | null>;
   listBySubscription(required: {
     workspaceId: UUID;
