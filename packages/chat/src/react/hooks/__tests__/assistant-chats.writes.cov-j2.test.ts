@@ -170,11 +170,12 @@ describe('persistUserTurn', () => {
     const { result, writes, port } = await mountOn('new-chat', {});
     port.saveMessage.mockRejectedValueOnce(new StatusError(422));
     await act(async () => {
-      await expect(result.current.persistUserTurn({ conversationId: 'other', message: userTurn('u1') })).resolves.toBeUndefined();
+      await expect(result.current.persistUserTurn({ conversationId: 'new-chat', message: userTurn('u1') })).resolves.toBeUndefined();
     });
+    // Same conversation as the failed write: only releasing the dedup key lets this retry through.
     act(() => result.current.onMessagesChange({ messages: [userTurn('u1')] }));
     await settle();
-    expect(writes()).toEqual(['other/u1', 'new-chat/u1']);
+    expect(writes()).toEqual(['new-chat/u1', 'new-chat/u1']);
   });
 });
 
