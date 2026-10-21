@@ -64,8 +64,9 @@ class PlaywrightSiteEvidenceBrowser implements SiteEvidenceBrowserPort {
     const requests: RequestEvidence[] = [];
     const notes: string[] = [];
     let phase: ObservationPhase = "before";
+    let result: ObservePageResult;
     try {
-      return await renderPage({
+      result = await renderPage({
         browser: this.browser, url: request.url,
         consume: async ({ page, context, response, finalUrl, budget }): Promise<ObservePageResult> => {
           if (!response) return { ok: false, reason: "the browser produced no response for this navigation (no HTTP exchange to observe)" };
@@ -114,10 +115,11 @@ class PlaywrightSiteEvidenceBrowser implements SiteEvidenceBrowserPort {
         },
       });
     } catch (error) {
-      return { ok: false, reason: `page capture failed after load or navigation: ${messageOf(error)}`, ...(error instanceof OffOriginNavigationError ? { offOriginUrl: error.origin } : {}) };
+      result = { ok: false, reason: `page capture failed after load or navigation: ${messageOf(error)}`, ...(error instanceof OffOriginNavigationError ? { offOriginUrl: error.origin } : {}) };
     } finally {
       abort.abort();
     }
+    return result;
   }
 
   async close(_required: Record<string, never>): Promise<void> {
@@ -330,15 +332,15 @@ function toCookieEvidence(cookie: PwCookie, request: ObservePageRequest, phase: 
  * server on an ephemeral port, and it would have been a silently wrong citation in a privacy
  * finding, which is the worst failure this tool has available.
  *
- * Fails closed (`false`, i.e. treated as third-party) on an unparseable base URL: over-reporting
- * third-party makes a screening noisier, under-reporting it makes a screening wrong.
+ * An unparseable base URL must fail closed (treated as third-party): over-reporting third-party
+ * makes a screening noisier, under-reporting it makes a screening wrong. That failure is taken
+ * upstream, before this comparison can run: `observe` renders under the same-origin policy, whose
+ * `assertNavigable` → `isSameOriginUrl` treats an unparseable base as off-origin and refuses the
+ * navigation before any request or cookie is recorded. Every call here therefore has a base that
+ * already parsed, so no local parse guard is needed.
  */
 function sameHost(originBaseUrl: string, hostname: string): boolean {
-  try {
-    return new URL(originBaseUrl).hostname.toLowerCase() === hostname.toLowerCase();
-  } catch {
-    return false;
-  }
+  return new URL(originBaseUrl).hostname.toLowerCase() === hostname.toLowerCase();
 }
 
 /** Strips a single trailing slash so `https://x/pricing` and `https://x/pricing/` do not read as a

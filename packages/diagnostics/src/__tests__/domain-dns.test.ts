@@ -138,3 +138,19 @@ for (const status of ["invalid", "unavailable"] as const) {
     assert.deepEqual(await h.call("domain_tls_status", { domain: "example.com" }), { domain: "example.com", status, httpStatus: null, certificate: { expiresAt: null, issuer: null }, limitation: "Checks certificate trust, hostname, and validity through HTTPS. Certificate issuer and expiry date are not exposed by this client." });
   });
 }
+test("an explicit expectedHost with no saved hosting hostnames is refused naming '(none)', before DNS", async () => {
+  const h = harness({ hosts: [] });
+  await assert.rejects(h.call("domain_check_dns", { domain: "example.com", expectedHost: "app.host.com" }), {
+    name: "DomainDnsInputError",
+    message: "domain_check_dns: choose expectedHost from the saved hosting hostnames: (none).",
+  });
+  assert.equal(h.calls.some(c => c.startsWith("dns:")), false);
+});
+test("records are attributed by the answer's declared type, so a mislabelled answer never counts as the asked type", async () => {
+  // The resolver answers the A question with a TXT-typed answer: its value must not be read as an A record.
+  const mislabelled: DnsQuery = { type: "TXT", status: "ok", records: [{ value: "8.8.8.8", ttl: 60 }] };
+  const h = harness({ hosts: ["app.host.com"], answers: { "example.com:A": mislabelled, "app.host.com:A": a("8.8.8.8") } });
+  const result = await h.call("domain_check_dns", { domain: "example.com" }) as { observed: { A: string[] }; missing: { A: string[] } };
+  assert.deepEqual(result.observed.A, []);
+  assert.deepEqual(result.missing.A, ["8.8.8.8"]);
+});

@@ -96,4 +96,11 @@ describe('PageWorkBudget.release', () => {
     const failure = new Error('browser crashed');
     await expect(budget.release({ close: async () => { throw failure; } })).rejects.toBe(failure);
   });
+  it('honours a cancellation fired synchronously while the work is being started, without waiting out the budget', async () => {
+    const controller = new AbortController();
+    const budget = new PageWorkBudget({ timeoutMs: 60_000 }, { signal: controller.signal });
+    const run = budget.run({ work: () => { controller.abort(new Error('caller navigated away')); return new Promise<never>(() => {}); } });
+    await expect(run).rejects.toThrow('caller navigated away');
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
