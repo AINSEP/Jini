@@ -51,7 +51,11 @@ export function McpUiHost(props: McpUiHostProps) {
       data-mcpui-host=""
       data-mcpui-state={host.state}
       aria-label={title}
-      style={{ display: 'block', width: '100%', height }}
+      // `colorScheme: 'normal'` (inherited by the iframe) keeps the frame see-through on a dark
+      // host. Chrome paints an iframe's canvas OPAQUE (white) whenever the frame element's used
+      // color-scheme differs from its document's, and a surface declares none -- so under a host's
+      // `:root { color-scheme: dark }` every card sat in a white 16px frame (owner, 2026-10-21).
+      style={{ display: 'block', width: '100%', height, colorScheme: 'normal' }}
     >
       {hostTokens !== undefined && <AppRenderer
         // Keyed by the session so replacing the document remounts `AppRenderer` — a fresh

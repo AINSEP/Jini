@@ -48,6 +48,12 @@ describe('McpUiHost', () => {
     expect(wrapper.style.height).toBe('220px');
   });
 
+  it('pins the frame to the normal color scheme so a dark host does not paint an opaque white canvas around the View', () => {
+    const { container } = render(<McpUiHost title="A view" html="<p>hi</p>" sandboxProxyUrl={SANDBOX_URL} />);
+    const wrapper = container.querySelector('[data-mcpui-host]') as HTMLElement;
+    expect(wrapper.style.colorScheme).toBe('normal');
+  });
+
   it('keeps the fixed initial height when autoResize is off, ignoring the initialHeight override', () => {
     const { container } = render(
       <McpUiHost title="A view" html="<p>hi</p>" sandboxProxyUrl={SANDBOX_URL} autoResize={false} initialHeight={140} />,
