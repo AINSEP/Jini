@@ -47,10 +47,11 @@ export function createProvidersController(
       return true;
     } catch {
       store.set({ patch: { error: 'Failed to save provider credentials' } });
-      return false;
     } finally {
       store.set({ patch: { saving: false } });
     }
+    // Reached only through the catch above: the failure is already recorded in `error`.
+    return false;
   }
   return {
     getSnapshot: store.getSnapshot,
