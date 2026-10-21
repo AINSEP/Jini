@@ -48,7 +48,9 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       actor: input.actor,
     });
 
-    return { pluginId: input.pluginId, enabled: written.plugins[input.pluginId]?.enabled ?? input.enabled };
+    // setAgentPluginActivation validates the id and returns the normalized bag it just wrote, which
+    // always holds this plugin's boolean decision, so the read-back entry is guaranteed present.
+    return { pluginId: input.pluginId, enabled: written.plugins[input.pluginId]!.enabled };
   }
 
   return { setAgentPluginEnabled };

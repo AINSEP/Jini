@@ -99,4 +99,45 @@ describe('admin action tools', () => {
     expect(result.refusals).toEqual(["agent tool 'p_acme__account_save' was not loaded: more than one contribution declares it"]);
     expect(registry.list({}).flatMap(row => row.tools)).toEqual([]);
   });
+  test('a hand-built descriptor without an effect projects a write tool', () => {
+    const { effect: _dropped, ...action } = descriptor().actions[0]!;
+    const surface = { ...descriptor(), actions: [action] };
+    const [tool] = buildAdminSurfaceActionTools({ surfaces: [{ pluginId: 'acme', descriptor: surface }], handlersFor: () => ({}), authorize: async () => undefined });
+    expect(tool!.tool.effect).toBe('write');
+  });
+  test('refuses an unauthenticated call before authorization or any handler runs', async () => {
+    const f = fixture();
+    const authorized: unknown[] = [];
+    const tools = buildAdminSurfaceActionTools({ surfaces: [{ pluginId: 'acme', descriptor: f.surface }], handlersFor: f.host.handlersFor,
+      authorize: async input => { authorized.push(input); } });
+    await expect(tools[0]!.tool.handler({ pluginId: 'acme', auth: { workspaceId: 'workspace' }, input: { payload: { value: 'x' } } }))
+      .rejects.toThrow('Admin actions require an authenticated principal.');
+    expect(authorized).toEqual([]);
+    expect(f.calls).toEqual([]);
+  });
+  test('the optional run decorator wraps the same dispatch and can decorate its outcome', async () => {
+    const f = fixture();
+    const tools = buildAdminSurfaceActionTools({ surfaces: [{ pluginId: 'acme', descriptor: f.surface }], handlersFor: f.host.handlersFor,
+      authorize: async () => undefined }, { run: async ({ dispatch }) => ({ decorated: await dispatch() }) });
+    const plain = await f.call({ payload: { value: 'hello' } });
+    expect(await tools[0]!.tool.handler({ pluginId: 'acme', auth: context, input: { payload: { value: 'hello' } } })).toEqual({ decorated: plain });
+    expect(f.calls).toHaveLength(2);
+  });
+  test('a live projected admin tool runs the same handler; an additional tool without an effect discloses as write', async () => {
+    const f = fixture(); const registry = createPluginContributionRegistry({});
+    const projection = createAgentPluginToolProjection({ registry, toolIdFor: pluginToolIdFor, issuedTokens: f.issuedTokens,
+      capabilities: () => fakeCapabilities({ tokenRequests: [], requests: [] }),
+    });
+    const tools = buildAdminSurfaceActionTools({ surfaces: [{ pluginId: 'acme', descriptor: f.surface }], handlersFor: f.host.handlersFor, authorize: async () => undefined });
+    const { effect: _dropped, ...withoutEffect } = tools[0]!.tool;
+    const failing = { pluginId: 'acme', tool: { ...withoutEffect, name: 'account_probe' }, describeAffectedResources: () => { throw new Error('resource lookup failed'); } };
+    const plain = { ...failing, tool: { ...withoutEffect, name: 'account_plain' }, describeAffectedResources: () => ['Account: plain'] };
+    expect(projection.sync({ loaded: [], refusals: [], additionalTools: [...tools, failing, plain] }).refusals).toEqual([]);
+    const snapshot = registry.list({})[0]!;
+    const live = snapshot.tools.find(tool => tool.name === 'account_save')!;
+    expect(await live.handler({ pluginId: 'acme', sdk: snapshot.sdk, auth: { ...context, access: 'admin' }, input: { payload: { value: 'live' } } })).toEqual(await f.call({ payload: { value: 'live' } }));
+    expect(f.calls).toHaveLength(2);
+    expect(await projection.describeAffectedResources({ toolId: 'p_acme__account_plain', input: {} })).toEqual({ effect: 'write', resources: ['Account: plain'] });
+    await expect(projection.describeAffectedResources({ toolId: 'p_acme__account_probe', input: {} })).rejects.toThrow('resource lookup failed');
+  });
 });

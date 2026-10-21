@@ -163,3 +163,68 @@ describe('bootstrap', () => {
     expect(client.bootstrap()).toBe('fresh');
   });
 });
+
+describe('browser-backed defaults (injected scope, no DOM)', () => {
+  function fakeBrowser(optional: { withStyle?: boolean } = {}) {
+    const observers: Array<{ kind: string; callback: () => void; observed: unknown[]; disconnected: boolean }> = [];
+    const observer = (kind: string) => class {
+      readonly entry: (typeof observers)[number];
+      constructor(callback: () => void) { this.entry = { kind, callback, observed: [], disconnected: false }; observers.push(this.entry); }
+      observe(_target: unknown, options?: Readonly<Record<string, boolean>>) { this.entry.observed.push(options ?? 'no-options'); }
+      disconnect() { this.entry.disconnected = true; }
+    };
+    const listeners = new Map<string, () => void>();
+    const body = {
+      scrollHeight: 100, boxHeight: 100.4, margins: { marginTop: '8px', marginBottom: '' },
+      getBoundingClientRect() { return { height: body.boxHeight }; },
+      addEventListener(type: 'mouseover' | 'focusin', listener: () => void) { listeners.set(type, listener); },
+      removeEventListener(type: 'mouseover' | 'focusin', listener: () => void) { if (listeners.get(type) === listener) listeners.delete(type); },
+    };
+    const styles: string[] = [];
+    const root = { style: { setProperty: (name: string, value: string) => { styles.push(`${name}=${value}`); }, removeProperty: () => undefined }, setAttribute: (name: string, value: string) => { styles.push(`@${name}=${value}`); } };
+    const browser = {
+      document: { documentElement: root, body },
+      ResizeObserver: observer('resize'), MutationObserver: observer('mutation'),
+      ...(optional.withStyle === false ? {} : { getComputedStyle: () => body.margins }),
+    };
+    return { browser, body, listeners, observers, styles };
+  }
+  function start(browser: object) {
+    const posted: unknown[] = [];
+    let deliver: (event: AdminSurfaceIncomingMessage) => void = () => undefined;
+    const parent: AdminSurfaceParentPort = { postMessage: (message) => { posted.push(message); } };
+    const client = createAdminSurfaceClient({ parent, listen: (handler) => { deliver = handler; return () => undefined; } }, { browser });
+    deliver({ origin: HOST, source: parent, data: { ...BASE, kind: 'init', mountId: 'm-1', theme: { scheme: 'dark', tokens: { '--jini-primary': '#000' } } } });
+    return { client, heights: () => posted.map(message => (message as { height?: number }).height).filter(height => height !== undefined) };
+  }
+
+  test('measures the body (box height fraction and margins) on start, observers, hover and focus, and stops cleanly', () => {
+    const fake = fakeBrowser();
+    const { client, heights } = start(fake.browser);
+    expect(heights()).toEqual([109]);
+    expect(fake.observers.map(entry => [entry.kind, entry.observed])).toEqual([
+      ['resize', ['no-options']], ['mutation', [{ subtree: true, childList: true, attributes: true, characterData: true }]],
+    ]);
+    fake.body.scrollHeight = 150;
+    fake.body.margins = { marginTop: '', marginBottom: '2px' };
+    fake.observers[0]!.callback();
+    fake.body.scrollHeight = 160;
+    fake.listeners.get('mouseover')!();
+    fake.body.scrollHeight = 170;
+    fake.listeners.get('focusin')!();
+    expect(heights()).toEqual([109, 152, 162, 172]);
+    client.close();
+    expect(fake.observers.every(entry => entry.disconnected)).toBe(true);
+    expect([...fake.listeners.keys()]).toEqual([]);
+  });
+  test('applies the init theme to the document root', () => {
+    const fake = fakeBrowser();
+    start(fake.browser);
+    expect(fake.styles).toEqual(['--jini-primary=#000', 'color-scheme=dark', '@data-jini-scheme=dark']);
+  });
+  test('reports no height without a computed-style source, a body, or observers', () => {
+    for (const browser of [fakeBrowser({ withStyle: false }).browser, { document: {} }, { document: { body: fakeBrowser().body } }, { document: { body: fakeBrowser().body }, ResizeObserver: fakeBrowser().browser.ResizeObserver }]) {
+      expect(start(browser).heights()).toEqual([]);
+    }
+  });
+});

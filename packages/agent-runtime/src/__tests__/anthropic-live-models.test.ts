@@ -201,3 +201,39 @@ describe("claudeAgentDef.fetchModels — the def's own resolution order", () => 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('loadAnthropicLiveModels through an injected catalog port', () => {
+  const key = ['sk', 'ant', 'port', 'fixture'].join('-');
+  const env = { ANTHROPIC_API_KEY: key };
+  const warnings: string[] = [];
+  beforeEach(() => {
+    resetAnthropicLiveModelCacheForTesting();
+    warnings.length = 0;
+    vi.spyOn(console, 'warn').mockImplementation((message: string) => { warnings.push(message); });
+  });
+  afterEach(() => { vi.restoreAllMocks(); resetAnthropicLiveModelCacheForTesting(); });
+
+  it('passes the resolved credential and a timeout signal to the port and returns its models', async () => {
+    const calls: unknown[] = [];
+    const listModels = async (required: { baseUrl: string; apiKey: string; protocol: string }, optional: { signal?: AbortSignal } = {}) => {
+      calls.push({ ...required, hasSignal: optional.signal instanceof AbortSignal });
+      return { ok: true, kind: 'success' as const, latencyMs: 1, models: [{ id: 'claude-live', label: 'Claude Live' }] };
+    };
+    expect(await loadAnthropicLiveModels(env, [], () => 0, { listModels })).toEqual([{ id: 'claude-live', label: 'Claude Live' }]);
+    expect(calls).toEqual([{ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com', apiKey: key, hasSignal: true }]);
+  });
+  it('a failure without detail warns with the kind only and keeps the static list', async () => {
+    const listModels = async () => ({ ok: false, kind: 'auth_failed' as const, latencyMs: 1 });
+    expect(await loadAnthropicLiveModels(env, [], () => 0, { listModels })).toBeNull();
+    expect(warnings).toEqual(['[agent-runtime] live Claude model discovery failed (auth_failed) — keeping the static model list']);
+  });
+  it('a success that carries no models array keeps the static list silently', async () => {
+    const listModels = async () => ({ ok: true, kind: 'success' as const, latencyMs: 1 });
+    expect(await loadAnthropicLiveModels(env, [], () => 0, { listModels })).toBeNull();
+    expect(warnings).toEqual([]);
+  });
+  it('a port that throws is contained and keeps the static list', async () => {
+    const listModels = async () => { throw new Error('socket hang up'); };
+    expect(await loadAnthropicLiveModels(env, [], () => 0, { listModels })).toBeNull();
+  });
+});
