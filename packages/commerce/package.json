@@ -15,14 +15,13 @@
     "entries": {
       ".": "universal",
       "./repo": "node",
-      "./payments": "node",
       "./payments/testkit": "node",
-      "./store": "node",
       "./http": "node",
       "./react": "browser",
       "./tools": "universal",
       "./payments/kernel": "node",
-      "./payments/ledger/sql": "node"
+      "./payments/ledger/sql": "node",
+      "./payments/tools": "universal"
     }
   },
   "type": "module",
@@ -38,11 +37,6 @@
       "import": "./dist/catalog/repo.js",
       "default": "./dist/catalog/repo.js"
     },
-    "./payments": {
-      "types": "./dist/payments/index.d.ts",
-      "import": "./dist/payments/index.js",
-      "default": "./dist/payments/index.js"
-    },
     "./payments/testkit": {
       "types": "./dist/payments/testkit/index.d.ts",
       "import": "./dist/payments/testkit/index.js",
@@ -52,11 +46,6 @@
       "types": "./dist/payments/kernel.d.ts",
       "import": "./dist/payments/kernel.js",
       "default": "./dist/payments/kernel.js"
-    },
-    "./store": {
-      "types": "./dist/store/index.d.ts",
-      "import": "./dist/store/index.js",
-      "default": "./dist/store/index.js"
     },
     "./http": {
       "types": "./dist/http/index.d.ts",
@@ -77,6 +66,11 @@
       "types": "./dist/payments/ledger/sql.d.ts",
       "import": "./dist/payments/ledger/sql.js",
       "default": "./dist/payments/ledger/sql.js"
+    },
+    "./payments/tools": {
+      "types": "./dist/payments/tools/index.d.ts",
+      "import": "./dist/payments/tools/index.js",
+      "default": "./dist/payments/tools/index.js"
     }
   },
   "files": [
@@ -93,7 +87,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts src/payments/__tests__/*.test.ts src/store/__tests__/*.test.ts && vitest run && vitest run -c vitest.kernel.config.ts --maxWorkers=2 --minWorkers=1",
+    "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts && vitest run && vitest run -c vitest.kernel.config.ts --maxWorkers=2 --minWorkers=1",
     "test:react": "vitest run"
   },
   "dependencies": {
