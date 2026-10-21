@@ -205,6 +205,20 @@ function settlementPatch(evidence: PaymentEvidence): Partial<PaymentRecord> {
   };
 }
 
+/** Intent statuses where the shopper has nothing left to do: any stored action is over. */
+const ACTION_OVER: ReadonlySet<string> = new Set(["authorized", "succeeded", "failed", "canceled"]);
+const NO_ACTION = JSON.stringify({ kind: "none" });
+
+/**
+ * The next-action column follows the MERGED intent status, not the observation (R1-F5): once the
+ * intent is past the shopper's step it is cleared, even when the success evidence omits `next`; and
+ * an observation whose status lost the merge (stale) cannot restore or replace the action.
+ */
+function nextActionPatch({ evidence, intentStatus }: { evidence: PaymentEvidence; intentStatus: string }): Partial<PaymentRecord> {
+  if (ACTION_OVER.has(intentStatus)) return { nextActionJson: NO_ACTION };
+  return evidence.next && evidence.status === intentStatus ? { nextActionJson: JSON.stringify(evidence.next) } : {};
+}
+
 function failuresFirst(refunds: readonly RefundEvidence[]): RefundEvidence[] {
   return [...refunds.filter((r) => r.status === "failed"), ...refunds.filter((r) => r.status !== "failed")];
 }
@@ -229,7 +243,7 @@ export async function applyPaymentEvidence(
   }
   const intent: Partial<PaymentRecord> = {
     intentStatus: plan.payment.intentStatus, providerRef: plan.payment.providerRef, capturedMinor: plan.payment.capturedMinor,
-    ...(evidence.next ? { nextActionJson: JSON.stringify(evidence.next) } : {}),
+    ...nextActionPatch({ evidence, intentStatus: plan.payment.intentStatus }),
     ...settlementPatch(evidence),
   };
   ctx.payment = { ...ctx.payment, ...intent } as PaymentRecord;

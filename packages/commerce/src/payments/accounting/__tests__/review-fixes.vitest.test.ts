@@ -81,3 +81,45 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
     });
   });
 }
+
+for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
+  describe(`R1-F5 the next action follows the merged intent status (${kind})`, () => {
+    const redirect = { kind: "redirect" as const, url: "https://pay.test/3ds" };
+    const NONE = JSON.stringify({ kind: "none" });
+    async function fresh() {
+      const ledger = await openLedger(kind);
+      let seq = 0;
+      const deps = { now: () => NOW, newId: () => `id_${++seq}` };
+      await ledger.transaction((tx) => tx.insertPayment({ payment: newPayment() }));
+      const apply = (evidence: PaymentEvidence) =>
+        ledger.transaction((tx) => applyPaymentEvidence({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", source: "webhook", evidence }));
+      const next = async () => (await ledger.transaction((tx) => tx.getPayment({ workspaceId: "ws", mode: "test", id: "pay_1" })))!.nextActionJson;
+      return { apply, next };
+    }
+    const base = { providerRef: "ch_1", correlationId: "pay_1", refunds: [], disputes: [] };
+
+    test("action then success without one: the action is cleared on completion", async () => {
+      const p = await fresh();
+      await p.apply({ ...base, status: "requires_action", next: redirect });
+      expect(await p.next()).toBe(JSON.stringify(redirect));
+      await p.apply({ ...base, status: "succeeded" });
+      expect(await p.next()).toBe(NONE);
+    });
+
+    test("success then a stale action-bearing observation: the action is not restored", async () => {
+      const p = await fresh();
+      await p.apply({ ...base, status: "succeeded" });
+      await p.apply({ ...base, status: "requires_action", next: redirect });
+      expect(await p.next()).toBe(NONE);
+    });
+
+    test("an observation without an action keeps the live one; a newer in-progress status replaces it", async () => {
+      const p = await fresh();
+      await p.apply({ ...base, status: "requires_action", next: redirect });
+      await p.apply({ ...base, status: "requires_action" });
+      expect(await p.next()).toBe(JSON.stringify(redirect));
+      await p.apply({ ...base, status: "pending", next: { kind: "none" } });
+      expect(await p.next()).toBe(NONE);
+    });
+  });
+}

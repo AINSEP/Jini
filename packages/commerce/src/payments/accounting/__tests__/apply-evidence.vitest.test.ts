@@ -180,15 +180,17 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
       expect(await w.payment({ ...snapshot, providerRef: "ch_other" })).toEqual({ kind: "quarantined", reason: "ref-conflict" });
     });
 
-    test("next action and settlement facts are stored on the payment", async () => {
+    test("settlement facts are stored on the payment; a succeeded payment carries no next action", async () => {
       const w = await paidPayment(kind);
       const snapshot = await w.retrieve();
       await w.payment({
         ...snapshot, next: { kind: "redirect", url: "https://pay.test/3ds" },
         settlement: { fee: USD(320), net: USD(9_680), settlement: { minorUnits: 9_100, currency: "EUR" } },
       });
+      // R1-F5: the action follows the merged status, so a redirect on a succeeded intent is not kept
+      // (storing an in-progress action is covered in review-fixes.vitest.test.ts).
       expect((await w.read()).payment).toMatchObject({
-        nextActionJson: JSON.stringify({ kind: "redirect", url: "https://pay.test/3ds" }),
+        nextActionJson: JSON.stringify({ kind: "none" }),
         feeCurrency: "USD", feeMinor: 320, netCurrency: "USD", netMinor: 9_680, settlementCurrency: "EUR", settlementMinor: 9_100,
       });
     });
