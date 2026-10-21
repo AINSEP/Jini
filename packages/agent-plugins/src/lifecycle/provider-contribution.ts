@@ -66,7 +66,7 @@ export function defineProviderContribution<D extends ProviderContributionDescrip
     importErrorReason: optional.importErrorReason ?? 'its module failed to load',
     ...(optional.importRefusalReason === undefined ? {} : { importRefusalReason: optional.importRefusalReason }),
   });
-  const loadOne: typeof executable.load = async (input) => {
+  const loadOne: PluginContributionDefinition<D, LoadedProviderContribution<T>>['load'] = async (input) => {
     const { plugin, descriptor } = input;
     if (typeof descriptor.id !== 'string' || !PROVIDER_ID_PATTERN.test(descriptor.id)) {
       return refusal({ plugin, descriptor, reason: `its id must match ${PROVIDER_ID_PATTERN.source}` });
