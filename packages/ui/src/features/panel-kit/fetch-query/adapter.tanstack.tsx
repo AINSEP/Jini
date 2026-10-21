@@ -189,7 +189,12 @@ function useFetchMutation<TInput, TOutput>({ run }: Pick<FetchMutationOptions<TI
 function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' | 'fetch'>, { staleTime = DEFAULT_STALE_TIME }: Omit<CachedLoaderOptions<T>, 'key' | 'fetch'> = {}): CachedLoader<T> {
   const scope = useScope();
   return useMemo(() => {
-    const options = { queryKey: key, queryFn: () => read({ scope, key, fetch }),
+    // The template every loader query starts from. It carries no `queryFn`: `load` always supplies
+    // its own (for `required.key`), an observer that later mounts on a `replace`-created query
+    // installs the observer's, and an unobserved query is never refetched — so a template `queryFn`
+    // here could never run. Its `structuralSharing` does run: `replace` on a cold key builds the query
+    // from this template and publishes through it.
+    const options = { queryKey: key,
       structuralSharing: (previous: unknown, incoming: unknown) => saveResult<T>({ scope, key, previous, incoming }), staleTime, gcTime: gcTimeFor({ staleTime }) };
     return {
       peek: () => scope.client.getQueryData<PublishedResult<T>>(key)?.value,

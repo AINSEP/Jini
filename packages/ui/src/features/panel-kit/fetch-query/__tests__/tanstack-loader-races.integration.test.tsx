@@ -54,3 +54,25 @@ describe("tanstack adapter races", () => {
     expect(result.current.loader.peek()).toBe("after-write");
   });
 });
+
+describe("tanstack adapter cold replacement", () => {
+  it("publishes a replacement on a never-read key to a later reader without fetching, and refetches with the reader's own fetch", async () => {
+    const { render, screen } = await import("@testing-library/react");
+    const loaderFetch = vi.fn(async () => "from-loader-fetch");
+    const readerFetch = vi.fn(async () => "from-reader-fetch");
+    const key = ["cold-replace"] as const;
+    let loader!: ReturnType<typeof useCachedLoader<string>>;
+    let invalidate!: ReturnType<typeof useInvalidate>;
+    function Loader() { loader = useCachedLoader({ key, fetch: loaderFetch }); invalidate = useInvalidate(); return null; }
+    function Reader() { const query = useFetchQuery({ key, fetch: readerFetch }); return <span data-testid="data">{query.data}</span>; }
+    const view = render(<FetchQueryProvider><Loader /></FetchQueryProvider>);
+    act(() => loader.replace({ value: "replaced" }));
+    expect(loader.peek()).toBe("replaced");
+    view.rerender(<FetchQueryProvider><Loader /><Reader /></FetchQueryProvider>);
+    await waitFor(() => expect(screen.getByTestId("data").textContent).toBe("replaced"));
+    expect(readerFetch).not.toHaveBeenCalled();
+    act(() => invalidate({ key }));
+    await waitFor(() => expect(screen.getByTestId("data").textContent).toBe("from-reader-fetch"));
+    expect(loaderFetch).not.toHaveBeenCalled();
+  });
+});
