@@ -85,18 +85,35 @@ describe('recovering a standing draft on open', () => {
     expect(local.result.current.recoverableDraft?.title).toBe('local');
   });
 
-  it('ignores a server read that settles after the editor closed', async () => {
+  /** A port whose recovery read for each entry id settles only when the test says so. */
+  function perEntryReads() {
+    const reads = new Map<string, ReturnType<typeof deferred<{ autosave: StandingDraftAutosaveSnapshot | null }>>>();
+    const read = (id: string) => { if (!reads.has(id)) reads.set(id, deferred()); return reads.get(id)!; };
+    return { read, port: makePort({ getAutosave: ({ id }) => read(id).promise }).port };
+  }
+
+  it("keeps the new entry's draft when the previous entry's read resolves after switching", async () => {
+    const { read, port } = perEntryReads();
+    const hook = mount({ port, backup: makeBackup(), entryId: 'old' });
+    hook.rerender({ entryId: 'new' });
+    await act(async () => { read('new').resolve({ autosave: snapshot('2026-01-03T00:00:00.000Z', 'new server') }); });
+    expect(hook.result.current.recoverableDraft?.title).toBe('new server');
+    await act(async () => { read('old').resolve({ autosave: snapshot('2026-01-04T00:00:00.000Z', 'old server') }); });
+    expect(hook.result.current.recoverableDraft?.title).toBe('new server');
+  });
+
+  it("never offers the previous entry's local backup when that entry's read fails after switching", async () => {
     const backup = makeBackup();
-    const ok = deferred<{ autosave: StandingDraftAutosaveSnapshot | null }>();
-    const first = mount({ port: makePort({ getAutosave: () => ok.promise }).port, backup });
-    first.unmount();
-    await act(async () => { ok.resolve({ autosave: snapshot('2026-01-03T00:00:00.000Z') }); });
-    expect(first.result.current.recoverableDraft).toBeNull();
-    const failed = deferred<{ autosave: StandingDraftAutosaveSnapshot | null }>();
-    const second = mount({ port: makePort({ getAutosave: () => failed.promise }).port, backup });
-    second.unmount();
-    await act(async () => { failed.reject(new Error('late')); });
-    expect(second.result.current.recoverableDraft).toBeNull();
+    backup.write({ entryId: 'old', draft: draft({ title: 'old local' }), savedAt: '2026-01-02T00:00:00.000Z' }, { principalId: 'operator' });
+    const { read, port } = perEntryReads();
+    const hook = mount({ port, backup, entryId: 'old' });
+    hook.rerender({ entryId: 'new' });
+    await act(async () => { read('new').resolve({ autosave: null }); });
+    expect(hook.result.current.recoverableDraft).toBeNull();
+    await act(async () => { read('old').reject(new Error('late')); });
+    expect(hook.result.current.recoverableDraft).toBeNull();
+    // The old entry's mirror stays recoverable under its own key.
+    expect(backup.read({ entryId: 'old' }, { principalId: 'operator' })?.title).toBe('old local');
   });
 
   it('annotates the recoverable draft with the host-supplied server timestamp and can be dismissed', async () => {
