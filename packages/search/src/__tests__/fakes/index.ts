@@ -27,7 +27,7 @@ type Method = 'ensureIndex' | 'dropIndex' | 'upsert' | 'remove' | 'query' | 'rev
 type Override = (args: unknown) => Promise<ProviderResult<unknown>>;
 
 export interface FakeProvider {
-  readonly provider: SearchProvider;
+  provider: SearchProvider;
   /** What the fake backend holds per encoded key. */
   readonly held: Map<string, { revision: number; deleted: boolean }>;
   readonly calls: { method: Method; ctx: SearchProviderContext; args: unknown }[];
