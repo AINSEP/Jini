@@ -9,3 +9,7 @@ export {
 } from "./migrations/index.js";
 export { PAYMENTS_LEDGER_ID, paymentsLedger } from "./migrations/0001_payments_ledger.js";
 export { PAYMENTS_OPERATOR_ACTIONS_ID, paymentsOperatorActions } from "./migrations/0002_payments_operator_actions.js";
+export {
+  LEGACY_LIPAY_IMPORT_ID, legacyLipayImport, readLegacyLipayHistory,
+  type LegacyLipayHistory, type LegacyLipayMapping, type LegacyLipayScope,
+} from "./migrations/0005_legacy_lipay_import.js";
