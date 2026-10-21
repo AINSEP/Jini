@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test, expect, vi } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import type { ProviderToolDescriptor as ToolDescriptor, ProviderToolTurnInput, ProviderToolTurnOptions, ProviderProtocol as ByokProtocol, ProviderToolResult as ByokToolResult, ProviderTurnAdapters, ProviderToolCall, ProviderToolSnapshotOptions, ProviderTurnEvent } from '../tool-turn.js';
 import { runProviderToolTurn, providerTurnAdapters, ProviderToolProjectionError } from '../tool-turn.js';
 import { startStubProviderServer, runFixtureTurn as runByokProviderTurn } from './transport-fixture.js';
@@ -593,4 +593,89 @@ test('concurrent turns keep snapshot, name and schema decoder isolated', async (
   expect(await Promise.all([run('one.tool'), run('two.tool')])).toEqual([
     [{ id: 'call', name: 'one.tool', input: {} }], [{ id: 'call', name: 'two.tool', input: {} }],
   ]);
+});
+
+describe('adapter port plumbing per protocol', () => {
+  const marker = { type: 'fabricated_role_marker', marker: 'Human:', messageId: 'm1' } as const;
+  const unknownToolUse = { type: 'tool_use', id: 'u1', name: 'never_published', input: { raw: '1' } } as const;
+  function turnInput(protocol: ByokProtocol, adapters: ProviderTurnAdapters, events: unknown[]): ProviderToolTurnInput {
+    return { protocol, adapters, apiKey: 'key', model: 'model', system: 'sys', messages: [{ role: 'user', content: 'q' }, { role: 'assistant', content: 'a' }], tools: [], executeTool: async () => ({ content: 'ok' }), onEvent: event => events.push(event) };
+  }
+  // Every adapter: drops the fabricated-role marker, passes an unpublished tool_use through
+  // undecoded, renders a non-text tool result as a readable summary, and reports no stop reason.
+  const expectedPassThrough = { type: 'tool_use', id: 'u1', name: 'never_published', input: { raw: '1' } };
+
+  test('anthropic: forwards signal and turn bound, renders a URL-sourced image block verbatim, and reports a null stop reason', async () => {
+    const controller = new AbortController();
+    const events: unknown[] = [];
+    let seen: Record<string, unknown> = {};
+    const anthropic: ProviderTurnAdapters['anthropic'] = async (required, optional = {}) => {
+      seen = { ...optional, ...required };
+      required.onEvent(marker);
+      required.onEvent(unknownToolUse);
+      required.onEvent({ type: 'tool_result', toolUseId: 'u1', content: [{ type: 'image', source: { type: 'url', url: 'https://img.test/a.png' } }], isError: false });
+      return { stopReason: null, toolTurns: 0 };
+    };
+    const result = await runProviderToolTurn(turnInput('anthropic', { ...providerTurnAdapters, anthropic }, events), { signal: controller.signal, maxToolTurns: 3 });
+    expect(seen).toMatchObject({ signal: controller.signal, maxToolTurns: 3, maxTokens: 8192 });
+    expect(events).toEqual([expectedPassThrough, { type: 'tool_result', toolUseId: 'u1', content: '{"type":"image","source":{"type":"url","url":"https://img.test/a.png"}}', isError: false }]);
+    expect(result).toEqual({ stopReason: null, toolTurns: 0 });
+  });
+
+  test.each(['openai', 'azure'] as const)('%s: forwards signal, token and turn bounds and summarizes a URL image part', async protocol => {
+    const controller = new AbortController();
+    const events: unknown[] = [];
+    let seen: Record<string, unknown> = {};
+    const adapter = async (required: { onEvent: (event: never) => void }, optional: object = {}) => {
+      seen = { ...optional, ...required };
+      required.onEvent(marker as never);
+      required.onEvent(unknownToolUse as never);
+      required.onEvent({ type: 'tool_result', toolUseId: 'u1', content: [{ type: 'text', text: 'caption' }, { type: 'image_url', image_url: { url: 'https://img.test/b.png' } }], isError: false } as never);
+      return { finishReason: null, toolTurns: 0 };
+    };
+    const adapters: ProviderTurnAdapters = { ...providerTurnAdapters, [protocol]: adapter };
+    const result = await runProviderToolTurn(turnInput(protocol, adapters, events), { baseUrl: 'https://resource.test', signal: controller.signal, maxTokens: 77, maxToolTurns: 4 });
+    expect(seen).toMatchObject({ signal: controller.signal, maxTokens: 77, maxToolTurns: 4 });
+    expect(events).toEqual([expectedPassThrough, { type: 'tool_result', toolUseId: 'u1', content: 'caption\n[image: url]', isError: false }]);
+    expect(result).toEqual({ stopReason: null, toolTurns: 0 });
+  });
+
+  test('google: maps assistant history to the model role, forwards the turn bound, and summarizes inline image data', async () => {
+    const events: unknown[] = [];
+    let seen: Record<string, unknown> = {};
+    const google: ProviderTurnAdapters['google'] = async (required, optional = {}) => {
+      seen = { ...optional, ...required };
+      required.onEvent(marker);
+      required.onEvent(unknownToolUse);
+      required.onEvent({ type: 'tool_result', toolUseId: 'u1', content: [{ inlineData: { mimeType: 'image/webp', data: 'AAAA' } }], isError: false });
+      return { finishReason: null, toolTurns: 0 };
+    };
+    const result = await runProviderToolTurn(turnInput('google', { ...providerTurnAdapters, google }, events), { maxToolTurns: 5 });
+    expect((seen.contents as Array<{ role: string }>).map(content => content.role)).toEqual(['user', 'model']);
+    expect(seen.maxToolTurns).toBe(5);
+    expect(events).toEqual([expectedPassThrough, { type: 'tool_result', toolUseId: 'u1', content: '[image: image/webp]', isError: false }]);
+    expect(result).toEqual({ stopReason: null, toolTurns: 0 });
+  });
+
+  // Adapters are a host-supplied port; a non-conforming JavaScript adapter must not crash the
+  // event mapping when it reports a structured (non-array) tool result.
+  test('a non-array structured tool result from a host adapter is rendered as JSON', async () => {
+    const events: unknown[] = [];
+    const openai: ProviderTurnAdapters['openai'] = async (required) => {
+      required.onEvent({ type: 'tool_result', toolUseId: 'u2', content: { rows: 2 } as never, isError: false });
+      return { finishReason: 'stop', toolTurns: 1 };
+    };
+    await runProviderToolTurn(turnInput('openai', { ...providerTurnAdapters, openai }, events));
+    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'u2', content: '{"rows":2}', isError: false }]);
+  });
+
+  test('a tool whose pinned wire name changes between snapshots fails closed on refresh', async () => {
+    let wireName = 'first_name';
+    const adapters = projectionAdapters(async port => {
+      wireName = 'second_name';
+      expect(() => port.getTools()).toThrow(ProviderToolProjectionError);
+    });
+    await runProviderToolTurn({ ...projectionInput('openai', adapters) }, { getToolSnapshot: () => [{ ...closedTool('renamed'), wireName }] });
+    expect(wireName).toBe('second_name');
+  });
 });

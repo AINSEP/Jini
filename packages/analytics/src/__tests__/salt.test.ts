@@ -44,3 +44,21 @@ test("deriveDailySalt rejects an empty workspaceId", () => {
 test("deriveDailySalt rejects an empty utcDate", () => {
   assert.throws(() => deriveDailySalt({ ...{ rootKeySeed: ROOT_KEY_SEED, workspaceId: "workspace-1", utcDate: "" }, saltContext: SALT_CONTEXT }), RangeError);
 });
+
+test("deriveDailySalt rejects an empty info prefix or extraction salt, string or bytes", () => {
+  const base = { rootKeySeed: ROOT_KEY_SEED, workspaceId: "workspace-1", utcDate: "2026-07-10" };
+  for (const saltContext of [
+    { ...SALT_CONTEXT, infoPrefix: "" },
+    { ...SALT_CONTEXT, extractionSalt: "" },
+    { ...SALT_CONTEXT, extractionSalt: new Uint8Array(0) },
+  ]) {
+    assert.throws(() => deriveDailySalt({ ...base, saltContext }), new RangeError("deriveDailySalt: salt context must not be empty"));
+  }
+});
+
+test("deriveDailySalt accepts a byte-array extraction salt equal to its string form", () => {
+  const base = { rootKeySeed: ROOT_KEY_SEED, workspaceId: "workspace-1", utcDate: "2026-07-10" };
+  const fromString = deriveDailySalt({ ...base, saltContext: SALT_CONTEXT });
+  const fromBytes = deriveDailySalt({ ...base, saltContext: { ...SALT_CONTEXT, extractionSalt: Buffer.from(SALT_CONTEXT.extractionSalt) } });
+  assert.equal(fromBytes.equals(fromString), true);
+});

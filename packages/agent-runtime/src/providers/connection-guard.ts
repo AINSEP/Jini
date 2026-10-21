@@ -254,7 +254,8 @@ const PINNED_FETCH_IDLE_TIMEOUT_MS = 300_000;
  * (`lookup` option simply omitted). That is intentional, not a gap: an IP literal has nothing left
  * to re-resolve, and loopback literals are the documented carve-out, outside this threat model.
  */
-export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; init: PinnedFetchInit; pinnedAddress: DnsLookupAddress | undefined }
+export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; init: PinnedFetchInit; pinnedAddress: DnsLookupAddress | undefined },
+  { idleTimeoutMs = PINNED_FETCH_IDLE_TIMEOUT_MS }: { idleTimeoutMs?: number } = {},
 ): Promise<PinnedFetchResponse> {
   const parsed = new URL(url);
   const isHttps = parsed.protocol === 'https:';
@@ -303,7 +304,10 @@ export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; i
           : {}),
       },
       (res) => {
-        const status = res.statusCode ?? 0;
+        // `IncomingMessage.statusCode` is typed optional only because the same class also models
+        // server-side requests; a response handed to a `http(s).request` callback always carries
+        // one, so no fallback branch is needed.
+        const status = Number(res.statusCode);
         // A server may compress despite `accept-encoding: identity`. Nothing downstream
         // decompresses, so failing loudly here is strictly better than handing back bytes the
         // caller will misparse: a hard error names the cause, silent garbage does not.
@@ -362,8 +366,8 @@ export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; i
     // Fires on socket INACTIVITY (no bytes sent or received), covering connect hangs, a
     // provider that accepts the connection and then never speaks, and a body that stalls
     // mid-stream — not on total request duration, matching `setTimeout`'s own semantics.
-    req.setTimeout(PINNED_FETCH_IDLE_TIMEOUT_MS, () => {
-      req.destroy(new Error(`pinnedFetch: no activity for ${PINNED_FETCH_IDLE_TIMEOUT_MS}ms`));
+    req.setTimeout(idleTimeoutMs, () => {
+      req.destroy(new Error(`pinnedFetch: no activity for ${idleTimeoutMs}ms`));
     });
 
     req.on('error', reject);

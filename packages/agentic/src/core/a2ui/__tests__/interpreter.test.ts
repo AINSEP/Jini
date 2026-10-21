@@ -1,5 +1,6 @@
 import { createIds } from './fixture-ports.js';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import type { ParseFailure } from '../agent-to-renderer.js';
 import { createLabCatalog } from '../catalog.js';
 import type { LocalFunctionAction } from '../common-types.js';
@@ -215,6 +216,18 @@ describe('createA2uiInterpreter — adversarial: catalog enforcement (component 
     expect(error.path).toBe('/components/0/text');
     expect(error.message).toContain('text');
     expect(error.message).not.toMatch(/validation: Required$/);
+  });
+
+  it('labels a whole-object (root-level) catalog refusal as "(root)" since no single field is to blame', () => {
+    const lab = createLabCatalog({});
+    const rangeOrValue = z.object({ value: z.number().optional(), range: z.number().optional() }).refine(props => props.value !== undefined || props.range !== undefined, 'needs a value or a range');
+    const catalog = { ...lab, components: new Map([...lab.components, ['Gauge', { kind: 'text' as const, propsSchema: rangeOrValue }]]) };
+    const interpreter = createA2uiInterpreter({ catalog, clock: { nowMs: () => 0 }, ids: createIds({}) });
+    interpreter.applyAgentMessage({ raw: createSurfaceMsg('s1') });
+    const result = interpreter.applyAgentMessage({ raw: { version: 'v1.0', updateComponents: { surfaceId: 's1', components: [{ id: 'root', component: 'Gauge' }] } } });
+    const error = (result.rendererMessages[0] as { error: { path: string; message: string } }).error;
+    expect(error.path).toBe('/components/0/');
+    expect(error.message).toBe('Component "root" (Gauge) failed catalog validation: (root): needs a value or a range');
   });
 
   it('a later updateComponents can overwrite an earlier component definition for the same id', () => {

@@ -31,4 +31,11 @@ describe('provider catalog pagination through injected HTTP', () => {
     expect(result.ok).toBe(false); expect(result.detail).toBe('Provider repeated a pagination cursor.');
     expect(JSON.stringify(result)).not.toContain('private-cursor');
   });
+  it('treats a scalar JSON body as a single page with no models and no pagination envelope', async () => {
+    let calls = 0;
+    const fetchFn: typeof fetch = async () => { calls += 1; return new Response('"maintenance"', { status: 200 }); };
+    const result = await listProviderModels({ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com', apiKey: 'test-secret' }, { dnsLookup: noDns, fetchFn });
+    expect(calls).toBe(1);
+    expect(result).toMatchObject({ ok: false, kind: 'no_models', detail: 'Provider returned no usable text-generation models.' });
+  });
 });

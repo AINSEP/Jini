@@ -101,3 +101,17 @@ test("list() returns a defensive copy — mutating the result does not affect in
 
   assert.equal((await sink.list({})).length, 1);
 });
+
+test("capabilities() admits batching but never claims durability for a process-local buffer", () => {
+  const sink = new LocalBufferSink({});
+  assert.deepEqual(sink.capabilities({}), { durable: false, batch: true });
+});
+
+test("acceptBatch() appends every row in order after previously accepted hits", async () => {
+  const sink = new LocalBufferSink({});
+  await sink.accept({ hit: makeHit("/first", "2026-07-10T12:00:00.000Z") });
+  await sink.acceptBatch({ hits: [makeHit("/b1", "2026-07-10T12:01:00.000Z"), makeHit("/b2", "2026-07-10T12:02:00.000Z")] });
+  await sink.acceptBatch({ hits: [] });
+  assert.deepEqual(sink.all({}).map((hit) => hit.path), ["/first", "/b1", "/b2"]);
+  assert.deepEqual((await sink.list({}, { limit: 2 })).map((hit) => hit.path), ["/b2", "/b1"]);
+});

@@ -36,3 +36,24 @@ test("declared size mismatch releases the stream and ZIP handle on failure", asy
   await expect(readSkillArchive({ base64: "", archiveReader: f.reader })).rejects.toThrow("Skill archive file size does not match its metadata.");
   expect(f.counts()).toEqual({ reads: 1, closes: 1, destroys: 1 });
 });
+
+test("directory entries are classified by their trailing slash, whether or not the producer set a mode", async () => {
+  const entries = [
+    { fileName: "refs/", uncompressedSize: 0, externalFileAttributes: 0o040755 << 16 },
+    { fileName: "dos-made/", uncompressedSize: 0, externalFileAttributes: 0 },
+    { fileName: "dos-made/notes.md", uncompressedSize: 5, externalFileAttributes: 0 },
+  ];
+  const reader = createYauzlSkillArchiveReader({ yauzl: {
+    async fromBufferPromise() {
+      return {
+        eachEntry: async function* () { yield* entries; },
+        async openReadStreamPromise() { return Object.assign((async function* () { yield Buffer.from("notes"); })(), { destroy: () => {} }); },
+        close: () => {},
+      };
+    },
+  } });
+  const opened = await reader.open({ bytes: new Uint8Array() });
+  const kinds: Array<[string, string]> = [];
+  for await (const entry of opened.entries) kinds.push([entry.path, entry.kind]);
+  expect(kinds).toEqual([["refs/", "directory"], ["dos-made/", "directory"], ["dos-made/notes.md", "file"]]);
+});

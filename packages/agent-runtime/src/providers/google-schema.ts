@@ -217,36 +217,30 @@ function findNumericEnumPathsValue(schema: unknown, prefix: readonly string[] = 
   }
   return paths;
 }
-function readAtGooglePath(input: Record<string, unknown>, segments: readonly string[]): unknown {
-  let current: unknown = input;
-  for (const segment of segments) {
-    if (!isRecord(current))
-      return undefined;
-    current = current[segment];
-  }
-  return current;
+function coerceNumericEnumString(value: unknown): unknown {
+  return typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)) ? Number(value) : value;
 }
-function writeAtGooglePath(input: Record<string, unknown>, segments: readonly string[], value: unknown): Record<string, unknown> {
-  const [head, ...rest] = segments;
-  if (head === undefined)
-    return input;
-  if (rest.length === 0)
-    return { ...input, [head]: value };
-  const child = input[head];
-  if (!isRecord(child))
-    return input;
-  return { ...input, [head]: writeAtGooglePath(child, rest, value) };
+/** Walks `segments` and coerces the leaf in one pass, copying only the records on a changed path so
+ * the incoming argument is never mutated. A hop through a non-record leaves the input as-is. The
+ * earlier separate read/write walkers carried guards for "no segments" and "intermediate is not a
+ * record" on the write side that the read side had already ruled out (`String#split` always yields
+ * at least one segment, and a write only followed a read that reached a string leaf). */
+function coerceAtGooglePath(node: unknown, segments: readonly string[]): unknown {
+  if (segments.length === 0)
+    return coerceNumericEnumString(node);
+  if (!isRecord(node))
+    return node;
+  const [head, ...rest] = segments as readonly [string, ...string[]];
+  const child = node[head];
+  const coerced = coerceAtGooglePath(child, rest);
+  return coerced === child ? node : { ...node, [head]: coerced };
 }
 function coerceNumericEnumStringsToNumbersValue(input: unknown, paths: readonly string[]): unknown {
   if (paths.length === 0 || !isRecord(input))
     return input;
-  let result: Record<string, unknown> = input;
+  let result: unknown = input;
   for (const path of paths) {
-    const segments = path.split(".");
-    const current = readAtGooglePath(result, segments);
-    if (typeof current === "string" && current.trim().length > 0 && Number.isFinite(Number(current))) {
-      result = writeAtGooglePath(result, segments, Number(current));
-    }
+    result = coerceAtGooglePath(result, path.split("."));
   }
   return result;
 }

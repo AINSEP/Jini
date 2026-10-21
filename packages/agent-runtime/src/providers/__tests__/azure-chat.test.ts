@@ -541,6 +541,33 @@ describe('unit: executeAzureToolCalls', () => {
     expect(outcome.toolResultMessages[0]).toMatchObject({ role: 'tool' });
   });
 
+  it('forwards a plain https image URL untouched: only data URIs are validated because Azure fetches URLs itself', async () => {
+    const urlPart: AzureContentPart = { type: 'image_url', image_url: { url: 'https://example.test/shot.png' } };
+    const executeTool = vi.fn().mockResolvedValue({ content: [urlPart] });
+    const events: AzureTurnEvent[] = [];
+    const outcome = await executeAzureToolCalls({ executeTool, calls: [{ id: 'c1', name: 'shot', input: {} }], onEvent: (e) => events.push(e) });
+    expect(events[0]).toMatchObject({ toolUseId: 'c1', isError: false });
+    expect(outcome.followUpParts[1]).toEqual(urlPart);
+  });
+
+  it('rejects an image data URI above the 20 MB base64 guard as an isError tool result', async () => {
+    const oversized = 'A'.repeat(20 * 1024 * 1024 * 4 / 3 + 8);
+    const executeTool = vi.fn().mockResolvedValue({ content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${oversized}` } }] });
+    const events: AzureTurnEvent[] = [];
+    const outcome = await executeAzureToolCalls({ executeTool, calls: [{ id: 'c1', name: 'shot', input: {} }], onEvent: (e) => events.push(e) });
+    expect(events[0]).toMatchObject({ isError: true });
+    expect((events[0] as { content: string }).content).toContain("image exceeds this adapter's 20 MB base64 size guard");
+    expect(outcome.followUpParts).toEqual([]);
+  });
+
+  it('rejects a tool result carrying more than 1500 parts before inspecting any of them', async () => {
+    const parts: AzureContentPart[] = Array.from({ length: 1501 }, () => ({ type: 'text', text: 'x' }));
+    const executeTool = vi.fn().mockResolvedValue({ content: parts });
+    const events: AzureTurnEvent[] = [];
+    await executeAzureToolCalls({ executeTool, calls: [{ id: 'c1', name: 'many', input: {} }], onEvent: (e) => events.push(e) });
+    expect(events[0]).toEqual({ type: 'tool_result', toolUseId: 'c1', content: 'tool result rejected: exceeds the 1500-image-per-request guard (1501 parts)', isError: true });
+  });
+
   it('runs multiple calls in order, batching every tool message before any image follow-up', async () => {
     const imagePart: AzureContentPart = { type: 'image_url', image_url: { url: 'data:image/png;base64,YQ==' } };
     const executeTool = vi.fn().mockResolvedValueOnce({ content: 'first' }).mockResolvedValueOnce({ content: [imagePart] });

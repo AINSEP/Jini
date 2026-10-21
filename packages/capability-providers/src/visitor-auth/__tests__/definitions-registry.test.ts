@@ -96,6 +96,36 @@ describe('createVisitorAuthProviderRegistry', () => {
     );
   });
 
+  describe('refuses each malformed definition with a message naming the problem', () => {
+    const valid: VisitorAuthProviderDefinition = {
+      id: 'custom',
+      label: 'Custom',
+      protocol: 'oauth2',
+      credentialSchema: [{ key: 'clientId', label: 'Client ID', kind: 'public', required: true }],
+      defaultScopes: ['profile'],
+      implementation: 'metadata-only',
+    };
+    it.each([
+      { name: 'no credential fields', definition: { ...valid, credentialSchema: [] }, message: 'visitor-auth provider "custom" must declare at least one credential field' },
+      { name: 'a blank credential key', definition: { ...valid, credentialSchema: [{ ...valid.credentialSchema[0]!, key: '  ' }] }, message: 'visitor-auth provider "custom" has an invalid or duplicate credential field' },
+      { name: 'a blank credential label', definition: { ...valid, credentialSchema: [{ ...valid.credentialSchema[0]!, label: '' }] }, message: 'visitor-auth provider "custom" has an invalid or duplicate credential field' },
+      { name: 'a credential key repeated after trimming', definition: { ...valid, credentialSchema: [valid.credentialSchema[0]!, { ...valid.credentialSchema[0]!, key: ' clientId ' }] }, message: 'visitor-auth provider "custom" has an invalid or duplicate credential field' },
+      { name: 'a blank default scope', definition: { ...valid, defaultScopes: ['profile', ' '] }, message: 'visitor-auth provider "custom" has an invalid or duplicate default scope' },
+      { name: 'a default scope repeated after trimming', definition: { ...valid, defaultScopes: ['email', ' email'] }, message: 'visitor-auth provider "custom" has an invalid or duplicate default scope' },
+    ])('$name', ({ definition, message }) => {
+      const registry = createVisitorAuthProviderRegistry({}, {});
+      expect(() => registry.register({ definition })).toThrowError(expect.objectContaining({ code: 'invalid-provider', message }));
+      expect(registry.has({ providerId: 'custom' })).toBe(false);
+    });
+
+    it('stores trimmed ids, labels, keys and scopes', () => {
+      const registry = createVisitorAuthProviderRegistry({}, {});
+      registry.register({ definition: { ...valid, id: ' custom ', label: ' Custom ', credentialSchema: [{ ...valid.credentialSchema[0]!, key: ' clientId ', label: ' Client ID ' }], defaultScopes: [' profile '] } });
+      const stored = registry.get({ providerId: 'custom' });
+      expect(stored).toMatchObject({ id: 'custom', label: 'Custom', credentialSchema: [{ key: 'clientId', label: 'Client ID' }], defaultScopes: ['profile'] });
+    });
+  });
+
   it('creates isolated registries rather than shared ambient state', () => {
     const first = createVisitorAuthProviderRegistry({}, {});
     const second = createVisitorAuthProviderRegistry({}, {});

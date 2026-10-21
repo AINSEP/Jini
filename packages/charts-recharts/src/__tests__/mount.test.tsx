@@ -67,4 +67,71 @@ describe('standalone Recharts vanilla lifecycle', () => {
     expect(errors[0]).toMatchObject({ message: 'render data failed' });
     act(() => instance.destroy({})); element.remove();
   });
+  it('forwards the series label and color plus the chart title and description into the rendered figure', async () => {
+    const element = document.createElement('div'); document.body.append(element);
+    let instance!: ChartInstance;
+    const described: ChartSpec = { ...spec, title: 'Revenue', description: 'Monthly revenue in USD', series: [{ key: 'revenue', label: 'Revenue (USD)', color: '#123456' }] };
+    act(() => { instance = mount({ element, spec: described, theme: { mode: 'light' } }); });
+    await instance.ready;
+    expect(element.querySelector('figure')?.getAttribute('aria-label')).toBe('Revenue');
+    expect(element.querySelector('figcaption')?.textContent).toContain('Monthly revenue in USD');
+    expect(element.querySelector('.jini-chart-legend')?.textContent).toContain('Revenue (USD)');
+    expect(element.querySelector('.recharts-bar-rectangle path')?.getAttribute('fill')).toBe('#123456');
+    act(() => instance.destroy({})); element.remove();
+  });
+
+  it('labels a pie slice whose category is missing with an empty name, never "undefined"', async () => {
+    const element = document.createElement('div'); document.body.append(element);
+    let instance!: ChartInstance;
+    const pie: ChartSpec = { kind: 'pie', data: [{ name: 'Draft', value: 2 }, { value: 3 }], categoryKey: 'name', series: [{ key: 'value' }] };
+    act(() => { instance = mount({ element, spec: pie, theme: { mode: 'light' } }); });
+    await instance.ready;
+    expect(element.querySelectorAll('.recharts-pie-sector')).toHaveLength(2);
+    expect(element.textContent).not.toContain('undefined');
+    act(() => instance.destroy({})); element.remove();
+  });
+
+  it('rejects the pending acknowledgement when the first render throws before committing', async () => {
+    const element = document.createElement('div'); document.body.append(element);
+    const errors: unknown[] = [];
+    // The pie projection reads each row's category while the provider renders, before any commit.
+    const pie: ChartSpec = { kind: 'pie', data: [{ get name(): string { throw new Error('category read failed'); }, value: 1 }], categoryKey: 'name', series: [{ key: 'value' }] };
+    let instance!: ChartInstance;
+    act(() => { instance = mount({ element, spec: pie, theme: { mode: 'light' } }, { onError: (error) => errors.push(error) }); });
+    await expect(instance.ready).rejects.toThrow('category read failed');
+    expect(errors).toHaveLength(1);
+    act(() => instance.destroy({})); element.remove();
+  });
+
+  it('settles a superseded render, refuses an unsupported update, and ignores updates after destroy', async () => {
+    const element = document.createElement('div'); document.body.append(element);
+    let instance!: ChartInstance;
+    let superseding: void | Promise<void> = undefined;
+    act(() => {
+      instance = mount({ element, spec, theme: { mode: 'light' } });
+      superseding = instance.update({ spec: { ...spec, data: [{ month: 'Mar', revenue: 90 }] }, theme: { mode: 'light' } });
+    });
+    await instance.ready;
+    await superseding;
+    expect(element.querySelectorAll('.recharts-bar-rectangle')).toHaveLength(1);
+    expect(() => instance.update({ spec: { ...spec, kind: 'sankey' } as ChartSpec, theme: { mode: 'light' } })).toThrow('Unsupported Recharts chart specification.');
+    act(() => instance.destroy({}));
+    await expect(instance.update({ spec, theme: { mode: 'dark' } })).resolves.toBeUndefined();
+    expect(element.children).toHaveLength(0);
+    expect(element.dataset.chartTheme).not.toBe('dark');
+    element.remove();
+  });
+
+  it('resolves a still-pending first render when destroyed before it commits, and destroy is idempotent', async () => {
+    const element = document.createElement('div'); document.body.append(element);
+    let instance!: ChartInstance;
+    act(() => {
+      instance = mount({ element, spec, theme: { mode: 'light' } });
+      instance.destroy({});
+      instance.destroy({});
+    });
+    await expect(instance.ready).resolves.toBeUndefined();
+    expect(element.children).toHaveLength(0);
+    element.remove();
+  });
 });

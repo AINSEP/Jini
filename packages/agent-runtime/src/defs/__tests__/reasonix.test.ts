@@ -1,6 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 import { setAcpModelProbe, type AcpModelProbe } from '../../acp-model-probe.js';
 import type { RuntimeAgentDef } from '../../types.js';
 import { reasonixAgentDef } from '../reasonix.js';
@@ -104,5 +105,28 @@ describe('reasonixHome() env/platform resolution (via fresh module re-import)', 
     expect(mod.reasonixAgentDef.env?.REASONIX_HOME).toBe(
       path.join(os.homedir(), 'AppData', 'Roaming', 'reasonix'),
     );
+  });
+});
+
+describe('reasonixAgentDef.discoverModels', () => {
+  it('falls back to the concrete static fallback models (minus the default sentinel) when every probe is offline', async () => {
+    const catalog = await reasonixAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toEqual(['deepseek-v4-pro', 'deepseek-v4-flash']);
+  });
+});
+
+describe('reasonixAgentDef.fetchModels with an explicitly injected probe', () => {
+  it('uses the acpModelProbe passed in the options instead of the process-wide probe', async () => {
+    const seen: string[][] = [];
+    const injected: AcpModelProbe = {
+      detectModels: async (required) => {
+        seen.push(required.args);
+        return [{ id: 'injected', label: 'injected' }];
+      },
+    };
+    const models = await reasonixAgentDef.fetchModels!({ resolvedBin: '/bin/agent', env: {} }, { acpModelProbe: injected });
+    expect(models).toEqual([{ id: 'injected', label: 'injected' }]);
+    expect(seen).toEqual([['acp']]);
   });
 });
