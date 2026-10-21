@@ -69,46 +69,70 @@ export async function requestOAuthToken(requiredArgs: OAuthRequiredArgs<TokenReq
                 delete body.id_token;
             },
         });
-        const grantType = params.get('grant_type') ?? '';
-        params.delete('grant_type');
-        const tokens = grantType === 'refresh_token'
-            ? await refreshTokenGrant(config, params.get('refresh_token') ?? '', params)
-            : await genericGrantRequest(config, grantType, params);
-        return {
-            accessToken: tokens.access_token, ...(idToken === undefined ? {} : { idToken }),
-            refreshToken: tokens.refresh_token ?? null, tokenType: tokenType ?? tokens.token_type,
-            scopes: tokens.scope?.split(/[\s,]+/).filter(Boolean) ?? [],
-            expiresAt: tokens.expires_in === undefined || tokens.expires_in <= 0 ? null
-                : new Date(Date.parse(nowIso({ clock })) + tokens.expires_in * 1000).toISOString(),
-        };
+        const tokens = await executeTokenGrant({ config, params });
+        return projectTokenSet({ tokens, idToken, tokenType, clock });
     } catch (error) {
         if (guardedFetch.failure) throw guardedFetch.failure.error;
-        const status = guardedFetch.status ?? 200;
-        if (error instanceof ResponseBodyError) {
-            const code = mapProviderErrorCode({ providerErrorCode: error.error });
-            const interval = error.cause.interval;
-            throw new OAuthError({
-                code, message: `the authorization server refused the request (HTTP ${status}, ${error.error})`,
-                operatorAction: code === 'OAUTH_INVALID_GRANT'
-                    ? "This connection's authorization is no longer valid — reconnect it in the connection settings."
-                    : "Check this provider's client id, secret, scopes and redirect URI, then try connecting again.",
-            }, { providerErrorCode: error.error,
-                ...(typeof interval === 'number' && Number.isFinite(interval) ? { retryAfterSeconds: interval } : {}) });
-        }
-        const invalidInput = error instanceof TypeError;
-        const reason = error instanceof Error && error.cause instanceof Error ? error.cause : error;
-        const malformedMessage = reason instanceof SyntaxError ? 'the authorization server did not return a JSON object'
-            : reason instanceof Error && reason.message.includes('"access_token"') ? "the authorization server's response contained no access token"
-            : "the authorization server's response did not contain a supported OAuth token set";
-        // Never expose upstream causes: they can retain credentials, JWTs or response bodies.
-        throw new OAuthError({
-            code: invalidInput ? 'OAUTH_INVALID_REQUEST' : status >= 200 && status < 300 ? 'OAUTH_MALFORMED_RESPONSE' : 'OAUTH_PROVIDER_REJECTED',
-            message: invalidInput ? 'the OAuth grant or client configuration is invalid'
-                : status >= 200 && status < 300 ? malformedMessage
-                : `the authorization server refused the request (HTTP ${status})`,
-            operatorAction: invalidInput ? "Check this provider's client id, secret and grant parameters."
-                : status >= 200 && status < 300 ? 'Check that the token endpoint URL points at an OAuth 2.0 token endpoint.'
-                : "Check this provider's client id, secret, scopes and redirect URI, then try connecting again.",
-        });
+        throw tokenRequestError({ error, status: guardedFetch.status ?? 200 });
     }
+}
+
+/** Delegate one grant to upstream; removing grant_type preserves its parameter contract. */
+async function executeTokenGrant({ config, params }: { config: Configuration; params: URLSearchParams }) {
+    const grantType = params.get('grant_type') ?? '';
+    params.delete('grant_type');
+    return grantType === 'refresh_token'
+        ? await refreshTokenGrant(config, params.get('refresh_token') ?? '', params)
+        : await genericGrantRequest(config, grantType, params);
+}
+
+/** Narrow validated tokens while retaining opaque identity and provider casing. */
+function projectTokenSet({ tokens, idToken, tokenType, clock }: {
+    tokens: Awaited<ReturnType<typeof genericGrantRequest>>;
+    idToken: string | undefined; tokenType: string | undefined; clock: Clock;
+}): OAuthTokenSet {
+    return {
+        accessToken: tokens.access_token, ...(idToken === undefined ? {} : { idToken }),
+        refreshToken: tokens.refresh_token ?? null, tokenType: tokenType ?? tokens.token_type,
+        scopes: tokens.scope?.split(/[\s,]+/).filter(Boolean) ?? [],
+        expiresAt: tokens.expires_in === undefined || tokens.expires_in <= 0 ? null
+            : new Date(Date.parse(nowIso({ clock })) + tokens.expires_in * 1000).toISOString(),
+    };
+}
+
+/** Provider protocol codes are mapped only after transport failures have been checked. */
+function providerTokenError({ error, status }: { error: ResponseBodyError; status: number }): OAuthError {
+    const code = mapProviderErrorCode({ providerErrorCode: error.error });
+    const interval = error.cause.interval;
+    return new OAuthError({
+        code, message: `the authorization server refused the request (HTTP ${status}, ${error.error})`,
+        operatorAction: code === 'OAUTH_INVALID_GRANT'
+            ? "This connection's authorization is no longer valid — reconnect it in the connection settings."
+            : "Check this provider's client id, secret, scopes and redirect URI, then try connecting again.",
+    }, { providerErrorCode: error.error,
+        ...(typeof interval === 'number' && Number.isFinite(interval) ? { retryAfterSeconds: interval } : {}) });
+}
+function malformedTokenMessage({ error }: { error: unknown }): string {
+    const reason = error instanceof Error && error.cause instanceof Error ? error.cause : error;
+    return reason instanceof SyntaxError ? 'the authorization server did not return a JSON object'
+        : reason instanceof Error && reason.message.includes('"access_token"') ? "the authorization server's response contained no access token"
+        : "the authorization server's response did not contain a supported OAuth token set";
+}
+function tokenRequestError({ error, status }: { error: unknown; status: number }): OAuthError {
+    if (error instanceof ResponseBodyError) return providerTokenError({ error, status });
+    const successful = status >= 200 && status < 300;
+    const invalidInput = error instanceof TypeError;
+    const malformedMessage = malformedTokenMessage({ error });
+    // Never expose upstream causes: they can retain credentials, JWTs or response bodies.
+    if (invalidInput) return new OAuthError({
+        code: 'OAUTH_INVALID_REQUEST', message: 'the OAuth grant or client configuration is invalid',
+        operatorAction: "Check this provider's client id, secret and grant parameters.",
+    });
+    return new OAuthError({
+        code: successful ? 'OAUTH_MALFORMED_RESPONSE' : 'OAUTH_PROVIDER_REJECTED',
+        message: successful ? malformedMessage
+            : `the authorization server refused the request (HTTP ${status})`,
+        operatorAction: successful ? 'Check that the token endpoint URL points at an OAuth 2.0 token endpoint.'
+            : "Check this provider's client id, secret, scopes and redirect URI, then try connecting again.",
+    });
 }

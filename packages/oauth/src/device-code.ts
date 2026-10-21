@@ -62,36 +62,10 @@ export async function beginDeviceAuthorization(requiredArgs: OAuthRequiredArgs<D
             },
         });
         const body = await initiateDeviceAuthorization(config, params);
-        return {
-            deviceCode: body.device_code, userCode: body.user_code,
-            verificationUri: assertSafeUserFacingUrl({ raw: body.verification_uri, guard }).href,
-            verificationUriComplete: body.verification_uri_complete === undefined ? null
-                : assertSafeUserFacingUrl({ raw: body.verification_uri_complete, guard }).href,
-            expiresAt: new Date(Date.parse(readNowIso({ clock }))
-                + clampSeconds(body.expires_in, 30, MAX_DEVICE_CODE_LIFETIME_SECONDS) * 1000).toISOString(),
-            intervalSeconds: clampSeconds(body.interval ?? DEFAULT_POLL_INTERVAL_SECONDS, 1, MAX_POLL_INTERVAL_SECONDS),
-        };
+        return projectDeviceAuthorization({ body, guard, clock });
     } catch (error) {
         if (guardedFetch.failure) throw guardedFetch.failure.error;
-        if (error instanceof OAuthError) throw error;
-        if (error instanceof ResponseBodyError)
-            throw new OAuthError({
-                code: mapProviderErrorCode({ providerErrorCode: error.error }),
-                message: `the authorization server refused the device authorization request (HTTP ${guardedFetch.status})`,
-                operatorAction: "Check this provider's client id and scopes, then start the connection again.",
-            }, { providerErrorCode: error.error });
-        if (guardedFetch.status !== undefined && (guardedFetch.status < 200 || guardedFetch.status >= 300))
-            throw new OAuthError({ code: 'OAUTH_PROVIDER_REJECTED',
-                message: `the authorization server refused the device authorization request (HTTP ${guardedFetch.status})`,
-                operatorAction: "Check this provider's client id and scopes, then start the connection again." });
-        const invalidInput = error instanceof TypeError;
-        throw new OAuthError({
-            code: invalidInput ? 'OAUTH_INVALID_REQUEST' : 'OAUTH_MALFORMED_RESPONSE',
-            message: invalidInput ? 'the OAuth grant or client configuration is invalid'
-                : 'the device authorization endpoint did not return a JSON object',
-            operatorAction: invalidInput ? "Check this provider's client id, secret and grant parameters."
-                : 'Check that the device authorization endpoint URL is correct.',
-        });
+        throw deviceAuthorizationError({ error, status: guardedFetch.status });
     }
 }
 export interface PollDeviceAuthorizationInput {
@@ -119,3 +93,44 @@ const DEVICE_RESPONSE_MESSAGES = {
     overflowMessage: `the device authorization response exceeded ${MAX_RESPONSE_BYTES} bytes`,
     overflowOperatorAction: "This provider's device-authorization endpoint is not behaving like an RFC 8628 endpoint.",
 } as const;
+
+/** Apply host lifetime bounds and validate display links after upstream validation. */
+function projectDeviceAuthorization({ body, guard, clock }: {
+    body: Awaited<ReturnType<typeof initiateDeviceAuthorization>>;
+    guard: OAuthHttpPorts['guard']; clock: Clock;
+}): DeviceAuthorization {
+    return {
+        deviceCode: body.device_code, userCode: body.user_code,
+        verificationUri: assertSafeUserFacingUrl({ raw: body.verification_uri, guard }).href,
+        verificationUriComplete: body.verification_uri_complete === undefined ? null
+            : assertSafeUserFacingUrl({ raw: body.verification_uri_complete, guard }).href,
+        expiresAt: new Date(Date.parse(readNowIso({ clock }))
+            + clampSeconds(body.expires_in, 30, MAX_DEVICE_CODE_LIFETIME_SECONDS) * 1000).toISOString(),
+        intervalSeconds: clampSeconds(body.interval ?? DEFAULT_POLL_INTERVAL_SECONDS, 1, MAX_POLL_INTERVAL_SECONDS),
+    };
+}
+
+function deviceAuthorizationError({ error, status }: { error: unknown; status: number | undefined }): OAuthError {
+    if (error instanceof OAuthError) return error;
+    if (error instanceof ResponseBodyError)
+        return new OAuthError({
+            code: mapProviderErrorCode({ providerErrorCode: error.error }),
+            message: `the authorization server refused the device authorization request (HTTP ${status})`,
+            operatorAction: "Check this provider's client id and scopes, then start the connection again.",
+        }, { providerErrorCode: error.error });
+    if (status !== undefined && (status < 200 || status >= 300))
+        return new OAuthError({ code: 'OAUTH_PROVIDER_REJECTED',
+            message: `the authorization server refused the device authorization request (HTTP ${status})`,
+            operatorAction: "Check this provider's client id and scopes, then start the connection again." });
+    return malformedDeviceAuthorizationError({ error });
+}
+function malformedDeviceAuthorizationError({ error }: { error: unknown }): OAuthError {
+    const invalidInput = error instanceof TypeError;
+    return new OAuthError({
+        code: invalidInput ? 'OAUTH_INVALID_REQUEST' : 'OAUTH_MALFORMED_RESPONSE',
+        message: invalidInput ? 'the OAuth grant or client configuration is invalid'
+            : 'the device authorization endpoint did not return a JSON object',
+        operatorAction: invalidInput ? "Check this provider's client id, secret and grant parameters."
+            : 'Check that the device authorization endpoint URL is correct.',
+    });
+}

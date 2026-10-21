@@ -114,21 +114,12 @@ export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCod
         redirectUri: redirectUri.toString(),
         scopes: [...scopes]
     };
-    authorizationUrl.searchParams.set("redirect_uri", redirectUri.toString());
-    if (scopes.length > 0)
-        authorizationUrl.searchParams.set("scope", scopes.join(" "));
-    if (pkce) {
-        authorizationUrl.searchParams.set("code_challenge", pkce.codeChallenge);
-        authorizationUrl.searchParams.set("code_challenge_method", pkce.codeChallengeMethod);
-    }
+    applyAuthorizationCodeParams({ authorizationUrl, redirectUri, scopes, pkce });
     // Validate/format before committing state so an upstream configuration refusal cannot leave
     // a pending request behind. Only the host-issued state is attached after storage succeeds.
     const formattedUrl = new URL(formatAuthorizationUrl({ url: authorizationUrl, clientId: input.client.clientId }));
-    const resource = input.resource === undefined ? {} : { resource: input.resource };
-    const entry = 'stateless' in deps
-        ? await deps.stateless.seal({ entry: { ...authorization, ...resource } })
-        : await deps.pending.put(authorization, resource);
-    if (entry.state.length === 0 || entry.state.length > MAX_AUTHORIZATION_STATE_LENGTH) throw invalidState({});
+    const entry = await storeAuthorizationRequest({ deps, authorization }, { resource: input.resource });
+    assertIssuedAuthorizationState({ state: entry.state });
     formattedUrl.searchParams.set('state', entry.state);
     return { authorizationUrl: formattedUrl.href, state: entry.state, expiresAt: entry.expiresAt };
 }
@@ -242,4 +233,31 @@ export async function exchangeOAuthAuthorizationCode(requiredArgs: OAuthRequired
         grant_type: 'authorization_code', code: requiredArgs.code,
         redirect_uri: requiredArgs.redirectUri, code_verifier: requiredArgs.codeVerifier,
     } }, optionalArgs);
+}
+
+/** Build the browser request before any owner-bound state is committed. */
+function applyAuthorizationCodeParams({ authorizationUrl, redirectUri, scopes, pkce }: {
+    authorizationUrl: URL; redirectUri: URL; scopes: readonly string[];
+    pkce: ReturnType<typeof createPkcePair> | undefined;
+}): void {
+    authorizationUrl.searchParams.set("redirect_uri", redirectUri.toString());
+    if (scopes.length > 0)
+        authorizationUrl.searchParams.set("scope", scopes.join(" "));
+    if (pkce) {
+        authorizationUrl.searchParams.set("code_challenge", pkce.codeChallenge);
+        authorizationUrl.searchParams.set("code_challenge_method", pkce.codeChallengeMethod);
+    }
+}
+async function storeAuthorizationRequest({ deps, authorization }: {
+    deps: BeginAuthorizationCodeArgs;
+    authorization: Parameters<PendingAuthorizationStore['put']>[0];
+}, { resource }: { resource?: OAuthResource } = {}) {
+    const resourceOptions = resource === undefined ? {} : { resource };
+    return 'stateless' in deps
+        ? await deps.stateless.seal({ entry: { ...authorization, ...resourceOptions } })
+        : await deps.pending.put(authorization, resourceOptions);
+}
+
+function assertIssuedAuthorizationState({ state }: { state: string }): void {
+    if (state.length === 0 || state.length > MAX_AUTHORIZATION_STATE_LENGTH) throw invalidState({});
 }

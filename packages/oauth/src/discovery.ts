@@ -136,16 +136,8 @@ export async function fetchAuthorizationServerMetadata(requiredArgs: OAuthDiscov
         }
         // A policy failure is terminal and sees the unmodified document, before facade narrowing.
         policy?.assertMetadata({ issuer: requiredArgs.issuer, document });
-        const tokenEndpoint = readDiscoveredEndpoint(document, 'token_endpoint', requiredArgs.guard);
-        if (tokenEndpoint !== null) return {
-            issuer: readOptionalString(document.issuer) ?? requiredArgs.issuer, tokenEndpoint,
-            authorizationEndpoint: readDiscoveredEndpoint(document, 'authorization_endpoint', requiredArgs.guard),
-            deviceAuthorizationEndpoint: readDiscoveredEndpoint(document, 'device_authorization_endpoint', requiredArgs.guard),
-            registrationEndpoint: readDiscoveredEndpoint(document, 'registration_endpoint', requiredArgs.guard),
-            scopesSupported: readStringArray(document.scopes_supported), grantTypesSupported: readStringArray(document.grant_types_supported),
-            codeChallengeMethodsSupported: readStringArray(document.code_challenge_methods_supported),
-            tokenEndpointAuthMethodsSupported: readStringArray(document.token_endpoint_auth_methods_supported),
-        };
+        const server = projectAuthorizationServerMetadata({ document, requiredArgs });
+        if (server !== null) return server;
     }
     throw noMetadataError(issuer.host);
 }
@@ -175,7 +167,7 @@ export async function discoverAuthorizationServer(requiredArgs: OAuthRequiredArg
     const resource = assertSafeProviderEndpoint(requiredArgs.resourceUrl, 'protected resource URL', requiredArgs.guard);
     const metadata = await discoverProtectedResourceMetadata(requiredArgs, optionalArgs);
     const scopes = optionalArgs.wwwAuthenticate === undefined ? [] : parseWwwAuthenticateScopes({ wwwAuthenticate: optionalArgs.wwwAuthenticate });
-    const resourceScopes = scopes.length > 0 ? scopes : metadata?.scopesSupported ?? [];
+    const resourceScopes = selectResourceScopes({ scopes, metadata });
     const issuers = (metadata?.authorizationServers ?? []).filter(issuer => {
         try { assertSafeProviderEndpoint(issuer, 'authorization server issuer', requiredArgs.guard); return true; }
         catch { return false; }
@@ -190,4 +182,27 @@ export async function discoverAuthorizationServer(requiredArgs: OAuthRequiredArg
         }
     }
     throw noMetadataError(resource.host);
+}
+
+/** Narrow only after the caller has applied issuer policy to the unmodified document. */
+function projectAuthorizationServerMetadata({ document, requiredArgs }: {
+    document: Record<string, unknown>; requiredArgs: OAuthDiscoveryDeps & { readonly issuer: string };
+}): DiscoveredAuthorizationServer | null {
+    const tokenEndpoint = readDiscoveredEndpoint(document, 'token_endpoint', requiredArgs.guard);
+    if (tokenEndpoint === null) return null;
+    return {
+        issuer: readOptionalString(document.issuer) ?? requiredArgs.issuer, tokenEndpoint,
+        authorizationEndpoint: readDiscoveredEndpoint(document, 'authorization_endpoint', requiredArgs.guard),
+        deviceAuthorizationEndpoint: readDiscoveredEndpoint(document, 'device_authorization_endpoint', requiredArgs.guard),
+        registrationEndpoint: readDiscoveredEndpoint(document, 'registration_endpoint', requiredArgs.guard),
+        scopesSupported: readStringArray(document.scopes_supported), grantTypesSupported: readStringArray(document.grant_types_supported),
+        codeChallengeMethodsSupported: readStringArray(document.code_challenge_methods_supported),
+        tokenEndpointAuthMethodsSupported: readStringArray(document.token_endpoint_auth_methods_supported),
+    };
+}
+
+function selectResourceScopes({ scopes, metadata }: {
+    scopes: readonly string[]; metadata: DiscoveredProtectedResource | null;
+}): readonly string[] {
+    return scopes.length > 0 ? scopes : metadata?.scopesSupported ?? [];
 }

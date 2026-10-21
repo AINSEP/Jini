@@ -68,9 +68,18 @@ export async function adaptOAuthResponse({ response }: { readonly response: Resp
 }: { readonly successStatus?: number; readonly project?: (body: Record<string, unknown>) => void } = {}): Promise<Response> {
     const body = await response.json() as Record<string, unknown> | null;
     if (body !== null && typeof body === 'object') project?.(body);
+    normalizeProviderError({ body });
+    return Response.json(body, { status: oauthResponseStatus({ body, response }, { successStatus }) });
+}
+
+/** Bound protocol identifiers before upstream decoding; never retain arbitrary provider text. */
+function normalizeProviderError({ body }: { body: Record<string, unknown> | null }): void {
     if (typeof body?.error === 'string'
         && (body.error.length === 0 || body.error.length > 64 || /[^a-z0-9_]/i.test(body.error)))
         body.error = 'invalid_provider_error';
-    return Response.json(body, { status: typeof body?.error === 'string' ? 400
-        : response.ok ? successStatus ?? response.status : response.status });
+}
+function oauthResponseStatus({ body, response }: { body: Record<string, unknown> | null; response: Response },
+    { successStatus }: { successStatus?: number } = {}): number {
+    return typeof body?.error === 'string' ? 400
+        : response.ok ? successStatus ?? response.status : response.status;
 }

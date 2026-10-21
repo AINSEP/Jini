@@ -61,52 +61,72 @@ export async function registerOAuthClientDynamically(requiredArgs: OAuthRequired
         // This opaque issuer is transport metadata, never a trusted identity or discovery URL.
         const response = await dynamicClientRegistrationRequest({
             issuer: 'urn:jini:oauth:transport-only', registration_endpoint: endpoint.href,
-        }, {
-            client_name: input.options.clientDisplayName, software_id: input.options.softwareId,
-            redirect_uris: [...input.options.redirectUris],
-            grant_types: [...(input.grantTypes ?? ['authorization_code', 'refresh_token'])],
-            response_types: [...(input.responseTypes ?? ['code'])],
-            token_endpoint_auth_method: input.tokenEndpointAuthMethod ?? 'none', application_type: 'web',
-            ...(input.scopes.length === 0 ? {} : { scope: input.scopes.join(' ') }),
-        }, {
+        }, registrationMetadata({ input }), {
             ...(input.initialAccessToken === undefined ? {} : { initialAccessToken: input.initialAccessToken }),
             [allowInsecureRequests]: endpoint.protocol === 'http:', [customFetch]: async (url, options) => adaptOAuthResponse({ response: await guardedFetch(url, options) }, { successStatus: 201 }),
         });
         const client = await processDynamicClientRegistrationResponse(response);
-        const clientId = readOptionalString(client.client_id);
-        if (clientId === null) throw new OAuthError({ code: 'OAUTH_MALFORMED_RESPONSE',
-            message: 'the client registration response contained no client id',
-            operatorAction: "This server's dynamic client registration endpoint is not behaving like an RFC 7591 endpoint." });
-        return {
-            clientId, clientSecret: readOptionalString(client.client_secret),
-            tokenEndpointAuthMethod: resolveAuthMethod({ document: client }, input),
-            registrationClientUri: readOptionalString(client.registration_client_uri),
-            clientIdIssuedAt: readOptionalNumber(client.client_id_issued_at),
-            clientSecretExpiresAt: readOptionalNumber(client.client_secret_expires_at),
-        };
+        return projectRegisteredClient({ client, input });
     } catch (error) {
         if (guardedFetch.failure) throw guardedFetch.failure.error;
-        if (error instanceof OAuthError) throw error;
-        if (error instanceof ResponseBodyError) {
-            throw new OAuthError({
-                code: 'OAUTH_PROVIDER_REJECTED',
-                message: `the authorization server refused the client registration (HTTP ${guardedFetch.status}, ${error.error})`,
-                operatorAction: (optionalArgs.messages ?? defaultOAuthMessages).registrationRejectedAction,
-            }, { providerErrorCode: error.error });
-        }
-        if (error instanceof OperationProcessingError && error.code === RESPONSE_IS_NOT_CONFORM) {
-            throw new OAuthError({ code: 'OAUTH_PROVIDER_REJECTED',
-                message: `the authorization server refused the client registration (HTTP ${guardedFetch.status})`,
-                operatorAction: (optionalArgs.messages ?? defaultOAuthMessages).registrationRejectedAction });
-        }
-        const invalidInput = error instanceof TypeError;
-        const missingId = error instanceof Error && error.message.includes('"client_id"');
-        throw new OAuthError({
-            code: invalidInput ? 'OAUTH_INVALID_REQUEST' : 'OAUTH_MALFORMED_RESPONSE',
-            message: invalidInput ? 'the OAuth client registration configuration is invalid'
-                : missingId ? 'the client registration response contained no client id' : 'the client registration endpoint did not return a JSON object',
-            operatorAction: invalidInput ? "Check this provider's registration endpoint and initial access token."
-                : "This server's dynamic client registration endpoint is not behaving like an RFC 7591 endpoint.",
-        });
+        throw registrationError({ error, status: guardedFetch.status }, optionalArgs);
     }
+}
+
+/** Preserve registration response narrowing and auth-policy fallback. */
+function projectRegisteredClient({ client, input }: {
+    client: Record<string, unknown>; input: DynamicClientRegistrationInput;
+}): RegisteredOAuthClient {
+    const clientId = readOptionalString(client.client_id);
+    if (clientId === null) throw new OAuthError({ code: 'OAUTH_MALFORMED_RESPONSE',
+        message: 'the client registration response contained no client id',
+        operatorAction: "This server's dynamic client registration endpoint is not behaving like an RFC 7591 endpoint." });
+    return {
+        clientId, clientSecret: readOptionalString(client.client_secret),
+        tokenEndpointAuthMethod: resolveAuthMethod({ document: client }, input),
+        registrationClientUri: readOptionalString(client.registration_client_uri),
+        clientIdIssuedAt: readOptionalNumber(client.client_id_issued_at),
+        clientSecretExpiresAt: readOptionalNumber(client.client_secret_expires_at),
+    };
+}
+
+function registrationMetadata({ input }: { input: DynamicClientRegistrationDeps & DynamicClientRegistrationInput }) {
+    return {
+        client_name: input.options.clientDisplayName, software_id: input.options.softwareId,
+        redirect_uris: [...input.options.redirectUris],
+        grant_types: [...(input.grantTypes ?? ['authorization_code', 'refresh_token'])],
+        response_types: [...(input.responseTypes ?? ['code'])],
+        token_endpoint_auth_method: input.tokenEndpointAuthMethod ?? 'none', application_type: 'web',
+        ...(input.scopes.length === 0 ? {} : { scope: input.scopes.join(' ') }),
+    };
+}
+
+/** Transport failure precedence remains in the caller; protocol failures retain facade text. */
+function registrationError({ error, status }: { error: unknown; status: number | undefined },
+    optionalArgs: Pick<DynamicClientRegistrationInput, 'messages'> = {}): OAuthError {
+    if (error instanceof OAuthError) return error;
+    if (error instanceof ResponseBodyError) {
+        return new OAuthError({
+            code: 'OAUTH_PROVIDER_REJECTED',
+            message: `the authorization server refused the client registration (HTTP ${status}, ${error.error})`,
+            operatorAction: (optionalArgs.messages ?? defaultOAuthMessages).registrationRejectedAction,
+        }, { providerErrorCode: error.error });
+    }
+    if (error instanceof OperationProcessingError && error.code === RESPONSE_IS_NOT_CONFORM) {
+        return new OAuthError({ code: 'OAUTH_PROVIDER_REJECTED',
+            message: `the authorization server refused the client registration (HTTP ${status})`,
+            operatorAction: (optionalArgs.messages ?? defaultOAuthMessages).registrationRejectedAction });
+    }
+    return malformedRegistrationError({ error });
+}
+function malformedRegistrationError({ error }: { error: unknown }): OAuthError {
+    const invalidInput = error instanceof TypeError;
+    const missingId = error instanceof Error && error.message.includes('"client_id"');
+    return new OAuthError({
+        code: invalidInput ? 'OAUTH_INVALID_REQUEST' : 'OAUTH_MALFORMED_RESPONSE',
+        message: invalidInput ? 'the OAuth client registration configuration is invalid'
+            : missingId ? 'the client registration response contained no client id' : 'the client registration endpoint did not return a JSON object',
+        operatorAction: invalidInput ? "Check this provider's registration endpoint and initial access token."
+            : "This server's dynamic client registration endpoint is not behaving like an RFC 7591 endpoint.",
+    });
 }
