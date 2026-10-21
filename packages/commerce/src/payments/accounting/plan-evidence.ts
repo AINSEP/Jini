@@ -53,6 +53,8 @@ export interface DisputeState {
   readonly providerDisputeRef: string;
   readonly amountMinor: number;
   readonly status: DisputeStatus;
+  /** The response deadline (epoch ms); `null`/absent = none known yet. */
+  readonly dueBy?: number | null;
 }
 
 export type EvidenceQuarantineReason =
@@ -232,6 +234,18 @@ function disputeOutbox(previous: DisputeStatus | undefined, next: DisputeStatus)
   return previous !== next ? ["dispute.closed"] : [];
 }
 
+/**
+ * The dispute row after `evidence`. Its deadline is taken from an observation whose status won the
+ * merge — also when the status is unchanged, so a later or corrected `dueBy` is persisted (R1-F6) —
+ * and never from a stale one; an observation without `dueBy` keeps the stored deadline.
+ */
+function nextDisputeRow({ existing, evidence, newId }: { existing: DisputeState | undefined; evidence: DisputeEvidence; newId: string }): DisputeState {
+  const deadline = evidence.dueBy === undefined ? {} : { dueBy: evidence.dueBy };
+  if (!existing) return { id: newId, providerDisputeRef: evidence.providerDisputeRef, amountMinor: evidence.amount.minorUnits, status: evidence.status, ...deadline };
+  const status = mergeDisputeStatus({ current: existing.status, incoming: evidence.status });
+  return { ...existing, status, ...(evidence.status === status ? deadline : {}) };
+}
+
 /** Plan one dispute observation. Disputes are a separate dimension: they never change the intent status. */
 export function planDisputeEvidence(
   { payment, disputes, evidence, newId }: {
@@ -244,9 +258,7 @@ export function planDisputeEvidence(
     currency: payment.currency, minorUnits: evidence.amount.minorUnits, evidenceCurrency: evidence.amount.currency,
     ...(existing ? { amountMinor: existing.amountMinor } : {}),
   });
-  const row: DisputeState = existing
-    ? { ...existing, status: mergeDisputeStatus({ current: existing.status, incoming: evidence.status }) }
-    : { id: newId, providerDisputeRef: evidence.providerDisputeRef, amountMinor: evidence.amount.minorUnits, status: evidence.status };
+  const row = nextDisputeRow({ existing, evidence, newId });
   const amountChanged = closingAmountChange({ bad, existing, row, evidence });
   if (bad && !amountChanged) return { kind: "quarantined", reason: bad };
   const next = existing ? disputes.map((d) => (d.id === row.id ? row : d)) : [...disputes, row];

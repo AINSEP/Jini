@@ -90,6 +90,15 @@ describe("planDisputeEvidence", () => {
     const plan = planDisputeEvidence({ payment: paid, disputes: [b, a], evidence: { ...dispute, status: "lost" }, newId: "x" });
     expect(plan).toMatchObject({ disputes: [b, { ...a, status: "lost" }] });
   });
+  test("R1-F6: a deadline from a current observation updates the row, even with the status unchanged; a stale one does not", () => {
+    const open = { id: "d1", providerDisputeRef: "dp_1", amountMinor: 10_000, status: "open" as const, dueBy: null };
+    expect(planDisputeEvidence({ payment: paid, disputes: [open], evidence: { ...dispute, dueBy: 5 }, newId: "x" }))
+      .toMatchObject({ write: "update", outbox: [], row: { status: "open", dueBy: 5 } });
+    expect(planDisputeEvidence({ payment: paid, disputes: [], evidence: { ...dispute, dueBy: 5 }, newId: "d1" })).toMatchObject({ write: "insert", row: { dueBy: 5 } });
+    const won = { ...open, status: "won" as const, dueBy: 5 };
+    expect(planDisputeEvidence({ payment: paid, disputes: [won], evidence: { ...dispute, dueBy: 9 }, newId: "x" })).toMatchObject({ write: "none", row: { dueBy: 5 } });
+    expect(planDisputeEvidence({ payment: paid, disputes: [won], evidence: { ...dispute, status: "won" }, newId: "x" })).toMatchObject({ write: "none", row: { dueBy: 5 } });
+  });
   test("a dispute in another currency is quarantined", () => {
     expect(planDisputeEvidence({ payment: paid, disputes: [], evidence: { ...dispute, amount: { minorUnits: 1, currency: "EUR" } }, newId: "d" })).toEqual({ kind: "quarantined", reason: "currency-mismatch" });
   });

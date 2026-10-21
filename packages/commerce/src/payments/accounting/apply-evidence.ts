@@ -154,11 +154,13 @@ async function applyOneDispute(ctx: Ctx, evidence: DisputeEvidence): Promise<voi
     await ctx.tx.insertDispute({
       dispute: {
         ...plan.row, paymentId: p.id, workspaceId: p.workspaceId, siteId: p.siteId, providerId: p.providerId, providerAccountId: p.providerAccountId, mode: p.mode,
-        currency: p.currency, dueBy: evidence.dueBy ?? null, createdAt: ctx.deps.now(), updatedAt: ctx.deps.now(),
+        currency: p.currency, dueBy: plan.row.dueBy ?? null, createdAt: ctx.deps.now(), updatedAt: ctx.deps.now(),
       },
     });
   }
-  if (plan.write === "update") await ctx.tx.updateDispute({ id: plan.row.id, patch: { status: plan.row.status, updatedAt: ctx.deps.now() } });
+  if (plan.write === "update") {
+    await ctx.tx.updateDispute({ id: plan.row.id, patch: { status: plan.row.status, dueBy: plan.row.dueBy ?? null, updatedAt: ctx.deps.now() } });
+  }
   await enqueue(ctx, plan.outbox, { disputeId: plan.row.id, status: plan.row.status });
 }
 

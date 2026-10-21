@@ -123,3 +123,25 @@ for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
     });
   });
 }
+
+for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
+  describe(`R1-F6 dispute deadlines are persisted on update (${kind})`, () => {
+    test("supplied later, corrected with the status unchanged, kept on close, not restored by a stale observation", async () => {
+      const w = await paidPayment(kind);
+      const snapshot = { providerRef: "ch_1", correlationId: "pay_1", status: "succeeded" as const, refunds: [] };
+      const dispute = { providerDisputeRef: "dp_1", amount: USD(2_000), status: "open" as const };
+      const observe = (d: PaymentEvidence["disputes"][number]) => w.payment({ ...snapshot, disputes: [d] });
+      const stored = async () => (await w.ledger.transaction((tx) => tx.listDisputes({ paymentId: "pay_1" }))).map((d) => [d.status, d.dueBy]);
+      await observe(dispute);
+      expect(await stored()).toEqual([["open", null]]);
+      await observe({ ...dispute, dueBy: NOW + 1_000 });
+      expect(await stored()).toEqual([["open", NOW + 1_000]]);
+      await observe({ ...dispute, dueBy: NOW + 2_000 });
+      expect(await stored()).toEqual([["open", NOW + 2_000]]);
+      await observe({ ...dispute, status: "won" });
+      expect(await stored()).toEqual([["won", NOW + 2_000]]);
+      await observe({ ...dispute, dueBy: NOW + 3_000 });
+      expect(await stored()).toEqual([["won", NOW + 2_000]]);
+    });
+  });
+}
