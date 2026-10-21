@@ -39,7 +39,9 @@ function canonicalJson(value: unknown): string {
   if (value !== null && typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, child]) => child !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+      // Object.entries never yields the same key twice, so two keys are never equal and a
+      // two-way comparison is a total order here.
+      .sort(([a], [b]) => (a < b ? -1 : 1));
     return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
   }
   return JSON.stringify(value) ?? "null";
