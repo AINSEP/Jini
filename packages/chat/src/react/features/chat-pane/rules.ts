@@ -353,8 +353,8 @@ export function findMidRunMessageRunId({ blocker, messages }: {
 }
 
 /**
- * The queued next turn after one more message joins it. The pane holds ONE queued turn, so a second
- * message sent behind the same run is appended to it (a blank line apart) rather than replacing it:
+ * MOVE: Display is per-message; delivery is ONE queued turn. A second message behind the same run
+ * is appended to that delivery (a blank line apart) rather than replacing it:
  * replacing silently dropped the first message (owner, 2026-10-10). One turn, not two, because both
  * were written for the run still going and the agent should read them together — two queued turns
  * would also start two paid runs back to back.
@@ -364,7 +364,7 @@ export function findMidRunMessageRunId({ blocker, messages }: {
 export function appendQueuedTurn({ queued, next }: {
   queued: UserTextRedaction | null;
   next: UserTextRedaction;
-}): UserTextRedaction {
+}, _options = {}): UserTextRedaction {
   if (queued === null) return next;
   return {
     text: `${queued.text}\n\n${next.text}`,

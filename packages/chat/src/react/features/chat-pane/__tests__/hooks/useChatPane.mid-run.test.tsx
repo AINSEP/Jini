@@ -329,3 +329,126 @@ it('does not requeue staged attachments on another Enter after history updates',
   expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('Review the attached file(s).');
   expect(transport.calls[1]?.input.attachments).toHaveLength(1);
 });
+
+// MOVE: A queued upload must retain its input identity across later submissions and cancellation.
+describe('queued attachment ownership', () => {
+  it('captures each message’s attachments in send order and leaves a later unsent file in the composer', async () => {
+    const { result, transport } = await startStreamingRun(undefined);
+    const first = { path: 'attachment:first', name: 'first.txt', kind: 'file' as const };
+    const second = { path: 'attachment:second', name: 'second.png', kind: 'image' as const };
+    const unsent = { path: 'attachment:unsent', name: 'unsent.txt', kind: 'file' as const };
+    act(() => result.current.composer.addAttachment(first));
+    await act(() => result.current.send());
+    act(() => { result.current.composer.setDraft('second message'); result.current.composer.addAttachment(second); });
+    await act(() => result.current.send());
+    expect(result.current.queuedMessages.map(input => input.attachments)).toEqual([[first], [second]]);
+    expect(result.current.composer.attachments).toEqual([]);
+    act(() => { result.current.composer.setDraft('not submitted'); result.current.composer.addAttachment(unsent); });
+    act(() => transport.finish());
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]!.input.attachments).toEqual([first, second]);
+    expect(transport.calls[1]!.input.history.at(-1)?.content).toBe('also fix the footer\n\nsecond message');
+    expect(result.current.composer.attachments).toEqual([unsent]);
+    expect(result.current.composer.draft).toBe('not submitted');
+  });
+
+  it('attaches late upload results to message 2 while message 3 and its composer remain separate', async () => {
+    const image = { path: 'attachment:late', name: 'late.png', kind: 'image' as const };
+    let complete!: (attachments: typeof image[]) => void;
+    const { result, transport } = await startStreamingRun(undefined, {
+      uploadAttachments: () => new Promise<typeof image[]>(resolve => { complete = resolve; }),
+    });
+    await act(() => result.current.send());
+    let upload!: Promise<void>;
+    act(() => { upload = result.current.addAttachments([new File(['pixels'], 'late.png')]); result.current.composer.setDraft('second message'); });
+    await act(() => result.current.send());
+    act(() => result.current.composer.setDraft('third message'));
+    await act(() => result.current.send());
+    act(() => transport.finish());
+    expect(transport.calls).toHaveLength(1);
+    await act(async () => { complete([image]); await upload; });
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]!.input.attachments).toEqual([image]);
+    const receiptEvents = transport.calls[1]!.input.history.at(-1)!.events!;
+    const receipts = receiptEvents.map(event => event.kind === 'ext' ? event.data : null);
+    expect(receipts).toMatchObject([
+      { text: 'also fix the footer', attachments: [] },
+      { text: 'second message', attachments: [image] },
+      { text: 'third message', attachments: [] },
+    ]);
+    expect(result.current.composer.attachments).toEqual([]);
+  });
+
+  it('discards both queued inputs and a late screenshot when conversations switch', async () => {
+    const transport = createFakeChatTransport();
+    const image = { path: 'attachment:old', name: 'old.png', kind: 'image' as const };
+    let complete!: (attachments: typeof image[]) => void;
+    const uploadAttachments = () => new Promise<typeof image[]>(resolve => { complete = resolve; });
+    const { result, rerender } = renderHook(({ conversationId }) => useChatPane({ transport, agents,
+      initialDraft: 'first turn', conversationId, uploadAttachments }), { initialProps: { conversationId: 'queue-old' } });
+    await act(() => result.current.send());
+    act(() => result.current.composer.setDraft('old message one'));
+    await act(() => result.current.send());
+    let upload!: Promise<void>;
+    act(() => { upload = result.current.addAttachments([new File(['pixels'], 'old.png')]); result.current.composer.setDraft('old message two'); });
+    await act(() => result.current.send());
+    expect(result.current.queuedMessages.map(input => input.text)).toEqual(['old message one', 'old message two']);
+    rerender({ conversationId: 'queue-new' });
+    await act(async () => { complete([image]); await upload; transport.finish(); });
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(result.current.composer.attachments).toEqual([]);
+    expect(result.current.isUploadingAttachments).toBe(false);
+    expect(transport.calls).toHaveLength(1);
+  });
+
+  it('canceling an uploading input leaves the other message intact and rejects late pixels', async () => {
+    const image = { path: 'attachment:canceled', name: 'cancel.png', kind: 'image' as const };
+    let complete!: (attachments: typeof image[]) => void;
+    const { result, transport } = await startStreamingRun(undefined, {
+      uploadAttachments: () => new Promise<typeof image[]>(resolve => { complete = resolve; }),
+    });
+    await act(() => result.current.send());
+    let upload!: Promise<void>;
+    act(() => { upload = result.current.addAttachments([new File(['pixels'], 'cancel.png')]); result.current.composer.setDraft('cancel this screenshot'); });
+    await act(() => result.current.send());
+    act(() => result.current.cancelQueuedMessage({ id: result.current.queuedMessages[1]!.id }));
+    await act(async () => { complete([image]); await upload; });
+    expect(result.current.queuedMessages.map(input => input.text)).toEqual(['also fix the footer']);
+    expect(result.current.composer.attachments).toEqual([]);
+    act(() => transport.finish());
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]!.input.history.at(-1)?.content).toBe('also fix the footer');
+    expect(transport.calls[1]!.input.attachments).toBeUndefined();
+  });
+
+  it('restores a queued screenshot with its text when starting the flushed run is rejected', async () => {
+    const { result, transport } = await startStreamingRun(undefined);
+    const image = { path: 'attachment:retry', name: 'retry.png', kind: 'image' as const };
+    act(() => result.current.composer.addAttachment(image));
+    await act(() => result.current.send());
+    transport.startRun = async () => { throw new Error('offline'); };
+    act(() => transport.finish());
+    await waitFor(() => expect(result.current.composer.draft).toBe('also fix the footer'));
+    expect(result.current.composer.attachments).toEqual([image]);
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+});
+
+it.each([false, true])('aggregates only the surviving queued redaction signals (cancel first: %s)', async cancelFirst => {
+  const redactUserText = ({ text }: { text: string }, _options = {}) => {
+    const count = text.match(/SECRET/g)?.length ?? 0;
+    return { text: text.replaceAll('SECRET', '[token removed]'), secretRedacted: count > 0, count };
+  };
+  const { result, transport } = await startStreamingRun(undefined, { redactUserText });
+  act(() => result.current.composer.setDraft('one SECRET'));
+  await act(() => result.current.send());
+  act(() => result.current.composer.setDraft('two SECRET SECRET'));
+  await act(() => result.current.send());
+  expect(result.current.queuedMessages.map(input => input.secretRedaction?.count)).toEqual([1, 2]);
+  if (cancelFirst) act(() => result.current.cancelQueuedMessage({ id: result.current.queuedMessages[0]!.id }));
+  act(() => transport.finish());
+  await waitFor(() => expect(transport.calls).toHaveLength(2));
+  expect(transport.calls[1]!.input.history.at(-1)?.secretRedaction).toEqual({ secretRedacted: true, count: cancelFirst ? 2 : 3 });
+  expect(transport.calls[1]!.input.history.at(-1)?.content).toBe(cancelFirst
+    ? 'two [token removed] [token removed]' : 'one [token removed]\n\ntwo [token removed] [token removed]');
+});

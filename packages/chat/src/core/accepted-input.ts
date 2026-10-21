@@ -1,14 +1,35 @@
 /** Accepted composer input has one identity across optimistic display, replay and recall. */
 import { questionAnswerFromResult } from './question-answer.js';
 import type { AgentEvent } from './events.js';
-import type { ChatMessage } from './messages.js';
+import type { ChatAttachment, ChatMessage } from './messages.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
 
 export interface AcceptedChatInput {
   id: string;
   text: string;
+  attachments?: ChatAttachment[];
+  secretRedaction?: ChatMessage['secretRedaction'];
   /** Wire ids replaced by this receipt remain seen by recall. */
   aliases?: readonly string[];
+}
+
+/** Display queue constituents using their accepted identities; storage and delivery retain one turn.
+ * MOVE: Receipts travel in events_json, so separate bubbles survive a history reload without another store.
+ * @complexity O(m + e + i) time/space for m messages, e receipt events and i accepted queue inputs.
+ */
+export function projectAcceptedInputMessages({ messages }: { messages: readonly ChatMessage[] }, _options = {}): ChatMessage[] {
+  return messages.flatMap(message => {
+    if (message.role !== 'user') return [message];
+    const inputs = (message.events ?? []).flatMap(event => {
+      const input = acceptedInputEvent({ event });
+      return input ? [input.data] : [];
+    });
+    if (inputs.length === 0) return [message];
+    const { attachments: _attachments, secretRedaction: _redaction, ...turn } = message;
+    // MOVE: Older receipts have no per-input files; retain those legacy files on the final bubble.
+    return inputs.map((input, index) => ({ ...turn, id: input.id, content: input.text,
+      attachments: input.attachments ?? (index === inputs.length - 1 ? message.attachments ?? [] : []), ...(input.secretRedaction ? { secretRedaction: input.secretRedaction } : {}) }));
+  });
 }
 
 type UserMessageEvent = Extract<AgentEvent, { kind: 'ext' }> & {

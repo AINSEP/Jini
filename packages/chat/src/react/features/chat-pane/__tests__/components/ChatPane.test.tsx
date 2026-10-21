@@ -1230,3 +1230,80 @@ describe('ChatPane accepted input recording', () => {
     expect(document.querySelectorAll('.jini-message-user')).toHaveLength(0);
   });
 });
+
+// MOVE: Owner regression, 2026-10-20: preserve each submitted message and the screenshot's owner,
+// while delivery remains one paid run. Inspect rendered bubbles as well as the transport payload.
+describe('ChatPane per-message queue', () => {
+  async function queueOwnerMessages(_required: {}, _options = {}) {
+    const transport = createFakeChatTransport();
+    const image = { path: 'attachment:footer', name: 'footer.png', kind: 'image' as const };
+    let transcript: ChatMessage[] = [];
+    const view = render(<ChatPane transport={transport} agents={agents} initialDraft="first turn"
+      uploadAttachments={async () => [image]} onMessagesChange={messages => { transcript = messages; }} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'were you stuck?' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    await userEvent.upload(screen.getByTestId('composer-attachment-input'), new File(['pixels'], 'footer.png', { type: 'image/png' }));
+    await waitFor(() => expect(screen.getByTestId('composer-attachment-tray')).toBeInTheDocument());
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'add the footer icons' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(''));
+    return { ...view, transport, image, transcript: () => transcript };
+  }
+
+  it('shows two queued bubbles with the screenshot only on message 2 and an empty composer', async () => {
+    await queueOwnerMessages({});
+    const bubbles = screen.getAllByTestId('chat-pane-queued');
+    expect(bubbles).toHaveLength(2);
+    expect(bubbles[0]).toHaveTextContent('were you stuck?');
+    expect(bubbles[0]!.querySelector('.jini-message-attachment-chip')).toBeNull();
+    expect(bubbles[1]).toHaveTextContent('add the footer icons');
+    expect(bubbles[1]!.querySelector('[aria-label="Open footer.png"]')).toBeInTheDocument();
+    expect(bubbles.map(bubble => bubble.querySelectorAll('button[title="Cancel queued message"]').length)).toEqual([1, 1]);
+    expect(screen.queryByTestId('composer-attachment-tray')).toBeNull();
+  });
+
+  it('flushes one combined turn with the screenshot and displays separate history bubbles, including reload', async () => {
+    const fixture = await queueOwnerMessages({});
+    act(() => fixture.transport.finish());
+    await waitFor(() => expect(fixture.transport.calls).toHaveLength(2));
+    expect(fixture.transport.calls[1]!.input.history.at(-1)?.content).toBe('were you stuck?\n\nadd the footer icons');
+    expect(fixture.transport.calls[1]!.input.attachments).toEqual([fixture.image]);
+    expect(screen.queryAllByTestId('chat-pane-queued')).toHaveLength(0);
+    const first = screen.getByText('were you stuck?').closest('[data-message-id]');
+    const second = screen.getByText('add the footer icons').closest('[data-message-id]');
+    expect(first).not.toBe(second);
+    expect(first!.querySelector('.jini-message-attachment-chip')).toBeNull();
+    expect(second!.querySelector('[aria-label="Open footer.png"]')).toBeInTheDocument();
+    act(() => fixture.transport.finish());
+    const persisted = JSON.parse(JSON.stringify(fixture.transcript())) as ChatMessage[];
+    fixture.unmount();
+    render(<ChatPane transport={createFakeChatTransport()} agents={agents} initialMessages={persisted} />);
+    expect(screen.getByText('were you stuck?').closest('[data-message-id]')).toHaveAttribute('data-message-id', first!.getAttribute('data-message-id'));
+    expect(screen.getByText('add the footer icons').closest('[data-message-id]')).toHaveAttribute('data-message-id', second!.getAttribute('data-message-id'));
+    expect(screen.getByRole('button', { name: 'Open footer.png' })).toBeInTheDocument();
+  });
+
+  it.each([0, 1])('cancels only queued message %s and delivers only the surviving message and its files', async index => {
+    const { transport, image } = await queueOwnerMessages({});
+    await userEvent.click(screen.getAllByTitle('Cancel queued message')[index]!);
+    const remaining = screen.getAllByTestId('chat-pane-queued');
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]).toHaveTextContent(index === 0 ? 'add the footer icons' : 'were you stuck?');
+    act(() => transport.finish());
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]!.input.history.at(-1)?.content).toBe(index === 0 ? 'add the footer icons' : 'were you stuck?');
+    expect(transport.calls[1]!.input.attachments).toEqual(index === 0 ? [image] : undefined);
+  });
+
+  it('canceling the last bubble empties the queue and never sends either message', async () => {
+    const { transport } = await queueOwnerMessages({});
+    await userEvent.click(screen.getAllByTitle('Cancel queued message')[0]!);
+    await userEvent.click(screen.getByTitle('Cancel queued message'));
+    expect(screen.queryAllByTestId('chat-pane-queued')).toHaveLength(0);
+    expect(screen.queryByTestId('composer-attachment-tray')).toBeNull();
+    act(() => transport.finish());
+    expect(transport.calls).toHaveLength(1);
+  });
+});

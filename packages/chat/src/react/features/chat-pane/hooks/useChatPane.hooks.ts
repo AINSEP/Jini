@@ -131,6 +131,10 @@ export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
    * was silently swallowed.
    */
   queuedPrompt: string | null;
+  /** Individual queued messages, in send order, with their own staged files. */
+  queuedMessages: readonly AcceptedChatInput[];
+  /** Drops only the named queued message. */
+  cancelQueuedMessage: (input: { id: string }, options?: {}) => void;
   /** Drops the queued prompt without ever sending it. */
   cancelQueued: () => void;
   /**
@@ -331,11 +335,16 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const guard = useUserTextGuard(options);
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
-  // Keep the signal with sanitized queue text; re-redacting it later cannot detect the original paste.
-  const [queuedTurn, setQueuedTurn] = useState<UserTextRedaction | null>(null);
+  // MOVE: Keep the signal with each sanitized input; re-redaction cannot detect the original paste.
+  const [queuedInputs, setQueuedInputs] = useState<AcceptedChatInput[]>([]);
+  const queuedTurn = useMemo(() => queuedInputs.reduce<UserTextRedaction | null>((queued, input) => appendQueuedTurn({
+    queued, next: { text: input.text, secretRedacted: input.secretRedaction?.secretRedacted ?? false,
+      count: input.secretRedaction?.count ?? 0 },
+  }), null), [queuedInputs]);
+  // MOVE: Uploads belong to the input that submitted them, even if a later message is queued first.
+  const queuedUploadOwnersRef = useRef(new Map<AbortController, string>());
   // A send during upload resumes once pixels arrive; a rejected live delivery waits for run end.
   const queuedForUploadRef = useRef(false);
-  const queuedInputsRef = useRef<AcceptedChatInput[]>([]);
   const submittedComposerRef = useRef<UseComposerResult | null>(null);
   const startingPromptRef = useRef(false);
   const [typedAnswerNotice, setTypedAnswerNotice] = useState<TypedAnswerNotice | null>(null);
@@ -509,6 +518,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
 
   const addAttachments = useCallback(async (files: File[]) => {
     if (files.length === 0 || options.uploadAttachments === undefined) return;
+    // MOVE: A new upload is a fresh submission, including before its first attachment resolves.
+    submittedComposerRef.current = null;
     const generation = attachmentGenerationRef.current;
     const batchId = attachmentBatchIdRef.current;
     const conversationId = options.conversationId;
@@ -533,12 +544,16 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
           // Recorded before staging so the cache entry that persists this attachment carries its
           // batch, which is what lets a later mount restore the batch along with the attachment.
           writeCachedAttachmentBatchId({ conversationId, batchId });
-          composer.addAttachment(attachment);
+          const inputId = queuedUploadOwnersRef.current.get(controller);
+          if (inputId === undefined) composer.addAttachment(attachment);
+          else setQueuedInputs(inputs => inputs.map(input => input.id === inputId
+            ? { ...input, attachments: [...(input.attachments ?? []), attachment] } : input));
           if (file) cacheAttachmentPreviewSource({ path: attachment.path, file });
         },
         onError: setAttachmentError,
       });
     } finally {
+      queuedUploadOwnersRef.current.delete(controller);
       if (activeUploadsRef.current.delete(controller) && mountedRef.current) {
         setActiveUploadCount(activeUploadsRef.current.size);
       }
@@ -571,6 +586,18 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     })) attachmentBatchIdRef.current = createChatLocalId({});
   }, []);
 
+  /** MOVE: A rejected queue flush restores its captured files alongside the text for an honest retry. */
+  const restoreQueuedDraft = useCallback((
+    { inputs, text, attachments }: { inputs: AcceptedChatInput[] | undefined; text: string; attachments: ChatAttachment[] }, _options = {},
+  ) => {
+    if (inputs === undefined) return;
+    latestComposerRef.current.setDraft([text, latestDraftRef.current].filter(Boolean).join('\n\n'));
+    const staged = new Set(latestAttachmentsRef.current.map(attachment => attachment.path));
+    for (const attachment of attachments) {
+      if (!staged.has(attachment.path)) latestComposerRef.current.addAttachment(attachment);
+    }
+  }, []);
+
   const finishPromptSend = useCallback((
     { accepted, inputs, redaction, submittedDraft, attachments }: {
       accepted: boolean; inputs: AcceptedChatInput[] | undefined; redaction: UserTextRedaction;
@@ -578,7 +605,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     }, _options = {},
   ) => {
     if (!accepted) {
-      if (inputs !== undefined) latestComposerRef.current.setDraft([redaction.text, latestDraftRef.current].filter(Boolean).join('\n\n'));
+      restoreQueuedDraft({ inputs, text: redaction.text, attachments });
       return;
     }
     if (inputs === undefined && latestDraftRef.current === submittedDraft) {
@@ -586,10 +613,10 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       latestComposerRef.current.closeMention();
     }
     consumeDeliveredAttachments({ attachments });
-  }, [consumeDeliveredAttachments]);
+  }, [consumeDeliveredAttachments, restoreQueuedDraft]);
 
   const sendGuardedPrompt = useCallback(async (
-    { redaction, inputs }: { redaction: UserTextRedaction; inputs?: AcceptedChatInput[] }, _options = {},
+    { redaction, inputs, attachments = composer.attachments }: { redaction: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[] }, _options = {},
   ) => {
     const trimmed = redaction.text.trim();
     if (!trimmed) throw new Error('cannot send: the prompt is empty');
@@ -598,7 +625,6 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     startingPromptRef.current = true;
     const generation = typedAnswerGenerationRef.current;
     const submittedDraft = latestDraftRef.current;
-    const attachments = composer.attachments;
     try {
       const context = resolveRunContext({ context: options.runContext,
         input: { prompt: trimmed, selection, workingDirectory: workingDirectoryState.workingDirectory } });
@@ -626,19 +652,25 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     await sendGuardedPrompt({ redaction: guard.redact({ text: prompt.trim() }, {}) });
   }, [guard.redact, sendGuardedPrompt]);
 
-  // Every queue path goes through here: a message joins the turn already queued behind this run
-  // (`appendQueuedTurn`) instead of replacing it, which dropped the earlier message. A turn queued
-  // against another conversation is not joined — it would never be flushed there anyway.
+  // MOVE: Every queue path retains per-message receipts; appendQueuedTurn owns their one-turn delivery.
+  // A turn queued against another conversation is not joined — it would never be flushed there anyway.
   const enqueueTurn = useCallback((
-    { turn, inputs = [{ id: createChatLocalId({}), text: turn.text }] }: { turn: UserTextRedaction; inputs?: AcceptedChatInput[] },
-    _options = {},
+    { turn, inputs, attachments = composer.attachments }: {
+      turn: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[];
+    }, _options = {},
   ) => {
+    const accepted = inputs ?? [{ id: createChatLocalId({}), text: turn.text, attachments,
+      ...(turn.secretRedacted ? { secretRedaction: { secretRedacted: true as const, count: turn.count } } : {}) }];
     const sameConversation = queuedConversationIdRef.current === options.conversationId;
     queuedConversationIdRef.current = options.conversationId;
-    queuedInputsRef.current = [...(sameConversation ? queuedInputsRef.current : []), ...inputs];
-    recordAcceptedInput({ inputs });
-    setQueuedTurn(queued => appendQueuedTurn({ queued: sameConversation ? queued : null, next: turn }));
-  }, [composer, options.conversationId, recordAcceptedInput]);
+    for (const controller of activeUploadsRef.current) {
+      if (!queuedUploadOwnersRef.current.has(controller)) queuedUploadOwnersRef.current.set(controller, accepted.at(-1)!.id);
+    }
+    recordAcceptedInput({ inputs: accepted });
+    setQueuedInputs(queued => [...(sameConversation ? queued : []), ...accepted]);
+    // MOVE: Take files out of the composer without rotating their batch: every queued message ships together.
+    for (const attachment of attachments) latestComposerRef.current.removeAttachment(attachment.path);
+  }, [composer.attachments, options.conversationId, recordAcceptedInput]);
 
   const answerWaitingQuestion = useCallback(async (
     { deliver, text }: { deliver: DeliverTypedAnswer; text: string },
@@ -657,7 +689,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     }
     if (outcome === 'not-pending') {
       // MOVE: A definitive refusal accepted no answer; the existing queue owns one normal-send fallback.
-      enqueueTurn({ turn: guard.redact({ text: safeText }, {}) });
+      enqueueTurn({ turn: guard.redact({ text: safeText }, {}), attachments: [] });
     } else {
       recordAcceptedInput({ inputs: [{ id: `answer:${questionId}`, text: safeText }],
         bubble: { text: safeText, ...(questionId === null ? {} : { toolUseId: questionId }) } });
@@ -681,7 +713,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     }, _options = {},
   ) => {
     if (outcome === 'failed') {
-      if (inputs !== undefined) latestComposerRef.current.setDraft([turn.text, latestDraftRef.current].filter(Boolean).join('\n\n'));
+      restoreQueuedDraft({ inputs, text: turn.text, attachments });
       setTypedAnswerNotice('failed');
       return;
     }
@@ -692,18 +724,19 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       consumeDeliveredAttachments({ attachments });
       return;
     }
-    enqueueTurn({ turn, ...(inputs === undefined ? {} : { inputs }) });
+    enqueueTurn({ turn, attachments, ...(inputs === undefined ? {} : { inputs }) });
     clearDeliveredDraft({ inputs, submittedDraft });
     if (outcome === 'unsupported' && attachments.length === 0) conversation.cancel();
-  }, [conversation.cancel, enqueueTurn, recordAcceptedInput, clearDeliveredDraft, consumeDeliveredAttachments]);
+  }, [conversation.cancel, enqueueTurn, recordAcceptedInput, clearDeliveredDraft, consumeDeliveredAttachments, restoreQueuedDraft]);
 
   // A delivered steer belongs to the existing run; unsupported turns use the same accepted queue.
   // A failed delivery keeps the working draft so retry cannot silently become another run.
   const sendIntoRunningTurn = useCallback(async (
-    { deliver, runId, turn, inputs }: { deliver: DeliverMidRunMessage; runId: string; turn: UserTextRedaction; inputs?: AcceptedChatInput[] },
+    { deliver, runId, turn, inputs, attachments = composer.attachments }: {
+      deliver: DeliverMidRunMessage; runId: string; turn: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[];
+    },
     _options = {},
   ) => {
-    const attachments = composer.attachments;
     const submittedDraft = latestDraftRef.current;
     const priorEvents = conversation.messages.at(-1)?.events ?? [];
     const afterInputId = projectAcceptedInputEvents({ events: priorEvents }).flatMap(event => {
@@ -729,7 +762,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     const turn = guard.redact({ text: prompt }, {});
     const uploadPending = activeUploadsRef.current.size > 0 || attachmentError !== null;
     if (uploadPending) queuedForUploadRef.current = queuedTurn === null || queuedForUploadRef.current;
-    // The existing queue still owns the staged files; a later steer cannot consume them.
+    // MOVE: The existing queue owns its files; a later steer must join it to preserve send order.
     const target = uploadPending || queuedTurn !== null ? null : findMidRunTarget({
       deliver: options.deliverMidRunMessage,
       blocker: sendBlocker,
@@ -740,8 +773,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       await sendIntoRunningTurn({ ...target, turn });
       return;
     }
-    // Queue instead of no-op'ing. `setDraft('')` and NOT `composer.reset()`: reset also discards
-    // staged attachments, which this turn still needs when it finally goes out.
+    // MOVE: Queue owns the staged attachments before clearing the draft, so neither can be lost.
     enqueueTurn({ turn });
     composer.setDraft('');
   }, [
@@ -805,43 +837,61 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     conversation.cancel();
   }, [composer, conversation, enqueueTurn, guard.redact]);
 
+  /** Abort only uploads owned by the removed inputs; late completions must not refill the composer. */
+  const discardQueuedUploads = useCallback(({ id }: { id?: string }, _options = {}) => {
+    for (const [controller, owner] of queuedUploadOwnersRef.current) {
+      if (id !== undefined && owner !== id) continue;
+      controller.abort();
+      activeUploadsRef.current.delete(controller);
+      queuedUploadOwnersRef.current.delete(controller);
+    }
+    setActiveUploadCount(activeUploadsRef.current.size);
+  }, []);
+
   const cancelQueued = useCallback(() => {
     submittedComposerRef.current = null;
     queuedForUploadRef.current = false;
     queuedConversationIdRef.current = undefined;
-    queuedInputsRef.current = [];
-    setQueuedTurn(null);
-  }, []);
+    discardQueuedUploads({});
+    setQueuedInputs([]);
+  }, [discardQueuedUploads]);
+
+  const cancelQueuedMessage = useCallback(({ id }: { id: string }, _options = {}) => {
+    submittedComposerRef.current = null;
+    discardQueuedUploads({ id });
+    setQueuedInputs(inputs => inputs.filter(input => input.id !== id));
+  }, [discardQueuedUploads]);
 
   // Upload-waiting sends can steer once the image arrives. Other queued turns wait for a fully
   // clear blocker. Clear the slot before awaiting so re-renders cannot send it twice.
   useEffect(() => {
-    if (queuedTurn === null) return;
+    if (queuedTurn === null) {
+      queuedForUploadRef.current = false;
+      return;
+    }
     if (queuedConversationIdRef.current !== options.conversationId) {
       // The conversation changed while this prompt waited behind a streaming run — sending it now
       // would post it into a conversation the user never saw it queued against. Drop it instead
       // (same as `cancelQueued`) rather than misrouting it.
-      queuedConversationIdRef.current = undefined;
-      queuedInputsRef.current = [];
-      setQueuedTurn(null);
+      cancelQueued();
       return;
     }
     if (activeUploadCount > 0 || attachmentError !== null) return;
     const target = queuedForUploadRef.current ? findMidRunTarget({
       deliver: options.deliverMidRunMessage,
-      blocker: sendBlocker, attachmentCount: composer.attachments.length, messages: conversation.messages,
+      blocker: sendBlocker, attachmentCount: queuedInputs.flatMap(input => input.attachments ?? []).length, messages: conversation.messages,
     }) : null;
     if (sendBlocker !== null && target === null) return;
     queuedForUploadRef.current = false;
-    const inputs = queuedInputsRef.current;
-    queuedInputsRef.current = [];
-    setQueuedTurn(null);
+    const inputs = queuedInputs;
+    const attachments = inputs.flatMap(input => input.attachments ?? []);
+    setQueuedInputs([]);
     if (target !== null) {
-      void sendIntoRunningTurn({ ...target, turn: queuedTurn, inputs });
+      void sendIntoRunningTurn({ ...target, turn: queuedTurn, inputs, attachments });
       return;
     }
-    void sendGuardedPrompt({ redaction: queuedTurn, inputs });
-  }, [activeUploadCount, attachmentError, composer.attachments.length, conversation.messages,
+    void sendGuardedPrompt({ redaction: queuedTurn, inputs, attachments });
+  }, [activeUploadCount, attachmentError, cancelQueued, queuedInputs, conversation.messages,
     options.conversationId, options.deliverMidRunMessage, queuedTurn, sendBlocker, sendGuardedPrompt, sendIntoRunningTurn]);
 
   const reset = useCallback(() => {
@@ -862,8 +912,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     // the just-reset conversation instead of discarding it like the rest of this turn's state.
     queuedConversationIdRef.current = undefined;
     queuedForUploadRef.current = false;
-    queuedInputsRef.current = [];
-    setQueuedTurn(null);
+    queuedUploadOwnersRef.current.clear();
+    setQueuedInputs([]);
   }, [composer, conversation, options.initialMessages]);
 
   return {
@@ -884,6 +934,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     send,
     sendPrompt,
     queuedPrompt: queuedTurn?.text ?? null,
+    queuedMessages: queuedInputs,
+    cancelQueuedMessage,
     cancelQueued,
     typedAnswerNotice,
     sendAsNewMessage,

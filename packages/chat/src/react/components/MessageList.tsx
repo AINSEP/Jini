@@ -9,13 +9,24 @@
  * scroll-anchoring state lives in `useMessageListAutoScroll`
  * (`MessageList.hooks.ts`); see that file for why it is presentational.
  */
-import { memo } from 'react';
-import type { ChatMessage } from '../../core/index.js';
+import { memo, useMemo } from 'react';
+import { projectAcceptedInputMessages } from '../../core/accepted-input.js';
+import type { ChatAttachment, ChatMessage } from '../../core/index.js';
 import { isTerminalRunStatus } from '../../core/index.js';
 import type { ChatUsageSummary } from '../../core/turn-usage.js';
 import { useT } from '../hooks/context.js';
 import { useMessageListAutoScroll, useConversationUsage } from './MessageList.hooks.js';
 import { MessageRow, type MessageRowProps } from './MessageRow.js';
+import { SentAttachmentButton } from './SentAttachment.js';
+import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
+import { useAttachmentGallery } from './AttachmentGallery.hooks.js';
+
+interface PendingPrompt {
+  id?: string;
+  text: string;
+  attachments?: ChatAttachment[];
+  onCancel: () => void;
+}
 
 export interface MessageListProps extends Pick<MessageRowProps, 'projectFileNames' | 'onRequestOpenFile' | 'renderAttachment' | 'showUsageTotal' | 'showUsageLine' | 'toolCallDisplay' | 'showThinking'> {
   messages: ChatMessage[];
@@ -28,15 +39,11 @@ export interface MessageListProps extends Pick<MessageRowProps, 'projectFileName
   questionFormSubmittedAnswersByMessageId?: Record<string, Record<string, string | string[]>>;
   onQuestionFormSubmit?: (messageId: string, text: string, answers: Record<string, string | string[]>) => void;
   /**
-   * A composer-driven turn typed while a run is in flight, mirroring `useChatPane().queuedPrompt` —
-   * rendered as the newest transcript entry (like Claude Code/ChatGPT's own pending-turn UI)
-   * instead of a banner bolted above the composer. Deliberately NOT a `ChatMessage`: it has no
-   * persisted id (nothing here could mint one without risking collision with a real message once
-   * this prompt is actually sent) and is never written to `messages`/storage — purely a rendering
-   * of `useChatPane`'s own in-memory queue slot. `null`/omitted renders nothing, matching the old
-   * strip's "shown only once something is actually queued" behavior.
+   * MOVE: Pending inputs render as the newest transcript entries, never persisted ChatMessages.
+   * Their accepted ids identify cancellations; the singular prop remains a host compatibility seam.
    */
-  pendingPrompt?: { text: string; onCancel: () => void } | null;
+  pendingPrompt?: PendingPrompt | null;
+  pendingPrompts?: readonly PendingPrompt[];
 }
 
 function renderMessageRow(
@@ -46,7 +53,7 @@ function renderMessageRow(
     isStreaming: boolean;
     usageSummary: ChatUsageSummary | undefined;
   },
-  { activeQuestionFormMessageId, questionFormSubmittedAnswersByMessageId, onQuestionFormSubmit, ...rowProps }: Omit<MessageListProps, 'messages' | 'isStreaming' | 'scrollIntent' | 'onScrolled' | 'pendingPrompt'> = {},
+  { activeQuestionFormMessageId, questionFormSubmittedAnswersByMessageId, onQuestionFormSubmit, ...rowProps }: Omit<MessageListProps, 'messages' | 'isStreaming' | 'scrollIntent' | 'onScrolled' | 'pendingPrompt' | 'pendingPrompts'> = {},
 ) {
   const runStreaming = isLast && isStreaming && !isTerminalRunStatus({ status: message.runStatus });
   return (
@@ -68,18 +75,19 @@ function renderMessageRow(
 /**
  * Memoized: the pane re-renders on every composer keystroke, and re-rendering a long transcript
  * (hundreds of tool rows, MCP-UI cards, markdown) per key made typing lag (owner report
- * 2026-10-08). Callers must pass stable props — `ChatPane` memoizes `pendingPrompt` and
+ * 2026-10-08). Callers must pass stable props — `ChatPane` memoizes `pendingPrompts` and
  * `projectFileNames` for exactly this.
  */
 export const MessageList = memo(function MessageList({
-  messages,
+  messages: sourceMessages,
   isStreaming = false,
   scrollIntent = false,
   onScrolled,
   pendingPrompt,
+  pendingPrompts,
   ...rowProps
 }: MessageListProps) {
-  const t = useT();
+  const messages = useMemo(() => projectAcceptedInputMessages({ messages: sourceMessages }), [sourceMessages]);
   const usageByMessage = useConversationUsage({ messages });
   const { containerRef, onScroll } = useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
 
@@ -98,30 +106,47 @@ export const MessageList = memo(function MessageList({
         isStreaming,
         usageSummary: usageByMessage.get(message.id),
       }, rowProps))}
-      {pendingPrompt ? (
-        <div
-          className="jini-chat-pane__queued"
-          role="status"
-          aria-label={t('Message queued — not yet sent, will send once the current run finishes')}
-          data-testid="chat-pane-queued"
-          data-agent-element="chat-message-pending"
-          data-agent-role="region"
-          data-agent-label="A message queued to send once the current run finishes"
-        >
-          <div>{t('Queued — sends when this reply finishes')}</div>
-          <div className="jini-chat-pane__queued-text">{pendingPrompt.text}</div>
-          <div className="jini-chat-pane__queued-actions">
-            <button
-              type="button"
-              className="jini-chat-pane__queued-cancel"
-              onClick={pendingPrompt.onCancel}
-              title={t('Cancel queued message')}
-            >
-              {t('Cancel')}
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {(pendingPrompts ?? (pendingPrompt ? [pendingPrompt] : [])).map((prompt, index) => (
+        <QueuedMessage key={prompt.id ?? index} prompt={prompt} renderAttachment={rowProps.renderAttachment} />
+      ))}
     </div>
   );
 });
+
+/** One cancelable queue receipt; attachment rendering reuses the sent-message preview owner. */
+function QueuedMessage({ prompt, renderAttachment }: {
+  prompt: PendingPrompt; renderAttachment: MessageRowProps['renderAttachment'];
+}) {
+  const t = useT();
+  const attachments = prompt.attachments ?? [];
+  const gallery = useAttachmentGallery({ attachments });
+  return (
+    <div
+      className="jini-chat-pane__queued"
+      role="status"
+      aria-label={t('Message queued — not yet sent, will send once the current run finishes')}
+      data-testid="chat-pane-queued"
+      data-agent-element="chat-message-pending"
+      data-agent-role="region"
+      data-agent-label="A message queued to send once the current run finishes"
+    >
+      <div>{t('Queued — sends when this reply finishes')}</div>
+      <div className="jini-chat-pane__queued-text">{prompt.text}</div>
+      {attachments.length > 0 && <div className="jini-message-attachments">
+        {attachments.map(attachment => <SentAttachmentButton key={attachment.path} attachment={attachment}
+          onOpen={gallery.open} renderAttachment={renderAttachment} />)}
+      </div>}
+      {gallery.opened !== null && <AttachmentPreviewModal attachment={gallery.opened} onClose={gallery.close} navigation={gallery.navigation} />}
+      <div className="jini-chat-pane__queued-actions">
+        <button
+          type="button"
+          className="jini-chat-pane__queued-cancel"
+          onClick={prompt.onCancel}
+          title={t('Cancel queued message')}
+        >
+          {t('Cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}

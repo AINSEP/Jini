@@ -485,7 +485,7 @@ interface ChatPaneComposerAreaProps {
  *
  * The pending-turn strip previously lived here (a banner bolted above the composer). It now
  * renders inside `<MessageList>` itself, as the newest transcript entry — see that component's
- * `pendingPrompt` prop and this component's own call site below. */
+ * `pendingPrompts` prop and this component's own call site below. */
 function ChatPaneComposerArea({
   fileDrop,
   uploadAttachments,
@@ -623,16 +623,16 @@ function useChatPaneTranscriptProps(
 ) {
   // `MessageList` is memoized so a composer keystroke does not re-render the transcript; these two
   // props would otherwise be fresh objects on every render and defeat it.
-  const { queuedPrompt, cancelQueued } = pane;
-  const pendingPrompt = useMemo(
-    () => (queuedPrompt === null ? null : { text: queuedPrompt, onCancel: cancelQueued }),
-    [queuedPrompt, cancelQueued],
+  const { queuedMessages, cancelQueuedMessage } = pane;
+  const pendingPrompts = useMemo(
+    () => queuedMessages.map(input => ({ ...input, onCancel: () => cancelQueuedMessage({ id: input.id }) })),
+    [queuedMessages, cancelQueuedMessage],
   );
   const projectFileNameSet = useMemo(
     () => (projectFileNames === undefined ? undefined : new Set(projectFileNames)),
     [projectFileNames],
   );
-  return { pendingPrompt, projectFileNameSet };
+  return { pendingPrompts, projectFileNameSet };
 }
 
 /** `composerSlots`'s type excludes both `leadingAccessories` and `footerAccessories` (see
@@ -659,7 +659,7 @@ interface ChatPaneTranscriptProps {
   embed: boolean;
   suggestions: readonly string[];
   onSelectSuggestion: (suggestion: string) => void;
-  pendingPrompt: { text: string; onCancel: () => void } | null;
+  pendingPrompts: ReturnType<typeof useChatPaneTranscriptProps>['pendingPrompts'];
   projectFileNameSet: Set<string> | undefined;
   toolCallDisplay: ResolvedChatPaneProps['toolCallDisplay'];
   showUsageLine: boolean;
@@ -673,7 +673,7 @@ function ChatPaneTranscript({
   embed,
   suggestions,
   onSelectSuggestion,
-  pendingPrompt,
+  pendingPrompts,
   projectFileNameSet,
   toolCallDisplay,
   showUsageLine,
@@ -694,7 +694,7 @@ function ChatPaneTranscript({
       isStreaming={pane.conversation.isStreaming}
       scrollIntent={pane.conversation.scrollIntent}
       onScrolled={pane.conversation.acknowledgeScroll}
-      pendingPrompt={pendingPrompt}
+      pendingPrompts={pendingPrompts}
       toolCallDisplay={toolCallDisplay}
       showUsageLine={showUsageLine}
       showThinking={showThinking}
@@ -819,7 +819,7 @@ export function ChatPane(props: ChatPaneProps) {
   const { rootRef, controlsRef } = useChatPaneControlsHeight();
   const selectSuggestion = useChatPaneSuggestion({ rootRef, setDraft: pane.composer.setDraft });
   const openLinkInNewTab = useChatPaneNewTabLinks();
-  const { pendingPrompt, projectFileNameSet } = useChatPaneTranscriptProps(
+  const { pendingPrompts, projectFileNameSet } = useChatPaneTranscriptProps(
     { pane },
     definedProps({ source: { projectFileNames: p.projectFileNames } }),
   );
@@ -842,7 +842,7 @@ export function ChatPane(props: ChatPaneProps) {
           embed={surface.embed}
           suggestions={p.suggestions}
           onSelectSuggestion={selectSuggestion}
-          pendingPrompt={pendingPrompt}
+          pendingPrompts={pendingPrompts}
           projectFileNameSet={projectFileNameSet}
           toolCallDisplay={p.toolCallDisplay}
           showUsageLine={p.showUsageLine}

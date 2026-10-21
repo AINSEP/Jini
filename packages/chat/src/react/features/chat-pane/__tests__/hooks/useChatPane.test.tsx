@@ -323,7 +323,7 @@ describe('useChatPane', () => {
     expect(transport.calls).toHaveLength(0);
   });
 
-  it('queues an Enter sent while streaming, clearing only the draft and keeping staged attachments', async () => {
+  it('queues an Enter sent while streaming, capturing attachments and clearing the composer', async () => {
     const transport = createFakeChatTransport();
     const { result } = renderHook(() => useChatPane({
       transport,
@@ -344,9 +344,10 @@ describe('useChatPane', () => {
 
     expect(result.current.queuedPrompt).toBe('second turn');
     expect(result.current.composer.draft).toBe('');
-    // `send()` uses `composer.setDraft('')`, NOT `composer.reset()` — a reset would also wipe the
-    // attachment this queued turn still needs when it finally goes out.
-    expect(result.current.composer.attachments).toEqual([{ path: '/tmp/b.txt', name: 'b.txt', kind: 'file' }]);
+    // MOVE: The queue owns this file until flush; the next composer message starts without it.
+    expect(result.current.composer.attachments).toEqual([]);
+    expect(result.current.queuedMessages).toMatchObject([{ text: 'second turn',
+      attachments: [{ path: '/tmp/b.txt', name: 'b.txt', kind: 'file' }] }]);
     // Nothing was sent yet — the second turn is only queued while the first is still streaming.
     expect(transport.calls).toHaveLength(1);
   });

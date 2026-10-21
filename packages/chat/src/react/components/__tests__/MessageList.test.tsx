@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/index.js';
 import { MessageList } from '../MessageList.js';
+import { projectAcceptedInputMessages } from '../../../core/accepted-input.js';
 
 const messages: ChatMessage[] = [
   { id: '1', role: 'user', content: 'hi' },
@@ -300,4 +301,35 @@ describe('MessageList', () => {
       expect(container.querySelectorAll('[data-message-id]')).toHaveLength(messages.length);
     });
   });
+});
+
+it('projects persisted accepted inputs as distinct user rows and keeps each redaction signal on its own receipt', () => {
+  const inputs = [
+    { id: 'input-1', text: 'safe first message', attachments: [] },
+    { id: 'input-2', text: 'second [token removed]', attachments: [], secretRedaction: { secretRedacted: true as const, count: 1 } },
+  ];
+  const combined: ChatMessage = { id: 'combined', role: 'user', content: 'safe first message\n\nsecond [token removed]',
+    secretRedaction: { secretRedacted: true, count: 1 },
+    events: inputs.map(input => ({ kind: 'ext', name: 'user_message', data: input })),
+  };
+  expect(projectAcceptedInputMessages({ messages: [combined] }).map(message => message.secretRedaction)).toEqual([
+    undefined, { secretRedacted: true, count: 1 },
+  ]);
+  const { container } = render(<MessageList messages={[combined]} />);
+  const rows = container.querySelectorAll('[data-message-id]');
+  expect([...rows].map(row => row.getAttribute('data-message-id'))).toEqual(['input-1', 'input-2']);
+  expect(rows[0]).toHaveTextContent('safe first message');
+  expect(rows[1]).toHaveTextContent('second [token removed]');
+  expect(combined.content).toBe('safe first message\n\nsecond [token removed]');
+});
+
+it('retains files on the final bubble when loading older queue receipts without per-input attachment metadata', () => {
+  const image = { path: 'attachment:legacy', name: 'legacy.png', kind: 'image' as const };
+  const message: ChatMessage = { id: 'old-turn', role: 'user', content: 'first\n\nsecond', attachments: [image], events: [
+    { kind: 'ext', name: 'user_message', data: { id: 'old-1', text: 'first' } },
+    { kind: 'ext', name: 'user_message', data: { id: 'old-2', text: 'second' } },
+  ] };
+  render(<MessageList messages={[message]} />);
+  expect(screen.getByText('first').closest('[data-message-id]')!.querySelector('.jini-message-attachment-chip')).toBeNull();
+  expect(screen.getByText('second').closest('[data-message-id]')!.querySelector('[aria-label="Open legacy.png"]')).toBeInTheDocument();
 });
