@@ -11,10 +11,12 @@ export * from "./contract/evidence.js";
 export * from "./contract/provider.js";
 export * from "./contract/payments-port.js";
 export * from "./contract/risk.js";
+export * from "./contract/alerts.js";
 export * from "./contract/tokens.js";
 export * from "./state/status.js";
 export * from "./plugin-contribution.js";
 export * from "./provider-module-guard.js";
+export * from "./provider-registry.js";
 // The payments ledger (L2): storage records, the `PaymentsLedger` port and its in-memory adapter.
 // The SQL adapter and the migrations are in `./ledger/sql.ts`, not here: they load `kysely` and
 // `@jini-ai/db` at runtime, both optional peers a provider plugin importing this entry lacks.
