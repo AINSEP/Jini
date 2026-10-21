@@ -65,6 +65,27 @@ describe("inbox worker: apply", () => {
     expect(w.alerts.raised).toEqual([]);
   });
 
+  test("money withdrawn beyond captured raises over-withdrawn through the worker's alert sink; the evidence still applies", async () => {
+    const w = await ingestWorld();
+    await w.insertPayment();
+    await w.charge();
+    await w.deliver("charge.succeeded", "ch_1", "evt_1");
+    await workerOf(w).runOnce({ limit: 10 });
+    const deps = { now: w.now, newId: w.newId };
+    const target = { deps, workspaceId: "ws", mode: "test" as const, paymentId: "pay_1" };
+    await w.tx((tx) => reserveRefund({ tx, ...target, refundId: "rf_1", amountMinor: 10_000, idempotencyKey: "rk" }));
+    await w.tx((tx) => applyRefundEvidence({ tx, ...target, source: "response", evidence: { providerRefundRef: "re_x", correlationId: "rf_1", amount: USD(10_000), status: "succeeded" } }));
+    // A dispute row the caches do not count yet: the next apply re-derives them and crosses the line.
+    await w.tx((tx) => tx.insertDispute({ dispute: {
+      id: "dp_row", paymentId: "pay_1", workspaceId: "ws", siteId: "site", providerId: "lipay", providerAccountId: "acct_fake", mode: "test",
+      providerDisputeRef: "dp_1", currency: "USD", amountMinor: 10_000, status: "open", dueBy: null, createdAt: T0, updatedAt: T0,
+    } }));
+    await w.deliver("charge.succeeded", "ch_1", "evt_2");
+    expect(await workerOf(w).runOnce({ limit: 10 })).toEqual(counts({ seen: 1, applied: 1 }));
+    expect(w.alerts.raised).toEqual([expect.objectContaining({ kind: "over-withdrawn", paymentId: "pay_1" })]);
+    expect((await w.read()).payment).toMatchObject({ refundedMinor: 10_000, disputedMinor: 10_000 });
+  });
+
   test("a webhook that beats our own insert is parked with backoff, then applied once the payment exists (matched by correlation id)", async () => {
     const w = await ingestWorld();
     await w.charge();

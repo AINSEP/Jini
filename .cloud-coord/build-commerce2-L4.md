@@ -19,3 +19,6 @@ Started ~16:56Z. Baseline src/payments kernel vitest: 271 passed, 1 skipped (14 
 ## 17:20Z
 - DONE complexity (0 errors at 10/10), registry + alerts tests, kernel.ts exports appended. Full kernel vitest 545 pass/1 skip; tsc clean.
 - NOW step 8 legacy deletion. Plan: delete lipay-plugin.ts, ports.ts, state-machine.ts, registry.ts, credentials.ts, payments/index.ts, payments/__tests__/*.test.ts + support/storage, store/**, catalog/webhook-inbox.ts + test + index line; reduce providers/lipay-gateway.ts to signLipayWebhook (it imported legacy ports.ts); package.json ./payments ./store entries + test globs.
+## 19:56Z DONE
+- Step 8 legacy deletion done (snapshotted by coordinator in 3e0122f4); worker.ts threads alerts into WriterDeps + over-withdrawn test.
+- Final: tsc clean; kernel vitest 546 pass/1 skip; catalog node:test 46/46; react 4/4; complexity 0 errors.

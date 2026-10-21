@@ -79,7 +79,7 @@ export function paymentsToolCatalog(
   return [
     {
       name: PAYMENTS_TOOL_IDS.get,
-      description: "Reads one payment of this site's payment account: status, amount, captured, refunded, held and disputed money, reference and any next action. Read-only.",
+      description: "Reads one payment of the run's payment account: status, amount, captured, refunded, held and disputed money, reference and any next action. Read-only.",
       sideEffects: "none", authorization: read, inputSchema: strict({ paymentId: PAYMENT_ID }, ["paymentId"]),
     },
     {

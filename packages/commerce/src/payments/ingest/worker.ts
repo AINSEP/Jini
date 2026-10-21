@@ -188,7 +188,8 @@ async function applyInTx(env: Env, tx: LedgerTx, row: InboxRecord, found: Locate
   if (!payment) return { kind: "retry", error: "payment not found yet", paymentId: null };
   seen.paymentId = payment.id;
   const result = await applyPaymentEvidence(
-    { tx, deps: env.deps, workspaceId: row.workspaceId, mode: row.mode, paymentId: payment.id, source: found.source, evidence: found.evidence },
+    // The writer raises `over-withdrawn` through the worker's own alert sink (L4: alert, never cap).
+    { tx, deps: { now: env.deps.now, newId: env.deps.newId, alerts: env.alerts }, workspaceId: row.workspaceId, mode: row.mode, paymentId: payment.id, source: found.source, evidence: found.evidence },
     { inboxId: row.id }
   );
   if (result.kind === "quarantined") return { kind: "applied", paymentId: payment.id, quarantined: [result.reason] };

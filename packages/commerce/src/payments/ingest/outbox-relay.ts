@@ -7,9 +7,9 @@
  * republishes it; consumers dedupe by the message `id`. A publish failure stops the batch and
  * leaves the rest pending, so a consumer never sees a later event before an earlier one.
  *
- * "Earlier" is the ledger's `listPendingOutbox` order: `created_at`, then `id`. Messages one apply
- * enqueues share `created_at`, so between THEM the order follows the host's `newId` (random for
- * UUIDv4) — a ledger sequence column is needed for strict intra-transaction order (L5 report).
+ * "Earlier" is the ledger's `listPendingOutbox` order: `created_at`, then `seq`, then `id`. Messages
+ * one apply enqueues share `created_at`; `seq` (migration 0002, assigned at enqueue) keeps their
+ * intra-transaction order, so `payment.succeeded` precedes a refund of the same payment.
  */
 import type { PaymentMode } from "../contract/scope.js";
 import type { PaymentsLedger } from "../ledger/repo.js";
