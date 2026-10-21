@@ -75,8 +75,11 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
     const pendingDelete = new Set<string>();
     let pendingFull = false;
 
+    // No `disposed` check on entry: a pass only ever starts from `flush`, whose first pass runs
+    // synchronously from a timer that cleanup cancels, and whose later passes are gated by the loop's
+    // own `!disposed` condition — so a pass can never begin after disposal. The post-fetch check
+    // below still matters, because disposal can land while a pass is awaiting.
     const runFlushPass = async () => {
-      if (disposed) return;
       applyPendingDeletes({ pendingDelete, pendingIngest, setAssets });
       if (pendingFull || filtersActiveRef.current) {
         pendingFull = false;

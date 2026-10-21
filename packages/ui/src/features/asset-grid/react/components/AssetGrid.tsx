@@ -182,12 +182,17 @@ export function AssetGrid<TAsset extends AssetGridItem>({
     });
   }, [selectedIds, onDeleteSelected, setAssets, setSelectedIds, runDelete]);
 
-  const handleDeleteAsset = useCallback(
-    async (id: string) => {
-      await runDelete(onDeleteAsset ? (batch) => onDeleteAsset(batch[0]!) : null, [id], () => {
-        setAssets((prev) => prev.filter((a) => a.id !== id));
-      });
-    },
+  // Built only when the host supplied `onDeleteAsset`: the card shows its per-asset delete control
+  // only when it receives a handler, so there is no "no handler" path to route through `runDelete`
+  // here (the old inline `onDeleteAsset ? … : null` could never see `null` from a rendered card).
+  const handleDeleteAsset = useMemo(
+    () => onDeleteAsset
+      ? async (id: string) => {
+        await runDelete((batch) => onDeleteAsset(batch[0]!), [id], () => {
+          setAssets((prev) => prev.filter((a) => a.id !== id));
+        });
+      }
+      : undefined,
     [onDeleteAsset, setAssets, runDelete],
   );
 
@@ -234,7 +239,7 @@ export function AssetGrid<TAsset extends AssetGridItem>({
           onToggle={toggleOne}
           onRange={rangeTo}
           onPreview={handlePreview}
-          onDeleteAsset={onDeleteAsset ? handleDeleteAsset : undefined}
+          onDeleteAsset={handleDeleteAsset}
           renderCardExtra={renderCardExtra}
         />
       );
