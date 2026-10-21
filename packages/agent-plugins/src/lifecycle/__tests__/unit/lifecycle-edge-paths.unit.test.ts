@@ -136,6 +136,12 @@ describe('createBundledDigestsModule ledger hygiene', () => {
     expect(await removeBundledAgentPluginDigest({ workspaceRoot: root, pluginId: 'absent' })).toBe(false);
     expect(await fs.readFile(path.join(root, BUNDLED_DIGESTS_FILENAME), 'utf8')).toBe(before);
   });
+  test('removing from a ledger of an unknown schema reports false and leaves it untouched', async () => {
+    const root = await tempDir();
+    await fs.writeFile(path.join(root, BUNDLED_DIGESTS_FILENAME), JSON.stringify({ schemaVersion: 2, plugins: { good: { archiveDigest: digest } } }));
+    expect(await createBundledDigestsModule(ports).removeBundledAgentPluginDigest({ workspaceRoot: root, pluginId: 'good' })).toBe(false);
+    expect(JSON.parse(await fs.readFile(path.join(root, BUNDLED_DIGESTS_FILENAME), 'utf8')).schemaVersion).toBe(2);
+  });
   test('a failed atomic rename removes the temp file and keeps the previous ledger', async () => {
     const root = await tempDir();
     const writer = createBundledDigestsModule(ports);

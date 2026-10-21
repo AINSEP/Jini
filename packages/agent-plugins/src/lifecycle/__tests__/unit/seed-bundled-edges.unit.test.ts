@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createAgentPluginLayout } from '../../layout.js';
 import { createSeedBundledModule } from '../../seed-bundled.js';
 import { BUNDLED_DIGESTS_FILENAME } from '../../bundled-digests.js';
+import { ACTIVATIONS_FILENAME } from '../../activation.js';
 import type { AgentPluginLifecyclePorts, FilesystemPort } from '../../ports.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
@@ -65,7 +66,7 @@ describe('faults become report entries', () => {
   });
   test('a non-Error activation-lock fault fails every plugin before any install', async () => {
     const source = await sourceWithPlugin();
-    const { layout, report } = await seed(source, { filesystem: failingFs(target => target.endsWith('.lock'), 'lock device gone', 'open') });
+    const { layout, report } = await seed(source, { filesystem: failingFs(target => target.endsWith(`${ACTIVATIONS_FILENAME}.lock`), 'lock device gone', 'open') });
     expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'lock device gone' }]);
     await expect(fs.stat(layout.forWorkspace({ workspaceId: 'ws' }).pluginRootDir({ pluginId: 'seeded-one' }))).rejects.toMatchObject({ code: 'ENOENT' });
   });
@@ -84,5 +85,16 @@ describe('faults become report entries', () => {
     const source = await sourceWithPlugin();
     const { report } = await seed(source, { filesystem: failingFs(target => target.includes(`${BUNDLED_DIGESTS_FILENAME}.tmp-`), 'ledger offline', 'open') });
     expect(report.ledgerFailure).toBe('ledger offline');
+  });
+  test('an unreadable activations file fails every plugin with the activation error message', async () => {
+    const source = await sourceWithPlugin();
+    const layout = createAgentPluginLayout({ root: await tempDir() });
+    const workspaceRoot = layout.forWorkspace({ workspaceId: 'ws' }).root;
+    await fs.mkdir(path.join(workspaceRoot, ACTIVATIONS_FILENAME), { recursive: true });
+    const { seedBundledAgentPlugins } = createSeedBundledModule({ ...ports, layout, onEvent: () => undefined });
+    const report = await seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot: source });
+    expect(report.outcomes).toHaveLength(1);
+    expect(report.outcomes[0]).toMatchObject({ pluginId: 'seeded-one', status: 'failed' });
+    expect((report.outcomes[0] as { reason: string }).reason).toContain(`${ACTIVATIONS_FILENAME} could not be read (EISDIR`);
   });
 });
