@@ -114,6 +114,27 @@ describe('verifyRequirements', () => {
     expect(empty.reason).toMatch(/no authoritative nameservers/);
   });
 
+  // Regression (review 13-dns #6): one matching answer used to mark the whole RRset propagated.
+  test('an address RRset still holding an obsolete value is a mismatch, not propagated', async () => {
+    const stale = fakeResolver({ ns, records: { 'www.example.test|A': ['192.0.2.1', '192.0.2.9'] } });
+    const result = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])] }, { resolver: stale });
+    expect(result.records[0]?.byNameserver.map(observation => observation.state)).toEqual(['mismatch', 'mismatch']);
+    expect(result.state).toBe('mismatch');
+    const both = fakeResolver({ ns, records: { 'www.example.test|A': ['192.0.2.1', '192.0.2.2'] } });
+    const second = { ...www, value: '192.0.2.2' };
+    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([www]), requirement([second])] }, { resolver: both })).state).toBe('propagated');
+  });
+
+  test('two SPF records at a name are a mismatch even when one carries the required mechanism', async () => {
+    const spf = { type: 'TXT' as const, name: 'example.test', value: 'v=spf1 include:mail.test -all' };
+    const duplicate = fakeResolver({ ns, records: { 'example.test|TXT': ['"v=spf1 include:mail.test -all"', '"v=spf1 a -all"', '"site-verification=1"'] } });
+    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([spf])] }, { resolver: duplicate })).state).toBe('mismatch');
+    const single = fakeResolver({ ns, records: { 'example.test|TXT': ['"v=spf1 a include:mail.test -all"', '"v=spf1-lookalike"', '"site-verification=1"'] } });
+    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([spf])] }, { resolver: single })).state).toBe('propagated');
+    const plainTxt = fakeResolver({ ns, records: { 'example.test|TXT': ['"token"', '"v=spf1 a -all"', '"v=spf1 mx -all"'] } });
+    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([{ type: 'TXT', name: 'example.test', value: 'token' }])] }, { resolver: plainTxt })).state).toBe('propagated');
+  });
+
   test('aggregate ranks mismatch over unknown over pending', () => {
     expect(aggregatePropagation({ states: [] })).toBe('propagated');
     expect(aggregatePropagation({ states: ['pending', 'unknown'] })).toBe('unknown');

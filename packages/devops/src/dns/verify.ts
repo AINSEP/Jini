@@ -6,7 +6,7 @@
  * A transport error is `unknown` (retry later), never a failure: slow DNS is not a broken domain.
  */
 import type { DomainRecordRequirement } from '@jini-ai/core/provider-registry';
-import type { AuthoritativeDnsPort } from './contract.js';
+import { DNS_ADDRESS_TYPES, type AuthoritativeDnsPort } from './contract.js';
 import { settlePort } from './delegation.js';
 import { dnsValueKey, isMxValue, normalizeDnsName, parseAnswerValue, requirementValue } from './records.js';
 import { isSpfValue, spfSatisfies } from './spf.js';
@@ -67,14 +67,36 @@ function textMatches(actual: string, expected: string): boolean {
   return isSpfValue({ value: actual }) && spfSatisfies({ actual, wanted: expected });
 }
 
-async function observe(record: DomainRecordRequirement, nameserver: string, resolver: AuthoritativeDnsPort): Promise<NameserverObservation> {
+/** True when a TXT answer or requirement value is an SPF (`v=spf1`) record. */
+function isSpfText(type: DomainRecordRequirement['type'], text: string): boolean {
+  const value = parseAnswerValue({ type, text });
+  return type === 'TXT' && typeof value === 'string' && isSpfValue({ value });
+}
+
+/**
+ * Answers that make an RRset wrong even though one of them matches: an address RRset must hold
+ * only required values (an obsolete IP still receives traffic), and a name may publish only one
+ * SPF record (a second makes every SPF check a PermError).
+ */
+function invalidRrset(record: DomainRecordRequirement, answers: readonly string[], siblings: readonly DomainRecordRequirement[]): boolean {
+  if (DNS_ADDRESS_TYPES.has(record.type)) return answers.some(answer => !siblings.some(sibling => answerMatches({ record: sibling, answer })));
+  return isSpfText(record.type, record.value) && answers.filter(answer => isSpfText(record.type, answer)).length > 1;
+}
+
+async function observe(record: DomainRecordRequirement, nameserver: string, ports: { resolver: AuthoritativeDnsPort; siblings: readonly DomainRecordRequirement[] }): Promise<NameserverObservation> {
   const name = normalizeDnsName({ name: record.name });
-  const result = await settlePort({ call: () => resolver.query({ name, type: record.type, nameserver }) });
+  const result = await settlePort({ call: () => ports.resolver.query({ name, type: record.type, nameserver }) });
   if (result.status === 'unknown') return { nameserver, state: 'unknown', answers: [] };
   if (result.status === 'rejected') return { nameserver, state: result.error.code === 'not_found' ? 'pending' : 'unknown', answers: [] };
   const { answers } = result.value;
-  if (answers.some(answer => answerMatches({ record, answer }))) return { nameserver, state: 'propagated', answers };
-  return { nameserver, state: answers.length === 0 ? 'pending' : 'mismatch', answers };
+  if (!answers.some(answer => answerMatches({ record, answer }))) return { nameserver, state: answers.length === 0 ? 'pending' : 'mismatch', answers };
+  return { nameserver, state: invalidRrset(record, answers, ports.siblings) ? 'mismatch' : 'propagated', answers };
+}
+
+/** Requirement records at the same name and type: together they are the RRset a server must serve. */
+function sameRrset(records: readonly DomainRecordRequirement[], record: DomainRecordRequirement): DomainRecordRequirement[] {
+  const name = normalizeDnsName({ name: record.name });
+  return records.filter(other => other.type === record.type && normalizeDnsName({ name: other.name }) === name);
 }
 
 /** Per record: all nameservers agree → propagated; some do → still pending between servers. */
@@ -110,7 +132,8 @@ export async function verifyRequirements(
     return { zone, state: 'unknown', nameservers, reason, records: records.map(record => ({ record, state: 'unknown', byNameserver: [] })) };
   }
   const verified = await Promise.all(records.map(async record => {
-    const byNameserver = await Promise.all(nameservers.map(nameserver => observe(record, nameserver, ports.resolver)));
+    const siblings = sameRrset(records, record);
+    const byNameserver = await Promise.all(nameservers.map(nameserver => observe(record, nameserver, { resolver: ports.resolver, siblings })));
     return { record, state: recordState(byNameserver.map(observation => observation.state)), byNameserver };
   }));
   return { zone, nameservers, records: verified, state: aggregatePropagation({ states: verified.map(record => record.state) }) };
