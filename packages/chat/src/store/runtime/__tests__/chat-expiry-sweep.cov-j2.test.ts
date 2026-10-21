@@ -24,7 +24,7 @@ const chatIds = () => f!.rows<{ id: string }>('SELECT id FROM ai_chats ORDER BY 
 
 /** Scripted maintenance: each call returns the next count (or throws it) and is recorded. */
 function scripted(results: Array<number | Error | Promise<number> | (() => Promise<number>)>) {
-  const calls: Array<{ now: number; limit?: number }> = [];
+  const calls: Array<{ now: number; limit: number | undefined }> = [];
   const maintenance: ChatHistoryMaintenance = {
     async sweepExpired({ now }, { limit } = {}) {
       calls.push({ now, limit });

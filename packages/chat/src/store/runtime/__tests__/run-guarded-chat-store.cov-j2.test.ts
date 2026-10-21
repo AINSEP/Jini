@@ -31,7 +31,8 @@ describe('createRunGuardedChatStore', () => {
     const { store } = await setup();
     expect((await store.get({ id: 'c' }))?.id).toBe('c');
     expect(await store.appendMessage({ conversationId: 'c', message: { id: 'u1', role: 'user', content: 'hi', createdAt: 1 } })).toMatchObject({ id: 'u1', role: 'user' });
-    expect(await store.appendMessage({ conversationId: 'c', message: answer({ runId: undefined, runStatus: undefined }) })).toMatchObject({ id: 'a1', content: 'answer' });
+    const { runId: _runId, runStatus: _runStatus, ...runless } = answer();
+    expect(await store.appendMessage({ conversationId: 'c', message: runless })).toMatchObject({ id: 'a1', content: 'answer' });
     expect((await store.messages({ conversationId: 'c' })).map((m) => m.id)).toEqual(['u1', 'a1']);
   });
 

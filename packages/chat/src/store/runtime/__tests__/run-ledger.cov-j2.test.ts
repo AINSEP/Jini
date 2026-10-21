@@ -226,8 +226,9 @@ describe('createChatRunLedger().reconcileInterrupted', () => {
 
   it('offers a legacy row without an attempt id to recovery, then cancels it at the injected clock', async () => {
     const { ledger, history } = setup();
-    await seed(history(), { runId: undefined });
-    expect(row().run_id).toBeNull();
+    await seed(history());
+    // A row written before acceptance stored attempt ids.
+    f.sql("UPDATE ai_chat_messages SET run_id = NULL WHERE id = 'a1'");
     const seen: InterruptedChatTurn[] = [];
     expect(await ledger.reconcileInterrupted(undefined, { recover: async (turn) => { seen.push(turn); return false; } })).toBe(1);
     expect(seen[0]?.message).not.toHaveProperty('runId');
