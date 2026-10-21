@@ -190,13 +190,17 @@ function deriveTitleFromFilename(filename: string): string {
 const MEDIA_MAX_SLUG_LENGTH = 120;
 
 /** Truncates a slug candidate to `maxLength`, stripping a trailing dash the cut can introduce (so a
- *  truncation never leaves a slug ending mid-word with a dangling "-"), falling back to `"untitled"`
- *  if nothing legible survives (only reachable when `maxLength` itself is tiny, e.g. while reserving
- *  room for a long numeric suffix — see {@link deriveUniqueMediaSlug}). A no-op when `candidate` is
- *  already within bounds. */
+ *  truncation never leaves a slug ending mid-word with a dangling "-"). A no-op when `candidate` is
+ *  already within bounds.
+ *
+ *  The cut can never leave an empty string, so there is no fallback here: every candidate
+ *  {@link deriveUniqueMediaSlug} passes starts with an alphanumeric (`slugifyMediaTitle` trims
+ *  leading dashes and an empty slug was already replaced by `"untitled"`), and `maxLength` is
+ *  {@link MEDIA_MAX_SLUG_LENGTH} minus a `-N` suffix, which stays positive for any suffix below
+ *  10^119 collisions. Keeping the first character therefore always keeps something legible. */
 function capSlugCandidate(candidate: string, maxLength: number): string {
   if (candidate.length <= maxLength) return candidate;
-  return candidate.slice(0, Math.max(maxLength, 0)).replace(/-+$/, "") || "untitled";
+  return candidate.slice(0, Math.max(maxLength, 0)).replace(/-+$/, "");
 }
 
 /** Turns free text into a slug candidate: lowercase, non-alphanumeric runs collapsed to one dash,

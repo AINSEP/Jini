@@ -155,3 +155,20 @@ test("InMemoryBlobStore.sizeOf distinguishes empty blobs from absent blobs", asy
   const { storageKey } = await store.put({ workspaceId: "empty", sha256: "d".repeat(64), bytes: new Uint8Array(0) });
   assert.equal(await store.sizeOf({ storageKey }), 0);
 });
+
+test("InMemoryBlobStore.get rejects a key it never stored instead of returning empty bytes", async () => {
+  await assert.rejects(new InMemoryBlobStore().get({ storageKey: "ws/ws-1/blobs/ab/missing" }), /blob 'ws\/ws-1\/blobs\/ab\/missing' was not found/);
+});
+
+test("LocalFsBlobStore.putIfAbsent surfaces a write failure other than EEXIST instead of reporting written: false", async (t) => {
+  const rootDir = await mkdtemp(join(tmpdir(), "media-blobstore-put-if-absent-error-"));
+  t.onTestFinished(() => rm(rootDir, { recursive: true, force: true }));
+  const store = new LocalFsBlobStore({ rootDir });
+  // A file name longer than the filesystem's 255-byte component limit fails the write itself
+  // (ENAMETOOLONG) after the shard directory was created — a real error that is not "already exists".
+  const sha256 = "c".repeat(300);
+  await assert.rejects(store.putIfAbsent({ workspaceId: "ws-1", sha256, bytes: new Uint8Array([1]) }), (err: unknown) => {
+    assert.equal((err as NodeJS.ErrnoException).code, "ENAMETOOLONG");
+    return true;
+  });
+});

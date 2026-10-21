@@ -148,6 +148,11 @@ test("parseMediaHtmlAttributes: reports a malformed fragment it cannot tokenize 
   assert.equal(result.error?.reason, "malformed");
 });
 
+test("parseMediaHtmlAttributes: a dangling '=' or quote after the last attribute is malformed, not silently dropped", () => {
+  assert.deepEqual(parseMediaHtmlAttributes({ text: 'loading="lazy" =' }), { attributes: {}, error: { reason: "malformed", attribute: "=" } });
+  assert.deepEqual(parseMediaHtmlAttributes({ text: "data-motion='x' '" }), { attributes: {}, error: { reason: "malformed", attribute: "'" } });
+});
+
 test("describeMediaHtmlAttributeError: names the rejected attribute in the event-handler message", () => {
   assert.match(describeMediaHtmlAttributeError({ reason: "event-handler", attribute: "onerror" }), /onerror/);
 });

@@ -63,3 +63,7 @@ test("encoded URI schemes and obfuscated CSS cannot hide external loads", async 
   assert.equal(document.querySelector("path")?.getAttribute("style"), null);
   assert.equal(document.querySelector("style")?.textContent, "");
 });
+
+test("bytes that are not valid UTF-8 are refused before any XML parsing", async () => {
+  await assert.rejects(sanitizeSvg({ bytes: new Uint8Array([0x3c, 0x73, 0x76, 0x67, 0xff, 0xfe, 0x3e]) }), /SVG must be valid UTF-8/);
+});

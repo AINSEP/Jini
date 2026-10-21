@@ -23,7 +23,9 @@ async function createRuntime() {
   const window = new JSDOM("").window;
   const purifier = createDOMPurify(window);
   purifier.addHook("uponSanitizeElement", (node) => {
-    if (node.nodeName.toLowerCase() === "style" && hasUnsafeCss(node.textContent ?? "")) node.textContent = "";
+    // A node named "style" is an Element, and an Element's textContent is always a string (the DOM
+    // returns null only for Document/DocumentType), so no null fallback is needed here.
+    if (node.nodeName.toLowerCase() === "style" && hasUnsafeCss(node.textContent as string)) node.textContent = "";
   });
   purifier.addHook("uponSanitizeAttribute", (node, attribute) => {
     const name = attribute.attrName.toLowerCase();

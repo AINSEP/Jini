@@ -549,3 +549,19 @@ function validateImageBytes(source: URL | string, bytes: Uint8Array, bytesTrunca
 function fetchImage(deps: { httpClient: HttpClientPort }, input: { url: string }) {
   return fetchImageCore({ ...policy, ...deps, ...input, outboundGuard: { send: ({ request, httpClient }) => httpClient.send({ request }) } });
 }
+
+test("an empty local file is refused with a file-specific message naming its path", () => {
+  assert.throws(() => validateImageBytes("/uploads/empty.png", new Uint8Array(0), false), (error: unknown) => {
+    assert.ok(error instanceof MediaImportValidationError);
+    assert.equal(error.message, "file '/uploads/empty.png' is empty — there is nothing to import.");
+    return true;
+  });
+});
+
+test("a sniffed type with no known extension still gets a stable, inert '.bin' extension", () => {
+  assert.equal(buildImportFilename(new URL("https://cdn.example.com/a/fox.png"), "application/octet-stream"), "fox.bin");
+});
+
+test("a malformed percent-escape in the URL's last segment falls back to the raw segment instead of failing the import", () => {
+  assert.equal(buildImportFilename(new URL("https://cdn.example.com/a/fox%E0%A4%A.png"), "image/png"), "fox-E0-A4-A.png");
+});

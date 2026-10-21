@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import sharp from "sharp";
 
-import { ImageSourceCorruptError, ImageTransformUnavailableError, SharpImageTransformer } from "../image-transformer.sharp.js";
+import { ImageSourceCorruptError, ImageTransformUnavailableError, SharpImageTransformer, type SharpInstance } from "../image-transformer.sharp.js";
 
 test("SharpImageTransformer.transform actually resizes and re-encodes real image bytes", async () => {
   const transformer = new SharpImageTransformer();
@@ -189,4 +189,31 @@ test('og JPEG applies named dimensions and quality to real pixels', async () => 
   assert.equal(decoded.width, 1200);
   assert.equal(decoded.height, 630);
   assert.equal(decoded.format, 'jpeg');
+});
+
+test('a sharp loader that fails is reported as ImageTransformUnavailableError, never as a corrupt source', async () => {
+  const transformer = new SharpImageTransformer({}, { loadSharp: () => { throw Object.assign(new Error("Cannot find module 'sharp'"), { code: 'MODULE_NOT_FOUND' }); } });
+  await assert.rejects(transformer.transform({ bytes: new Uint8Array([1]), params: { format: 'png' } }), (error: unknown) => {
+    assert.ok(error instanceof ImageTransformUnavailableError);
+    assert.match(error.message, /'sharp' npm package is not installed/);
+    return true;
+  });
+});
+
+test('a non-Error rejection from the codec still surfaces as ImageSourceCorruptError carrying its text', async () => {
+  const calls: unknown[][] = [];
+  const failing: SharpInstance = {
+    resize: (...args) => { calls.push(['resize', ...args]); return failing; },
+    flatten: (options) => { calls.push(['flatten', options]); return failing; },
+    toFormat: (...args) => { calls.push(['toFormat', ...args]); return failing; },
+    toBuffer: () => Promise.reject('VipsJpeg: premature end of input'),
+  };
+  const transformer = new SharpImageTransformer({}, { loadSharp: () => (_input, options) => { calls.push(['load', options]); return failing; } });
+  await assert.rejects(transformer.transform({ bytes: new Uint8Array([1]), params: { format: 'jpeg' } }), (error: unknown) => {
+    assert.ok(error instanceof ImageSourceCorruptError);
+    assert.equal(error.message, "the source image could not be decoded/re-encoded (target format 'jpeg'): VipsJpeg: premature end of input");
+    return true;
+  });
+  // No resize without dimensions; JPEG is flattened onto white and encoded without a quality override.
+  assert.deepEqual(calls, [['load', undefined], ['flatten', { background: '#ffffff' }], ['toFormat', 'jpeg', undefined]]);
 });
