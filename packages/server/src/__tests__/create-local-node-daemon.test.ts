@@ -263,6 +263,12 @@ describe('classifyRunFailureForRetry', () => {
   it('a plain nonzero exit is not retryable', () => {
     expect(classifyRunFailureForRetry({ code: 1, signal: null })).toBe(false);
   });
+
+  it('forwards observed side effects: a killed run that already showed output or called a tool is not replayed', () => {
+    expect(classifyRunFailureForRetry({ code: null, signal: 'SIGKILL', sideEffects: { userVisibleOutputSeen: false, toolCallSeen: false } })).toBe(true);
+    expect(classifyRunFailureForRetry({ code: null, signal: 'SIGKILL', sideEffects: { userVisibleOutputSeen: true, toolCallSeen: false } })).toBe(false);
+    expect(classifyRunFailureForRetry({ code: null, signal: 'SIGKILL', sideEffects: { userVisibleOutputSeen: false, toolCallSeen: true } })).toBe(false);
+  });
 });
 
 describe('createLocalNodeDaemon', () => {

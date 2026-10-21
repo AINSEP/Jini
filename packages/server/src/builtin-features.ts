@@ -458,7 +458,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           http: ({ app, services }) =>
             registerToolCatalogRoutes({ app: app as Express, deps: {
                 catalog: {
-                  search: ({ query }, { limit } = {}) => searchToolCatalog({ db: sqlite.connection, query }, limit === undefined ? {} : { limit }),
+                  search: ({ query }, optionalArgs) => searchToolCatalog({ db: sqlite.connection, query }, optionalArgs),
                   describe: ({ id }: { id: string }) => getToolCatalogEntry({ db: sqlite.connection, id }),
                 },
               }, adapter: services.context.adapter }),

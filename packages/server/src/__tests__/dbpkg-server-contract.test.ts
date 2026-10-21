@@ -64,6 +64,31 @@ describe('retained host and capability policy', () => {
     expect([...listeners.keys()]).toEqual([]);
   });
 
+  it('a stop() that fails after the forced exit neither exits again nor clears the spent timer', async () => {
+    vi.useFakeTimers();
+    let listener!: (signal: NodeJS.Signals) => void;
+    let rejectStop!: (error: Error) => void;
+    const logger = { error: vi.fn() };
+    const exit = vi.fn();
+    const clearTimeoutPort = vi.fn(globalThis.clearTimeout.bind(globalThis));
+    const handle = installGracefulShutdown({ stop: () => new Promise<void>((_resolve, reject) => { rejectStop = reject; }) }, {
+      signals: ['SIGTERM'], timeoutMs: 25, logger,
+      process: { on: (_signal, cb) => { listener = cb; }, off: vi.fn(), exit },
+      timers: { setTimeout: globalThis.setTimeout.bind(globalThis), clearTimeout: clearTimeoutPort },
+    });
+    try {
+      listener('SIGTERM');
+      await vi.advanceTimersByTimeAsync(25);
+      expect(exit).toHaveBeenCalledWith(1);
+      const lateFailure = new Error('database close failed');
+      rejectStop(lateFailure);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(logger.error).toHaveBeenLastCalledWith('[@jini-ai/server] graceful shutdown failed after SIGTERM', lateFailure);
+      expect(exit).toHaveBeenCalledTimes(1);
+      expect(clearTimeoutPort).not.toHaveBeenCalled();
+    } finally { handle.uninstall(); vi.useRealTimers(); }
+  });
+
   it('keeps timeout logging and exit codes through injected timer/logger ports', async () => {
     vi.useFakeTimers();
     let listener!: (signal: NodeJS.Signals) => void;
@@ -107,6 +132,17 @@ describe('storage object arguments preserve errors, defaults and handle ownershi
     expect(() => openDatabase({ projectRoot: '/root', open: () => db }, { filesystem })).toThrow(failure);
     expect(db.close).toHaveBeenCalledTimes(1);
     expect(filesystem.mkdirSync).toHaveBeenCalledWith('/root/.jini', { recursive: true });
+  });
+
+  it('rethrows an opener failure as-is, and keeps the original failure when cleanup close also throws', () => {
+    const filesystem = { mkdirSync: vi.fn() };
+    const refused = new Error('file is locked');
+    expect(() => openDatabase({ projectRoot: '/root', open: () => { throw refused; } }, { filesystem })).toThrow(refused);
+    const failure = new Error('schema denied');
+    const close = vi.fn(() => { throw new Error('close failed too'); });
+    const db = { pragma: vi.fn(), exec: () => { throw failure; }, close } as unknown as SqliteDb;
+    expect(() => openDatabase({ projectRoot: '/root', open: () => db }, { filesystem })).toThrow(failure);
+    expect(close).toHaveBeenCalledTimes(1);
   });
 
   it('retains singleton reuse, closes once, and accepts an explicit data directory', () => {
