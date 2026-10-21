@@ -89,7 +89,7 @@ export const MessageList = memo(function MessageList({
 }: MessageListProps) {
   const messages = useMemo(() => projectAcceptedInputMessages({ messages: sourceMessages }), [sourceMessages]);
   const usageByMessage = useConversationUsage({ messages });
-  const { containerRef, onScroll } = useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
+  const { containerRef, onScroll, awayFromLatest, jumpToLatest } = useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
 
   return (
     <div
@@ -109,9 +109,28 @@ export const MessageList = memo(function MessageList({
       {(pendingPrompts ?? (pendingPrompt ? [pendingPrompt] : [])).map((prompt, index) => (
         <QueuedMessage key={prompt.id ?? index} prompt={prompt} renderAttachment={rowProps.renderAttachment} />
       ))}
+      {awayFromLatest && <JumpToLatest onJump={jumpToLatest} />}
     </div>
   );
 });
+
+/**
+ * Sticky, zero-height last child of the scroll container, so the button floats centred just above
+ * the composer without a wrapper element changing the pane's flex layout.
+ */
+function JumpToLatest({ onJump }: { onJump: () => void }) {
+  const t = useT();
+  return (
+    <div className="jini-message-list__jump">
+      <button type="button" className="jini-message-list__jump-btn" onClick={onJump}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 5v14" /><path d="m19 12-7 7-7-7" />
+        </svg>
+        {t('Jump to latest')}
+      </button>
+    </div>
+  );
+}
 
 /** One cancelable queue receipt; attachment rendering reuses the sent-message preview owner. */
 function QueuedMessage({ prompt, renderAttachment }: {

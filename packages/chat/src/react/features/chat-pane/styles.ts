@@ -109,6 +109,39 @@ export const CHAT_PANE_STYLES = `
   padding: 20px 22px calc(var(--jini-chat-controls-height, 240px) + 24px);
   scrollbar-width: thin;
 }
+/*
+ * 'Jump to latest' (MessageList.tsx's JumpToLatest): a zero-height sticky last child, so it floats
+ * centred just above the composer overlay without taking layout space. Sticky offsets measure from
+ * the scrollport edge, not the padding, hence the controls height in 'bottom'.
+ */
+.jini-message-list__jump {
+  position: sticky;
+  bottom: calc(var(--jini-chat-controls-height, 240px) + 8px);
+  height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  z-index: 2;
+  pointer-events: none;
+}
+.jini-message-list__jump-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--jini-chat-border);
+  border-radius: 999px;
+  background: var(--jini-chat-panel);
+  color: var(--jini-chat-muted);
+  box-shadow: var(--jini-chat-popover-shadow);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.jini-message-list__jump-btn:hover { color: var(--jini-chat-text-strong); }
+.jini-message-list__jump-btn:focus-visible { outline: 2px solid var(--jini-chat-accent); outline-offset: 2px; }
 .jini-chat-pane .jini-message {
   margin-bottom: 20px;
   color: var(--jini-chat-text);

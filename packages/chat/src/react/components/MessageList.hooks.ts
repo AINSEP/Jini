@@ -4,7 +4,7 @@
  * lives here (presentational), not in the headless `useConversation` hook, per that hook's own
  * "transport-agnostic hooks never touch DOM" contract.
  */
-import { useEffect, useMemo, useRef, type RefObject, type UIEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type UIEvent } from 'react';
 import { conversationUsage } from '../../core/turn-usage.js';
 import type { ChatMessage } from '../../core/index.js';
 import { nextStickToBottom, startsNewTurn } from './MessageList.rules.js';
@@ -12,7 +12,14 @@ import { nextStickToBottom, startsNewTurn } from './MessageList.rules.js';
 export interface MessageListAutoScroll {
   containerRef: RefObject<HTMLDivElement | null>;
   onScroll: (event: UIEvent<HTMLElement>) => void;
+  /** True while the user has scrolled up away from the newest messages. */
+  awayFromLatest: boolean;
+  /** Scrolls to the newest message and resumes following new output. */
+  jumpToLatest: () => void;
 }
+
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
 
 /** Recompute costs once per immutable transcript snapshot, including saved history on reload. */
 export function useConversationUsage({ messages }: { messages: readonly ChatMessage[] }, _optional = {}) {
@@ -21,7 +28,7 @@ export function useConversationUsage({ messages }: { messages: readonly ChatMess
 
 export function useMessageListAutoScroll(
   { messages, scrollIntent }: { messages: ChatMessage[]; scrollIntent: boolean },
-  { onScrolled }: { onScrolled?: () => void } = {},
+  { onScrolled, reducedMotion = prefersReducedMotion }: { onScrolled?: () => void; reducedMotion?: () => boolean } = {},
 ): MessageListAutoScroll {
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Whether the transcript was scrolled to its bottom as of the last user scroll or programmatic
@@ -34,6 +41,9 @@ export function useMessageListAutoScroll(
   // Only scroll events write it (a browser fires one for programmatic scrolls too). Starts at
   // Infinity, "no position seen yet", so a first event away from the bottom unsticks as it always did.
   const lastScrollTopRef = useRef(Number.POSITIVE_INFINITY);
+  // State mirror of `!stickToBottomRef.current` for the "Jump to latest" button; the ref stays the
+  // source of truth for the scroll effects, which must not wait for a render.
+  const [awayFromLatest, setAwayFromLatest] = useState(false);
 
   // Runs BEFORE the scroll effect below (effects run in declaration order), so a send re-sticks in
   // time for that same commit's scroll. The user's own send (or retry) is an explicit "take me to
@@ -43,6 +53,7 @@ export function useMessageListAutoScroll(
   useEffect(() => {
     if (startsNewTurn({ previous: previousMessagesRef.current, next: messages })) {
       stickToBottomRef.current = true;
+      setAwayFromLatest(false);
     }
     previousMessagesRef.current = messages;
   }, [messages]);
@@ -92,7 +103,18 @@ export function useMessageListAutoScroll(
     const el = event.currentTarget;
     stickToBottomRef.current = nextStickToBottom(el, { wasSticking: stickToBottomRef.current, previousScrollTop: lastScrollTopRef.current });
     lastScrollTopRef.current = el.scrollTop;
+    setAwayFromLatest(!stickToBottomRef.current);
   };
 
-  return { containerRef, onScroll };
+  const jumpToLatest = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    // Re-stick first: a smooth scroll's own events move DOWN, which never unsticks, so output that
+    // streams in during the animation is followed too.
+    stickToBottomRef.current = true;
+    setAwayFromLatest(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' });
+  }, [reducedMotion]);
+
+  return { containerRef, onScroll, awayFromLatest, jumpToLatest };
 }
