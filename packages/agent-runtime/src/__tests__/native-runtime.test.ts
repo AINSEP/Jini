@@ -118,3 +118,45 @@ it('shares detection within a host and drains an in-flight scan before clearing 
   await expect(a.detectAgents({})).rejects.toThrow('Agent runtime is disposed');
   await b.dispose({});
 });
+
+it('binds model probing and launch resolution to the host env, and refuses probing after disposal', async () => {
+  const { mkdtemp, mkdir, writeFile, chmod, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const { kimiAgentDef } = await import('../defs/kimi.js');
+  const { aiderAgentDef } = await import('../defs/aider.js');
+  const { offlineDiscoveryDeps } = await import('../defs/__tests__/discovery-fakes.js');
+  const root = await mkdtemp(path.join(tmpdir(), 'native-runtime-'));
+  try {
+    await mkdir(path.join(root, 'bin'));
+    await writeFile(path.join(root, 'bin', 'aider'), '#!/bin/sh\n');
+    await chmod(path.join(root, 'bin', 'aider'), 0o755);
+    const runtime = createNativeAgentRuntime({ env: { PATH: path.join(root, 'bin'), HOME: root } });
+    const launch = runtime.resolveAgentLaunch({ def: aiderAgentDef });
+    expect(launch.launchPath).toBe(path.join(root, 'bin', 'aider'));
+    expect(launch.childPathPrepend).toEqual([path.join(root, 'bin')]);
+    const probed = await runtime.probeAgentModels({ def: kimiAgentDef }, { context, deps: offlineDiscoveryDeps() });
+    expect(probed.source).toBe('fallback');
+    expect(probed.models.map(model => model.id)).toEqual(kimiAgentDef.fallbackModels.map(model => model.id).filter(id => id !== 'default'));
+    expect(runtime.getAgentDef({ id: 'no-such-agent' })).toBeNull();
+    await runtime.dispose({});
+    await expect(runtime.probeAgentModels({ def: kimiAgentDef }, { context, deps: offlineDiscoveryDeps() })).rejects.toMatchObject({ name: 'InvalidStateError' });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it('disposal waits for an in-flight model-catalog refresh before clearing the state', async () => {
+  const state = createAgentRuntimeState({});
+  let release!: () => void;
+  const { offlineSnapshot } = await import('../model-discovery.js');
+  const pending = new Promise<ReturnType<typeof offlineSnapshot>>(resolve => { release = () => resolve(offlineSnapshot('fingerprint', 0, [])); });
+  state.modelCatalog.set('in-flight', { pending });
+  const runtime = createNativeAgentRuntime({ env: {} }, { state });
+  let disposed = false;
+  const disposal = runtime.dispose({}).then(() => { disposed = true; });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  expect(disposed).toBe(false);
+  expect(state.modelCatalog.size).toBe(1);
+  release();
+  await disposal;
+  expect(state.modelCatalog.size).toBe(0);
+});
