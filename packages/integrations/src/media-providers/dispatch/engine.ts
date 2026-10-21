@@ -6,6 +6,9 @@ import type { RequiredArgs, OptionalArgs } from '../../args.js';
  * Filesystem/project resolution remains outside this engine (locked architecture §2.1).
  */
 import { AUDIO_DURATIONS_SEC, VIDEO_LENGTHS_SEC, findMediaModel, findProvider, modelsForSurface } from '../providers.js';
+
+/** The built-in catalogue, for hosts that pass no `catalog` (unchanged behaviour). */
+const STATIC_CATALOG: MediaModelCatalog = { findModel: findMediaModel, findProvider, modelsForSurface };
 import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from '../types.js';
 import { buildRenderContext } from './context.js';
 
@@ -18,6 +21,7 @@ import type {
   MediaDispatchEngineOptions,
   MediaGenerationRequest,
   MediaGenerationResult,
+  MediaModelCatalog,
   ProviderCredentials,
   RenderContext,
   RenderResult,
@@ -127,6 +131,7 @@ function resolveRenderer({ registry, providerId, routeKey }: { registry: VendorA
 export function createMediaDispatchEngine({ registry, httpClient }: MediaDispatchEngineRequired, options: MediaDispatchEngineOptions = {}): MediaDispatchEngine {
   requireMediaHttpClient({ httpClient });
   const allowStubFallback = options.allowStubFallback === true;
+  const catalog = options.catalog ?? STATIC_CATALOG;
 
   return {
     async generate(required: RequiredArgs<MediaGenerationRequest>, optional: OptionalArgs<MediaGenerationRequest> = {}): Promise<MediaGenerationResult> {
@@ -134,7 +139,7 @@ export function createMediaDispatchEngine({ registry, httpClient }: MediaDispatc
       const configuredCredentials = options.credentials ? normalizeMediaProviderMap({ providers: options.credentials }) : {};
       const request: MediaGenerationRequest = { ...required, ...optional };
       assertRequestShape(request);
-      const { def, resolvedAudioKind } = resolveCatalogModel(request);
+      const { def, resolvedAudioKind } = resolveCatalogModel(request, catalog);
       const { length, duration, warnings } = clampRequestInputs(request);
       const ctx = engineRenderContext({ request, resolvedAudioKind, length, duration, options: { ...options, httpClient } });
       const { providerId, renderer, credentials } = selectRenderer({ registry, def, surface: request.surface, resolvedAudioKind, ctx, configuredCredentials });
@@ -150,7 +155,7 @@ export function createMediaDispatchEngine({ registry, httpClient }: MediaDispatc
         // MEDIA_PROVIDERS" catalogue-integrity test, given `def` itself is
         // already a real catalogued model at this point (findMediaModel
         // above didn't throw). Not re-guarded with a runtime null check.
-        const provider: MediaProvider = findProvider({ id: def.provider })!;
+        const provider: MediaProvider = catalog.findProvider({ id: def.provider })!;
         const stub = await renderStub({ ctx: ctx, providerId: providerId, integrated: provider.integrated });
         return { ...stub, providerId, usedStubFallback: true, warnings };
       }
@@ -176,14 +181,14 @@ function assertRequestShape(request: MediaGenerationRequest): void {
 }
 
 /** Finds the catalogue entry for `request.model` and checks it is registered for the request's surface (and, for audio, the resolved kind — `'music'` by default). */
-function resolveCatalogModel(request: MediaGenerationRequest): { def: MediaModel; resolvedAudioKind: AudioKind | undefined } {
+function resolveCatalogModel(request: MediaGenerationRequest, catalog: MediaModelCatalog): { def: MediaModel; resolvedAudioKind: AudioKind | undefined } {
   const { surface, model } = request;
-  const def: MediaModel | null = findMediaModel({ id: model });
+  const def: MediaModel | null = catalog.findModel({ id: model });
   if (!def) {
     throw new Error(`unknown model: ${model}. Pass a model from the registered catalogue (see @jini-ai/integrations/media-providers's modelsForSurface()).`);
   }
   const resolvedAudioKind = surface === 'audio' ? request.audioKind || 'music' : undefined;
-  const allowed = modelsForSurface({ surface: surface }, { audioKind: resolvedAudioKind });
+  const allowed = catalog.modelsForSurface({ surface: surface }, { audioKind: resolvedAudioKind });
   if (!allowed.some((m) => m.id === model)) {
     const ids = allowed.map((m) => m.id).join(', ');
     const where = surface === 'audio' ? `audio · ${resolvedAudioKind}` : surface;

@@ -10,6 +10,8 @@ export function createVendorAdapterRegistry(): VendorAdapterRegistry {
 }
 
 /** Creates a fresh registry populated by the existing builtin-registration owner.
+ * @deprecated Adapters only, no catalogue: plugin vendors cannot validate through it. Build one
+ *   `createMediaProviderRegistry()` at composition and pass it as `registry` and `catalog`.
  * @returns An independent registry; duplicate route registration still throws.
  */
 export function createBuiltinVendorAdapterRegistry(
@@ -53,5 +55,5 @@ class BuiltinVendorAdapterRegistry extends VendorAdapterRegistry {
   }
 }
 
-/** @deprecated Construct and inject createBuiltinVendorAdapterRegistry() per host instead. */
+/** @deprecated Build one createMediaProviderRegistry() per host composition and inject it instead. */
 export const mediaVendorRegistry: VendorAdapterRegistry = new BuiltinVendorAdapterRegistry();

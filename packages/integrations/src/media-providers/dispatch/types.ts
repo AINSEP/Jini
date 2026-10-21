@@ -24,7 +24,7 @@ import type { RequiredArgs, OptionalArgs } from '../../args.js';
  */
 import type { HttpClientPort } from '@jini-ai/core/primitives';
 import type { MediaOutboundOptions } from './outbound.js';
-import type { AudioKind, MediaSurface } from '../types.js';
+import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from '../types.js';
 
 /** Per-provider credentials a host resolves however it wants (env vars, a secrets manager, a config file, ...). This engine never reads `process.env` itself — see `resolveProviderCredentialsFromEnv` in `credentials.ts` for an opt-in reference resolver a host may use to build this map. */
 export interface ProviderCredentials {
@@ -122,6 +122,19 @@ export interface MediaDispatchEngineOptions extends Omit<MediaOutboundOptions, '
    * getting silent placeholders by default.
    */
   readonly allowStubFallback?: boolean;
+  /**
+   * Where model/provider validation reads from. Defaults to the static built-in catalogue
+   * (`providers.ts`); pass a `MediaProviderRegistry` (it implements this) so plugin-contributed
+   * vendors validate too.
+   */
+  readonly catalog?: MediaModelCatalog;
+}
+
+/** The catalogue reads the engine validates requests against (see `media-provider-registry.ts`). */
+export interface MediaModelCatalog {
+  findModel(required: { id: string }): MediaModel | null;
+  findProvider(required: { id: string }): MediaProvider | null;
+  modelsForSurface(required: { surface: MediaSurface }, optional?: { audioKind?: AudioKind | undefined }): readonly MediaModel[];
 }
 
 export interface MediaDispatchEngine {

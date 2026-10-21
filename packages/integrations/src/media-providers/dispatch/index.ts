@@ -26,6 +26,7 @@ export type {
   MediaGenerationRequestInit,
   MediaGenerationResult,
   MediaImageReference,
+  MediaModelCatalog,
   MediaSpeechFormat,
   ProviderCredentials,
 } from './types.js';
@@ -35,6 +36,15 @@ export type {
 export { dispatchVendorRequest, requireApiKey } from './vendor-adapter.js';
 export type { VendorAdapter, VendorCredentialGuard, VendorRequest, VendorRequestBuilder, VendorResponseParser } from './vendor-adapter.js';
 export { createBuiltinVendorAdapterRegistry, createVendorAdapterRegistry, mediaVendorRegistry, VendorAdapterRegistry } from './vendor-registry.js';
+// Vendors as one-unit provider contributions on the shared keyed registry (2026-10-21).
+export {
+  builtinMediaProviderContributions,
+  createMediaProviderRegistry,
+  MEDIA_PROVIDER_CONTRACT,
+  mediaProviderDefinition,
+  mediaProviderRegistryId,
+} from './media-provider-registry.js';
+export type { MediaProviderContribution, MediaProviderModel, MediaProviderRegistry } from './media-provider-registry.js';
 export { createHexEnvelopeAudioParser, createRawBytesParser } from './response-parsers.js';
 // The submit-then-poll tier (added 2026-09-02) — purely additive alongside `VendorAdapter`, for
 // vendors that hand back a job handle instead of finishing inside one request/response. See
