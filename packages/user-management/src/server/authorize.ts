@@ -105,10 +105,10 @@ export async function resolveEffectivePermissions(required: {
  * True iff `row` is an exact, unconstrained-or-scope-matching grant of
  * `permission` in `context` (state.spec §4 `matchesRow`). Assumes `row` has
  * already passed the owner-wildcard check upstream — this never special-cases
- * `"*"`.
+ * `"*"`. Callers pass only rows already filtered to `permission` (see
+ * `authorize`'s `candidates`), so the permission equality is not re-checked here.
  */
-function matchesRow(row: PolicyPermissionRecord, permission: string, context: AuthorizeContext): boolean {
-  if (row.permission !== permission) return false;
+function matchesRow(row: PolicyPermissionRecord, context: AuthorizeContext): boolean {
   if (row.constraintJson != null) return false;
   if (row.resourceType != null && row.resourceType !== context.entityType) return false;
   return true;
@@ -175,7 +175,7 @@ export async function authorize(required: {
     return { allowed: false, reason: "no_grant" };
   }
 
-  const matched = candidates.some((row) => matchesRow(row, permission, context));
+  const matched = candidates.some((row) => matchesRow(row, context));
   if (matched) {
     return { allowed: true, reason: "matched" };
   }
@@ -183,8 +183,7 @@ export async function authorize(required: {
   if (candidates.some((row) => row.constraintJson != null)) {
     return { allowed: false, reason: "unconstrained_deny" };
   }
-  if (candidates.some((row) => row.resourceType != null)) {
-    return { allowed: false, reason: "resource_scope_mismatch" };
-  }
-  return { allowed: false, reason: "no_grant" };
+  // A candidate fails matchesRow only through a constraint or a mismatched resource scope; with
+  // no constraint left, every candidate carries a resource scope that differs from the context.
+  return { allowed: false, reason: "resource_scope_mismatch" };
 }
