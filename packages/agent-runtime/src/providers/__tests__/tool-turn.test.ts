@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test, expect, vi } from 'vitest';
-import type { ProviderToolDescriptor as ToolDescriptor, ProviderToolTurnInput, ProviderToolTurnOptions, ProviderProtocol as ByokProtocol, ProviderToolResult as ByokToolResult } from '../tool-turn.js';
-import { runProviderToolTurn, providerTurnAdapters } from '../tool-turn.js';
+import type { ProviderToolDescriptor as ToolDescriptor, ProviderToolTurnInput, ProviderToolTurnOptions, ProviderProtocol as ByokProtocol, ProviderToolResult as ByokToolResult, ProviderTurnAdapters, ProviderToolCall, ProviderToolSnapshotOptions, ProviderTurnEvent } from '../tool-turn.js';
+import { runProviderToolTurn, providerTurnAdapters, ProviderToolProjectionError } from '../tool-turn.js';
 import { startStubProviderServer, runFixtureTurn as runByokProviderTurn } from './transport-fixture.js';
 type ByokProviderTurnInput = Omit<ProviderToolTurnInput, 'adapters'> & ProviderToolTurnOptions;
 function numericEnumCatalog() { return [{ name: 'status_tool', inputSchema: { type: 'object', properties: { statusCode: { type: 'integer', enum: [301, 302, 307, 308] } } } }]; }
@@ -386,4 +386,178 @@ test('a provider content guard failure keeps isError even without a host error m
   };
   await runProviderToolTurn({ protocol: 'openai', adapters: { ...providerTurnAdapters, openai }, apiKey: 'key', model: 'model', system: '', messages: [], tools: [], executeTool: async () => ({ content: 'ok' }), onEvent: event => events.push(event) });
   expect(events).toEqual([{ type: 'tool_result', toolUseId: 'call', content: 'tool result rejected: malformed image', isError: true }]);
+});
+
+interface ProjectionInspection {
+  readonly tools: readonly unknown[];
+  readonly getTools: (options?: ProviderToolSnapshotOptions) => readonly unknown[];
+  readonly executeTool: (call: ProviderToolCall) => Promise<{ readonly content: unknown }>;
+  readonly emitToolUse: (call: ProviderToolCall) => void;
+}
+/** Exercise the adapter port without sockets; B1 owns real request-loop refresh/strict flags. */
+function projectionAdapters(inspect: (port: ProjectionInspection) => Promise<void>): ProviderTurnAdapters {
+  return {
+    anthropic: async (required, optional = {}) => {
+      await inspect({ tools: optional.tools!, getTools: optional.getTools!, executeTool: optional.executeTool!, emitToolUse: call => required.onEvent({ type: 'tool_use', ...call }) });
+      return { stopReason: 'stop', toolTurns: 1 };
+    },
+    openai: async (required, optional = {}) => {
+      await inspect({ tools: optional.tools!, getTools: optional.getTools!, executeTool: optional.executeTool!, emitToolUse: call => required.onEvent({ type: 'tool_use', ...call }) });
+      return { finishReason: 'stop', toolTurns: 1 };
+    },
+    azure: async (required, optional = {}) => {
+      await inspect({ tools: optional.tools!, getTools: optional.getTools!, executeTool: optional.executeTool!, emitToolUse: call => required.onEvent({ type: 'tool_use', ...call }) });
+      return { finishReason: 'stop', toolTurns: 1 };
+    },
+    google: async (required, optional = {}) => {
+      await inspect({ tools: optional.tools!, getTools: optional.getTools!, executeTool: optional.executeTool!, emitToolUse: call => required.onEvent({ type: 'tool_use', ...call }) });
+      return { finishReason: 'STOP', toolTurns: 1 };
+    },
+  };
+}
+function closedTool(id: string): ToolDescriptor {
+  return { id, inputSchema: { type: 'object', additionalProperties: false, properties: { optional: { type: 'string' }, clear: { type: ['string', 'null'] } }, required: ['clear'] } };
+}
+function projectionInput(protocol: ByokProtocol, adapters: ProviderTurnAdapters): ProviderToolTurnInput {
+  return { protocol, adapters, apiKey: 'key', model: 'model', system: '', messages: [], tools: [], executeTool: async () => ({ content: 'ok' }), onEvent: () => {} };
+}
+function declarations(protocol: ByokProtocol, tools: readonly unknown[]): Record<string, unknown>[] {
+  if (protocol === 'google') return (tools[0] as { functionDeclarations: Record<string, unknown>[] }).functionDeclarations;
+  return tools.map(tool => protocol === 'anthropic' ? tool as Record<string, unknown> : (tool as { function: Record<string, unknown> }).function);
+}
+
+test.each(['anthropic', 'openai', 'azure', 'google'] as const)('%s: optional live snapshots project discovered schemas and round-trip names/inputs to the existing executor', async protocol => {
+  let snapshot: readonly ToolDescriptor[] = [closedTool('describe')];
+  const calls: ProviderToolCall[] = [];
+  const events: ProviderTurnEvent[] = [];
+  const adapters = projectionAdapters(async port => {
+    expect(declarations(protocol, port.tools).map(tool => tool.name)).toEqual(['describe']);
+    await port.executeTool({ id: 'describe-call', name: 'describe', input: {} });
+    const tools = declarations(protocol, port.getTools({ strict: true }));
+    expect(tools).toHaveLength(2);
+    const typed = tools[1]!;
+    expect(typed.name).toMatch(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/);
+    expect(typed.name).not.toBe('content_read.menu');
+    const schema = (protocol === 'anthropic' ? typed.input_schema : typed.parameters) as Record<string, unknown>;
+    expect(schema.required).toEqual(['optional', 'clear']);
+    const call = { id: 'typed-call', name: String(typed.name), input: { optional: null, clear: null } };
+    port.emitToolUse(call);
+    await port.executeTool(call);
+  });
+  await runProviderToolTurn({ ...projectionInput(protocol, adapters), tools: snapshot, executeTool: async call => {
+    calls.push(call);
+    if (call.name === 'describe') snapshot = [...snapshot, closedTool('content_read.menu')];
+    return { content: 'ok' };
+  }, onEvent: event => events.push(event) }, { baseUrl: 'https://endpoint.invalid', getToolSnapshot: () => snapshot });
+  expect(calls).toEqual([
+    { id: 'describe-call', name: 'describe', input: {} },
+    { id: 'typed-call', name: 'content_read.menu', input: { clear: null } },
+  ]);
+  expect(events).toEqual([{ type: 'tool_use', id: 'typed-call', name: 'content_read.menu', input: { clear: null } }]);
+});
+
+test.each(['anthropic', 'openai', 'azure', 'google'] as const)('%s: absent getter preserves legacy snapshots and result/image/error translation', async protocol => {
+  const tool = closedTool('legacy');
+  const executeTool = vi.fn(async (_call: ProviderToolCall) => ({ content: [{ type: 'image' as const, mimeType: 'image/png', data: 'aW1hZ2U=' }], isError: true }));
+  const adapters = projectionAdapters(async port => {
+    const declaration = declarations(protocol, port.getTools())[0]!;
+    expect(declaration.name).toBe('legacy');
+    expect(declaration.strict).toBeUndefined();
+    const result = await port.executeTool({ id: 'call', name: 'legacy', input: { optional: null, clear: null } });
+    if (protocol === 'anthropic') expect(result).toEqual({ content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'aW1hZ2U=' } }], isError: true });
+    else if (protocol === 'google') expect(result).toEqual({ content: [{ inlineData: { mimeType: 'image/png', data: 'aW1hZ2U=' } }], isError: true });
+    else expect(result).toEqual({ content: [{ type: 'text', text: '[tool error]' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,aW1hZ2U=' } }] });
+  });
+  await runProviderToolTurn({ ...projectionInput(protocol, adapters), tools: [tool], executeTool }, { baseUrl: 'https://endpoint.invalid' });
+  expect(executeTool).toHaveBeenCalledTimes(1);
+  expect(executeTool).toHaveBeenCalledWith({ id: 'call', name: 'legacy', input: { optional: null, clear: null } });
+});
+
+test('strict fallback diagnostics contain only IDs/protocol/reason, are deduplicated, and never include arguments', async () => {
+  const diagnostics: unknown[] = [];
+  const executeTool = vi.fn(async (_call: ProviderToolCall) => ({ content: 'ok' }));
+  const tool = { id: 'open.map', inputSchema: { type: 'object', additionalProperties: true } };
+  const adapters = projectionAdapters(async port => {
+    const declaration = declarations('openai', port.getTools({ strict: true }))[0]!;
+    port.getTools({ strict: true });
+    expect(declaration.strict).toBeUndefined();
+    expect(declaration.parameters).toBe(tool.inputSchema);
+    await port.executeTool({ id: 'call', name: String(declaration.name), input: { password: 'never-in-diagnostics', clear: null } });
+  });
+  await runProviderToolTurn({ ...projectionInput('openai', adapters), tools: [tool], executeTool }, { onSchemaFallback: event => diagnostics.push(event) });
+  expect(diagnostics).toEqual([{ toolId: 'open.map', protocol: 'openai', reason: 'open-map' }]);
+  expect(JSON.stringify(diagnostics)).not.toContain('never-in-diagnostics');
+  expect(executeTool).toHaveBeenCalledTimes(1);
+  expect(executeTool).toHaveBeenCalledWith({ id: 'call', name: 'open.map', input: { password: 'never-in-diagnostics', clear: null } });
+});
+
+test('a non-strict downgrade refresh selects its matching decoder and preserves a real null', async () => {
+  const executeTool = vi.fn(async (_call: ProviderToolCall) => ({ content: 'ok' }));
+  const adapters = projectionAdapters(async port => {
+    const strict = declarations('openai', port.getTools({ strict: true }))[0]!;
+    expect(strict.strict).toBe(true);
+    const fallback = declarations('openai', port.getTools({ strict: false }))[0]!;
+    expect(fallback.strict).toBeUndefined();
+    await port.executeTool({ id: 'call', name: String(fallback.name), input: { optional: null } });
+  });
+  await runProviderToolTurn({ ...projectionInput('openai', adapters), tools: [closedTool('write')], executeTool });
+  expect(executeTool).toHaveBeenCalledTimes(1);
+  expect(executeTool).toHaveBeenCalledWith({ id: 'call', name: 'write', input: { optional: null } });
+});
+
+test('long/unsafe/colliding names stay stable through repeated refresh and unpublished names cannot reach the host', async () => {
+  const long = `domain.${'x'.repeat(90)}`;
+  let snapshot = [closedTool(long)];
+  let originalName = '';
+  const executeTool = vi.fn(async (_call: ProviderToolCall) => ({ content: 'ok' }));
+  const adapters = projectionAdapters(async port => {
+    originalName = String(declarations('openai', port.tools)[0]!.name);
+    expect(originalName).toMatch(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/);
+    snapshot = [...snapshot, closedTool(originalName)];
+    const second = declarations('openai', port.getTools());
+    const third = declarations('openai', port.getTools());
+    expect(second).toEqual(third);
+    expect(second[0]!.name).toBe(originalName);
+    expect(second[1]!.name).not.toBe(originalName);
+    await port.executeTool({ id: 'first', name: originalName, input: {} });
+    await port.executeTool({ id: 'second', name: String(second[1]!.name), input: {} });
+    expect(await port.executeTool({ id: 'unknown', name: long, input: {} })).toEqual({ content: '[tool error] Tool is not exposed in this turn.' });
+    snapshot = [];
+    port.getTools();
+    await port.executeTool({ id: 'in-flight', name: originalName, input: {} });
+  });
+  await runProviderToolTurn({ ...projectionInput('openai', adapters), executeTool }, { getToolSnapshot: () => snapshot });
+  expect(executeTool.mock.calls.map(call => call[0])).toEqual([
+    { id: 'first', name: long, input: {} }, { id: 'second', name: originalName, input: {} }, { id: 'in-flight', name: long, input: {} },
+  ]);
+  expect(executeTool.mock.calls[1]![0]!.name).toMatch(/^tool_domain_/);
+});
+
+test('wire names already assigned by core exposure are preserved and conflicting spellings fail closed', async () => {
+  const executeTool = vi.fn(async (_call: ProviderToolCall) => ({ content: 'ok' }));
+  const adapters = projectionAdapters(async port => {
+    expect(declarations('openai', port.tools)[0]!.name).toBe('pinned_name');
+    await port.executeTool({ id: 'call', name: 'pinned_name', input: {} });
+  });
+  await runProviderToolTurn({ ...projectionInput('openai', adapters), tools: [{ ...closedTool('a.b'), wireName: 'pinned_name' }], executeTool });
+  expect(executeTool).toHaveBeenCalledTimes(1);
+  expect(executeTool).toHaveBeenCalledWith({ id: 'call', name: 'a.b', input: {} });
+  await expect(runProviderToolTurn({ ...projectionInput('openai', adapters), tools: [{ ...closedTool('one'), wireName: 'same' }, { ...closedTool('two'), wireName: 'same' }] })).rejects.toBeInstanceOf(ProviderToolProjectionError);
+  await expect(runProviderToolTurn({ ...projectionInput('openai', adapters), tools: [{ ...closedTool('one'), wireName: 'invalid.name' }] })).rejects.toBeInstanceOf(ProviderToolProjectionError);
+});
+
+test('concurrent turns keep snapshot, name and schema decoder isolated', async () => {
+  async function run(id: string) {
+    const calls: ProviderToolCall[] = [];
+    const adapters = projectionAdapters(async port => {
+      await Promise.resolve();
+      const tool = declarations('openai', port.getTools({ strict: true }))[0]!;
+      await port.executeTool({ id: 'call', name: String(tool.name), input: { optional: null } });
+    });
+    await runProviderToolTurn({ ...projectionInput('openai', adapters), executeTool: async call => { calls.push(call); return { content: 'ok' }; } }, { getToolSnapshot: () => [closedTool(id)] });
+    return calls;
+  }
+  expect(await Promise.all([run('one.tool'), run('two.tool')])).toEqual([
+    [{ id: 'call', name: 'one.tool', input: {} }], [{ id: 'call', name: 'two.tool', input: {} }],
+  ]);
 });

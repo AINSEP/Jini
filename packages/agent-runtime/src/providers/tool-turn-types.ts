@@ -1,17 +1,41 @@
-import type { runAnthropicToolTurn } from './anthropic-messages.js';
-import type { runOpenAiToolTurn } from './openai-chat.js';
-import type { runAzureToolTurn } from './azure-chat.js';
-import type { runGoogleToolTurn } from './google-messages.js';
-/** Adapter ports retain each existing provider's request and tool-loop contract. */
+import type { runAnthropicToolTurn, AnthropicToolDef } from './anthropic-messages.js';
+import type { runOpenAiToolTurn, OpenAiFunctionToolDef } from './openai-chat.js';
+import type { runAzureToolTurn, AzureFunctionToolDef } from './azure-chat.js';
+import type { runGoogleToolTurn, GoogleToolDef } from './google-messages.js';
+import type { OperationSchemaFallbackReason } from './operation-schema.js';
+
+/** Request adapters choose strict support for their actual endpoint/model; policy is always prefer. */
+export interface ProviderToolSnapshotOptions { readonly strict?: boolean }
+export interface ProviderSchemaFallback {
+  readonly toolId: string;
+  readonly protocol: ProviderProtocol;
+  readonly reason: OperationSchemaFallbackReason;
+}
+type RefreshableAdapter<Required, Optional, Result, Tool> = (required: Required, optional?: Optional & {
+  /** Read immediately before each request, including a recognized schema downgrade. */
+  readonly getTools?: (options?: ProviderToolSnapshotOptions) => readonly Tool[];
+  readonly onSchemaFallback?: (event: ProviderSchemaFallback) => void;
+}) => Result;
+type AnthropicAdapter = typeof runAnthropicToolTurn;
+type OpenAiAdapter = typeof runOpenAiToolTurn;
+type AzureAdapter = typeof runAzureToolTurn;
+type GoogleAdapter = typeof runGoogleToolTurn;
+/** Existing adapters remain assignable; refresh-aware loops consume the optional projection hook. */
 export interface ProviderTurnAdapters {
-  readonly anthropic: typeof runAnthropicToolTurn;
-  readonly openai: typeof runOpenAiToolTurn;
-  readonly azure: typeof runAzureToolTurn;
-  readonly google: typeof runGoogleToolTurn;
+  readonly anthropic: RefreshableAdapter<Parameters<AnthropicAdapter>[0], Parameters<AnthropicAdapter>[1], ReturnType<AnthropicAdapter>, AnthropicToolDef>;
+  readonly openai: RefreshableAdapter<Parameters<OpenAiAdapter>[0], Parameters<OpenAiAdapter>[1], ReturnType<OpenAiAdapter>, OpenAiFunctionToolDef>;
+  readonly azure: RefreshableAdapter<Parameters<AzureAdapter>[0], Parameters<AzureAdapter>[1], ReturnType<AzureAdapter>, AzureFunctionToolDef>;
+  readonly google: RefreshableAdapter<Parameters<GoogleAdapter>[0], Parameters<GoogleAdapter>[1], ReturnType<GoogleAdapter>, GoogleToolDef>;
 }
 
 /** Structural descriptors keep host registries out of the runtime dependency graph. */
-export interface ProviderToolDescriptor { readonly id: string; readonly description?: string; readonly inputSchema?: unknown; }
+export interface ProviderToolDescriptor {
+  readonly id: string;
+  readonly description?: string;
+  readonly inputSchema?: unknown;
+  /** Preserve a wire name already assigned by the run's core exposure snapshot. */
+  readonly wireName?: string;
+}
 export type ProviderProtocol = "anthropic" | "openai" | "azure" | "google";
 export interface ProviderChatMessage {
   readonly role: "user" | "assistant";
@@ -81,6 +105,10 @@ export interface ProviderToolTurnResult {
 
 /** Optional turn controls; dependencies belong in the required input object. */
 export interface ProviderToolTurnOptions {
+  /** Current run-scoped descriptors; adapters refresh the projection before every request. */
+  readonly getToolSnapshot?: () => readonly ProviderToolDescriptor[];
+  /** Value-free diagnostic only; execution must still validate through the host executor. */
+  readonly onSchemaFallback?: (event: ProviderSchemaFallback) => void;
   readonly baseUrl?: string;
   readonly maxTokens?: number;
   readonly maxToolTurns?: number;

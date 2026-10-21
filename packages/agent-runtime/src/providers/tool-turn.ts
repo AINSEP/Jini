@@ -1,10 +1,13 @@
 import { runAnthropicToolTurn, type AnthropicMessageParam, type AnthropicToolCall, type AnthropicToolResultContentBlock, type AnthropicToolDef } from './anthropic-messages.js';
-import { runAzureToolTurn, type AzureContentPart, type AzureFunctionToolDef, type AzureMessageParam, type AzureToolCall } from './azure-chat.js';
+import { runAzureToolTurn, type AzureContentPart, type AzureMessageParam, type AzureToolCall } from './azure-chat.js';
 import { runGoogleToolTurn, type GoogleContent, type GoogleToolCall, type GoogleToolDef, type GoogleToolResultPart } from './google-messages.js';
 import { runOpenAiToolTurn, type OpenAiContentPart, type OpenAiFunctionToolDef, type OpenAiMessageParam, type OpenAiToolCall } from './openai-chat.js';
-import type { ProviderTurnAdapters, ProviderTurnEvent, ProviderToolResult, ProviderToolDescriptor, ProviderToolTurnInput, ProviderToolTurnResult, ProviderToolTurnOptions } from './tool-turn-types.js';
-import { googleParametersOf, findNumericEnumPaths, coerceNumericEnumStringsToNumbers } from './google-schema.js';
+import type { ProviderTurnAdapters, ProviderTurnEvent, ProviderToolCall, ProviderToolResult, ProviderToolDescriptor, ProviderToolTurnInput, ProviderToolTurnResult, ProviderToolTurnOptions, ProviderToolSnapshotOptions } from './tool-turn-types.js';
+import { createToolNameMap } from '@jini-ai/core';
+import { compileOperationSchema, type CompiledOperationSchema } from './operation-schema.js';
 export type * from './tool-turn-types.js';
+export { compileOperationSchema } from './operation-schema.js';
+export type { CompiledOperationSchema, OperationSchemaFallbackReason } from './operation-schema.js';
 export { googleParametersOf, sanitizeGoogleSchema, findNumericEnumPaths, coerceNumericEnumStringsToNumbers } from './google-schema.js';
 /** Existing provider loops, ready for host composition; callers may replace any adapter. */
 export const providerTurnAdapters: ProviderTurnAdapters = Object.freeze({ anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn });
@@ -68,10 +71,83 @@ function describeToolResultContent(content: unknown): string {
     })
     .join("\n");
 }
-function inputSchemaOf(descriptor: ProviderToolDescriptor): Record<string, unknown> {
-  return descriptor.inputSchema && typeof descriptor.inputSchema === "object"
-    ? (descriptor.inputSchema as Record<string, unknown>)
-    : { type: "object", additionalProperties: false, required: [], properties: {} };
+interface ProjectedTool {
+  readonly name: string;
+  readonly description?: string;
+  readonly operation: CompiledOperationSchema;
+}
+interface PublishedTool { readonly id: string; readonly operation: CompiledOperationSchema }
+/** Invalid snapshot names fail closed before an adapter can dispatch an ambiguous operation. */
+export class ProviderToolProjectionError extends Error {
+  readonly code = 'invalid-wire-name';
+  constructor(_required: Record<string, never>, options: ErrorOptions = {}) {
+    super('Invalid or conflicting tool wire name', options);
+    this.name = 'ProviderToolProjectionError';
+  }
+}
+function pinWireName(descriptor: ProviderToolDescriptor, names: Map<string, string>, occupied: Map<string, string>): void {
+  if (descriptor.wireName === undefined) return;
+  const existing = names.get(descriptor.id);
+  const owner = occupied.get(descriptor.wireName);
+  if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(descriptor.wireName)) throw new ProviderToolProjectionError({});
+  if (existing !== undefined && existing !== descriptor.wireName) throw new ProviderToolProjectionError({});
+  if (owner !== undefined && owner !== descriptor.id) throw new ProviderToolProjectionError({});
+  names.set(descriptor.id, descriptor.wireName);
+  occupied.set(descriptor.wireName, descriptor.id);
+}
+function pinWireNames(descriptors: readonly ProviderToolDescriptor[], names: Map<string, string>): void {
+  const occupied = new Map([...names].map(([id, name]) => [name, id]));
+  for (const descriptor of descriptors) pinWireName(descriptor, names, occupied);
+  const pending = descriptors.filter(descriptor => !names.has(descriptor.id));
+  const mapping = createToolNameMap({ toolIds: pending.map(descriptor => descriptor.id) }, { reservedNames: [...occupied.keys()] });
+  for (const descriptor of pending) names.set(descriptor.id, mapping.wireNameFor({ toolId: descriptor.id })!);
+}
+/** Per-turn projection state only; the host registry/executor retains definition and policy ownership.
+ * Names and previously published decoders survive refresh so in-flight calls remain resolvable.
+ * Work is O(n log n + s) per snapshot for n IDs and s bounded expanded schema nodes; no I/O.
+ */
+function createToolProjection(input: InternalTurnInput) {
+  const names = new Map<string, string>();
+  const published = new Map<string, PublishedTool>();
+  const reported = new Set<string>();
+  function getTools({ strict = false }: ProviderToolSnapshotOptions = {}, { reportFallback = true } = {}): ProjectedTool[] {
+    const descriptors = input.getToolSnapshot?.() ?? input.tools;
+    pinWireNames(descriptors, names);
+    return descriptors.map(descriptor => {
+      const operation = compileOperationSchema({ schema: descriptor.inputSchema, protocol: input.protocol }, { strict });
+      const name = names.get(descriptor.id)!;
+      published.set(name, { id: descriptor.id, operation });
+      const diagnosticKey = `${descriptor.id}:${operation.fallbackReason}`;
+      if (reportFallback && operation.fallbackReason && !reported.has(diagnosticKey)) {
+        reported.add(diagnosticKey);
+        input.onSchemaFallback?.({ toolId: descriptor.id, protocol: input.protocol, reason: operation.fallbackReason });
+      }
+      return { name, ...(descriptor.description !== undefined ? { description: descriptor.description } : {}), operation };
+    });
+  }
+  function decode(call: ProviderToolCall): ProviderToolCall {
+    const tool = published.get(call.name);
+    return tool ? { ...call, name: tool.id, input: tool.operation.decodeInput(call.input) } : call;
+  }
+  return {
+    getTools,
+    async execute(call: ProviderToolCall): Promise<ProviderToolResult> {
+      if (!published.has(call.name)) return { isError: true, content: 'Tool is not exposed in this turn.' };
+      return input.executeTool(decode(call));
+    },
+    onEvent(event: ProviderTurnEvent): void {
+      input.onEvent(event.type === 'tool_use' ? { ...event, ...decode(event) } : event);
+    },
+  };
+}
+function anthropicTools(tools: readonly ProjectedTool[]): AnthropicToolDef[] {
+  return tools.map(({ name, description, operation }) => ({ name, ...(description !== undefined ? { description } : {}), input_schema: operation.schema, ...(operation.strict ? { strict: true } : {}) }));
+}
+function openAiTools(tools: readonly ProjectedTool[]): OpenAiFunctionToolDef[] {
+  return tools.map(({ name, description, operation }) => ({ type: 'function', function: { name, ...(description !== undefined ? { description } : {}), parameters: operation.schema, ...(operation.strict ? { strict: true } : {}) } }));
+}
+function googleTools(tools: readonly ProjectedTool[]): GoogleToolDef[] {
+  return [{ functionDeclarations: tools.map(({ name, description, operation }) => ({ name, ...(description !== undefined ? { description } : {}), parameters: operation.schema })) }];
 }
 function normalizeTurnResult(result: {
   stopReason?: string | null;
@@ -81,16 +157,14 @@ function normalizeTurnResult(result: {
   return { stopReason: capturedEndReason ?? result.stopReason ?? result.finishReason ?? null, toolTurns: result.toolTurns };
 }
 async function runAnthropicTurn(input: InternalTurnInput): Promise<ProviderToolTurnResult> {
-  const tools: AnthropicToolDef[] = input.tools.map((d) => ({
-    name: d.id,
-    ...(d.description !== undefined ? { description: d.description } : {}),
-    input_schema: inputSchemaOf(d),
-  }));
+  const projection = createToolProjection(input);
+  const getTools = (options: ProviderToolSnapshotOptions = {}) => anthropicTools(projection.getTools(options));
+  const tools = anthropicTools(projection.getTools({}, { reportFallback: false }));
   const messages: AnthropicMessageParam[] = input.messages.map((m) => ({ role: m.role, content: m.images?.length ? toAnthropicToolContent([
     { type: 'text', text: m.content }, ...m.images.map(image => ({ type: 'image' as const, ...image })),
   ]) : m.content }));
   const executeTool = async (call: AnthropicToolCall) => {
-    const result = await input.executeTool({ id: call.id, name: call.name, input: call.input });
+    const result = await projection.execute({ id: call.id, name: call.name, input: call.input });
     return { content: toAnthropicToolContent(result.content), ...(result.isError !== undefined ? { isError: result.isError } : {}) };
   };
   let capturedEndReason: string | null = null;
@@ -101,6 +175,8 @@ async function runAnthropicTurn(input: InternalTurnInput): Promise<ProviderToolT
     system: input.system,
     messages,
     tools,
+    getTools,
+    ...(input.onSchemaFallback ? { onSchemaFallback: input.onSchemaFallback } : {}),
     maxTokens: input.maxTokens ?? 8192,
     ...(input.maxToolTurns !== undefined ? { maxToolTurns: input.maxToolTurns } : {}),
     executeTool,
@@ -119,16 +195,15 @@ async function runAnthropicTurn(input: InternalTurnInput): Promise<ProviderToolT
         });
         return;
       }
-      input.onEvent(event as ProviderTurnEvent);
+      projection.onEvent(event as ProviderTurnEvent);
     },
   });
   return normalizeTurnResult(result, capturedEndReason);
 }
 async function runOpenAiTurn(input: InternalTurnInput): Promise<ProviderToolTurnResult> {
-  const tools: OpenAiFunctionToolDef[] = input.tools.map((d) => ({
-    type: "function",
-    function: { name: d.id, ...(d.description !== undefined ? { description: d.description } : {}), parameters: inputSchemaOf(d) },
-  }));
+  const projection = createToolProjection(input);
+  const getTools = (options: ProviderToolSnapshotOptions = {}) => openAiTools(projection.getTools(options));
+  const tools = openAiTools(projection.getTools({}, { reportFallback: false }));
   const messages: OpenAiMessageParam[] = [
     { role: "system", content: input.system },
     ...input.messages.map((m) => ({ role: m.role, content: m.images?.length ? toOpenAiToolContent([
@@ -136,7 +211,7 @@ async function runOpenAiTurn(input: InternalTurnInput): Promise<ProviderToolTurn
     ]) : m.content }) as OpenAiMessageParam),
   ];
   const executeTool = async (call: OpenAiToolCall) => {
-    const result = await input.executeTool({ id: call.id, name: call.name, input: call.input });
+    const result = await projection.execute({ id: call.id, name: call.name, input: call.input });
     return { content: foldToolError(toOpenAiToolContent(result.content), result.isError) };
   };
   let capturedEndReason: string | null = null;
@@ -146,6 +221,8 @@ async function runOpenAiTurn(input: InternalTurnInput): Promise<ProviderToolTurn
     model: input.model,
     messages,
     tools,
+    getTools,
+    ...(input.onSchemaFallback ? { onSchemaFallback: input.onSchemaFallback } : {}),
     ...(input.maxTokens !== undefined ? { maxTokens: input.maxTokens } : {}),
     ...(input.maxToolTurns !== undefined ? { maxToolTurns: input.maxToolTurns } : {}),
     executeTool,
@@ -160,7 +237,7 @@ async function runOpenAiTurn(input: InternalTurnInput): Promise<ProviderToolTurn
         input.onEvent({ type: "tool_result", toolUseId: event.toolUseId, content, isError: event.isError || content.startsWith(TOOL_ERROR_PREFIX.trimEnd()) });
         return;
       }
-      input.onEvent(event as ProviderTurnEvent);
+      projection.onEvent(event as ProviderTurnEvent);
     },
   });
   return normalizeTurnResult(result, capturedEndReason);
@@ -171,10 +248,9 @@ async function runAzureTurn(input: InternalTurnInput): Promise<ProviderToolTurnR
     input.onEvent({ type: "end", reason: "error" });
     return { stopReason: "error", toolTurns: 0 };
   }
-  const tools: AzureFunctionToolDef[] = input.tools.map((d) => ({
-    type: "function",
-    function: { name: d.id, ...(d.description !== undefined ? { description: d.description } : {}), parameters: inputSchemaOf(d) },
-  }));
+  const projection = createToolProjection(input);
+  const getTools = (options: ProviderToolSnapshotOptions = {}) => openAiTools(projection.getTools(options));
+  const tools = openAiTools(projection.getTools({}, { reportFallback: false }));
   const messages: AzureMessageParam[] = [
     { role: "system", content: input.system },
     ...input.messages.map((m) => ({ role: m.role, content: m.images?.length ? toOpenAiToolContent([
@@ -182,7 +258,7 @@ async function runAzureTurn(input: InternalTurnInput): Promise<ProviderToolTurnR
     ]) : m.content }) as AzureMessageParam),
   ];
   const executeTool = async (call: AzureToolCall) => {
-    const result = await input.executeTool({ id: call.id, name: call.name, input: call.input });
+    const result = await projection.execute({ id: call.id, name: call.name, input: call.input });
     return { content: foldToolError(toOpenAiToolContent(result.content), result.isError) as string | AzureContentPart[] };
   };
   let capturedEndReason: string | null = null;
@@ -192,6 +268,8 @@ async function runAzureTurn(input: InternalTurnInput): Promise<ProviderToolTurnR
     model: input.model,
     messages,
     tools,
+    getTools,
+    ...(input.onSchemaFallback ? { onSchemaFallback: input.onSchemaFallback } : {}),
     ...(input.maxTokens !== undefined ? { maxTokens: input.maxTokens } : {}),
     ...(input.maxToolTurns !== undefined ? { maxToolTurns: input.maxToolTurns } : {}),
     executeTool,
@@ -206,23 +284,21 @@ async function runAzureTurn(input: InternalTurnInput): Promise<ProviderToolTurnR
         input.onEvent({ type: "tool_result", toolUseId: event.toolUseId, content, isError: event.isError || content.startsWith(TOOL_ERROR_PREFIX.trimEnd()) });
         return;
       }
-      input.onEvent(event as ProviderTurnEvent);
+      projection.onEvent(event as ProviderTurnEvent);
     },
   });
   return normalizeTurnResult(result, capturedEndReason);
 }
 async function runGoogleTurn(input: InternalTurnInput): Promise<ProviderToolTurnResult> {
-  const tools: GoogleToolDef[] = [
-    { functionDeclarations: input.tools.map((d) => ({ name: d.id, ...(d.description !== undefined ? { description: d.description } : {}), parameters: googleParametersOf({ descriptor: d }) })) },
-  ];
-  const numericEnumPathsByToolName = new Map<string, readonly string[]>(input.tools.map((d) => [d.id, findNumericEnumPaths({ schema: inputSchemaOf(d) })]));
+  const projection = createToolProjection(input);
+  const getTools = (options: ProviderToolSnapshotOptions = {}) => googleTools(projection.getTools(options));
+  const tools = googleTools(projection.getTools({}, { reportFallback: false }));
   const contents: GoogleContent[] = input.messages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }, ...(m.images ?? []).map(image => ({ inlineData: image }))],
   }));
   const executeTool = async (call: GoogleToolCall) => {
-    const coercedInput = coerceNumericEnumStringsToNumbers({ input: call.input, paths: numericEnumPathsByToolName.get(call.name) ?? [] });
-    const result = await input.executeTool({ id: call.id, name: call.name, input: coercedInput });
+    const result = await projection.execute({ id: call.id, name: call.name, input: call.input });
     return { content: toGoogleToolContent(result.content), ...(result.isError !== undefined ? { isError: result.isError } : {}) };
   };
   let capturedEndReason: string | null = null;
@@ -233,6 +309,8 @@ async function runGoogleTurn(input: InternalTurnInput): Promise<ProviderToolTurn
     system: input.system,
     contents,
     tools,
+    getTools,
+    ...(input.onSchemaFallback ? { onSchemaFallback: input.onSchemaFallback } : {}),
     ...(input.maxTokens !== undefined ? { maxOutputTokens: input.maxTokens } : {}),
     ...(input.maxToolTurns !== undefined ? { maxToolTurns: input.maxToolTurns } : {}),
     executeTool,
@@ -251,7 +329,7 @@ async function runGoogleTurn(input: InternalTurnInput): Promise<ProviderToolTurn
         });
         return;
       }
-      input.onEvent(event as ProviderTurnEvent);
+      projection.onEvent(event as ProviderTurnEvent);
     },
   });
   return normalizeTurnResult(result, capturedEndReason);
