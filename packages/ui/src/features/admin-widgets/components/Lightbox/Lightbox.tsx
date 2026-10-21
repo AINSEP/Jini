@@ -48,7 +48,6 @@ export function Lightbox(props: LightboxProps) {
       aria-labelledby={open ? titleId : undefined}
       onCancel={vm.handleCancel}
       onClick={vm.handleClick}
-      onKeyDown={vm.handleKeyDown}
       {...partAttrs.dialog}
     >
       {open ? (

@@ -97,7 +97,7 @@ describe("ImagePreviewModal modal-hook injection", () => {
         dialogRef: ref, closeRef: ref, prevRef: ref, nextRef: ref,
         navigable: false, hasPrev: false, hasNext: false, counter: "",
         previous: () => {}, next: () => {},
-        handleCancel: () => {}, handleClick: () => onClose(), handleKeyDown: () => {},
+        handleCancel: () => {}, handleClick: () => onClose(),
       };
     }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent, type MouseEvent, type RefObject, type SyntheticEvent } from "react";
+import { useEffect, useRef, type MouseEvent, type RefObject, type SyntheticEvent } from "react";
 
 /**
  * Lifecycle for the shared `Lightbox`: native `<dialog>` open/close, focus capture and return,
@@ -49,7 +49,6 @@ export interface LightboxController {
   next: () => void;
   handleCancel: (event: SyntheticEvent<HTMLDialogElement>) => void;
   handleClick: (event: MouseEvent<HTMLDialogElement>) => void;
-  handleKeyDown: (event: KeyboardEvent<HTMLDialogElement>) => void;
 }
 
 /** Marks the stage's empty area: the dialog fills the viewport, so "backdrop" is any click that
@@ -116,13 +115,22 @@ export function useLightbox(input: LightboxHookInput): LightboxController {
     input.onNavigate?.(target);
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLDialogElement>) {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    // Known limitation: a focused `<video controls>` also seeks on these keys natively, so the
-    // press both seeks and navigates. Callers know their media; the shell does not.
-    event.preventDefault();
-    go(nav.index + (event.key === "ArrowRight" ? 1 : -1));
-  }
+  // Listens on the document rather than the dialog: when the focused media is swapped out (an
+  // image that failed over to a video) focus drops to the body, and arrow keys must keep working.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog || !input.open) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      // Known limitation: a focused `<video controls>` also seeks on these keys natively, so the
+      // press both seeks and navigates. Callers know their media; the shell does not.
+      event.preventDefault();
+      go(nav.index + (event.key === "ArrowRight" ? 1 : -1));
+    };
+    dialog.ownerDocument.addEventListener("keydown", onKey);
+    return () => dialog.ownerDocument.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input.open, nav.index, nav.count, input.onNavigate]);
 
   return {
     dialogRef,
@@ -144,6 +152,5 @@ export function useLightbox(input: LightboxHookInput): LightboxController {
     handleClick: (event) => {
       if (isDismissTarget(event.target)) input.onClose();
     },
-    handleKeyDown,
   };
 }

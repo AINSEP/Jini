@@ -91,6 +91,13 @@ describe("Lightbox navigation", () => {
     expect(screen.getByText("2 / 3")).toBeInTheDocument();
   });
 
+  it("keeps navigating when focus has dropped to the document body", () => {
+    render(<Gallery count={2} />);
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(document.body, { key: "ArrowRight" });
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+  });
+
   it("hands focus to the other arrow when the focused one reaches its end", () => {
     render(<Gallery count={2} />);
     next().focus();
