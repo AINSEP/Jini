@@ -20,6 +20,14 @@ describe('DocumentPreview', () => {
     expect(sandbox).not.toContain('allow-same-origin');
   });
 
+  test('merges a host style over the default frame style', () => {
+    const { container } = render(<DocumentPreview html="" style={{ height: '320px' }} />);
+    const frame = container.querySelector('iframe') as HTMLIFrameElement;
+
+    expect(frame.style.height).toBe('320px');
+    expect(frame.style.width).toBe('100%');
+  });
+
   test('uses a default title when none is given, and a custom one when supplied', () => {
     const { container, rerender } = render(<DocumentPreview html="" />);
     expect(container.querySelector('iframe')?.getAttribute('title')).toBe('Live preview');

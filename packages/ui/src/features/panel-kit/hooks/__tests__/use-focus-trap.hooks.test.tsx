@@ -195,6 +195,62 @@ describe("useFocusTrap", () => {
 
     expect(event.defaultPrevented).toBe(false);
   });
+
+  it("Shift+Tab while focus is outside the dialog pulls it back to the last element", () => {
+    render(
+      <>
+        <button type="button">page behind</button>
+        <Dialog label="A" />
+      </>,
+    );
+    button("page behind").focus();
+
+    const event = tab(button("page behind"), true);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(button("A last"));
+  });
+
+  it("leaves Tab to the browser when the dialog has nothing focusable", () => {
+    function Empty() {
+      const ref = useRef<HTMLDivElement | null>(null);
+      useFocusTrap({ containerRef: ref });
+      return <div ref={ref} role="dialog" aria-modal="true"><p>Read only</p></div>;
+    }
+    render(<><button type="button">page behind</button><Empty /></>);
+    button("page behind").focus();
+
+    expect(tab(button("page behind")).defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(button("page behind"));
+  });
+
+  it("leaves Tab alone while the trapped container is not mounted", () => {
+    function Detached() {
+      const ref = useRef<HTMLDivElement | null>(null);
+      useFocusTrap({ containerRef: ref });
+      return <button type="button">outside any container</button>;
+    }
+    render(<Detached />);
+    button("outside any container").focus();
+
+    expect(tab(button("outside any container")).defaultPrevented).toBe(false);
+  });
+
+  it("restores nothing on close when focus already started inside the dialog", () => {
+    function AutoFocused({ open }: { open: boolean }) {
+      const ref = useRef<HTMLDivElement | null>(null);
+      useFocusTrap({ containerRef: ref }, { active: open });
+      // The case under test: a child took focus before the trap activated.
+      return <div ref={ref} role="dialog" aria-modal="true"><button type="button" autoFocus>inside</button><button type="button">other</button></div>;
+    }
+    const { rerender } = render(<><button type="button">page behind</button><AutoFocused open /></>);
+    expect(document.activeElement).toBe(button("inside"));
+    button("other").focus();
+
+    rerender(<><button type="button">page behind</button><AutoFocused open={false} /></>);
+
+    expect(document.activeElement).toBe(button("other"));
+  });
 });
 
 function BoundaryDialog({ edge }: { edge: ReactNode }) {

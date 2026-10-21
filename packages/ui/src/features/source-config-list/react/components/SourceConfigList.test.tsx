@@ -79,6 +79,17 @@ describe('SourceConfigList — MCP-server-shaped source', () => {
     expect(card.querySelector('.source-config-item-card-trust-badge')?.textContent).toBe('Trusted');
   });
 
+  it('publishes the host agent handle on the add form and on each item card', async () => {
+    const dependencies = mcpDependencies([{ id: 'a', fields: { url: 'https://mcp.example/a' }, trust: 'trusted' }]);
+    const { container } = render(
+      <SourceConfigList<McpServerSource> dependencies={dependencies} fieldSpecs={MCP_FIELD_SPECS} agentHandle="mcp-servers" />,
+    );
+    expect(await screen.findByText('https://mcp.example/a')).toBeInTheDocument();
+    const handles = Array.from(container.querySelectorAll('[data-agent-element]')).map((el) => el.getAttribute('data-agent-element'));
+    expect(handles).toContain('mcp-servers-add');
+    expect(handles.some((h) => h?.startsWith('mcp-servers-item-a'))).toBe(true);
+  });
+
   it('adds a new MCP-shaped source with a trust level through the generic add form', async () => {
     const dependencies = mcpDependencies();
     render(

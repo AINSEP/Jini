@@ -257,4 +257,24 @@ describe('useMcpUiHost — onEvent observability, teardown', () => {
     // See useMcpUiHost.ts's module doc: @mcp-ui/client exposes no acknowledgement signal anymore.
     expect(current().teardownAcknowledged).toBeNull();
   });
+
+  it('asks the mounted renderer to tear its resource down once ready', () => {
+    const { current } = renderHarness({ html: '<p>hi</p>', sandboxProxyUrl: SANDBOX_URL });
+    const teardownResource = vi.fn();
+    // Stands in for the AppRenderer instance React would attach through `ref={rendererRef}`.
+    (current() as unknown as { rendererRef: { current: unknown } }).rendererRef.current = { teardownResource };
+    act(() => current().rendererProps.onSizeChanged!({ width: 1, height: 1 }));
+    act(() => current().requestTeardown());
+    expect(teardownResource).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a non-Error renderer failure by its string form and defaults a missing width to 0', () => {
+    const onEvent = vi.fn();
+    const onSizeChanged = vi.fn();
+    const { current } = renderHarness({ html: '<p>hi</p>', sandboxProxyUrl: SANDBOX_URL, onEvent, onSizeChanged });
+    act(() => current().rendererProps.onSizeChanged!({ height: 40 }));
+    expect(onSizeChanged).toHaveBeenCalledWith({ width: 0, height: 40 });
+    act(() => current().rendererProps.onError!('proxy refused' as unknown as Error));
+    expect(onEvent.mock.calls.map(([event]) => JSON.stringify(event)).join('\n')).toContain('AppRenderer error: proxy refused');
+  });
 });

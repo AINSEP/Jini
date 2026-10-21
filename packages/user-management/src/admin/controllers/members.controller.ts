@@ -11,7 +11,8 @@ export function createMembersController({ api }: { api: MembersApiPort }, { perm
   const read = store.getSnapshot, call = store.call, set = (patch: Partial<MembersState>) => store.set({ patch });
   let listGeneration = 0, detailGeneration = 0;
   const report = (error: unknown, fallback: string) => describePeopleError({ error, fallback });
-  const row = (id: string) => read({}).members?.find(m => m.id === id);
+  const list = () => read({}).members ?? [];
+  const row = (id: string) => list().find(m => m.id === id);
   function stateFor({ id }: { id: string }, _optional: Record<string, never> = {}) { return read({}).rows[id] ?? emptyRow; }
   function patchRow(id: string, patch: Partial<MemberRowState>) { set({ rows: Object.freeze({ ...read({}).rows, [id]: Object.freeze({ ...stateFor({ id }), ...patch }) }) }); }
   const gate = () => store.active({}) && hasAdminGrant({ permissions: grants, permission: 'member.manage' });
@@ -45,23 +46,27 @@ export function createMembersController({ api }: { api: MembersApiPort }, { perm
   async function resendSignInLink({ id }: { id: string }, _optional: Record<string, never> = {}) {
     const member = row(id); if (!member || !gate() || stateFor({ id }).resending) return false;
     patchRow(id, { resending: true, error: null, notice: null });
-    try { await api.requestMemberMagicLink({ email: member.email }, call); patchRow(id, { notice: 'Sign-in link sent.' }); return store.active({}); }
-    catch (error) { patchRow(id, { error: report(error, 'Failed to send sign-in link.') }); return false; }
+    let sent = false;
+    try { await api.requestMemberMagicLink({ email: member.email }, call); patchRow(id, { notice: 'Sign-in link sent.' }); sent = store.active({}); }
+    catch (error) { patchRow(id, { error: report(error, 'Failed to send sign-in link.') }); }
     finally { patchRow(id, { resending: false }); }
+    return sent;
   }
   async function confirmDestructive(_required: Record<string, never>, _optional: Record<string, never> = {}) {
     const target = read({}).pending;
     if (!target || !gate() || read({}).confirming || !row(target.id)) return false;
     set({ confirming: true }); patchRow(target.id, { disabling: true, error: null, notice: null });
+    let disabled = false;
     try {
       const { member } = await api.disableMember({ id: target.id }, call);
       // Invalidate older reads before applying the write response, including the cached detail.
       ++listGeneration; ++detailGeneration;
-      set({ members: Object.freeze((read({}).members ?? []).map(m => m.id === member.id ? Object.freeze({ ...member }) : m)),
+      set({ members: Object.freeze(list().map(m => m.id === member.id ? Object.freeze({ ...member }) : m)),
         detailById: Object.freeze({ ...read({}).detailById, [member.id]: Object.freeze({ ...member }) }), detailLoadingId: null });
-      patchRow(target.id, { notice: 'Member disabled.' }); return store.active({});
-    } catch (error) { patchRow(target.id, { error: report(error, 'Failed to disable member.') }); return false; }
+      patchRow(target.id, { notice: 'Member disabled.' }); disabled = store.active({});
+    } catch (error) { patchRow(target.id, { error: report(error, 'Failed to disable member.') }); }
     finally { patchRow(target.id, { disabling: false }); if (read({}).pending === target) set({ pending: null }); set({ confirming: false }); }
+    return disabled;
   }
   const unsubscribe = refresh?.subscribe({ onRefresh: () => { void load({}); } });
   return {

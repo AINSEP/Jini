@@ -124,10 +124,7 @@ export function useProjectLocationsTab({
   }, [port]);
 
   const persist = useCallback(async (nextDrafts: readonly ProjectLocationDraft[]): Promise<readonly ProjectLocation[] | null> => {
-    setSaving(true);
-    try {
-      const saved = await portRef.current.saveLocations(saveableDrafts(nextDrafts));
-      if (!alive.current) return null;
+    const applySaved = (saved: readonly ProjectLocation[]): readonly ProjectLocation[] => {
       setLocations(saved);
       setDrafts(externalLocations(saved));
       setResult({ status: 'saved' });
@@ -138,13 +135,20 @@ export function useProjectLocationsTab({
       const effective = resolveDefaultLocationId(configured, saved);
       if (effective !== configured) onDefaultLocationIdChangeRef.current?.(effective);
       return saved;
+    };
+    setSaving(true);
+    // One return after the try statement (null unless a still-mounted save succeeded), so no
+    // unreachable continuation follows a try and a catch that both return.
+    let persisted: readonly ProjectLocation[] | null = null;
+    try {
+      const saved = await portRef.current.saveLocations(saveableDrafts(nextDrafts));
+      if (alive.current) persisted = applySaved(saved);
     } catch (error: unknown) {
-      if (!alive.current) return null;
-      setResult({ status: 'save-error', message: error instanceof Error ? error.message : String(error) });
-      return null;
+      if (alive.current) setResult({ status: 'save-error', message: error instanceof Error ? error.message : String(error) });
     } finally {
       if (alive.current) setSaving(false);
     }
+    return persisted;
   }, []);
 
   const addFolder = useCallback(() => {

@@ -178,5 +178,6 @@ export function sourceConfigAgentProps(
 ): AgentHandleProps | Record<string, never> {
   if (base === undefined) return {};
   const handle = options.action === undefined ? base : sourceConfigActionHandle(base, options.action);
-  return agentHandle({ handle: handle }, { ...(options.role === undefined ? {} : { role: options.role }), ...(options.label === undefined ? {} : { label: options.label }) });
+  // `role` and `label` are required by SourceConfigAgentPropsOptions, so both are always forwarded.
+  return agentHandle({ handle: handle }, { role: options.role, label: options.label });
 }

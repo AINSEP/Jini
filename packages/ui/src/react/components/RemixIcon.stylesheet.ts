@@ -12,7 +12,9 @@ function recoverFont({ stylesheet }: { stylesheet: Element }): void {
     createFontFace: ({ family, source, descriptors }) => new FontFace(family, source, descriptors),
     timers: {
       setTimeout: (run, delay) => globalThis.setTimeout(run, delay),
-      clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
+      // Only the recovery's stop handle clears a timer, and this module never stops a recovery (it
+      // lives as long as the page), so this is a plain binding rather than a wrapper of its own.
+      clearTimeout: globalThis.clearTimeout.bind(globalThis) as (handle: unknown) => void,
     },
   });
   if (sheet.sheet) { start(); return; }

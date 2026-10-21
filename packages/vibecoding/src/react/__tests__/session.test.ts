@@ -199,6 +199,25 @@ describe('createVibecodingSession — undo/redo cache updates', () => {
 });
 
 describe('createVibecodingSession — snapshot/restore', () => {
+  test('restoring a snapshot that already matches records nothing and leaves the cache alone', async () => {
+    const target = makeTarget({ initial: { a: 'a0' } });
+    const session = createVibecodingSession({ target });
+    const snapshot = await session.takeSnapshot();
+
+    const entry = await session.restoreSnapshot({ snapshot });
+
+    expect(entry).toBeNull();
+    expect(session.getSnapshot()).toMatchObject({ status: 'ready', canUndo: false });
+  });
+
+  test('a non-Error rejection is reported as its string form', async () => {
+    const target = { ...makeTarget(), snapshot: () => Promise.reject('host offline') };
+    const session = createVibecodingSession({ target });
+
+    await expect(session.takeSnapshot()).rejects.toBe('host offline');
+    expect(session.getSnapshot()).toMatchObject({ status: 'error', lastError: 'host offline' });
+  });
+
   test('restoreSnapshot is undoable and updates the cache from the snapshot', async () => {
     const target = makeTarget({ initial: { a: 'a0' } });
     const session = createVibecodingSession({ target });
