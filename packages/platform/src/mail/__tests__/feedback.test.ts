@@ -8,18 +8,27 @@ import type { MailerFeedbackEvent } from "../types.js";
 const BASE: MailerFeedbackEvent = { workspaceId: "ws-1", providerMessageId: "pm-1", sourceContext: { module: "newsletter" }, kind: "bounced", hardBounce: true, occurredAt: "2026-10-21T00:00:00Z", eventId: "e1", recipient: " A@Example.com " };
 const BODY = new TextEncoder().encode("{}");
 
-function harness(optional: { events?: readonly MailerFeedbackEvent[] | { error: string }; secrets?: string[]; verified?: boolean } = {}) {
+function harness(optional: { events?: readonly MailerFeedbackEvent[] | { error: string }; secrets?: string[]; verified?: boolean; failSuppressOnce?: boolean } = {}) {
   const suppressed: unknown[] = [];
-  const seen = new Set<string>();
+  // key -> processed? An unprocessed row is handed back as "inserted" so the event is re-applied.
+  const seen = new Map<string, boolean>();
   const inbox: MailFeedbackInboxPort = {
     async record({ providerId, event }) {
       const key = `${providerId}|${event.eventId}`;
-      if (seen.has(key)) return "duplicate";
-      seen.add(key);
+      if (seen.get(key) === true) return "duplicate";
+      seen.set(key, false);
       return "inserted";
     },
+    async complete({ providerId, eventId }) { seen.set(`${providerId}|${eventId}`, true); },
   };
-  const suppression: MailSuppressionRepoPort = { isSuppressed: async () => false, async suppress(input) { suppressed.push(input); } };
+  let failSuppress = optional.failSuppressOnce ?? false;
+  const suppression: MailSuppressionRepoPort = {
+    isSuppressed: async () => false,
+    async suppress(input) {
+      if (failSuppress) { failSuppress = false; throw new Error("db down"); }
+      suppressed.push(input);
+    },
+  };
   const parser: MailFeedbackParser = { verify: () => optional.verified ?? true, parse: () => optional.events ?? [BASE] };
   const deps = {
     parserFor: ({ providerId }: { providerId: string }) => (providerId === "resend" ? parser : undefined),
@@ -54,6 +63,15 @@ describe("createMailFeedbackIngest", () => {
     assert.deepEqual(notified, ["e1", "e2", "e3"]);
     assert.deepEqual(await ingest.handle(REQUEST), { status: 200, body: { ok: true, applied: 0, duplicates: 3 } });
     assert.equal(suppressed.length, 2);
+  });
+  test("a suppression failure leaves the event incomplete, so the provider's replay re-applies it", async () => {
+    const { deps, suppressed } = harness({ failSuppressOnce: true });
+    const ingest = createMailFeedbackIngest(deps);
+    await assert.rejects(ingest.handle(REQUEST), /db down/);
+    assert.equal(suppressed.length, 0);
+    assert.deepEqual(await ingest.handle(REQUEST), { status: 200, body: { ok: true, applied: 1, duplicates: 0 } });
+    assert.deepEqual(suppressed, [{ workspaceId: "ws-1", normalizedAddress: "a@example.com", scope: "all", reason: "bounced" }]);
+    assert.deepEqual(await ingest.handle(REQUEST), { status: 200, body: { ok: true, applied: 0, duplicates: 1 } });
   });
   test("events without id or recipient are dropped", async () => {
     const { eventId: _id, ...noId } = BASE;

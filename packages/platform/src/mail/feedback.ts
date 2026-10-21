@@ -5,14 +5,24 @@
  * here so every host gets it: a body-size cap before parsing, a rate limit on unverified requests
  * (signature guessing), vault-held secrets with rotation (any of several may verify), and an inbox
  * keyed by (providerId, eventId) so provider replays are no-ops.
+ *
+ * The inbox row and the suppression write are separate statements with no enclosing transaction,
+ * so the row is only marked complete after suppression and the subscriber succeed: a crash or error
+ * in between leaves it incomplete, and the provider's replay re-applies it (suppression is an upsert).
  */
 import type { MailFeedbackParser } from "./provider.js";
 import type { MailSuppressionRepoPort, MailSuppressionScope } from "./ports.js";
 import type { MailerFeedbackEvent } from "./types.js";
 
 export interface MailFeedbackInboxPort {
-  /** Insert-if-absent on (providerId, eventId); `duplicate` means this event was already applied. */
+  /**
+   * Insert-if-absent on (providerId, eventId). `duplicate` means this event was already applied
+   * (completed); `inserted` means it must be applied now: either new, or recorded earlier but never
+   * completed (the earlier attempt failed or stopped part-way).
+   */
   record(required: { providerId: string; event: MailerFeedbackEvent & { eventId: string; recipient: string } }): Promise<"inserted" | "duplicate">;
+  /** Marks (providerId, eventId) applied; later `record` calls for it return `duplicate`. */
+  complete(required: { providerId: string; eventId: string }): Promise<void>;
 }
 
 export interface MailFeedbackIngestDeps {
@@ -86,6 +96,7 @@ export function createMailFeedbackIngest(required: MailFeedbackIngestDeps, optio
       await required.suppression.suppress({ workspaceId: input.event.workspaceId, normalizedAddress: input.event.recipient.trim().toLowerCase(), scope, reason });
     }
     await optional.onEvent?.(input);
+    await required.inbox.complete({ providerId: input.providerId, eventId: input.event.eventId });
     return outcome;
   };
 
