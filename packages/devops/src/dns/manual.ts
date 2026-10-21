@@ -27,8 +27,11 @@ import { buildRecord, isMxValue, normalizeDnsName, parseAnswerValue, requirement
 
 export const MANUAL_DNS_PROVIDER_ID = 'manual';
 
-/** Every type the planner reasons about; a name answering all of these is fully known. */
-const QUERIED_TYPES: readonly DnsRecordType[] = ['A', 'AAAA', 'CNAME', 'TXT', 'MX', 'CAA'];
+/**
+ * Every type this provider can serve (ALIAS is a host feature, not a served type); a name answering
+ * all of these is fully known. NS and SRV matter for conflicts (a delegated child, a CNAME beside them).
+ */
+const QUERIED_TYPES: readonly DnsRecordType[] = ['A', 'AAAA', 'CNAME', 'TXT', 'MX', 'CAA', 'NS', 'SRV'];
 
 export interface ManualDnsProviderOptions {
   readonly label?: string;
@@ -109,7 +112,10 @@ async function lookup(resolver: AuthoritativeDnsPort, required: { name: string; 
   const result = await settlePort({ call: () => resolver.query(required) });
   if (result.status === 'rejected' && result.error.code === 'not_found') return { kind: 'none' };
   if (result.status !== 'ok') return { kind: 'unknown' };
-  const values = result.value.answers.map(text => parseAnswerValue({ type: required.type, text })).filter((value): value is DnsRecordValue => value !== undefined);
+  const parsed = result.value.answers.map(text => parseAnswerValue({ type: required.type, text }));
+  // An answer we cannot represent is data we would silently drop from the plan: not known.
+  if (parsed.includes(undefined)) return { kind: 'unknown' };
+  const values = parsed as DnsRecordValue[];
   if (values.length === 0) return { kind: 'none' };
   return { kind: 'found', record: buildRecord({ name: required.name, type: required.type, ttl: result.value.ttl ?? DEFAULT_DNS_TTL, values }) };
 }

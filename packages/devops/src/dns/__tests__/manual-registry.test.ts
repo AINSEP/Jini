@@ -32,13 +32,14 @@ describe('manual provider: zones', () => {
 });
 
 describe('manual provider: listing', () => {
-  test('reads every planner type at each name from an authoritative server', async () => {
+  test('reads every supported type at each name from an authoritative server, NS and SRV included', async () => {
     const resolver = fakeResolver({ ns, ttl: 120, records: {
       'www.example.test|A': ['192.0.2.1'],
       'www.example.test|TXT': ['"v=spf1 " "-all"'],
-      'www.example.test|MX': ['10 mx.test.', 'junk'],
-      'www.example.test|CAA': ['junk'],
+      'www.example.test|MX': ['10 mx.test.'],
       'www.example.test|AAAA': 'nxdomain',
+      'www.example.test|NS': ['NS.Child.test.'],
+      'www.example.test|SRV': ['0 5 5060 sip.test.'],
     } });
     const provider = createManualDnsProvider({ resolver });
     const result = await provider.listRecords(ctx, { zoneRef: 'example.test', names: ['WWW.example.test.'] });
@@ -46,8 +47,26 @@ describe('manual provider: listing', () => {
       { name: 'www.example.test', type: 'A', ttl: 120, values: ['192.0.2.1'] },
       { name: 'www.example.test', type: 'TXT', ttl: 120, values: ['v=spf1 -all'] },
       { name: 'www.example.test', type: 'MX', ttl: 120, values: [{ priority: 10, exchange: 'mx.test' }] },
+      { name: 'www.example.test', type: 'NS', ttl: 120, values: ['ns.child.test'] },
+      { name: 'www.example.test', type: 'SRV', ttl: 120, values: ['0 5 5060 sip.test.'] },
     ] } }));
-    expect(resolver.queries.filter(query => query.startsWith('ns1.host.test'))).toHaveLength(6);
+    expect(resolver.queries.filter(query => query.startsWith('ns1.host.test'))).toHaveLength(8);
+  });
+
+  // Regression (review 13-dns #3, catalog F4.6): unreadable answers were dropped and the
+  // inventory still called complete, so the planner could shadow or delete what it never saw.
+  test.each([['MX', 'junk'], ['CAA', '0 contactemail "x@example.test"']] as const)('an unrepresentable %s answer makes the inventory unknown', async (type, answer) => {
+    const resolver = fakeResolver({ ns, records: { 'www.example.test|A': ['192.0.2.1'], [`www.example.test|${type}`]: [answer] } });
+    const result = await createManualDnsProvider({ resolver }).listRecords(ctx, { zoneRef: 'example.test', names: ['www.example.test'] });
+    expect(result).toMatchObject({ status: 'ok', value: { inventory: 'unknown' } });
+  });
+
+  test('an NS record (a delegated child) at a required name is seen, so a CNAME there is blocked', async () => {
+    const resolver = fakeResolver({ ns, records: { 'app.example.test|NS': ['ns.child.test'] } });
+    const listed = await createManualDnsProvider({ resolver }).listRecords(ctx, { zoneRef: 'example.test', names: ['app.example.test'] });
+    if (listed.status !== 'ok') throw new Error('listing failed');
+    const planned = planDnsChanges({ providerId: 'manual', zone: 'example.test', current: listed.value.records, inventory: listed.value.inventory, requirements: [{ purpose: 'site', domain: 'app.example.test', providerId: 'host', records: [{ type: 'CNAME', name: 'app.example.test', value: 'host.test' }] }] });
+    expect(planned.blockers).toMatchObject([{ code: 'cname_coexistence', name: 'app.example.test' }]);
   });
 
   test('an unreadable answer makes the inventory unknown instead of inventing a conflict', async () => {
