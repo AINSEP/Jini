@@ -1,5 +1,9 @@
 # @jini-ai/core
 
+## Unreleased
+
+- New `./provider-registry` (also on the root): `createProviderRegistry<T>()` — keyed register/get/has/list/getDefault, frozen entries, core registrations throw while plugin contributions are recorded in `refusals()` — plus shared `ProviderResult<T>`, `ProviderContext` and `DomainRequirement` types. Frozen contract: `docs/provider-registry.md`.
+
 ## 0.4.8 — 2026-10-16
 
 - `applyTargetScope`: one optional `site` input on read-only tools; the host resolves the target and a peer handler/principal, writes refuse a foreign target (3786c8f0).

@@ -18,6 +18,7 @@
       "./gated-mutations": "universal",
       "./model-facing-tool-errors": "universal",
       "./contribution-registry": "universal",
+      "./provider-registry": "universal",
       "./naming": "universal",
       "./records": "universal",
       "./primitives": "universal",
@@ -97,6 +98,11 @@
       "types": "./dist/contribution-registry.d.ts",
       "import": "./dist/contribution-registry.js",
       "default": "./dist/contribution-registry.js"
+    },
+    "./provider-registry": {
+      "types": "./dist/provider-registry.d.ts",
+      "import": "./dist/provider-registry.js",
+      "default": "./dist/provider-registry.js"
     },
     "./naming": {
       "types": "./dist/naming.d.ts",

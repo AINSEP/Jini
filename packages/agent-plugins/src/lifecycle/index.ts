@@ -31,6 +31,7 @@ export * from './manifest.js';
 export * from './fetch-archive.js';
 export * from './mcp-provisioning.js';
 export * from './contribution-loader.js';
+export * from './provider-contribution.js';
 export { createAgentPluginActivations, ACTIVATIONS_FILENAME, ACTIVATIONS_LOCK_FILENAME, AgentPluginActivationsBusyError, AgentPluginActivationsUnreadableError } from './activation.js';
 export { BUNDLED_DIGESTS_FILENAME } from './bundled-digests.js';
 export { AgentPluginInstallError } from './install.js';

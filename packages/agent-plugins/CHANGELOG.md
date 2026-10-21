@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `./lifecycle`: `defineProviderContribution()` wraps `defineExecutablePluginContribution` so a bundled plugin can contribute a provider for `@jini-ai/core/provider-registry` (id checked before import), and `contributeProviders()` merges loader and registry refusals. Needs `@jini-ai/core` with `./provider-registry` (next core release).
+
 ## 0.4.7 — 2026-10-15 — folder uploads share one ZIP encoder
 
 - New `./folder-zip` (universal): `zipFolderFiles()`, the binary-safe stored-mode folder encoder,
