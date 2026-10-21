@@ -26,7 +26,8 @@ it("cross-device verification failure preserves the source and never commits", (
   try {
     const before = directoryFingerprint({ dir: from }); let commits = 0;
     const filesystem: typeof fs = { ...fs, renameSync: (a, b) => { if (String(a) === from && String(b) === to) throw Object.assign(new Error("cross-device"), { code: "EXDEV" }); fs.renameSync(a, b); },
-      cpSync: (source, target, options) => { fs.cpSync(source, target, options); fs.writeFileSync(path.join(String(target), "content.db"), "torn copy"); } };
+      // MOVE: Copies now target individual entries within the reserved root.
+      cpSync: (source, target, options) => { fs.cpSync(source, target, options); fs.writeFileSync(path.join(to, "content.db"), "torn copy"); } };
     expect(() => moveDirectoryVerified({ from, to, commit: () => { commits++; } }, { filesystem, backupId: () => "fixture" })).toThrow("Moved directory verification failed.");
     expect(commits).toBe(0); expect(directoryFingerprint({ dir: from })).toBe(before); expect(fs.existsSync(to)).toBe(false);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
@@ -45,8 +46,9 @@ it("reserves a cross-device destination before copying any site bytes", () => {
   try {
     const filesystem: typeof fs = { ...fs, renameSync: (a, b) => { if (String(a) === from && String(b) === to) throw Object.assign(new Error("cross-device"), { code: "EXDEV" }); fs.renameSync(a, b); },
       cpSync: (source, target, options) => {
-        expect(fs.readFileSync(path.join(String(target), "running.json"), "utf8")).toBe("reserved");
-        expect(fs.existsSync(path.join(String(target), "content.db"))).toBe(false);
+        // MOVE: Observe the reserved root while the copier receives individual entries.
+        expect(fs.readFileSync(path.join(to, "running.json"), "utf8")).toBe("reserved");
+        expect(fs.existsSync(target)).toBe(false);
         fs.cpSync(source, target, options);
       } };
     moveDirectoryVerified({ from, to, commit() {} }, { filesystem, backupId: () => "fixture", excluded: ["running.json"], prepareDestination: ({ path: target }) => fs.writeFileSync(path.join(target, "running.json"), "reserved") });
@@ -78,7 +80,8 @@ it("a copy failure after partial destination creation restores the unchanged sou
     const before = directoryFingerprint({ dir: from }); let commits = 0;
     const filesystem: typeof fs = { ...fs,
       renameSync: (a, b) => { if (String(a) === from && String(b) === to) throw Object.assign(new Error("cross-device"), { code: "EXDEV" }); fs.renameSync(a, b); },
-      cpSync: (_source, target) => { fs.writeFileSync(path.join(String(target), "partial"), "copied bytes"); throw new Error("disk full"); },
+      // MOVE: A failed entry copy still leaves partial bytes inside the reserved root.
+      cpSync: () => { fs.writeFileSync(path.join(to, "partial"), "copied bytes"); throw new Error("disk full"); },
     };
     expect(() => moveDirectoryVerified({ from, to, commit: () => { commits++; } }, { filesystem, backupId: () => "fixture" })).toThrow("disk full");
     expect(commits).toBe(0); expect(directoryFingerprint({ dir: from })).toBe(before); expect(fs.existsSync(to)).toBe(false);

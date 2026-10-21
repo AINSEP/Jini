@@ -111,6 +111,32 @@ test("EXDEV copy skips excluded top-level entries", () => {
   moveDirectoryVerified({ from, to, commit() {} }, { filesystem: crossDevice(from, to), backupId: () => "fixture", excluded: ["running.json"] });
   expect(fs.readdirSync(to)).toEqual(["content.db"]);
 });
+test("EXDEV copies into a reserved root when exclusive copy refuses existing directories", () => {
+  const { from, to } = fixture();
+  fs.mkdirSync(path.join(from, "nested"));
+  fs.writeFileSync(path.join(from, "nested", "asset.txt"), "asset bytes");
+  const filesystem = crossDevice(from, to, { cpSync: (source, target, options) => {
+    if (fs.existsSync(target)) throw coded("EEXIST");
+    fs.cpSync(source, target, options);
+  } });
+  let commits = 0;
+  moveDirectoryVerified({ from, to, commit: () => { commits++; } }, { filesystem });
+  expect(commits).toBe(1);
+  expect(fs.readFileSync(path.join(to, "content.db"), "utf8")).toBe("database bytes");
+  expect(fs.readFileSync(path.join(to, "nested", "asset.txt"), "utf8")).toBe("asset bytes");
+  expect(fs.existsSync(from)).toBe(false);
+});
+test("an EXDEV entry collision aborts before commit and preserves the source", () => {
+  const { from, to } = fixture();
+  let commits = 0;
+  expect(() => moveDirectoryVerified({ from, to, commit: () => { commits++; } }, {
+    filesystem: crossDevice(from, to),
+    prepareDestination: ({ path: target }) => fs.writeFileSync(path.join(target, "content.db"), "reserved bytes"),
+  })).toThrow(/already exists/);
+  expect(commits).toBe(0);
+  expect(fs.readFileSync(path.join(from, "content.db"), "utf8")).toBe("database bytes");
+  expect(fs.existsSync(to)).toBe(false);
+});
 test("Windows platform skips directory flushes but still moves", () => {
   const { from, to } = fixture();
   const opened: string[] = [];

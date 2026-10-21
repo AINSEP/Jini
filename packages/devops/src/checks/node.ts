@@ -20,7 +20,12 @@ export function createNodeFilesystem(_args: Record<string, never>): FilesystemPo
     createTempDirectory: ({ parent, prefix }) => mkdtempSync(path.join(parent, prefix)),
     createDirectory: ({ path: dir }) => { mkdirSync(dir); },
     ensureDirectory: ({ path: dir }) => { mkdirSync(dir, { recursive: true }); },
-    copyDirectory: ({ source, destination }) => { cpSync(source, destination, { recursive: true, force: false, errorOnExist: true }); },
+    copyDirectory: ({ source, destination }) => {
+      // MOVE: The caller owns the reserved root; exclusive copy still protects every entry inside it.
+      for (const entry of readdirSync(source)) {
+        cpSync(path.join(source, entry), path.join(destination, entry), { recursive: true, force: false, errorOnExist: true });
+      }
+    },
     removeDirectory: ({ path: dir }) => { rmSync(dir, { recursive: true, force: true }); },
   };
 }

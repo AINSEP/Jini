@@ -97,9 +97,13 @@ function placeAtTarget({ source, target }: { source: string; target: string }, {
   try {
     // The host may reserve the empty destination before any commit marker or database is copied.
     prepareDestination?.({ path: target });
-    filesystem.cpSync(source, target, { recursive: true, force: false, errorOnExist: true, preserveTimestamps: true, verbatimSymlinks: true,
-      filter: (candidate) => candidate === source || !excluded.includes(path.relative(source, candidate).split(path.sep)[0]!),
-    });
+    // MOVE: Copy entries into the reserved root so exclusive copy never collides with that root.
+    for (const entry of filesystem.readdirSync(source)) {
+      if (excluded.includes(entry)) continue;
+      filesystem.cpSync(path.join(source, entry), path.join(target, entry), {
+        recursive: true, force: false, errorOnExist: true, preserveTimestamps: true, verbatimSymlinks: true,
+      });
+    }
   }
   catch (failure) { filesystem.rmSync(target, { recursive: true }); throw failure; }
   return true;

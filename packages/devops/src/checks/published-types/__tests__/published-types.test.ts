@@ -29,6 +29,8 @@ function fixture() {
       const dir = path.join(scratch, 'node_modules', '@example', name);
       mkdirSync(dir, { recursive: true });
       writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ version: '1.2.3' }));
+      mkdirSync(path.join(dir, 'dist'));
+      writeFileSync(path.join(dir, 'dist', 'index.d.ts'), 'export declare const version: string;');
     }
     return pass;
   }) };
@@ -57,6 +59,7 @@ test('isolates new registry diagnostics, shadows transitive scoped packages, and
     return old;
   }).mockImplementationOnce(async () => {
     expect(f.fs.exists({ path: path.join(f.project.shadowAnchor, 'node_modules', '@example', 'transitive', 'package.json') })).toBe(true);
+    expect(f.fs.readText({ path: path.join(f.project.shadowAnchor, 'node_modules', '@example', 'transitive', 'dist', 'index.d.ts') })).toBe('export declare const version: string;');
     return { ...diagnostic('new error'), stdout: old.stdout + diagnostic('new error').stdout };
   });
   const result = await check(f.args);
@@ -73,6 +76,18 @@ test('identical local errors pass the drift comparison and remain reported', asy
   const result = await check(f.args);
   expect(result.ok).toBe(true);
   expect(result.projects[0]?.baselineDiagnostics).toEqual(['src/main.ts(1,2): error TS2305: old error']);
+});
+
+test('the Node directory copier preserves an existing destination entry on collision', () => {
+  const f = fixture();
+  const source = path.join(f.directory, 'copy-source');
+  const destination = path.join(f.directory, 'copy-target');
+  mkdirSync(source); mkdirSync(destination);
+  writeFileSync(path.join(source, 'index.d.ts'), 'registry bytes');
+  writeFileSync(path.join(destination, 'index.d.ts'), 'owned bytes');
+  expect(() => f.fs.copyDirectory({ source, destination })).toThrow(/already exists/);
+  expect(readFileSync(path.join(destination, 'index.d.ts'), 'utf8')).toBe('owned bytes');
+  expect(readFileSync(path.join(source, 'index.d.ts'), 'utf8')).toBe('registry bytes');
 });
 
 test('published mode fails on identical errors instead of using a baseline', async () => {
