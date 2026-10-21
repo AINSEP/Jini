@@ -18,7 +18,7 @@ function fakePsql(statuses: number[] = []) {
   const spawnSync = (_binary: string, args: string[]) => {
     calls.push(args);
     const status = statuses.shift() ?? 0;
-    return { status, error: undefined, stdout: status === 0 ? "out" : "", stderr: status === 0 ? "" : "boom" };
+    return { status, stdout: status === 0 ? "out" : "", stderr: status === 0 ? "" : "boom" };
   };
   return { calls, spawnSync };
 }
