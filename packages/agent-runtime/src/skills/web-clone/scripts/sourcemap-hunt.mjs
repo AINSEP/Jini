@@ -2,29 +2,35 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { HELP_OPTIONS, parseCliArgs, text } from "./lib/cli-args.mjs";
+import { runCli, runIfMain } from "./lib/main-guard.mjs";
 
-function usage() {
-  console.log(`Usage:
+// fs / fetch / output are ports with real defaults wired here at the CLI edge.
+const DEFAULT_DEPS = { fs, fetch: globalThis.fetch, log: console.log, error: console.error };
+
+export function usage(log = console.log) {
+  log(`Usage:
   node scripts/sourcemap-hunt.mjs --recon original-recon.json --out RECON/sourcemaps [--all-external]
 
 Finds sourceMappingURL hints in discovered JavaScript bundles and tries to download source maps.
 `);
 }
 
-function parseArgs(argv) {
-  const out = { recon: "", outDir: "RECON/sourcemaps", allExternal: false };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--help" || arg === "-h") out.help = true;
-    else if (arg === "--recon") out.recon = argv[++i] || "";
-    else if (arg === "--out") out.outDir = argv[++i] || "RECON/sourcemaps";
-    else if (arg === "--all-external") out.allExternal = true;
-    else throw new Error(`Unexpected argument: ${arg}`);
-  }
-  return out;
+const ARG_SPEC = {
+  defaults: { recon: "", outDir: "RECON/sourcemaps", allExternal: false },
+  options: {
+    ...HELP_OPTIONS,
+    "--recon": { key: "recon", parse: text("") },
+    "--out": { key: "outDir", parse: text("RECON/sourcemaps") },
+    "--all-external": { key: "allExternal", flag: true },
+  },
+};
+
+export function parseArgs(argv) {
+  return parseCliArgs(argv, ARG_SPEC);
 }
 
-function collectScripts(recon) {
+export function collectScripts(recon) {
   const scripts = new Set();
   for (const capture of recon.captures || []) {
     for (const script of capture.signals?.scripts || []) {
@@ -34,21 +40,21 @@ function collectScripts(recon) {
   return Array.from(scripts);
 }
 
-function fileNameFor(url, suffix = "") {
+export function fileNameFor(url, suffix = "") {
   const parsed = new URL(url);
   const base = path.basename(parsed.pathname).replace(/[^a-z0-9._-]+/gi, "-").slice(0, 90) || "bundle.js";
   const hash = crypto.createHash("sha1").update(url).digest("hex").slice(0, 10);
   return `${base}-${hash}${suffix}`;
 }
 
-function resolveMapUrl(scriptUrl, mapHint) {
+export function resolveMapUrl(scriptUrl, mapHint) {
   if (!mapHint) return `${scriptUrl}.map`;
   if (mapHint.startsWith("data:")) return "";
   return new URL(mapHint, scriptUrl).toString();
 }
 
-async function fetchText(url) {
-  const response = await fetch(url, {
+export async function fetchText(fetchImpl, url) {
+  const response = await fetchImpl(url, {
     headers: {
       "user-agent": "web-clone-skill/1.0 sourcemap-hunt",
       "accept": "*/*",
@@ -58,41 +64,40 @@ async function fetchText(url) {
   return response.text();
 }
 
-try {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help || !args.recon) {
-    usage();
-    process.exit(args.help ? 0 : 1);
+// Fetch a bundle, follow its sourceMappingURL hint (or the `<script>.map`
+// convention) and save the map; every failure is recorded on the entry.
+async function huntScript(scriptUrl, outDir, deps) {
+  const entry = { scriptUrl, status: "unknown", mapUrl: "", mapFile: "", error: "" };
+  try {
+    const js = await fetchText(deps.fetch, scriptUrl);
+    const hint = js.match(/[#@]\s*sourceMappingURL=([^\s*]+)/)?.[1] || "";
+    entry.mapUrl = resolveMapUrl(scriptUrl, hint);
+    if (entry.mapUrl) {
+      const mapText = await fetchText(deps.fetch, entry.mapUrl);
+      const mapFile = path.join(outDir, fileNameFor(entry.mapUrl, ".map"));
+      deps.fs.writeFileSync(mapFile, mapText);
+      entry.mapFile = mapFile;
+      entry.status = "ok";
+    } else {
+      entry.status = "inline-or-data-map";
+    }
+  } catch (error) {
+    entry.status = "error";
+    entry.error = error.message;
   }
+  return entry;
+}
 
-  const recon = JSON.parse(fs.readFileSync(args.recon, "utf8"));
+async function hunt(args, deps) {
+  const recon = JSON.parse(deps.fs.readFileSync(args.recon, "utf8"));
   const originHost = recon.url ? new URL(recon.url).hostname : "";
   const scripts = collectScripts(recon).filter((script) => args.allExternal || new URL(script).hostname === originHost);
   const outDir = path.resolve(args.outDir);
-  fs.mkdirSync(outDir, { recursive: true });
+  deps.fs.mkdirSync(outDir, { recursive: true });
 
   const results = [];
   for (const scriptUrl of scripts) {
-    const entry = { scriptUrl, status: "unknown", mapUrl: "", mapFile: "", error: "" };
-    try {
-      const js = await fetchText(scriptUrl);
-      const hint = js.match(/[#@]\s*sourceMappingURL=([^\s*]+)/)?.[1] || "";
-      entry.mapUrl = resolveMapUrl(scriptUrl, hint);
-      if (!entry.mapUrl) {
-        entry.status = "inline-or-data-map";
-        results.push(entry);
-        continue;
-      }
-      const mapText = await fetchText(entry.mapUrl);
-      const mapFile = path.join(outDir, fileNameFor(entry.mapUrl, ".map"));
-      fs.writeFileSync(mapFile, mapText);
-      entry.mapFile = mapFile;
-      entry.status = "ok";
-    } catch (error) {
-      entry.status = "error";
-      entry.error = error.message;
-    }
-    results.push(entry);
+    results.push(await huntScript(scriptUrl, outDir, deps));
   }
 
   const manifest = {
@@ -104,9 +109,25 @@ try {
     results,
   };
   const manifestFile = path.join(outDir, "sourcemap-manifest.json");
-  fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
-  console.log(manifestFile);
-} catch (error) {
-  console.error(`sourcemap-hunt failed: ${error.message}`);
-  process.exit(1);
+  deps.fs.writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+  deps.log(manifestFile);
+  return 0;
 }
+
+/**
+ * CLI entry: hunt source maps for the bundles listed in a recon JSON.
+ * @returns {Promise<number>} exit code (0 ok, 1 usage error or failure).
+ */
+export async function main(argv, deps = {}) {
+  const io = { ...DEFAULT_DEPS, ...deps };
+  return runCli("sourcemap-hunt", () => {
+    const args = parseArgs(argv);
+    if (args.help || !args.recon) {
+      usage(io.log);
+      return args.help ? 0 : 1;
+    }
+    return hunt(args, io);
+  }, io.error);
+}
+
+await runIfMain(import.meta.url, main);
