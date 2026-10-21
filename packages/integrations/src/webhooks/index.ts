@@ -4,3 +4,4 @@ export * from "./subscriptions.js";
 export * from "./delivery.js";
 export * from "./signing.js";
 export * from "./signing.keyring.js";
+export * from "./worker.js";

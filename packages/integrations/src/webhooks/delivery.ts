@@ -167,10 +167,26 @@ export interface ProcessDueDeliveriesRequired {
 export interface ProcessDueDeliveriesOptional {
   batchSize?: number;
   hooks?: readonly WebhookBeforeDispatchHook[];
+  /** Socket idle budget per request. A receiver that keeps trickling bytes never trips it. */
   requestTimeoutMs?: number;
+  /** Whole-request budget (DNS, connect, body) per delivery; default {@link DEFAULT_WEBHOOK_REQUEST_TOTAL_DEADLINE_MS}. */
+  requestTotalDeadlineMs?: number;
+  /** Claim lease; default batchSize x requestTotalDeadlineMs + {@link WEBHOOK_CLAIM_LEASE_MARGIN_MS}. */
+  claimLeaseMs?: number;
+  /** Host shutdown: aborts the in-flight request and releases the batch's unattempted claims. */
+  signal?: AbortSignal;
   maxAttempts?: number;
   random?: (() => number) | undefined;
 }
+
+/**
+ * The idle timeout alone lets one receiver that trickles a byte at a time hold the single-flight
+ * worker, and every other subscription's delivery, indefinitely. 30 s bounds each delivery.
+ */
+export const DEFAULT_WEBHOOK_REQUEST_TOTAL_DEADLINE_MS = 30_000;
+
+/** Slack for hooks, signing and storage writes on top of the batch's request deadlines. */
+export const WEBHOOK_CLAIM_LEASE_MARGIN_MS = 60_000;
 
 export interface ProcessDueDeliveriesResult {
   processed: number;
@@ -187,14 +203,21 @@ export async function processDueDeliveries(
   optional: ProcessDueDeliveriesOptional = {}
 ): Promise<ProcessDueDeliveriesResult> {
   const { deliveryRepo, subscriptionRepo, envelopeStore, httpClient, signer, clock, headers } = required.deps;
-  const { batchSize, hooks, requestTimeoutMs, maxAttempts, random } = resolveProcessDueDeliveriesOptions(optional);
+  const { batchSize, hooks, request, claimLeaseMs, signal, maxAttempts, random } = resolveProcessDueDeliveriesOptions(optional);
 
+  const result: ProcessDueDeliveriesResult = { processed: 0, delivered: 0, failed: 0, dead: 0 };
+  if (signal?.aborted) return result;
   const claimedAt = nowIso({ clock });
-  const claimed = await deliveryRepo.claimPending({ batchSize, nowIso: claimedAt });
+  // The lease makes a batch abandoned mid-flight (crash, or a shutdown that outlived its grace)
+  // reclaimable instead of stranding its rows in `delivering`; it covers the whole batch's deadlines.
+  const claimed = await deliveryRepo.claimPending({ batchSize, nowIso: claimedAt }, { claimLeaseMs });
+  result.processed = claimed.length;
 
-  const result: ProcessDueDeliveriesResult = { processed: claimed.length, delivered: 0, failed: 0, dead: 0 };
-
-  for (const row of claimed) {
+  for (const [index, row] of claimed.entries()) {
+    if (signal?.aborted) {
+      await releaseClaims(claimed.slice(index), { deliveryRepo, nextAttemptAt: claimedAt });
+      break;
+    }
     const outcome = await attemptOneDelivery(row, {
       subscriptionRepo,
       envelopeStore,
@@ -203,7 +226,7 @@ export async function processDueDeliveries(
       headers,
       clock,
       hooks,
-      requestTimeoutMs,
+      request,
     });
 
     const disposition = await recordDeliveryOutcome(row, outcome, { deliveryRepo, clock, maxAttempts, random });
@@ -213,10 +236,19 @@ export async function processDueDeliveries(
   return result;
 }
 
+/** Per-request bounds every delivery attempt sends; `signal` only when the host supplied one. */
+interface DeliveryRequestBounds {
+  timeoutMs: number;
+  totalDeadlineMs: number;
+  signal?: AbortSignal;
+}
+
 interface ResolvedProcessDueDeliveriesOptions {
   batchSize: number;
   hooks: readonly WebhookBeforeDispatchHook[];
-  requestTimeoutMs: number;
+  request: DeliveryRequestBounds;
+  claimLeaseMs: number;
+  signal?: AbortSignal | undefined;
   maxAttempts: number;
   random?: (() => number) | undefined;
 }
@@ -228,10 +260,30 @@ function resolveProcessDueDeliveriesOptions(
     batchSize = 20,
     hooks = [],
     requestTimeoutMs = 10_000,
+    requestTotalDeadlineMs = DEFAULT_WEBHOOK_REQUEST_TOTAL_DEADLINE_MS,
+    signal,
     maxAttempts = MAX_DELIVERY_ATTEMPTS,
     random,
   } = optional;
-  return { batchSize, hooks, requestTimeoutMs, maxAttempts, random };
+  const claimLeaseMs = optional.claimLeaseMs ?? batchSize * requestTotalDeadlineMs + WEBHOOK_CLAIM_LEASE_MARGIN_MS;
+  const request = { timeoutMs: requestTimeoutMs, totalDeadlineMs: requestTotalDeadlineMs, ...(signal ? { signal } : {}) };
+  return { batchSize, hooks, request, claimLeaseMs, signal, maxAttempts, random };
+}
+
+/**
+ * Cancelled before these rows were attempted: hand them straight back (attempts restored, due at
+ * once) so a restart delivers them without waiting out the lease. A repo without `releaseClaim`
+ * leaves them to the lease.
+ */
+async function releaseClaims(
+  rows: readonly WebhookDeliveryRecord[],
+  deps: { deliveryRepo: WebhookDeliveryRepoPort; nextAttemptAt: ISODateTime }
+): Promise<void> {
+  const { deliveryRepo, nextAttemptAt } = deps;
+  if (!deliveryRepo.releaseClaim) return;
+  for (const row of rows) {
+    await deliveryRepo.releaseClaim({ workspaceId: row.workspaceId, id: row.id, claimedAttempts: row.attempts, nextAttemptAt });
+  }
 }
 
 type DeliveryDisposition = "delivered" | "failed" | "dead";
@@ -247,7 +299,7 @@ async function recordDeliveryOutcome(
       id: row.id,
       responseStatus: outcome.responseStatus,
       deliveredAtIso: nowIso({ clock: deps.clock }),
-    });
+    }, { claimedAttempts: row.attempts });
     return "delivered";
   }
 
@@ -265,7 +317,7 @@ async function recordDeliveryOutcome(
     responseStatus: outcome.responseStatus,
     nextStatus,
     nextAttemptAt,
-  }, isExhausted ? { deadAtIso: failedAtIso } : {});
+  }, { claimedAttempts: row.attempts, ...(isExhausted ? { deadAtIso: failedAtIso } : {}) });
 
   return isExhausted ? "dead" : "failed";
 }
@@ -285,7 +337,7 @@ async function attemptOneDelivery(
     signer: WebhookSigner;
     headers: WebhookHeaderVocabulary;
     hooks: readonly WebhookBeforeDispatchHook[];
-    requestTimeoutMs: number;
+    request: DeliveryRequestBounds;
     clock: Clock;
   }
 ): Promise<DeliveryAttemptOutcome> {
@@ -328,7 +380,7 @@ async function attemptOneDelivery(
         [deps.headers.deliveryId]: row.id,
         [deps.headers.eventId]: row.eventId,
       },
-      timeoutMs: deps.requestTimeoutMs,
+      ...deps.request,
       body: rawBody,
     } });
 

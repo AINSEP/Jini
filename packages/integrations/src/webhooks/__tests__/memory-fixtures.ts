@@ -91,17 +91,36 @@ export class InMemoryWebhookDeliveryRepo implements WebhookDeliveryRepoPort {
   async claimPending(required: {
     batchSize: number;
     nowIso: string;
-  }): Promise<WebhookDeliveryRecord[]> {
+  }, optional: { claimLeaseMs?: number } = {}): Promise<WebhookDeliveryRecord[]> {
+    const { claimLeaseMs } = optional;
+    const claimable = (row: WebhookDeliveryRecord) =>
+      (row.status === "pending" || (claimLeaseMs !== undefined && row.status === "delivering")) && row.nextAttemptAt <= required.nowIso;
     const due = [...this.rows.values()]
-      .filter((row) => row.status === "pending" && row.nextAttemptAt <= required.nowIso)
+      .filter(claimable)
       .sort((a, b) => a.nextAttemptAt.localeCompare(b.nextAttemptAt))
       .slice(0, required.batchSize);
 
     for (const row of due) {
       row.status = "delivering";
       row.attempts += 1;
+      if (claimLeaseMs !== undefined) row.nextAttemptAt = new Date(Date.parse(required.nowIso) + claimLeaseMs).toISOString();
     }
     return due.map((row) => ({ ...row }));
+  }
+
+  /** The row, unless a `claimedAttempts` fence names an older claim than the row's current one. */
+  private fenced(required: { workspaceId: string; id: IntegrationId }, claimedAttempts: number | undefined) {
+    const row = this.rows.get(rowKey(required.workspaceId, required.id));
+    if (!row || (claimedAttempts !== undefined && row.attempts !== claimedAttempts)) return undefined;
+    return row;
+  }
+
+  async releaseClaim(required: { workspaceId: string; id: IntegrationId; claimedAttempts: number; nextAttemptAt: string }): Promise<void> {
+    const row = this.fenced(required, required.claimedAttempts);
+    if (!row || row.status !== "delivering") return;
+    row.status = "pending";
+    row.attempts -= 1;
+    row.nextAttemptAt = required.nextAttemptAt;
   }
 
   async markDelivered(required: {
@@ -109,8 +128,8 @@ export class InMemoryWebhookDeliveryRepo implements WebhookDeliveryRepoPort {
     id: IntegrationId;
     responseStatus: number;
     deliveredAtIso: string;
-  }): Promise<void> {
-    const row = this.rows.get(rowKey(required.workspaceId, required.id));
+  }, optional: { claimedAttempts?: number } = {}): Promise<void> {
+    const row = this.fenced(required, optional.claimedAttempts);
     if (!row) return;
     row.status = "delivered";
     row.lastResponseStatus = required.responseStatus;
@@ -125,8 +144,8 @@ export class InMemoryWebhookDeliveryRepo implements WebhookDeliveryRepoPort {
     responseStatus: number | null;
     nextStatus: "failed" | "dead";
     nextAttemptAt: string;
-  }, optional: { deadAtIso?: string } = {}): Promise<void> {
-    const row = this.rows.get(rowKey(required.workspaceId, required.id));
+  }, optional: { deadAtIso?: string; claimedAttempts?: number } = {}): Promise<void> {
+    const row = this.fenced(required, optional.claimedAttempts);
     if (!row) return;
 
     row.lastError = required.error;
