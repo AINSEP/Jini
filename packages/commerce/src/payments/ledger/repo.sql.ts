@@ -271,7 +271,8 @@ class SqlLedgerTx implements LedgerTx {
       }).onConflict((oc) => oc.columns(["workspace_id", "mode", "provider_id", "provider_account_id", "provider_event_id"]).doNothing())
         .executeTakeFirst()
     );
-    if (result.numInsertedOrUpdatedRows !== undefined && result.numInsertedOrUpdatedRows > 0n) return { inserted: true, id: e.id };
+    // `numInsertedOrUpdatedRows` is 0 when ON CONFLICT DO NOTHING skipped the row (Number(undefined) is NaN: not inserted).
+    if (Number(result.numInsertedOrUpdatedRows) > 0) return { inserted: true, id: e.id };
     // A redelivery: hand back the first delivery's id. The row exists — the conflict just proved it.
     const existing = await this.read((db) =>
       db.selectFrom("commerce_webhook_inbox").select("id").where("workspace_id", "=", e.workspaceId).where("mode", "=", e.mode)
