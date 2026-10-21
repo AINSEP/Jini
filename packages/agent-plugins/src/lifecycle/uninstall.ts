@@ -347,8 +347,10 @@ interface UninstallTargets {
  *
  * @complexity One `stat`, one or two `chmod`s, one `rename`.
  */
-  async function stageForRemoval(packagesDir: string, packageRoot: string): Promise<StagedTree> {
-    const quarantined = path.join(packagesDir, `${STAGED_DIRNAME_PREFIX}${randomUUID()}`);
+  async function stageForRemoval(packagesDir: string, packageRoot: string, optional: { quarantined?: string } = {}): Promise<StagedTree> {
+    // Updates choose a journaled destination outside packages/sha256; uninstall keeps its sibling
+    // destination and same-filesystem guarantee documented above. Both retain the same move owner.
+    const quarantined = optional.quarantined ?? path.join(packagesDir, `${STAGED_DIRNAME_PREFIX}${randomUUID()}`);
     const originalMode = (await stat(packageRoot)).mode & 0o777;
 
     await chmod(packageRoot, originalMode | 0o700);

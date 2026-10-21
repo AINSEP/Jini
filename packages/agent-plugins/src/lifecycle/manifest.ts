@@ -54,6 +54,7 @@
  * own "receives a JS value, never a file path or raw bytes" contract. `install.ts` is the only
  * caller that reads the file and hands the parsed value here.
  */
+import { readAgentPluginCompatibilityMetadata } from "./compatibility.js";
 import { readPluginIdentity, validatePluginIdentity } from "@jini-ai/core/plugin-directory";
 export { validatePluginManifest, validateMcpManifest } from '../manifest.js';
 export type { PluginManifest, McpManifest, McpServerEntry } from '../manifest.js';
@@ -129,6 +130,8 @@ export interface AgentPluginManifest {
   /** Normalized publisher identity, independent of name/storage key and version. */
   readonly id?: string | undefined;
   readonly provides?: readonly string[] | undefined;
+  readonly requires?: readonly string[] | undefined;
+  readonly hostRange?: string | undefined;
 }
 
 export type ParseAgentPluginManifestResult =
@@ -231,8 +234,12 @@ export function parseAgentPluginManifest({ value }: { readonly value: unknown },
   if (errors.length > 0) return { ok: false, errors };
   const identity = readPluginIdentity({ manifest: raw, namespace: identityNamespace });
   warnings.push(...identity.warnings);
+  const extension = isJsonObject(raw.extensions) && isJsonObject(raw.extensions[identityNamespace]) ? raw.extensions[identityNamespace] : {};
+  const { warnings: compatibilityWarnings, ...compatibility } = readAgentPluginCompatibilityMetadata({ extension });
+  warnings.push(...compatibilityWarnings);
 
   const manifest: AgentPluginManifest = {
+    ...compatibility,
     name: nameResult.name as string,
     id: identity.id,
     provides: identity.provides,

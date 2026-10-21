@@ -1,3 +1,5 @@
+import { createPersistentStateModule } from './persistent-state.js';
+import { AgentPluginHostIncompatibleError, describeAgentPluginCompatibility, agentPluginDependentWarnings } from './compatibility.js';
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import { createActivationModule } from "./activation.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
@@ -29,18 +31,30 @@ export interface SetAgentPluginEnabledResult {
 
   /** As actually written and read back, not as requested. */
   readonly enabled: boolean;
+  readonly warnings?: readonly string[];
 }
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
-  const { setAgentPluginActivation } = createActivationModule(ports);
+  const { setAgentPluginActivation, readAgentPluginActivations } = createActivationModule(ports);
   const { listInstalledPlugins } = createResolveAgentPluginRefsModule(ports);
-  async function setAgentPluginEnabled(input: SetAgentPluginEnabledInput): Promise<SetAgentPluginEnabledResult> {
+  async function setAgentPluginEnabled(input: SetAgentPluginEnabledInput, _optional: Record<string, never> = {}): Promise<SetAgentPluginEnabledResult> {
+    const workspaceRoot = ports.layout.forWorkspace({ workspaceId: input.workspaceId }).root;
+    return createPersistentStateModule(ports).withPluginLock({ workspaceRoot, pluginId: input.pluginId,
+      run: () => setEnabledUnlocked(input) });
+  }
+  async function setEnabledUnlocked(input: SetAgentPluginEnabledInput): Promise<SetAgentPluginEnabledResult> {
     const workspaceLayout = ports.layout.forWorkspace({ workspaceId: input.workspaceId });
     const installed = await listInstalledPlugins(workspaceLayout.root);
-    if (!installed.some((plugin) => plugin.pluginId === input.pluginId)) {
+    const plugin = installed.find(plugin => plugin.pluginId === input.pluginId);
+    if (!plugin) {
       throw new AgentPluginNotInstalledError({ pluginId: input.pluginId });
     }
 
+    const activations = await readAgentPluginActivations(workspaceLayout.root);
+    const compatibility = describeAgentPluginCompatibility({ plugin, installed, activations });
+    if (input.enabled && !compatibility.hostOk) throw new AgentPluginHostIncompatibleError({ pluginId: input.pluginId });
+    const warnings = input.enabled ? compatibility.missingRequires.map(id => `Needs ${id}`)
+      : agentPluginDependentWarnings({ plugin, installed, activations, nextProvides: [] });
     const written = await setAgentPluginActivation({
       workspaceRoot: workspaceLayout.root,
       pluginId: input.pluginId,
@@ -48,7 +62,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       actor: input.actor,
     });
 
-    return { pluginId: input.pluginId, enabled: written.plugins[input.pluginId]?.enabled ?? input.enabled };
+    return { pluginId: input.pluginId, enabled: written.plugins[input.pluginId]?.enabled ?? input.enabled, ...(warnings.length ? { warnings } : {}) };
   }
 
   return { setAgentPluginEnabled };

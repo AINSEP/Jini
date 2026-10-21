@@ -1,3 +1,8 @@
+export * from './update-plan.js';
+export { AgentPluginUpdateError } from './update-store.js';
+export type { UpdateAgentPluginRequired, UpdateAgentPluginResult } from './update.js';
+import { createUpdateModule } from './update.js';
+export * from './compatibility.js';
 export * from './automatic-use.js';
 import { createPersistentStateModule } from "./persistent-state.js";
 import { fetchAgentPluginArchive, maxAgentPluginArchiveBytes } from './fetch-archive.js';
@@ -75,6 +80,7 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
   });
   const uninstall = createUninstallModule(context);
   return {
+    ...createUpdateModule(context),
     ...contributions,
     fetchAgentPluginArchive: (input: { readonly url: string }, optional: FetchAgentPluginArchiveOptional = {}) => fetchAgentPluginArchive({ ...input, fetch: context.fetch, outboundGuard: context.outboundGuard }, optional),
     maxAgentPluginArchiveBytes,

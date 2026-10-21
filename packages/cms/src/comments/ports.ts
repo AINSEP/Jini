@@ -44,6 +44,7 @@ export interface CommentRepoPort {
    *  @throws {ToolInputError} `invalid cursor` when `cursor` names no comment in the workspace. */
   listModerationQueue(required: {
     workspaceId: UUID;
+    entryId?: UUID;
     status: CommentStatus;
     limit: number;
     cursor?: string | null;

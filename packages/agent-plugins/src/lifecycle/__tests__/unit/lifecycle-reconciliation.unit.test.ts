@@ -145,3 +145,63 @@ test('host uninstall guidance changes recovery text without weakening bundled re
     assert.equal((await baseline.readAgentPluginActivations({ workspaceRoot })).plugins[pluginId]?.origin, 'bundled');
   } finally { await forceRemove(root); }
 });
+
+test('every durable update switch boundary recovers to one enabled revision after process death', async () => {
+  const temp = await filesystem.mkdtemp(path.join(os.tmpdir(), 'update-crash-boundaries-'));
+  const layout = createAgentPluginLayout({ root: path.join(temp, 'original') });
+  const workspace = layout.forWorkspace({ workspaceId });
+  const snapshots: string[] = [];
+  let capture = false;
+  const checkpoint = async () => {
+    if (!capture) return;
+    const directory = path.join(temp, `checkpoint-${snapshots.length}`);
+    await filesystem.cp(workspace.root, directory, { recursive: true, preserveTimestamps: true });
+    snapshots.push(directory);
+  };
+  const effects = { ...filesystem,
+    rename: (async (from, to) => { await filesystem.rename(from, to); await checkpoint(); }) as typeof filesystem.rename,
+    chmod: (async (file, mode) => { await filesystem.chmod(file, mode); await checkpoint(); }) as typeof filesystem.chmod,
+  };
+  const api = createAgentPluginLifecycle({ ...ports, layout, filesystem: effects });
+  const input = (version: string) => {
+    const archive = Buffer.from(`crash-boundary-${version}`);
+    const archiveReader: AgentPluginArchiveReaderPort = { async *entries() {
+      yield { kind: 'file', entryPath: 'plugin.json', openReadStream: async function* () { yield Buffer.from(JSON.stringify({
+        $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: pluginId, version,
+      })); } };
+    } };
+    return { archive, expectedSha256: createHash('sha256').update(archive).digest('hex'), archiveReader, layout, workspaceId };
+  };
+  try {
+    const previous = await api.installAgentPlugin(input('1.0.0'));
+    await api.setAgentPluginActivation({ workspaceRoot: workspace.root, pluginId, enabled: true, actor: 'owner' });
+    capture = true;
+    await api.updateAgentPlugin({ ...input('2.0.0'), pluginId, expectedOldDigest: previous.archiveDigest, actor: 'owner', snapshotSettings: async () => ({ values: [] }) });
+    capture = false;
+    assert.ok(snapshots.length > 10, 'capture stage, publish, freeze, journal switch and activation boundaries');
+    const states = new Set<string>();
+    for (const [index, snapshot] of snapshots.entries()) {
+      const replayLayout = createAgentPluginLayout({ root: path.join(temp, `replay-${index}`) });
+      const replayWorkspace = replayLayout.forWorkspace({ workspaceId });
+      await filesystem.mkdir(path.dirname(replayWorkspace.root), { recursive: true });
+      await filesystem.cp(snapshot, replayWorkspace.root, { recursive: true });
+      // The captured process is gone. Discard its lock files, not its recovery journal or bytes.
+      for (const name of await filesystem.readdir(replayWorkspace.root)) {
+        if (name.endsWith('.lock')) await filesystem.rm(path.join(replayWorkspace.root, name), { force: true });
+      }
+      await forceRemove(replayWorkspace.staging);
+      let state = 'before-intent';
+      try { state = JSON.parse(await filesystem.readFile(path.join(snapshot, pluginId, 'update-journal.json'), 'utf8')).state; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      states.add(state);
+      const replay = createAgentPluginLifecycle({ ...ports, layout: replayLayout });
+      await replay.reconcileAgentPluginUpdates({ workspaceId });
+      const installed = await replay.listInstalledPlugins({ workspaceRoot: replayWorkspace.root });
+      assert.deepEqual(installed.map(plugin => plugin.version), [state === 'committed' ? '2.0.0' : '1.0.0']);
+      assert.equal((await replay.resolveAgentPluginActivation({ workspaceRoot: replayWorkspace.root, pluginId })).verdict, 'active');
+      await replay.reconcileAgentPluginUpdates({ workspaceId });
+      assert.equal((await replay.listInstalledPlugins({ workspaceRoot: replayWorkspace.root })).length, 1);
+    }
+    assert.ok(states.has('pending')); assert.ok(states.has('published')); assert.ok(states.has('committed'));
+  } finally { await forceRemove(temp); }
+});

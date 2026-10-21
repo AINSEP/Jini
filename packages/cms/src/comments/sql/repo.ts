@@ -74,6 +74,7 @@ export class SqlCommentRepo implements CommentRepoPort {
    *  "no cursor" and silently restart at page 1. */
   async listModerationQueue(required: {
     workspaceId: string;
+    entryId?: string;
     status: CommentStatus;
     limit: number;
     cursor?: string | null;
@@ -86,6 +87,7 @@ export class SqlCommentRepo implements CommentRepoPort {
         .selectAll()
         .where("workspace_id", "=", required.workspaceId)
         .where("status", "=", required.status);
+      if (required.entryId !== undefined) query = query.where("entry_id", "=", required.entryId);
       if (marker) {
         // `(created_at, id) > (?, ?)` spelled out, so no dialect's row-value support is assumed.
         query = query.where((eb) =>

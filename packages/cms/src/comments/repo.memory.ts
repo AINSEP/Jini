@@ -58,12 +58,14 @@ export class InMemoryCommentRepo implements CommentRepoPort {
 
   async listModerationQueue(required: {
     workspaceId: string;
+    entryId?: string;
     status: CommentStatus;
     limit: number;
     cursor?: string | null;
   }, _optional: Record<string, never> = {}): Promise<ModerationQueuePage> {
     const scoped = this.comments
-      .filter((c) => c.workspaceId === required.workspaceId && c.status === required.status)
+      .filter((c) => c.workspaceId === required.workspaceId && c.status === required.status
+        && (required.entryId === undefined || c.entryId === required.entryId))
       .sort((a, b) => (a.createdAt === b.createdAt ? a.id.localeCompare(b.id) : a.createdAt.localeCompare(b.createdAt)));
 
     // Same keyset contract as `repo.ts`: the cursor carries the last row's position itself, so the

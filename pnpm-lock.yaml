@@ -251,6 +251,9 @@ importers:
 
   packages/agent-plugins:
     dependencies:
+      semver:
+        specifier: ^7.6.2
+        version: 7.8.5
       yauzl:
         specifier: ^3.4.0
         version: 3.4.0
@@ -267,6 +270,9 @@ importers:
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins
+      '@types/semver':
+        specifier: ^7.5.8
+        version: 7.8.0
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))

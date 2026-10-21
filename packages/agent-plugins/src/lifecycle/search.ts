@@ -63,6 +63,11 @@ export interface AgentPluginSearchSkill {
  *  `packageRoot`/`skillPath`/any other host-filesystem detail (see `tool-registrations.ts`'s own
  *  SECURITY note for why: this candidate shape is what actually reaches the model). */
 export interface AgentPluginSearchCandidate {
+  readonly origin?: import("./activation.js").AgentPluginOrigin;
+  readonly hostOk?: boolean;
+  readonly missingRequires?: readonly string[];
+  readonly requiredBy?: readonly string[];
+  readonly archiveDigest?: string;
   readonly pluginId: string;
   readonly version?: (string) | undefined;
   /** Human-facing title from the host extension namespace in `plugin.json`: `displayName`, when the package set one. */

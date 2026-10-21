@@ -84,6 +84,24 @@ for (const adapter of sqlAdapters) {
 }
 
 function runSuite(label: string, makeRepo: () => CommentRepoPort | Promise<CommentRepoPort>) {
+  test(`[${label}] approved public pages are entry/workspace scoped, bounded and keyset-paginated`, async () => {
+    const repo = await makeRepo();
+    for (const comment of [
+      makeComment({ id: 'a', status: 'approved' }), makeComment({ id: 'b', status: 'approved' }),
+      makeComment({ id: 'other-entry', status: 'approved', entryId: 'other' }),
+      makeComment({ id: 'other-site', status: 'approved', workspaceId: 'other' }),
+      makeComment({ id: 'held', status: 'pending' }),
+    ]) await repo.create({ record: comment });
+    const input = { workspaceId: WORKSPACE_ID, entryId: 'entry-1', status: 'approved' as const, limit: 1 };
+    const first = await repo.listModerationQueue(input);
+    assert.deepEqual(first.items.map(row => row.id), ['a']);
+    assert.ok(first.nextCursor);
+    const second = await repo.listModerationQueue({ ...input, cursor: first.nextCursor });
+    assert.deepEqual(second.items.map(row => row.id), ['b']);
+    assert.equal(second.nextCursor, null);
+    assert.deepEqual((await repo.listModerationQueue({ ...input, entryId: 'missing' })).items, []);
+  });
+
   test(`[${label}] create() then findById() round-trips`, async () => {
     const repo = await makeRepo();
     await repo.create({ record: makeComment() }, {});
