@@ -33,7 +33,8 @@
  * tool that could still reach writes would launder a write past its caller's own safety gate. See
  * {@link createExecuteReadonlyDelegatedToolTool} for the failure that motivated it.
  */
-import { batchOutcomeFor } from '@jini-ai/core';
+import { batchOutcomeFor, isReadOnlyTool, type ExposedToolDescriptor } from '@jini-ai/core';
+import { ToolSchema } from '@modelcontextprotocol/sdk/types.js';
 import { randomUUID } from 'node:crypto';
 import { postDaemonJson } from '../daemon-client.js';
 import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
@@ -291,4 +292,32 @@ export function createExecuteReadonlyDelegatedToolTool(requiredArgs: CreateExecu
     requiredArgs,
     options,
   );
+}
+
+/**
+ * Project a pinned registry descriptor as one concrete MCP tool, reusing the existing gateway.
+ * @param requiredArgs - Trusted run scope and F0's collision-checked, exposed descriptor.
+ * @param options - The same correlation source and deadline used by the legacy wrappers.
+ * @returns A schema-preserving definition; model arguments become only the delegated input.
+ * @throws Error when the descriptor has no MCP object input schema.
+ * @complexity O(s) schema parsing time/space for s schema fields; execution is one daemon call.
+ */
+export function createTypedDelegatedToolTool(
+  { runId, tool }: CreateExecuteDelegatedToolToolRequiredArgs & { tool: ExposedToolDescriptor },
+  options: CreateExecuteDelegatedToolToolOptions = {},
+): McpToolDef {
+  const { descriptor, wireName } = tool;
+  const inputSchema = ToolSchema.shape.inputSchema.parse(descriptor.inputSchema);
+  const readOnly = isReadOnlyTool({ descriptor });
+  const gateway = readOnly
+    ? createExecuteReadonlyDelegatedToolTool({ runId }, options)
+    : createExecuteDelegatedToolTool({ runId }, options);
+  return {
+    name: wireName,
+    description: descriptor.description ?? descriptor.id,
+    // Parse to check the MCP boundary, but publish the original schema, including extensions.
+    inputSchema: descriptor.inputSchema as typeof inputSchema,
+    annotations: { ...gateway.annotations, title: descriptor.id },
+    handler: ({ args, ctx }) => gateway.handler({ args: { toolId: descriptor.id, input: args }, ctx }),
+  };
 }

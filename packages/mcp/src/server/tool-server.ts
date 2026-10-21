@@ -7,6 +7,7 @@
  * with nominal private fields; default adapters translate those contracts to the real SDK.
  */
 import type { Readable, Writable } from 'node:stream';
+import { createToolExposure, type ToolDescriptor } from '@jini-ai/core';
 import type { McpTransportLike } from './ports.js';
 export type { McpTransportLike } from './ports.js';
 import { adaptSdkTransport, resolveSdkTransport } from './sdk-transport.js';
@@ -29,6 +30,7 @@ import type {
 import { createMcpIdleExitController } from '../client/client.js';
 import { buildResourceIndex, handleResourceRead, resourcesToList, type McpResourceDef } from './resource-protocol.js';
 import { buildToolIndex, handleToolCall, toolsToList, type McpToolContext, type McpToolDef } from './tool-protocol.js';
+import { createTypedDelegatedToolTool, type CreateExecuteDelegatedToolToolOptions } from './tools/delegated-tool.js';
 
 /** Auto-exit an idle server after this long without tool activity. */
 const DEFAULT_IDLE_MS = 30 * 60 * 1000;
@@ -51,6 +53,8 @@ export interface McpServerLike {
     handler: (requiredArgs: { request: { params: { uri: string } } }) => Promise<ReadResourceResult>;
   }): void;
   connect(args: { transport: McpTransportLike }): Promise<void>;
+  /** Optional for static embeddings; required when delegated publication is enabled. */
+  sendToolListChanged?(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
 }
 
 /** Required identity, tool surface, and daemon URL resolver. */
@@ -65,6 +69,8 @@ export interface McpToolServerRequiredArgs {
 }
 
 export interface McpToolServerOptions {
+  /** Opt in to bounded, per-run typed publication after describe_tool. */
+  readonly delegatedTools?: McpDelegatedToolsOptions;
   /** Trusted daemon registration IDs carried into every error sanitizer. */
   readonly diagnosticToolIds?: readonly string[];
   /** The bounded, explicit read-only resource list this server hosts. Duplicate uris throw at construction time. Omit (or pass an empty array) for a tools-only server — `capabilities.resources` is only advertised when this is non-empty. */
@@ -91,6 +97,18 @@ export interface McpToolServerOptions {
   readonly createTransport?: (requiredArgs: Record<string, never>, optionalArgs?: { stdin?: Readable; stdout?: Writable }) => McpTransportLike;
 }
 
+/** The admitted host descriptors supplied here must come from the existing registry/catalog.
+ * Publication never connects to a federated server or admits its upstream list changes.
+ */
+export interface McpDelegatedToolsOptions extends CreateExecuteDelegatedToolToolOptions {
+  readonly runId: string;
+  /** Resolve these through the authenticated daemon before running a client without refresh. */
+  readonly initialTools?: readonly ToolDescriptor[];
+  /** Defaults to F0's 64 tools and 256 KiB of schemas; new entries are skipped at the cap. */
+  readonly maxTools?: number;
+  readonly maxSchemaBytes?: number;
+}
+
 export interface McpToolServerHandle {
   /**
    * Resolves the daemon base URL, connects the MCP server to its transport, and holds the process
@@ -109,6 +127,7 @@ function defaultCreateServer({ info, options }: { info: Implementation; options:
       handler: (...args: any[]) => Promise<any>;
     }) => server.setRequestHandler(schema, (request, extra) => handler({ request }, { extra }))) as McpServerLike['setRequestHandler'],
     connect: ({ transport }) => server.connect(resolveSdkTransport({ transport })),
+    sendToolListChanged: () => server.sendToolListChanged(),
   };
 }
 
@@ -139,6 +158,48 @@ function stdioOptions(options: McpToolServerOptions): { stdin?: Readable; stdout
 }
 
 /**
+ * Own only the MCP projection/dispatch index. F0 owns immutable exposure, and the daemon catalog
+ * supplies each descriptor; the temporary source below is not another definition catalog.
+ * @returns An install-before-notify publisher, or undefined for a static server.
+ * @throws On malformed schemas, invalid exposure limits, or an embedding without notification support.
+ * @complexity O(n + s) per promotion for n bounded exposed tools and s schema bytes; no daemon I/O.
+ */
+function createToolPublisher({ index, server, options }: {
+  index: Map<string, McpToolDef>; server: McpServerLike; options: McpDelegatedToolsOptions | undefined;
+}): McpToolContext['publishTool'] {
+  if (!options) return undefined;
+  const notify = server.sendToolListChanged?.bind(server);
+  if (!notify) throw new Error('delegated publication requires tools/list_changed support');
+  let descriptors = options.initialTools ?? [];
+  const exposure = createToolExposure({ registry: { list: () => descriptors } }, {
+    reservedNames: [...index.keys()],
+    ...(options.maxTools === undefined ? {} : { maxTools: options.maxTools }),
+    ...(options.maxSchemaBytes === undefined ? {} : { maxSchemaBytes: options.maxSchemaBytes }),
+  });
+  // Validate before promotion: malformed descriptors must not consume a pinned name or budget.
+  const validate = (descriptor: ToolDescriptor) => createTypedDelegatedToolTool({ runId: options.runId, tool: { wireName: descriptor.id, descriptor } }, options);
+  for (const descriptor of descriptors) validate(descriptor);
+  const initial = exposure.promote({ toolIds: descriptors.map(descriptor => descriptor.id) });
+  for (const tool of initial.snapshot.tools) index.set(tool.wireName, createTypedDelegatedToolTool({ runId: options.runId, tool }, options));
+  descriptors = [];
+  let notificationPending = false;
+  return async ({ descriptor }, _optional = {}) => {
+    validate(descriptor);
+    descriptors = [descriptor];
+    const delta = exposure.promote({ toolIds: [descriptor.id] });
+    descriptors = [];
+    for (const tool of delta.snapshot.tools) {
+      if (!index.has(tool.wireName)) index.set(tool.wireName, createTypedDelegatedToolTool({ runId: options.runId, tool }, options));
+    }
+    if (delta.added.length > 0) notificationPending = true;
+    if (!notificationPending) return;
+    // Clear before awaiting: a concurrent promotion must retain its own unsent notification.
+    notificationPending = false;
+    try { await notify({}); } catch (error) { notificationPending = true; throw error; }
+  };
+}
+
+/**
  * Builds a stdio MCP server hosting `requiredArgs.tools` (and, optionally, `options.resources`).
  * Construction is synchronous and cheap (validates tool-name uniqueness via
  * {@link buildToolIndex} and resource-uri uniqueness via {@link buildResourceIndex}); all I/O —
@@ -146,7 +207,8 @@ function stdioOptions(options: McpToolServerOptions): { stdin?: Readable; stdout
  * handle's `run()`.
  */
 export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, options: McpToolServerOptions = {}): McpToolServerHandle {
-  const toolIndex = buildToolIndex({ tools: requiredArgs.tools });
+  // Validate eagerly, but keep the mutable dispatch index inside run() so re-runs are isolated.
+  buildToolIndex({ tools: requiredArgs.tools });
   const resources = options.resources ?? [];
   const resourceIndex = buildResourceIndex({ resources });
   const createServer = options.createServer ?? defaultCreateServer;
@@ -154,7 +216,19 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
 
   return {
     async run(_required: Record<string, never>): Promise<void> {
-      const ctx = buildToolContext({ resolvedBaseUrl: await requiredArgs.resolveBaseUrl() }, options);
+      const toolIndex = buildToolIndex({ tools: requiredArgs.tools });
+      let ctx = buildToolContext({ resolvedBaseUrl: await requiredArgs.resolveBaseUrl() }, options);
+
+      const server = createServer({
+        info: { name: requiredArgs.name, version: requiredArgs.version },
+        options: {
+          capabilities: { tools: options.delegatedTools ? { listChanged: true } : {}, ...(resources.length > 0 ? { resources: {} } : {}) },
+          ...(options.instructions !== undefined ? { instructions: options.instructions } : {}),
+        },
+      });
+
+      const publishTool = createToolPublisher({ index: toolIndex, server, options: options.delegatedTools });
+      if (publishTool) ctx = { ...ctx, publishTool };
 
       let closeTransportForIdle: (() => void) | null = null;
       const idleExit = createMcpIdleExitController({
@@ -166,17 +240,9 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
           (...args: Args) =>
             idleExit.trackRequest({ fn: () => handler(...args) });
 
-      const server = createServer({
-        info: { name: requiredArgs.name, version: requiredArgs.version },
-        options: {
-          capabilities: { tools: {}, ...(resources.length > 0 ? { resources: {} } : {}) },
-          ...(options.instructions !== undefined ? { instructions: options.instructions } : {}),
-        },
-      });
-
       server.setRequestHandler({
         schema: ListToolsRequestSchema,
-        handler: withActivity(async () => ({ tools: toolsToList({ tools: requiredArgs.tools }) })),
+        handler: withActivity(async () => ({ tools: toolsToList({ tools: [...toolIndex.values()] }) })),
       });
 
       server.setRequestHandler({

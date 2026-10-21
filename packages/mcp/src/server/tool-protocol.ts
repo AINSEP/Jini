@@ -44,7 +44,7 @@
  * responsibility ( Decision 4), not this generic wrapper's.
  * See docs/decisions/DR-002-protocol-resource-boundary.md.
  */
-import { batchOutcomeFor } from '@jini-ai/core';
+import { batchOutcomeFor, type ToolDescriptor } from '@jini-ai/core';
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -53,6 +53,8 @@ import { argumentShapeMessage, isRecord, normalizeToolArguments } from './tool-a
 
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
+  /** Publishes a successfully described, host-owned descriptor in this server run only. */
+  readonly publishTool?: (required: { descriptor: ToolDescriptor }, optional?: Record<string, never>) => Promise<void>;
   /** Host registration metadata, supplied outside model-controlled arguments. */
   readonly diagnosticToolIds?: readonly string[];
   /** The resolved daemon HTTP base URL (no trailing slash), fixed for the lifetime of one server run. */
@@ -220,7 +222,9 @@ const compiledValidators = new WeakMap<McpToolDef, Validator>();
 function validatorForTool(tool: McpToolDef): Validator {
   const cached = compiledValidators.get(tool);
   if (cached) return cached;
-  const validator = new Validator(tool.inputSchema as Schema, '2020-12', true);
+  // The validator adds internal URI fields while compiling. F0's published schemas are frozen;
+  // compile a detached copy so validation cannot mutate the immutable wire contract.
+  const validator = new Validator(structuredClone(tool.inputSchema) as Schema, '2020-12', true);
   compiledValidators.set(tool, validator);
   return validator;
 }

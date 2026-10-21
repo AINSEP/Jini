@@ -35,10 +35,19 @@ import { splitServerFixture } from '../../__tests__/args-fixtures.js';
 import { adaptSdkTransport } from '../sdk-transport.js';
 import { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
+import { ErrorCode, McpError, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
+import { createToolRegistrationScope, createToolRegistry, type ToolDescriptor, type ToolRegistration } from '@jini-ai/core';
+// Exercise the existing daemon owners without adding a production MCP -> daemon dependency.
+// This checkout's prebuilt daemon is the same one a packed consumer uses; no build runs here.
+import { createInMemoryEventLog, createRunLifecycle, createToolExecutor, type ExecutionDelegate } from '../../../../daemon/dist/index.js';
+import { delegatedToolExecuteRoute } from '../../../../daemon/dist/http/delegated-tools.js';
+import { defaultDaemonMessages, withReadOnlyToolConstraint } from '../../../../daemon/dist/core/read-only-tools.js';
+import { federateSession } from '../../federation/registrations.js';
+import { defaultFederationMessages } from '../../federation/messages.js';
+import { InMemoryMcpSession } from '../../federation/testing/adapter.memory.js';
 
 // Same isolation rationale as tool-server.test.ts: the idle-exit
 // controller's own scheduling semantics (schedule/reschedule/dispose) are
@@ -66,6 +75,8 @@ vi.mock('../../client/client.js', () => ({
 import { createMcpToolServer, type McpToolServerRequiredArgs, type McpToolServerOptions, type McpTransportLike } from '../tool-server.js';
 import type { McpToolDef } from '../tool-protocol.js';
 import type { McpResourceDef } from '../resource-protocol.js';
+import { TOOL_CATALOG_TOOLS } from '../tools/tool-catalog-tools.js';
+import { createExecuteDelegatedToolTool, createExecuteReadonlyDelegatedToolTool } from '../tools/delegated-tool.js';
 
 beforeEach(() => {
   hoisted.onIdleRef.current = null;
@@ -126,7 +137,7 @@ function throwingResource(overrides: Partial<McpResourceDef> = {}): McpResourceD
  */
 async function bootWireServer(
   overrides: Partial<McpToolServerRequiredArgs & McpToolServerOptions> = {},
-): Promise<{ client: Client; runPromise: Promise<void> }> {
+): Promise<{ client: Client; runPromise: Promise<void>; serverTransport: InMemoryTransport }> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const handle = createMcpToolServer(...splitServerFixture({
     name: 'wire-test-server',
@@ -141,9 +152,10 @@ async function bootWireServer(
     ...overrides,
   }));
   const runPromise = handle.run({});
+  onTestFinished(async () => { await serverTransport.close(); await runPromise; });
   const client = new Client({ name: 'wire-test-client', version: '0.0.0' });
   await client.connect(clientTransport);
-  return { client, runPromise };
+  return { client, runPromise, serverTransport };
 }
 
 /** Fires the (mocked) idle-exit controller to close the real transport pair down, and awaits `run()`'s resolution. */
@@ -280,5 +292,329 @@ describe('createMcpToolServer — wire-level (real SDK Client + Server + InMemor
     // The transport pair is genuinely torn down end-to-end (not just a `closeCalls` counter
     // incremented on a fake): a further request over the same client can no longer be sent at all.
     await expect(client.ping()).rejects.toThrow();
+  });
+});
+
+const concreteSchema = {
+  type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false,
+} as const;
+
+function operation(overrides: Partial<ToolDescriptor> = {}): ToolDescriptor {
+  return { id: 'content.read', description: 'Read one item', inputSchema: concreteSchema, readOnly: true, ...overrides };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(yes => { resolve = yes; });
+  return { promise, resolve };
+}
+
+/** Socket-free fetch adapter into the real daemon route and executor; only HTTP is replaced. */
+async function daemonFixture(registrations: readonly ToolRegistration[], delegate: ExecutionDelegate = {}) {
+  const registry = createToolRegistry({});
+  const scope = createToolRegistrationScope({ registry });
+  scope.replace({ registrations });
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const { run } = await lifecycle.start({ contextRef: 'wire-context' });
+  const toolExecutor = withReadOnlyToolConstraint({
+    inner: createToolExecutor({ registry }, { delegate }), registry,
+    idGenerator: { newId: () => 'denial' }, messages: defaultDaemonMessages.readOnly,
+  });
+  const requests: { url: string; init: RequestInit }[] = [];
+  const fetchImpl: typeof fetch = async (url, init = {}) => {
+    requests.push({ url: String(url), init });
+    if (init.method === 'GET') {
+      const id = decodeURIComponent(new URL(String(url)).pathname.slice('/api/tools/'.length));
+      const descriptor = registry.list({}).find(tool => tool.id === id);
+      return Response.json(descriptor ?? { error: { code: 'NOT_FOUND', message: 'not admitted' } }, { status: descriptor ? 200 : 404 });
+    }
+    const parsed = delegatedToolExecuteRoute.parse({ body: JSON.parse(String(init.body)), query: {}, params: {} });
+    if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
+    const result = await delegatedToolExecuteRoute.handle({ input: parsed.value, deps: {
+      lifecycle, toolExecutor, toolRegistry: registry, resolvePrincipal: () => ({ id: 'host-principal' }),
+      onInternalError: () => {},
+    } }, init.signal ? { signal: init.signal } : {});
+    if (result.ok) return Response.json(result.value);
+    const status = result.error.code === 'TOOL_OPERATION_DENIED' ? 403 : 400;
+    return Response.json({ error: result.error }, { status });
+  };
+  const tools = [
+    ...TOOL_CATALOG_TOOLS, createExecuteDelegatedToolTool({ runId: run.id }),
+    createExecuteReadonlyDelegatedToolTool({ runId: run.id }),
+  ];
+  return { registry, scope, run, toolExecutor, fetchImpl, requests, tools };
+}
+
+async function describeOperation(client: Client, id = 'content.read') {
+  const result = await client.callTool({ name: 'describe_tool', arguments: { id } });
+  expect(result.isError).toBeUndefined();
+  const { tools } = await client.listTools();
+  const tool = tools.find(entry => entry.annotations?.title === id);
+  expect(tool).toBeDefined();
+  return tool!;
+}
+
+describe('typed delegated publication — real MCP wire and existing daemon owners', () => {
+  it('describes, notifies, re-lists a concrete schema and executes using the trusted run and read-only metadata', async () => {
+    const handler = vi.fn(async (ctx: Parameters<ToolRegistration['handler']>[0]) => ({ got: ctx.input, principal: ctx.principal.id }));
+    const fixture = await daemonFixture([{ descriptor: operation(), policy: { authorize: () => 'allow' }, handler }]);
+    const { client } = await bootWireServer({ tools: fixture.tools, fetchImpl: fixture.fetchImpl,
+      authHeaders: { Authorization: 'Bearer run-credential' }, delegatedTools: { runId: fixture.run.id, generateToolUseId: () => 'typed-call-1' } });
+    expect(client.getServerCapabilities()?.tools).toEqual({ listChanged: true });
+    expect((await client.listTools()).tools).toHaveLength(fixture.tools.length);
+    const observed = deferred<Awaited<ReturnType<Client['listTools']>>>();
+    client.setNotificationHandler(ToolListChangedNotificationSchema, async () => { observed.resolve(await client.listTools()); });
+    const typed = await describeOperation(client);
+    expect((await observed.promise).tools.find(tool => tool.name === typed.name)?.inputSchema).toEqual(concreteSchema);
+    expect(typed.name).toMatch(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/);
+    expect(typed.annotations?.readOnlyHint).toBe(true);
+    const result = await client.callTool({ name: typed.name, arguments: { id: 'item-1' } });
+    expect(result.isError).toBeUndefined();
+    expect(handler).toHaveBeenCalledOnce();
+    expect(handler.mock.calls[0]?.[0]).toMatchObject({ run: { id: fixture.run.id }, principal: { id: 'host-principal' }, input: { id: 'item-1' } });
+    const post = fixture.requests.find(request => request.init.method === 'POST')!;
+    expect(JSON.parse(String(post.init.body))).toMatchObject({ runId: fixture.run.id, toolUseId: 'typed-call-1', toolId: 'content.read', input: { id: 'item-1' }, requireReadOnly: true });
+    expect(new Headers(post.init.headers).get('authorization')).toBe('Bearer run-credential');
+    expect(fixture.requests.every(request => new Headers(request.init.headers).get('authorization') === 'Bearer run-credential')).toBe(true);
+    const rejected = await client.callTool({ name: typed.name, arguments: { id: 4, runId: 'other', toolId: 'write', requireReadOnly: false } });
+    expect(rejected.isError).toBe(true);
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it('installs before notification delivery, handles concurrent and repeated describes, and pins the first schema', async () => {
+    let descriptors = [operation(), operation({ id: 'content.other' })];
+    const fetchImpl: typeof fetch = async url => Response.json(descriptors.find(tool => String(url).endsWith(encodeURIComponent(tool.id))));
+    const { client, serverTransport } = await bootWireServer({ tools: TOOL_CATALOG_TOOLS, fetchImpl, delegatedTools: { runId: 'run' } });
+    const blocked = deferred<void>();
+    const release = deferred<void>();
+    const send = serverTransport.send.bind(serverTransport);
+    let notifications = 0;
+    serverTransport.send = async message => {
+      if ('method' in message && message.method === 'notifications/tools/list_changed') {
+        notifications++;
+        if (notifications === 2) blocked.resolve();
+        await release.promise;
+      }
+      await send(message);
+    };
+    const pending = ['content.read', 'content.other', 'content.read'].map(id => client.callTool({ name: 'describe_tool', arguments: { id } }));
+    await blocked.promise;
+    const during = await client.listTools();
+    expect(during.tools.filter(tool => tool.annotations?.title?.startsWith('content.'))).toHaveLength(2);
+    release.resolve();
+    expect((await Promise.all(pending)).every(result => result.isError === undefined)).toBe(true);
+    expect(notifications).toBe(2);
+    descriptors = [operation({ inputSchema: { type: 'object', properties: { changed: { type: 'number' } } } })];
+    const typed = await describeOperation(client);
+    expect(typed.inputSchema).toEqual(concreteSchema);
+    expect(notifications).toBe(2);
+  });
+
+  it('retries a failed notification on a repeated describe without duplicating or losing publication', async () => {
+    const { client, serverTransport } = await bootWireServer({ tools: TOOL_CATALOG_TOOLS,
+      fetchImpl: async () => Response.json(operation()), delegatedTools: { runId: 'run' } });
+    const send = serverTransport.send.bind(serverTransport);
+    let attempts = 0;
+    serverTransport.send = async message => {
+      if ('method' in message && message.method === 'notifications/tools/list_changed' && attempts++ === 0) throw new Error('notification unavailable');
+      await send(message);
+    };
+    const first = await client.callTool({ name: 'describe_tool', arguments: { id: 'content.read' } });
+    expect(first.isError).toBe(true);
+    const typed = await describeOperation(client);
+    expect(attempts).toBe(2);
+    expect((await client.listTools()).tools.filter(tool => tool.name === typed.name)).toHaveLength(1);
+  });
+
+  it('does not publish failed, mismatched or malformed describes, or promote search results', async () => {
+    let response = Response.json({ error: { message: 'denied' } }, { status: 403 });
+    const { client } = await bootWireServer({ tools: TOOL_CATALOG_TOOLS,
+      fetchImpl: async () => response.clone(), delegatedTools: { runId: 'run' } });
+    const notified = vi.fn();
+    client.setNotificationHandler(ToolListChangedNotificationSchema, notified);
+    const call = () => client.callTool({ name: 'describe_tool', arguments: { id: 'content.read' } });
+    expect((await call()).isError).toBe(true);
+    response = Response.json(operation({ id: 'different' }));
+    expect((await call()).isError).toBe(true);
+    response = Response.json(operation({ inputSchema: { type: 'string' } }));
+    expect((await call()).isError).toBe(true);
+    response = Response.json({ hits: [{ id: 'content.read', score: 1 }] });
+    expect((await client.callTool({ name: 'search_tools', arguments: { query: 'read content' } })).isError).toBeUndefined();
+    expect((await client.listTools()).tools).toHaveLength(2);
+    expect(notified).not.toHaveBeenCalled();
+    response = Response.json(operation());
+    expect((await describeOperation(client)).inputSchema).toEqual(concreteSchema);
+  });
+
+  it('preloads startup descriptors, respects the count budget, and reserves static wire names', async () => {
+    const initial = operation({ id: 'describe_tool' });
+    const { client } = await bootWireServer({ tools: TOOL_CATALOG_TOOLS,
+      fetchImpl: async () => Response.json(operation()), delegatedTools: { runId: 'run', initialTools: [initial], maxTools: 1 } });
+    const listed = (await client.listTools()).tools;
+    const typed = listed.find(tool => tool.annotations?.title === initial.id)!;
+    expect(typed.name).not.toBe('describe_tool');
+    expect(typed.inputSchema).toEqual(concreteSchema);
+    expect((await client.callTool({ name: 'describe_tool', arguments: { id: 'content.read' } })).isError).toBeUndefined();
+    expect((await client.listTools()).tools).toEqual(listed);
+  });
+
+  it('keeps schema extensions and treats missing read-only classification conservatively', async () => {
+    const schema = { ...concreteSchema, $defs: { label: { type: 'string' } }, 'x-contract': 'kept' };
+    const descriptor: ToolDescriptor = { id: 'unclassified', inputSchema: schema };
+    const fixture = await daemonFixture([{ descriptor, policy: { authorize: () => 'allow' }, handler: async ctx => ctx.input }]);
+    const { client } = await bootWireServer({ tools: fixture.tools, fetchImpl: fixture.fetchImpl, delegatedTools: { runId: fixture.run.id } });
+    const typed = await describeOperation(client, descriptor.id);
+    expect(typed.inputSchema).toEqual(schema);
+    expect(typed.annotations?.readOnlyHint).toBe(false);
+    expect((await client.callTool({ name: typed.name, arguments: { id: 'x' } })).isError).toBeUndefined();
+    const post = fixture.requests.find(request => request.init.method === 'POST')!;
+    expect(JSON.parse(String(post.init.body))).not.toHaveProperty('requireReadOnly');
+  });
+
+  it('uses the shared delegated deadline override for a typed call', async () => {
+    const fetchImpl: typeof fetch = async (_url, init = {}) => {
+      if (init.method === 'GET') return Response.json(operation());
+      return new Promise<Response>((_resolve, reject) => {
+        init.signal!.addEventListener('abort', () => reject(init.signal!.reason), { once: true });
+      });
+    };
+    const { client } = await bootWireServer({ tools: TOOL_CATALOG_TOOLS, fetchImpl,
+      delegatedTools: { runId: 'run', delegatedToolTimeoutMs: 5 } });
+    const typed = await describeOperation(client);
+    const result = await client.callTool({ name: typed.name, arguments: { id: 'x' } });
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([{ type: 'text', text: 'request to /api/delegated-tool-calls timed out after 5ms' }]);
+  });
+
+  it('keeps separate server runs isolated and skips over-budget schemas without evicting prior tools', async () => {
+    const fetchImpl: typeof fetch = async () => Response.json(operation());
+    const first = await bootWireServer({ tools: TOOL_CATALOG_TOOLS, fetchImpl,
+      delegatedTools: { runId: 'first', maxSchemaBytes: Buffer.byteLength(JSON.stringify(concreteSchema)) } });
+    const second = await bootWireServer({ tools: TOOL_CATALOG_TOOLS, fetchImpl,
+      delegatedTools: { runId: 'second', maxSchemaBytes: 0 } });
+    const typed = await describeOperation(first.client);
+    expect((await second.client.callTool({ name: 'describe_tool', arguments: { id: 'content.read' } })).isError).toBeUndefined();
+    expect((await second.client.listTools()).tools).toHaveLength(2);
+    expect((await second.client.callTool({ name: typed.name, arguments: { id: 'x' } })).isError).toBe(true);
+    expect((await first.client.listTools()).tools).toHaveLength(3);
+  });
+
+  it('rechecks policy, revocation and read-only metadata at typed invocation without an unconstrained retry', async () => {
+    const handler = vi.fn(async () => 'never');
+    const descriptor = operation();
+    const fixture = await daemonFixture([{ descriptor, handler, policy: { authorize: () => 'deny' } }]);
+    const { client } = await bootWireServer({ tools: fixture.tools, fetchImpl: fixture.fetchImpl, delegatedTools: { runId: fixture.run.id } });
+    const typed = await describeOperation(client);
+    expect((await client.callTool({ name: typed.name, arguments: { id: 'x' } })).isError).toBe(true);
+    fixture.scope.replace({ registrations: [{ descriptor: { ...descriptor, readOnly: false }, handler, policy: { authorize: () => 'allow' } }] });
+    const refused = await client.callTool({ name: typed.name, arguments: { id: 'x' } });
+    expect(refused.isError).toBe(true);
+    fixture.scope.replace({ registrations: [] });
+    expect((await client.callTool({ name: typed.name, arguments: { id: 'x' } })).isError).toBe(true);
+    expect(handler).not.toHaveBeenCalled();
+    const posts = fixture.requests.filter(request => request.init.method === 'POST');
+    expect(posts).toHaveLength(3);
+    expect(posts.every(request => JSON.parse(String(request.init.body)).requireReadOnly === true)).toBe(true);
+  });
+
+  it('preserves nested read-only enforcement at the existing executor boundary', async () => {
+    const write = vi.fn(async () => 'written');
+    let invokeNested!: ToolRegistration['handler'];
+    const outer: ToolRegistration = { descriptor: operation(), policy: { authorize: () => 'allow' },
+      handler: ctx => invokeNested(ctx) };
+    const fixture = await daemonFixture([outer, { descriptor: operation({ id: 'content.write', readOnly: false, inputSchema: { type: 'object' } }), policy: { authorize: () => 'allow' }, handler: write }]);
+    // A host's nested/recovery dispatch uses its existing constrained executor, retaining principal.
+    invokeNested = ctx => fixture.toolExecutor.execute({ principal: ctx.principal, run: ctx.run, toolId: 'content.write', input: {} });
+    const { client } = await bootWireServer({ tools: fixture.tools, fetchImpl: fixture.fetchImpl, delegatedTools: { runId: fixture.run.id } });
+    const typed = await describeOperation(client);
+    const result = await client.callTool({ name: typed.name, arguments: { id: 'x' } });
+    expect(JSON.parse((result.content as { text: string }[])[0]!.text)).toMatchObject({ output: { status: 'denied' } });
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  for (const decision of ['confirm', 'deny'] as const) it(`preserves ${decision} confirmation through typed and legacy ingress`, async () => {
+    const confirm = vi.fn(() => decision);
+    const handler = vi.fn(async () => 'finished');
+    const fixture = await daemonFixture([{ descriptor: operation({ readOnly: false, requiresConfirmation: true }),
+      policy: { authorize: () => 'allow' }, handler }], { onConfirm: confirm });
+    const { client } = await bootWireServer({ tools: fixture.tools, fetchImpl: fixture.fetchImpl, delegatedTools: { runId: fixture.run.id } });
+    const typed = await describeOperation(client);
+    expect(typed.annotations?.readOnlyHint).toBe(false);
+    const concrete = await client.callTool({ name: typed.name, arguments: { id: 'x' } });
+    const legacy = await client.callTool({ name: 'execute_delegated_tool', arguments: { toolId: 'content.read', input: { id: 'x' } } });
+    expect(concrete.isError).toBe(legacy.isError);
+    expect(concrete.isError).toBe(decision === 'deny' ? true : undefined);
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(handler).toHaveBeenCalledTimes(decision === 'confirm' ? 2 : 0);
+    expect(fixture.requests.filter(request => request.init.method === 'POST').every(request => !Object.hasOwn(JSON.parse(String(request.init.body)), 'requireReadOnly'))).toBe(true);
+  });
+
+  for (const typedIngress of [true, false]) it(`propagates MCP cancellation while confirmation is pending (${typedIngress ? 'typed' : 'legacy'})`, async () => {
+    const pending = deferred<string>();
+    const handler = vi.fn(async () => 'never');
+    const fixture = await daemonFixture([{ descriptor: operation({ readOnly: false, requiresConfirmation: true }),
+      policy: { authorize: () => 'allow' }, handler }], { onConfirm: ({ executionId }) => { pending.resolve(executionId); } });
+    const { client } = await bootWireServer({ tools: fixture.tools, fetchImpl: fixture.fetchImpl, delegatedTools: { runId: fixture.run.id } });
+    const typed = await describeOperation(client);
+    const controller = new AbortController();
+    const call = client.callTool({ name: typedIngress ? typed.name : 'execute_delegated_tool',
+      arguments: typedIngress ? { id: 'x' } : { toolId: 'content.read', input: { id: 'x' } } }, undefined, { signal: controller.signal }).catch((error: unknown) => error);
+    const executionId = await pending.promise;
+    const aborted = deferred<void>();
+    const signal = fixture.requests.find(request => request.init.method === 'POST')!.init.signal!;
+    signal.addEventListener('abort', () => aborted.resolve(), { once: true });
+    controller.abort(new Error('client cancelled'));
+    await call;
+    await aborted.promise;
+    // The actual executor records cancellation, and its pending confirmation cannot execute later.
+    await vi.waitFor(() => expect(fixture.toolExecutor.getAuditRecord({ executionId })?.events.at(-1)?.phase).toBe('cancelled'));
+    expect(() => fixture.toolExecutor.resumeConfirmation({ executionId, decision: 'confirm' })).toThrow();
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  for (const output of [
+    { content: [{ type: 'image', mimeType: 'image/png', data: 'aGVsbG8=' }] },
+    { batch: true, outcome: 'partial_failure', results: [{ index: 0, ok: true, result: 'one' }, { index: 1, ok: false, error: 'bad' }] },
+    { content: [{ type: 'text', text: 'tool refused' }], isError: true },
+  ]) it(`preserves image, batch and error results through typed and legacy ingress: ${JSON.stringify(output).slice(0, 65)}`, async () => {
+    const fixture = await daemonFixture([{ descriptor: operation(), policy: { authorize: () => 'allow' }, handler: async () => output }]);
+    const { client } = await bootWireServer({ tools: fixture.tools, fetchImpl: fixture.fetchImpl, delegatedTools: { runId: fixture.run.id } });
+    const typed = await describeOperation(client);
+    const concrete = await client.callTool({ name: typed.name, arguments: { id: 'x' } });
+    const legacy = await client.callTool({ name: 'execute_readonly_delegated_tool', arguments: { toolId: 'content.read', input: { id: 'x' } } });
+    expect(concrete.isError).toBe(legacy.isError);
+    if ('content' in output) {
+      expect(concrete.content).toEqual(output.content);
+      expect(legacy.content).toEqual(output.content);
+      expect(concrete.isError).toBe('isError' in output ? true : undefined);
+    } else {
+      expect(concrete.isError).toBe(true);
+      const envelope = JSON.parse((concrete.content as { text: string }[])[0]!.text);
+      expect(envelope).toMatchObject({ output, isError: true, status: 'partial_failure' });
+    }
+  });
+
+  it('keeps federation frozen at connect when upstream tools later change', async () => {
+    let remoteTools = [{ name: 'inspect', inputSchema: { type: 'object' as const }, annotations: { readOnlyHint: true } }];
+    const list = vi.fn(async () => remoteTools);
+    const session = new InMemoryMcpSession({ tools: [] }, { onListTools: list });
+    onTestFinished(() => session.close({}));
+    const { registrations } = await federateSession({ session, nativeToolIds: new Set(),
+      config: { connectionId: 'frozen', label: 'Frozen', allowedToolNames: ['inspect', 'later'], writeAllowedToolNames: [],
+        connectTimeoutMs: 100, callTimeoutMs: 100, maxResultBytes: 4096, maxTools: 5, readOnlyRemoteNames: new Set(['inspect', 'later']) },
+      deps: { messages: defaultFederationMessages, errorCode: 'EXTERNAL_MCP', permissionGate: async () => {} },
+    });
+    expect(registrations).toHaveLength(1);
+    const fixture = await daemonFixture(registrations);
+    const { client } = await bootWireServer({ tools: fixture.tools, fetchImpl: fixture.fetchImpl, delegatedTools: { runId: fixture.run.id } });
+    const admitted = registrations[0]!.descriptor.id;
+    const typed = await describeOperation(client, admitted);
+    remoteTools = [...remoteTools, { name: 'later', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true } }];
+    const unadmitted = admitted.replace(/inspect$/, 'later');
+    expect((await client.callTool({ name: 'describe_tool', arguments: { id: unadmitted } })).isError).toBe(true);
+    expect((await client.callTool({ name: typed.name, arguments: {} })).isError).toBeUndefined();
+    expect(list).toHaveBeenCalledOnce();
+    expect(session.calls.map(call => call.name)).toEqual(['inspect']);
+    expect((await client.listTools()).tools).toHaveLength(fixture.tools.length + 1);
   });
 });
