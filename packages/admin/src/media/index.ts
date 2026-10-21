@@ -29,6 +29,7 @@ export {
   parseOptionalPixelSize,
   formatByteSize,
   formatUploadDate,
+  mediaFileName,
   countMediaTabs,
   mediaEmbedSnippet,
   mediaRowHandles,

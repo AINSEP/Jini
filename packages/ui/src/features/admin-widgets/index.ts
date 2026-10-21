@@ -28,3 +28,7 @@ export { useSuggestInput, matchSuggestions } from './components/SuggestInput/Sug
 export type { SuggestInputController } from './components/SuggestInput/SuggestInput.hooks.js';
 export { useDebouncedHtmlPreview } from './components/useDebouncedHtmlPreview.hooks.js';
 export type { HtmlPreviewPort, HtmlPreviewState } from './components/useDebouncedHtmlPreview.hooks.js';
+export { MiddleTruncate } from './components/MiddleTruncate.js';
+export type { MiddleTruncateProps } from './components/MiddleTruncate.js';
+export { splitMiddleTruncation } from './components/MiddleTruncate.rules.js';
+export type { MiddleTruncationParts } from './components/MiddleTruncate.rules.js';

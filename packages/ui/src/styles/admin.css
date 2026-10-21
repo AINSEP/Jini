@@ -225,6 +225,11 @@
   top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: var(--jini-bg-panel);
 }
 
+/* `MiddleTruncate`: the head ellipsizes, the tail (extension) never shrinks. */
+.jini-middle-truncate { display: inline-flex; max-width: 100%; min-width: 0; white-space: nowrap; }
+.jini-middle-truncate__head { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.jini-middle-truncate__tail { flex: none; }
+
 .tab-bar { display: flex; flex-wrap: wrap; gap: 0.3rem; border-bottom: 1px solid var(--jini-border); margin-bottom: 1.3rem; }
 
 .tab-bar-item {

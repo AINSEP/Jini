@@ -129,6 +129,20 @@ export function formatByteSize({ bytes }: { bytes: number }, { locale = 'en-US' 
   const mb = kb / 1024;
   return mb < 1024 ? `${decimal.format(mb)} MB` : `${decimal.format(mb / 1024)} GB`;
 }
+/** The extension each sniffed media type is stored as; JPEG shows as the common ".jpg". */
+const MEDIA_EXTENSION_BY_CONTENT_TYPE: Readonly<Record<string, string>> = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/avif': 'avif',
+  'image/svg+xml': 'svg', 'video/mp4': 'mp4', 'video/webm': 'webm', 'audio/wav': 'wav', 'audio/mpeg': 'mp3',
+  'audio/flac': 'flac', 'audio/mp4': 'm4a', 'application/pdf': 'pdf',
+};
+/** The file name a media card shows. A media record keeps only its extension-less title, so the
+ * extension comes from the type sniffed from its bytes; an unknown type, or a title that already
+ * ends with that extension, shows the title as-is. */
+export function mediaFileName({ title, contentType }: { title: string; contentType: string | null }, _optional: Record<string, never> = {}): string {
+  const extension = contentType ? MEDIA_EXTENSION_BY_CONTENT_TYPE[contentType] : undefined;
+  if (!extension || title.toLowerCase().endsWith(`.${extension}`)) return title;
+  return `${title}.${extension}`;
+}
 /** Full-library counts, independent of search/order/type selection; Providers has no count. */
 export function countMediaTabs({ media }: { media: readonly MediaAsset[] }, _optional: Record<string, never> = {}) {
   return { all: media.length, images: filterMediaByTab({ media, tab: 'images' }).length,
