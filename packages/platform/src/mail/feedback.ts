@@ -105,7 +105,7 @@ export function createMailFeedbackIngest(required: MailFeedbackIngestDeps, optio
       if (unverified.blocked({ providerId: input.providerId })) return { status: 429, body: { ok: false, error: "too many unverified requests" } };
       const denied = await authenticate({ ...input, parser });
       if (denied) return denied;
-      const parsed = parser.parse({ rawBody: input.rawBody, workspaceId: input.workspaceId });
+      const parsed = parser.parse({ rawBody: input.rawBody, workspaceId: input.workspaceId, headers: input.headers });
       if ("error" in parsed) return { status: 400, body: { ok: false, error: parsed.error } };
       let applied = 0;
       let duplicates = 0;

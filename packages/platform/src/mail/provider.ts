@@ -40,8 +40,9 @@ export interface MailFeedbackParser {
   verify(required: {
     rawBody: Uint8Array; headers: Readonly<Record<string, string>>; secrets: readonly string[]; now: number;
   }): boolean;
-  /** Each event must carry eventId + recipient, or the ingest drops it (no dedup key, no suppression key). */
-  parse(required: { rawBody: Uint8Array; workspaceId: string }): readonly MailerFeedbackEvent[] | { error: string };
+  /** Headers are passed so a parser can key events on a delivery id (e.g. `svix-id`).
+   * Each event must carry eventId + recipient, or the ingest drops it (no dedup key, no suppression key). */
+  parse(required: { rawBody: Uint8Array; workspaceId: string; headers: Readonly<Record<string, string>> }): readonly MailerFeedbackEvent[] | { error: string };
 }
 
 /** Per-call context: who the call acts for plus the host-resolved credential and guarded HTTP. */
