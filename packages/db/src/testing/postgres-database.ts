@@ -17,13 +17,17 @@ export interface PostgresDatabaseHelpers {
 
 /**
  * The connection URL for database `name` over libpq's env vars: `PGHOST` (default `/tmp`),
- * `PGUSER` (default `username`) and, only when set, `PGPORT`.
+ * `PGUSER` (default the OS user, read through `userInfo` only when `PGUSER` is unset — see
+ * `pgFixtureFromEnv`) and, only when set, `PGPORT`.
  * @complexity O(length of the parts).
  */
-export function postgresUrlFor(required: { name: string; env: Readonly<Record<string, string | undefined>>; username: string }): string {
-  const { name, env, username } = required;
+export function postgresUrlFor(
+  required: { name: string; env: Readonly<Record<string, string | undefined>>; userInfo: () => { username: string } },
+  _optional: Record<string, never> = {}
+): string {
+  const { name, env, userInfo } = required;
   const host = env.PGHOST ?? "/tmp";
-  const user = env.PGUSER ?? username;
+  const user = env.PGUSER ?? userInfo().username;
   const port = env.PGPORT ? `&port=${env.PGPORT}` : "";
   return `postgresql://${encodeURIComponent(user)}@/${name}?host=${encodeURIComponent(host)}${port}`;
 }
@@ -33,13 +37,13 @@ export function postgresUrlFor(required: { name: string; env: Readonly<Record<st
  * @complexity O(1) to build; each call is one or two fixture calls.
  */
 export function postgresDatabaseHelpers(
-  required: { helpers: Pick<LegacyPgHelpers, "psql" | "recreateDatabase">; env: Readonly<Record<string, string | undefined>>; username: string },
+  required: { helpers: Pick<LegacyPgHelpers, "psql" | "recreateDatabase">; env: Readonly<Record<string, string | undefined>>; userInfo: () => { username: string } },
   _optional: Record<string, never> = {}
 ): PostgresDatabaseHelpers {
-  const { helpers, env, username } = required;
+  const { helpers, env, userInfo } = required;
   function freshPostgresDatabase(name: string): string {
     helpers.recreateDatabase(name);
-    return postgresUrlFor({ name, env, username });
+    return postgresUrlFor({ name, env, userInfo });
   }
   /** {@link freshPostgresDatabase} with the whole content schema created (`pglite/content-schema.ts`). */
   function freshPostgresContentDatabase(name: string): string {
@@ -54,5 +58,5 @@ export function postgresDatabaseHelpers(
 export const { freshPostgresDatabase, freshPostgresContentDatabase } = postgresDatabaseHelpers({
   helpers: { psql, recreateDatabase },
   env: process.env,
-  username: os.userInfo().username,
+  userInfo: os.userInfo,
 });

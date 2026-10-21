@@ -23,23 +23,40 @@ function fakePsql(statuses: number[] = []) {
   return { calls, spawnSync };
 }
 
+/** The OS-user port: `alice`. */
+const alice = () => ({ username: "alice" });
+/** An OS-user port for a host whose UID has no passwd entry: `os.userInfo()` throws there. */
+const unmappedUid = () => {
+  throw new Error("uv_os_get_passwd returned ENOENT");
+};
+
 /** The `-h/-U/-p/-d` connection part of a psql argv, and its `-c` command. */
 const target = (args: string[]) => ({ connection: args.slice(0, args.indexOf("-v")), command: args.at(-1) });
 
 test("the fixture follows libpq's env vars, defaulting to the /tmp socket and the OS user", () => {
   const defaults = fakePsql();
-  pgFixtureFromEnv({ env: {}, username: "alice" }, { spawnSync: defaults.spawnSync }).psql({ database: "db", sql: "SELECT 1" });
+  pgFixtureFromEnv({ env: {}, userInfo: alice }, { spawnSync: defaults.spawnSync }).psql({ database: "db", sql: "SELECT 1" });
   assert.deepEqual(target(defaults.calls[0] ?? []).connection, ["-h", "/tmp", "-U", "alice", "-d", "db"]);
 
   const configured = fakePsql();
-  pgFixtureFromEnv({ env: { PGHOST: "/var/run/postgresql", PGUSER: "bob", PGPORT: "6543" }, username: "alice" }, { spawnSync: configured.spawnSync })
+  pgFixtureFromEnv({ env: { PGHOST: "/var/run/postgresql", PGUSER: "bob", PGPORT: "6543" }, userInfo: alice }, { spawnSync: configured.spawnSync })
     .psql({ database: "db", sql: "SELECT 1" });
   assert.deepEqual(target(configured.calls[0] ?? []).connection, ["-h", "/var/run/postgresql", "-U", "bob", "-p", "6543", "-d", "db"]);
 });
 
+test("a configured PGUSER never consults the OS user, so an unmapped UID still connects; without it the lookup's failure surfaces", () => {
+  const psql = fakePsql();
+  pgFixtureFromEnv({ env: { PGUSER: "bob" }, userInfo: unmappedUid }, { spawnSync: psql.spawnSync }).psql({ database: "db", sql: "SELECT 1" });
+  assert.deepEqual(target(psql.calls[0] ?? []).connection, ["-h", "/tmp", "-U", "bob", "-d", "db"]);
+  assert.equal(postgresUrlFor({ name: "app_db", env: { PGUSER: "bob" }, userInfo: unmappedUid }), "postgresql://bob@/app_db?host=%2Ftmp");
+
+  assert.throws(() => pgFixtureFromEnv({ env: {}, userInfo: unmappedUid }), /ENOENT/);
+  assert.throws(() => postgresUrlFor({ name: "app_db", env: {}, userInfo: unmappedUid }), /ENOENT/);
+});
+
 test("the positional helpers run the fixture's commands and surface its results and refusals", () => {
   const psql = fakePsql([0, 0, 0, 0, 1]);
-  const helpers = legacyPgHelpers({ fixture: pgFixtureFromEnv({ env: {}, username: "alice" }, { spawnSync: psql.spawnSync }) });
+  const helpers = legacyPgHelpers({ fixture: pgFixtureFromEnv({ env: {}, userInfo: alice }, { spawnSync: psql.spawnSync }) });
 
   assert.deepEqual(helpers.psql("app_db", "SELECT 1"), { ok: true, stdout: "out", stderr: "" });
   helpers.recreateDatabase("app_db");
@@ -56,9 +73,9 @@ test("the positional helpers run the fixture's commands and surface its results 
 });
 
 test("database URLs use the socket host and role from the env, encoded, with a port only when one is set", () => {
-  assert.equal(postgresUrlFor({ name: "app_db", env: {}, username: "alice" }), "postgresql://alice@/app_db?host=%2Ftmp");
+  assert.equal(postgresUrlFor({ name: "app_db", env: {}, userInfo: alice }), "postgresql://alice@/app_db?host=%2Ftmp");
   assert.equal(
-    postgresUrlFor({ name: "app_db", env: { PGHOST: "/var/run/pg sock", PGUSER: "ops@team", PGPORT: "6543" }, username: "alice" }),
+    postgresUrlFor({ name: "app_db", env: { PGHOST: "/var/run/pg sock", PGUSER: "ops@team", PGPORT: "6543" }, userInfo: alice }),
     "postgresql://ops%40team@/app_db?host=%2Fvar%2Frun%2Fpg%20sock&port=6543"
   );
 });
@@ -72,7 +89,7 @@ test("a fresh database is recreated before its URL is returned; a content databa
       psql: (name, sql) => (events.push(`psql ${name}: ${sql}`), { ok: schemaStatus, stdout: "", stderr: schemaStatus ? "" : "permission denied" }),
     },
     env: { PGPORT: "6543" },
-    username: "alice",
+    userInfo: alice,
   });
 
   assert.equal(helpers.freshPostgresDatabase("plain_db"), "postgresql://alice@/plain_db?host=%2Ftmp&port=6543");

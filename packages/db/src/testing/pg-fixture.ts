@@ -12,14 +12,17 @@ export interface LegacyPgHelpers {
 /**
  * The fixture these helpers drive, chosen as libpq chooses: `PGHOST` (default the `/tmp` socket
  * dir), `PGUSER` (default the OS user) and `PGPORT` (default libpq's).
+ *
+ * `userInfo` is a port, called ONLY when `PGUSER` is unset: `os.userInfo()` throws on a host whose
+ * UID has no passwd entry, and a configured `PGUSER` must keep such a host working.
  * @complexity O(1).
  */
 export function pgFixtureFromEnv(
-  required: { env: Readonly<Record<string, string | undefined>>; username: string },
+  required: { env: Readonly<Record<string, string | undefined>>; userInfo: () => { username: string } },
   optional: PgFixtureOptions = {}
 ): ReturnType<typeof createPgFixture> {
-  const { env, username } = required;
-  return createPgFixture({ host: env.PGHOST ?? "/tmp", user: env.PGUSER ?? username, port: env.PGPORT }, optional);
+  const { env, userInfo } = required;
+  return createPgFixture({ host: env.PGHOST ?? "/tmp", user: env.PGUSER ?? userInfo().username, port: env.PGPORT }, optional);
 }
 
 /**
@@ -36,5 +39,5 @@ export function legacyPgHelpers({ fixture }: { fixture: ReturnType<typeof create
 
 // Compatibility for existing internal test helpers; all execution belongs to the public fixture.
 export const { psql, recreateDatabase, dropDatabase } = legacyPgHelpers({
-  fixture: pgFixtureFromEnv({ env: process.env, username: os.userInfo().username }),
+  fixture: pgFixtureFromEnv({ env: process.env, userInfo: os.userInfo }),
 });
