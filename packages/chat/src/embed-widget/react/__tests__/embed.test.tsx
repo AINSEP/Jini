@@ -98,6 +98,17 @@ describe('embed composition', () => {
     expect(order.slice(0, 3)).toEqual(['enqueue', 'save', 'navigate']);
     expect(screen.queryByText('Visit Article?')).toBeNull();
   });
+  it('neither queues nor navigates when the host refuses the target by the time the visitor consents', () => {
+    const { widget, order } = fixture();
+    render(<EmbedChatWidget {...widget} />);
+    emit([reply([{ ...nav, auto: false }, highlight])]);
+    widget.pageActions.allows = vi.fn(() => false);
+    order.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: 'Visit' }));
+    expect(order).toEqual([]);
+    expect(widget.pageActions.navigate).not.toHaveBeenCalled();
+  });
+
   it('ignores rejected paths and executes a standalone treatment once', () => {
     const { widget } = fixture();
     render(<EmbedChatWidget {...widget} />);

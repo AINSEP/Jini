@@ -135,8 +135,9 @@ function truncateTitle(title: string): string {
   return (lastSpace > 0 ? prefix.slice(0, lastSpace) : prefix).trimEnd();
 }
 
+/** Callers pass only non-empty words (`trimLatinTitle` filters blanks before mapping). */
 function toTitleCase(word: string): string {
-  return word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : word;
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
 function trimLatinTitle(input: string, { casing }: { casing: 'title' | 'sentence' }): string {
@@ -174,7 +175,8 @@ function trimCjkTitle(input: string): string {
 export function deriveConversationTitle({ prompt }: { prompt: string }, { casing = 'title' }: { casing?: 'title' | 'sentence' } = {}): string {
   const cleaned = cleanPrompt(prompt);
   if (!cleaned) return '';
-  const firstClause = cleaned.split(/[\n\r。！？!?]/)[0]?.trim() ?? cleaned;
+  // `split` always yields a first element, even for a string that starts with a separator.
+  const firstClause = cleaned.split(/[\n\r。！？!?]/)[0]!.trim();
   if (!firstClause) return '';
   const title = CJK_PATTERN.test(firstClause) ? trimCjkTitle(firstClause) : trimLatinTitle(firstClause, { casing });
   // Truncated without an ellipsis: this is a working title, not prose, and a `…` would end up stored
