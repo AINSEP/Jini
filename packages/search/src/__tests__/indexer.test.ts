@@ -504,6 +504,43 @@ describe('createSearchIndexer — backfill', () => {
     expect(state.row(ACTIVE, key('old'))).toBeUndefined();
   });
 
+  it('keeps a replaced generation retired until its drop is confirmed, retrying on every reconcile', async () => {
+    const builtin = makeProvider({ id: 'builtin' });
+    const vendor = makeProvider({ id: 'vendor' });
+    const { indexer, targets, state } = setup({ providers: [vendor, builtin], targets: { active: ACTIVE, building: BUILDING } });
+    vendor.next('dropIndex', async () => providerRejected({ code: 'forbidden', message: 'key lacks indexes.delete' }));
+    expect((await indexer.backfill({ siteId: SITE, workspaceId: WS })).promoted).toBe(true);
+    expect(targets.retired).toEqual([ACTIVE]);
+    vendor.next('dropIndex', async () => providerUnknown({ code: 'timeout', message: 'slow' }));
+    await indexer.reconcile({ siteId: SITE, workspaceId: WS });
+    expect(targets.retired).toEqual([ACTIVE]);
+    vendor.next('dropIndex', async () => { throw new Error('provider bug'); });
+    await indexer.reconcile({ siteId: SITE, workspaceId: WS });
+    expect(targets.retired).toEqual([ACTIVE]);
+    await indexer.reconcile({ siteId: SITE, workspaceId: WS });
+    expect(vendor.calls.filter(c => c.method === 'dropIndex')).toHaveLength(4);
+    expect(targets.retired).toEqual([]);
+    expect(state.deleted).toEqual([ACTIVE, ACTIVE, ACTIVE, ACTIVE]);
+    await indexer.reconcile({ siteId: SITE, workspaceId: WS });
+    expect(vendor.calls.filter(c => c.method === 'dropIndex')).toHaveLength(4);
+  });
+
+  it('retries the drop once a missing credential or provider is configured again', async () => {
+    const builtin = makeProvider({ id: 'builtin' });
+    const vendor = makeProvider({ id: 'vendor' });
+    const missing = ['vendor'];
+    const { fresh, targets, registry } = setup({ providers: [builtin], targets: { active: ACTIVE, building: BUILDING }, noContextFor: missing });
+    expect((await fresh().backfill({ siteId: SITE, workspaceId: WS })).promoted).toBe(true);
+    expect(targets.retired).toEqual([ACTIVE]);
+    registry.register({ definition: { id: 'vendor', provider: vendor.provider } });
+    await fresh().reconcile({ siteId: SITE, workspaceId: WS });
+    expect(targets.retired, 'registered but its credential is still missing').toEqual([ACTIVE]);
+    missing.length = 0;
+    await fresh().reconcile({ siteId: SITE, workspaceId: WS });
+    expect(vendor.calls.map(c => c.method)).toEqual(['dropIndex']);
+    expect(targets.retired).toEqual([]);
+  });
+
   it('deletes the replaced bookkeeping even when its provider is no longer registered, and skips a missing replaced target', async () => {
     const gone = { ...ACTIVE, providerId: 'gone' };
     const unregistered = setup({ providers: [makeProvider({ id: 'builtin' })], targets: { active: gone, building: BUILDING } });

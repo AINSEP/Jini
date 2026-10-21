@@ -292,19 +292,25 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     if (counts.pending + counts.unknown > 0) return false;
     const flipped = await targets.promote({ siteId, expected: target });
     if (flipped === false) return false;
-    if (flipped.replaced) await dropTarget(flipped.replaced, workspaceId);
+    await dropRetired(siteId, workspaceId);
     return true;
   };
 
   /**
-   * Drop a replaced generation. The vendor index is dropped only when its provider is still
-   * registered (nothing else can reach it); the bookkeeping rows are deleted either way, since a
-   * replaced target is never written or read again.
+   * Drop every retired (replaced) generation of a site. The bookkeeping rows are deleted either
+   * way, since a replaced target is never written or read again. The vendor index can be dropped
+   * only while its provider is registered and configured (nothing else can reach it), and the
+   * retired record is forgotten only once the drop is CONFIRMED (`ok`): a refusal, an indeterminate
+   * outcome, a missing credential or an unregistered provider leaves it for the next reconcile,
+   * instead of leaving the old content in the vendor index forever.
    */
-  const dropTarget = async (replaced: SearchTarget, workspaceId: string) => {
-    const resolved = await resolve(replaced, workspaceId);
-    if (resolved) await guarded(() => resolved.provider.dropIndex(resolved.ctx));
-    await state.deleteTarget({ target: replaced });
+  const dropRetired = async (siteId: string, workspaceId: string): Promise<void> => {
+    for (const retired of await targets.listRetired({ siteId })) {
+      await state.deleteTarget({ target: retired });
+      const resolved = await resolve(retired, workspaceId);
+      const dropped = resolved ? await guarded(() => resolved.provider.dropIndex(resolved.ctx)) : null;
+      if (dropped?.status === 'ok') await targets.forgetRetired({ target: retired });
+    }
   };
 
   const backfillTarget = async (input: { siteId: string; workspaceId: string; target: SearchTarget; pageBudget: number; marks: readonly Watermark[] }): Promise<{ done: boolean; written: number }> => {
@@ -351,6 +357,8 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     },
 
     async reconcile({ siteId, workspaceId }, { limit = 50 } = {}) {
+      // Retries the index drop of every replaced generation not yet confirmed gone.
+      await dropRetired(siteId, workspaceId);
       const list = await currentTargets(siteId);
       let settled = 0;
       for (const target of list) settled += await reconcileTarget(target, workspaceId, limit);

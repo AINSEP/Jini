@@ -134,6 +134,7 @@ export function makeState(): FakeState {
 
 export interface FakeTargets extends SearchTargetPort {
   current: SearchSiteTargets;
+  retired: SearchTarget[];
   /** When set, the next promote answers false (someone else moved the pointer). */
   losePromote: boolean;
 }
@@ -141,6 +142,7 @@ export interface FakeTargets extends SearchTargetPort {
 export function makeTargets(initial: Partial<SearchSiteTargets> = {}): FakeTargets {
   const fake: FakeTargets = {
     current: { active: initial.active ?? null, building: initial.building ?? null },
+    retired: [],
     losePromote: false,
     async get() { return fake.current; },
     async setBuilding({ target }) { fake.current = { ...fake.current, building: target }; },
@@ -148,8 +150,11 @@ export function makeTargets(initial: Partial<SearchSiteTargets> = {}): FakeTarge
       const { building, active } = fake.current;
       if (fake.losePromote || building === null || targetKey(building) !== targetKey(expected)) return false;
       fake.current = { active: building, building: null };
+      if (active !== null) fake.retired.push(active);
       return { replaced: active };
     },
+    async listRetired() { return [...fake.retired]; },
+    async forgetRetired({ target }) { fake.retired = fake.retired.filter(entry => targetKey(entry) !== targetKey(target)); },
     async clearBuilding() { fake.current = { ...fake.current, building: null }; },
   };
   return fake;

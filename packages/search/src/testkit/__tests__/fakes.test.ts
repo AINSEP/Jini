@@ -91,6 +91,17 @@ test('targets: building, compare-and-swap promote, clear', async () => {
   const fresh = createInMemorySearchState().targets;
   await fresh.setBuilding({ target });
   expect(await fresh.promote({ siteId: 's1', expected: target })).toEqual({ replaced: null });
+  expect(await fresh.listRetired({ siteId: 's1' })).toEqual([]);
+});
+
+test('targets: a promote retires the replaced target until it is forgotten', async () => {
+  const { targets } = createInMemorySearchState({}, { active: [target, { ...target, siteId: 's2' }] });
+  await targets.setBuilding({ target: other });
+  await targets.promote({ siteId: 's1', expected: other });
+  expect(await targets.listRetired({ siteId: 's1' })).toEqual([target]);
+  expect(await targets.listRetired({ siteId: 's2' })).toEqual([]);
+  await targets.forgetRetired({ target: { ...target } });
+  expect(await targets.listRetired({ siteId: 's1' })).toEqual([]);
 });
 
 test('a second promote of the same building loses (the pointer already moved)', async () => {

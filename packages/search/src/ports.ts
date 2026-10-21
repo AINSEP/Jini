@@ -67,9 +67,15 @@ export interface SearchTargetPort {
   setBuilding(required: { readonly target: SearchTarget }): Promise<void>;
   /**
    * Atomically make `building` active iff the stored building still equals `expected`; returns the
-   * replaced active target (to drop) or `false` when someone else changed the pointer first.
+   * replaced active target (to drop) or `false` when someone else changed the pointer first. The
+   * replaced target is recorded as RETIRED in the same atomic step (see {@link listRetired}), so its
+   * backend index is still dropped when the drop fails or the process dies right after the switch.
    */
   promote(required: { readonly siteId: string; readonly expected: SearchTarget }): Promise<{ readonly replaced: SearchTarget | null } | false>;
+  /** Replaced targets whose backend index is not yet confirmed dropped, oldest first. */
+  listRetired(required: { readonly siteId: string }): Promise<readonly SearchTarget[]>;
+  /** Forget a retired target once its provider confirmed the index drop. */
+  forgetRetired(required: { readonly target: SearchTarget }): Promise<void>;
   /** Abandon a rebuild (e.g. the new provider was removed). */
   clearBuilding(required: { readonly siteId: string }): Promise<void>;
 }

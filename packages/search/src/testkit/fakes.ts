@@ -88,6 +88,7 @@ function createIndexState(): SearchIndexStatePort {
 
 function createTargets(initial: readonly SearchTarget[]): SearchTargetPort {
   const sites = new Map<string, SearchSiteTargets>(initial.map(target => [target.siteId, { active: target, building: null }]));
+  let retired: SearchTarget[] = [];
   const current = (siteId: string): SearchSiteTargets => sites.get(siteId) ?? { active: null, building: null };
   return {
     async get({ siteId }) { return { ...current(siteId) }; },
@@ -97,8 +98,12 @@ function createTargets(initial: readonly SearchTarget[]): SearchTargetPort {
       // Compare-and-swap: only the caller that still sees the stored building may promote it.
       if (!sameTarget(building, expected)) return false;
       sites.set(siteId, { active: building, building: null });
+      // Recorded in the same step as the switch, so the replaced index is dropped even after a crash.
+      if (active !== null) retired = [...retired, active];
       return { replaced: active };
     },
+    async listRetired({ siteId }) { return retired.filter(target => target.siteId === siteId); },
+    async forgetRetired({ target }) { retired = retired.filter(entry => !sameTarget(entry, target)); },
     async clearBuilding({ siteId }) { sites.set(siteId, { active: current(siteId).active, building: null }); },
   };
 }
