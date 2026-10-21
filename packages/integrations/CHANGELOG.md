@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Minor Changes
+
+- media-providers: vendors are one-unit provider contributions (`{ provider, models, adapters }`) on the
+  shared `@jini-ai/core/provider-registry` (contract `media`). `createMediaProviderRegistry()` (built-ins
+  are the default contribution set; plugins `contribute`, refused not thrown) implements both
+  `VendorAdapterLookup` and the new `MediaModelCatalog`. `createMediaDispatchEngine` takes an optional
+  `catalog`, so plugin models validate; omitted, behaviour is unchanged. Registry keys map `-` to `_`;
+  public provider ids are unchanged.
+
 ## 0.4.1
 
 ### Patch Changes
