@@ -38,8 +38,9 @@ function setup() {
   return { client, agents, created, handlers };
 }
 
+const REDACTED = { secretRedacted: true } as NonNullable<ChatMessage["secretRedaction"]>;
 const history: ChatMessage[] = [
-  { id: "u1", role: "user", content: "hi", secretRedaction: { secretRedacted: true } as ChatMessage["secretRedaction"] },
+  { id: "u1", role: "user", content: "hi", secretRedaction: REDACTED },
   { id: "a1", role: "assistant", content: "hello" },
   { id: "a2", role: "assistant", content: "   " },
 ];

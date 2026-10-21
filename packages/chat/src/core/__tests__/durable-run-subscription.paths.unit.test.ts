@@ -9,7 +9,7 @@ const NOTICES = {
 
 /** Hand-written ports: reads answer from a queue, streams and timers are recorded for the test to drive. */
 function fakePorts(answers: (ChatMessage | null | "gone")[]) {
-  const reads: { runId: string; messageId?: string; recover?: boolean }[] = [];
+  const reads: { runId: string; messageId?: string; recover?: boolean | undefined }[] = [];
   const streams: (Parameters<DurableSubscriptionPorts["stream"]>[0] & { closed: boolean })[] = [];
   const timers: (() => void)[] = [];
   const ports: DurableSubscriptionPorts = {
@@ -76,7 +76,7 @@ describe("followDurableRun with a binding and checkpoints", () => {
 
   it("checkpoints a row with no status yet, then hands a failed row to the checkpoint owner instead of erroring", async () => {
     const failed = saved({ runStatus: "failed" });
-    const { ports, timers } = fakePorts([saved({ runStatus: undefined, content: "draft" }), failed]);
+    const { ports, timers } = fakePorts([saved({ content: "draft" }), failed]);
     const h = handlers();
     const onCheckpoint = vi.fn();
     followDurableRun({ runId: "run", ports, notices: NOTICES, bindings: new Map(), handlers: { ...h, onCheckpoint } });
@@ -103,8 +103,9 @@ describe("followDurableRun with a binding and checkpoints", () => {
 
   it("ignores a read that lands after the caller stopped", async () => {
     let answer!: (message: ChatMessage) => void;
-    const { ports, streams, timers } = fakePorts([]);
-    ports.read = () => new Promise(resolve => { answer = resolve; });
+    const fake = fakePorts([]);
+    const { streams, timers } = fake;
+    const ports: DurableSubscriptionPorts = { ...fake.ports, read: () => new Promise(resolve => { answer = resolve; }) };
     const onCheckpoint = vi.fn();
     const stop = followDurableRun({ runId: "run", ports, notices: NOTICES, bindings: new Map(), handlers: { ...handlers(), onCheckpoint } });
     timers[0]!();
