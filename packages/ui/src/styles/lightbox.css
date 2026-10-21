@@ -4,7 +4,8 @@
    media or the title. The stage stays dark in both admin themes: photos read best on a neutral dark
    surround, and the white title then stays readable whatever the theme. */
 .jini-lightbox {
-  --jini-lightbox-bg: var(--jini-theme-lightbox-bg, oklch(23% 0.005 256 / 0.97));
+  /* Opaque: even a few percent of alpha lets the admin page's text ghost through behind the media. */
+  --jini-lightbox-bg: var(--jini-theme-lightbox-bg, oklch(23% 0.005 256));
   --jini-lightbox-ink: var(--jini-theme-lightbox-ink, oklch(97% 0 0));
   --jini-lightbox-ink-muted: var(--jini-theme-lightbox-ink-muted, oklch(97% 0 0 / 0.58));
   --jini-lightbox-edge: clamp(0.75rem, 2vw, 1.25rem);
@@ -32,11 +33,7 @@
   background: var(--jini-lightbox-bg);
   font-family: var(--jini-font-sans, inherit);
 }
-.jini-lightbox::backdrop {
-  background: transparent;
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-}
+.jini-lightbox::backdrop { background: transparent; }
 
 .jini-lightbox-header {
   display: flex;
