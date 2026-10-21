@@ -8,8 +8,6 @@ import {
   type AuthProvider,
   type AuthSession,
   type AuthUser,
-  type Charge,
-  type ChargeInput,
   connectorsAuthSessionRoute,
   connectorsAuthSignInRoute,
   connectorsAuthSignOutRoute,
@@ -19,9 +17,6 @@ import {
   connectorsDbInsertRoute,
   connectorsDbQueryRoute,
   connectorsDbUpdateRoute,
-  connectorsPaymentsChargeRoute,
-  connectorsPaymentsGetRoute,
-  connectorsPaymentsRefundRoute,
   connectorsRealtimePublishRoute,
   connectorsStorageDeleteRoute,
   connectorsStorageGetRoute,
@@ -29,7 +24,6 @@ import {
   connectorsStoragePutRoute,
   type DbProvider,
   type DbRecord,
-  type PaymentsProvider,
   registerConnectorsRoutes,
   type RealtimeProvider,
   type StorageObjectMeta,
@@ -89,17 +83,6 @@ function makeStorageProvider(overrides: Partial<StorageProvider> = {}): StorageP
     get: vi.fn(async () => new Uint8Array([1, 2, 3])),
     delete: vi.fn(async () => undefined),
     list: vi.fn(async () => [fakeMeta]),
-    ...overrides,
-  };
-}
-
-const fakeCharge: Charge = { id: 'ch1', status: 'succeeded', amountCents: 500, currency: 'usd', customerRef: 'cus_1', createdAt: 0 };
-
-function makePaymentsProvider(overrides: Partial<PaymentsProvider> = {}): PaymentsProvider {
-  return {
-    charge: vi.fn(async (_input: Omit<ChargeInput, 'description'>, _optional: Pick<ChargeInput, 'description'> = {}) => fakeCharge),
-    getCharge: vi.fn(async () => fakeCharge),
-    refund: vi.fn(async () => ({ ...fakeCharge, status: 'refunded' as const })),
     ...overrides,
   };
 }
@@ -290,83 +273,6 @@ describe('storage routes', () => {
   });
 });
 
-describe('payments routes', () => {
-  it('charge: happy path', async () => {
-    const payments = makePaymentsProvider();
-    const input: ChargeInput = { amountCents: 500, currency: 'usd', customerRef: 'cus_1' };
-    const result = await connectorsPaymentsChargeRoute.handle({ input, deps: makeDeps({ payments }) });
-    expect(result).toEqual({ ok: true, value: { charge: fakeCharge } });
-  });
-
-  it('charge: parse rejects a non-positive/missing amountCents, currency, customerRef', () => {
-    expect(connectorsPaymentsChargeRoute.parse({ body: {}, query: {}, params: {} }).ok).toBe(false);
-    expect(
-      connectorsPaymentsChargeRoute.parse({ body: { amountCents: 'nope', currency: 'usd', customerRef: 'c1' }, query: {}, params: {} }).ok,
-    ).toBe(false);
-    expect(
-      connectorsPaymentsChargeRoute.parse({ body: { amountCents: 100, customerRef: 'c1' }, query: {}, params: {} }).ok,
-    ).toBe(false);
-  });
-
-  // "Cents" is a unit, and the check was only `typeof === 'number' && isFinite`. A negative amount
-  // at a payment boundary is a refund the caller never asked for; a fractional one is a value the
-  // provider will round somewhere the caller cannot predict. This is the last place that can still
-  // say no cheaply, so it has to be the place that does.
-  it.each([
-    ['a negative amount', -125.5],
-    ['a negative integer amount', -1],
-    ['zero', 0],
-    ['a fractional amount', 12.5],
-    ['an amount beyond safe-integer precision', Number.MAX_SAFE_INTEGER + 2],
-  ])('charge: parse rejects %s', (_label, amountCents) => {
-    expect(
-      connectorsPaymentsChargeRoute.parse({ body: { amountCents, currency: 'usd', customerRef: 'c1' }, query: {}, params: {} }).ok,
-    ).toBe(false);
-  });
-
-  it('charge: parse accepts a positive whole number of cents', () => {
-    expect(
-      connectorsPaymentsChargeRoute.parse({ body: { amountCents: 1, currency: 'usd', customerRef: 'c1' }, query: {}, params: {} }),
-    ).toEqual({ ok: true, value: { amountCents: 1, currency: 'usd', customerRef: 'c1' } });
-  });
-
-  it('get: 404 when unknown', async () => {
-    const payments = makePaymentsProvider({ getCharge: vi.fn(async () => null) });
-    const result = await connectorsPaymentsGetRoute.handle({ input: 'missing', deps: makeDeps({ payments }) });
-    expect(result).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: 'charge not found' } });
-  });
-
-  it('refund: happy path', async () => {
-    const payments = makePaymentsProvider();
-    const result = await connectorsPaymentsRefundRoute.handle({ input: 'ch1', deps: makeDeps({ payments }) });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.charge.status).toBe('refunded');
-  });
-
-  it('payments: 503 NOT_CONFIGURED when payments is not supplied', async () => {
-    const result = await connectorsPaymentsChargeRoute.handle({ input: { amountCents: 100, currency: 'usd', customerRef: 'c1' }, deps: makeDeps() }
-    );
-    expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'payments provider not configured' } });
-  });
-
-  it('payments: SEC-005 — a thrown Stripe-shaped error never reaches the caller verbatim', async () => {
-    const payments = makePaymentsProvider({
-      charge: vi.fn(async () => {
-        throw new Error('Stripe error: sk_live_abcdef rejected');
-      }),
-    });
-    const onInternalError = vi.fn();
-    const result = await connectorsPaymentsChargeRoute.handle({ input: { amountCents: 100, currency: 'usd', customerRef: 'c1' }, deps: makeDeps({ payments, onInternalError }) }
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.message).toBe('an internal error occurred');
-      expect(JSON.stringify(result.error)).not.toContain('sk_live_abcdef');
-    }
-    expect(onInternalError).toHaveBeenCalledTimes(1);
-  });
-});
-
 describe('db routes', () => {
   it('insert: requires a non-empty id field and forwards the whole body as the record', async () => {
     const db = makeDbProvider();
@@ -461,10 +367,11 @@ describe('realtime routes', () => {
 });
 
 describe('registerConnectorsRoutes', () => {
-  it('mounts every connectors route (auth x4, storage x4, payments x3, db x5, realtime x1 = 17)', () => {
+  it('mounts every connectors route (auth x4, storage x4, db x5, realtime x1 = 14) and nothing under /payments', () => {
     const app = makeApp();
     registerConnectorsRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers)).toHaveLength(17);
+    expect(Object.keys(app.handlers)).toHaveLength(14);
+    expect(Object.keys(app.handlers).filter((key) => key.includes('/payments'))).toEqual([]);
     expect(app.handlers['PUT /api/connectors/storage/:key']).toBeDefined();
     expect(app.handlers['GET /api/connectors/db/:collection']).toBeDefined();
     expect(app.handlers['GET /api/connectors/db/:collection/:id']).toBeDefined();
@@ -509,7 +416,7 @@ describe('registerConnectorsRoutes', () => {
 });
 
 /**
- * Two contracts every one of the 17 routes owes its caller, checked exhaustively rather than on the
+ * Two contracts every one of the 14 routes owes its caller, checked exhaustively rather than on the
  * two or three routes that happened to get a bespoke test:
  *
  * 1. **SEC-005** — a provider exception becomes a generic `INTERNAL_ERROR` with a correlation id, and
@@ -529,9 +436,6 @@ const ROUTE_MATRIX = [
   { label: 'storage get', route: connectorsStorageGetRoute, input: 'k1', slot: 'storage', method: 'get', capability: 'storage' },
   { label: 'storage delete', route: connectorsStorageDeleteRoute, input: 'k1', slot: 'storage', method: 'delete', capability: 'storage' },
   { label: 'storage list', route: connectorsStorageListRoute, input: undefined, slot: 'storage', method: 'list', capability: 'storage' },
-  { label: 'payments charge', route: connectorsPaymentsChargeRoute, input: { amountCents: 100, currency: 'usd', customerRef: 'c1' }, slot: 'payments', method: 'charge', capability: 'payments' },
-  { label: 'payments get', route: connectorsPaymentsGetRoute, input: 'ch1', slot: 'payments', method: 'getCharge', capability: 'payments' },
-  { label: 'payments refund', route: connectorsPaymentsRefundRoute, input: 'ch1', slot: 'payments', method: 'refund', capability: 'payments' },
   { label: 'db insert', route: connectorsDbInsertRoute, input: { collection: 'notes', record: fakeRecord }, slot: 'db', method: 'insert', capability: 'db' },
   { label: 'db get', route: connectorsDbGetRoute, input: { collection: 'notes', id: 'r1' }, slot: 'db', method: 'get', capability: 'db' },
   { label: 'db update', route: connectorsDbUpdateRoute, input: { collection: 'notes', id: 'r1', patch: { a: 1 } }, slot: 'db', method: 'update', capability: 'db' },
@@ -543,7 +447,6 @@ const ROUTE_MATRIX = [
 const PROVIDER_FACTORIES = {
   auth: makeAuthProvider,
   storage: makeStorageProvider,
-  payments: makePaymentsProvider,
   db: makeDbProvider,
   realtime: makeRealtimeProvider,
 } as const;
@@ -592,8 +495,6 @@ describe('every connectors route', () => {
  */
 describe('path-parameter parsers reject a missing segment', () => {
   it.each([
-    ['payments get (charge id)', connectorsPaymentsGetRoute],
-    ['payments refund (charge id)', connectorsPaymentsRefundRoute],
     ['db get (collection + id)', connectorsDbGetRoute],
     ['db delete (collection + id)', connectorsDbDeleteRoute],
     ['db update (collection + id)', connectorsDbUpdateRoute],
@@ -634,15 +535,6 @@ describe('path-parameter parsers reject a missing segment', () => {
     expect(connectorsStoragePutRoute.parse({ body: 'nope', query: {}, params: { key: 'k1' } }).ok).toBe(false);
   });
 
-  it('payments charge rejects a non-string description and accepts a string one', () => {
-    expect(
-      connectorsPaymentsChargeRoute.parse({ body: { amountCents: 100, currency: 'usd', customerRef: 'c1', description: 9 }, query: {}, params: {} }).ok,
-    ).toBe(false);
-    expect(
-      connectorsPaymentsChargeRoute.parse({ body: { amountCents: 100, currency: 'usd', customerRef: 'c1', description: 'tip' }, query: {}, params: {} }),
-    ).toEqual({ ok: true, value: { amountCents: 100, currency: 'usd', customerRef: 'c1', description: 'tip' } });
-  });
-
   it('db insert rejects a non-object body once the collection is valid', () => {
     expect(connectorsDbInsertRoute.parse({ body: 'nope', query: {}, params: { collection: 'notes' } }).ok).toBe(false);
   });
@@ -673,21 +565,6 @@ describe('path-parameter parsers reject a missing segment', () => {
       error: { code: 'BAD_REQUEST', message: 'body must be a JSON object' },
     });
     expect(connectorsAuthSessionRoute.parse({ body: 42, query: {}, params: {} }).ok).toBe(false);
-  });
-
-  it('payments charge rejects a non-object body and a missing customerRef', () => {
-    expect(connectorsPaymentsChargeRoute.parse({ body: 'nope', query: {}, params: {} })).toEqual({
-      ok: false,
-      error: { code: 'BAD_REQUEST', message: 'body must be a JSON object' },
-    });
-    expect(connectorsPaymentsChargeRoute.parse({ body: { amountCents: 100, currency: 'usd' }, query: {}, params: {} })).toEqual({
-      ok: false,
-      error: {
-        code: 'BAD_REQUEST',
-        message: 'customerRef must be a non-empty string',
-        details: { kind: 'validation', issues: [{ path: 'customerRef', message: 'required non-empty string' }] },
-      },
-    });
   });
 
   // Express parses a repeated query key into an array. The first value wins — a caller cannot smuggle
@@ -736,7 +613,6 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
     return {
       auth: makeAuthProvider(),
       storage: makeStorageProvider(),
-      payments: makePaymentsProvider(),
       db: makeDbProvider(),
       realtime: makeRealtimeProvider(),
     };
@@ -784,20 +660,21 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
     expect(await send(base, 'DELETE', '/api/connectors/storage/k1')).toEqual({ status: 200, body: { ok: true } });
   });
 
-  it('serves all three payments routes end to end, with charge answering 201', async () => {
-    const deps = fullyConfigured();
-    const base = await listen(deps);
+  // The payments slot was removed (see the module doc in `connectors.ts`): its two POSTs moved
+  // money with no approval and no idempotency key. Asserting the paths are gone over the wire, with a
+  // payments-shaped object even smuggled into deps, keeps a later edit from quietly re-mounting them.
+  it('no longer mounts any payments route: charge, read and refund all answer 404', async () => {
+    const charge = vi.fn();
+    const refund = vi.fn();
+    const getCharge = vi.fn();
+    const base = await listen({ ...fullyConfigured(), payments: { charge, refund, getCharge } } as ConnectorsHttpDeps);
 
-    const charge = await send(base, 'POST', '/api/connectors/payments/charge', { amountCents: 500, currency: 'usd', customerRef: 'cus_1' });
-    expect(charge).toEqual({ status: 201, body: { charge: fakeCharge } });
-
-    // The GET-by-id happy path, previously only ever driven through its 404 arm.
-    expect(await send(base, 'GET', '/api/connectors/payments/ch1')).toEqual({ status: 200, body: { charge: fakeCharge } });
-    expect(deps.payments.getCharge).toHaveBeenCalledWith({ id: 'ch1' });
-
-    const refund = await send(base, 'POST', '/api/connectors/payments/ch1/refund');
-    expect(refund.status).toBe(200);
-    expect((refund.body as { charge: { status: string } }).charge.status).toBe('refunded');
+    expect((await fetch(`${base}/api/connectors/payments/charge`, { method: 'POST', headers: { 'content-type': 'application/json', origin: base }, body: JSON.stringify({ amountCents: 500, currency: 'usd', customerRef: 'cus_1' }) })).status).toBe(404);
+    expect((await fetch(`${base}/api/connectors/payments/ch1/refund`, { method: 'POST', headers: { origin: base } })).status).toBe(404);
+    expect((await fetch(`${base}/api/connectors/payments/ch1`, { headers: { origin: base } })).status).toBe(404);
+    expect(charge).not.toHaveBeenCalled();
+    expect(refund).not.toHaveBeenCalled();
+    expect(getCharge).not.toHaveBeenCalled();
   });
 
   it('serves all five db routes end to end, resolving /db/:collection and /db/:collection/:id correctly', async () => {

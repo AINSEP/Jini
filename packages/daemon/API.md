@@ -21,7 +21,7 @@ read-only policy entry do not load HTTP or Express.
   delegated tools (`registerDelegatedToolRoutes`), remote run events
   (`registerRemoteRunEventRoutes`), frontend sessions (`registerFrontendSessionRoutes`), active
   context (`registerActiveContextRoutes`), host tools (`registerHostToolsRoutes`), model proxy
-  (`registerModelProxyRoutes`), connectors — auth/db/payments/storage/realtime provider seams
+  (`registerModelProxyRoutes`), connectors — auth/db/storage/realtime provider seams (no payments slot: money moves only through `@jini-ai/commerce`)
   (`registerConnectorsRoutes`), research (`registerResearchRoutes`), media
   (`registerMediaRoutes`), and xai (`registerXaiRoutes`). Each exports its own `*HttpDeps` type so
   you inject exactly the backing services it needs.
@@ -52,8 +52,7 @@ by the host. The old delegated-tool facades are removed. Core `IdGenerator.newId
 IDs. Executor calls use `execute({ principal, run, toolId, input }, { signal, emitSurface })`;
 controls use their required argument objects.
 
-Payment transports retain the JSON `description` field but call the provider with
-`charge({ amountCents, currency, customerRef }, { description? })`. Media transports
+Media transports
 retain the JSON request shape but call the engine with `generate({ surface, model },
 generationOptions)`. Realtime subscription handlers receive `{ event }`.
 

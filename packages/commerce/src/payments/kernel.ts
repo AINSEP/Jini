@@ -13,3 +13,5 @@ export * from "./contract/payments-port.js";
 export * from "./contract/risk.js";
 export * from "./contract/tokens.js";
 export * from "./state/status.js";
+export * from "./plugin-contribution.js";
+export * from "./provider-module-guard.js";

@@ -5,7 +5,6 @@ import { createToolRegistry } from '@jini-ai/core';
 import { checkReadOnlyTool } from '../../read-only-tools.js';
 import { validationError } from '@jini-ai/http-kit';
 import { cancelRunsOwnedBy } from '../cancel-owned-runs.js';
-import { connectorsPaymentsChargeRoute } from '../connectors.js';
 import { mediaGenerateRoute, type MediaHttpDeps } from '../media.js';
 
 describe('merged package contracts', () => {
@@ -36,12 +35,6 @@ describe('merged package contracts', () => {
     expect(checkReadOnlyTool({ registry, toolId: 'read', messages })).toBeNull();
     expect(checkReadOnlyTool({ registry, toolId: 'missing', messages })).toBe('not registered missing');
     expect(checkReadOnlyTool({ registry: undefined, toolId: 'read', messages })).toBe('missing registry');
-  });
-
-  it('passes payment descriptions separately from required charge fields', async () => {
-    const charge = vi.fn(async () => ({ id: 'charge', status: 'succeeded' as const, amountCents: 100, currency: 'usd', customerRef: 'customer', createdAt: 1 }));
-    await connectorsPaymentsChargeRoute.handle({ input: { amountCents: 100, currency: 'usd', customerRef: 'customer', description: 'memo' }, deps: { payments: { charge, getCharge: async () => null, refund: async () => { throw new Error('unused'); } } } });
-    expect(charge).toHaveBeenCalledWith({ amountCents: 100, currency: 'usd', customerRef: 'customer' }, { description: 'memo' });
   });
 
   it('keeps cancellation scoped and excludes terminal runs even across partial failures', async () => {
