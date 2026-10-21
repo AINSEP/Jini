@@ -20,7 +20,9 @@ export interface DirectoryRegistry {
  * @complexity O(n + m) records for merge, O(n) for other mutations, plus file I/O/lock wait.
  */
 export function createDirectoryRegistry(
-  { file, canonicalPath }: { file: DurableJsonFile; canonicalPath: (required: { path: string }) => string }, { discard, reportDiscarded = () => {} }: {
+  // The catalog only reads, writes and locks; it never quarantines or stages temp files, so
+  // transaction-local adapters need not stub those members.
+  { file, canonicalPath }: { file: Pick<DurableJsonFile, "read" | "write" | "withLock">; canonicalPath: (required: { path: string }) => string }, { discard, reportDiscarded = () => {} }: {
     discard?: (required: { entry: DirectoryRecord }) => boolean;
     reportDiscarded?: (required: { entries: DirectoryRecord[] }) => void;
   } = {},
