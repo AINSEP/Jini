@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { providerOk, providerRejected, providerUnknown, type ProviderContext, type ProviderResult } from "@jini-ai/core/provider-registry";
 import {
   ANALYTICS_FORWARDER_CONTRACT, asAnalyticsForwarderModule, asAnalyticsIngestHook, composeBeforeIngestHooks,
-  createAnalyticsForwarderRegistry, createFanOutAnalyticsSink, LocalBufferSink, selectAnalyticsForwarder, toForwardedHit,
+  createAnalyticsForwarderRegistry, createAnalyticsForwardLimiter, createFanOutAnalyticsSink, DEFAULT_MAX_FORWARDS_IN_FLIGHT, LocalBufferSink, selectAnalyticsForwarder, toForwardedHit,
   type AnalyticsForwarder, type AnalyticsForwarderModule, type ForwardedHit, type NormalizedHit,
 } from "../index.js";
 
@@ -192,5 +192,33 @@ describe("composeBeforeIngestHooks", () => {
   it("uses a silent default report", async () => {
     const chain = composeBeforeIngestHooks({ hooks: [{ beforeIngest: async () => { throw new Error("x"); } }] });
     expect((await chain!.beforeIngest({ hit: hit() }))?.path).toBe("/a");
+  });
+});
+
+describe("createAnalyticsForwardLimiter + fan-out", () => {
+  it("drops and reports forwards over the shared cap, releases on settle, and never touches the primary", async () => {
+    const primary = new LocalBufferSink({});
+    const limiter = createAnalyticsForwardLimiter({}, { maxInFlight: 1 });
+    const reports: unknown[] = [];
+    const tasks: Promise<void>[] = [];
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const slow: AnalyticsForwarder = { forward: async () => { await gate; return providerOk({ value: undefined }); } };
+    const options = { forwarders: [{ id: "slow", forwarder: slow, context }], limiter, report: (r: unknown) => reports.push(r), schedule: (t: Promise<void>) => tasks.push(t) };
+    // Two sinks sharing one limiter, as a host building a sink per request does.
+    await createFanOutAnalyticsSink({ primary }, options).accept({ hit: hit("/1") });
+    await createFanOutAnalyticsSink({ primary }, options).accept({ hit: hit("/2") });
+    expect(reports).toEqual([{ forwarderId: "slow", outcome: "dropped", message: "too many vendor calls in flight" }]);
+    release();
+    await Promise.all(tasks);
+    expect(limiter.tryAcquire()).toBe(true);
+    expect(primary.all({})).toHaveLength(2);
+  });
+
+  it("defaults to the documented cap and never goes below zero", () => {
+    const limiter = createAnalyticsForwardLimiter();
+    limiter.release();
+    for (let i = 0; i < DEFAULT_MAX_FORWARDS_IN_FLIGHT; i++) expect(limiter.tryAcquire()).toBe(true);
+    expect(limiter.tryAcquire()).toBe(false);
   });
 });

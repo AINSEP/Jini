@@ -124,7 +124,38 @@ export interface BoundAnalyticsForwarder {
 }
 
 /** Log-safe failure report: never carries the hit or a vendor payload. */
-export type AnalyticsForwardReport = (required: { forwarderId: string; outcome: "rejected" | "unknown" | "threw"; message: string }) => void;
+export type AnalyticsForwardReport = (required: { forwarderId: string; outcome: "rejected" | "unknown" | "threw" | "dropped"; message: string }) => void;
+
+/** Caps vendor calls in flight across every fan-out sink that shares it. */
+export interface AnalyticsForwardLimiter {
+  tryAcquire(_required?: Record<string, never>): boolean;
+  release(_required?: Record<string, never>): void;
+}
+
+/** Default cap: enough for normal traffic; a beacon flood sheds vendor calls, never local hits. */
+export const DEFAULT_MAX_FORWARDS_IN_FLIGHT = 64;
+
+/**
+ * One shared in-flight cap. A host builds it once (per process) because fan-out sinks may be
+ * built per request; over the cap a forward is dropped and reported, so a flood of beacons can
+ * neither pile up unbounded vendor calls nor be amplified at a vendor.
+ * @complexity O(1) per call.
+ */
+export function createAnalyticsForwardLimiter(
+  _required: Record<string, never> = {},
+  optional: { maxInFlight?: number } = {},
+): AnalyticsForwardLimiter {
+  const { maxInFlight = DEFAULT_MAX_FORWARDS_IN_FLIGHT } = optional;
+  let inFlight = 0;
+  return {
+    tryAcquire: () => {
+      if (inFlight >= maxInFlight) return false;
+      inFlight += 1;
+      return true;
+    },
+    release: () => { inFlight = Math.max(0, inFlight - 1); },
+  };
+}
 
 /** Runs one forward; every failure becomes a report, never a throw. @complexity O(1) + vendor call. */
 async function forwardOne(required: { bound: BoundAnalyticsForwarder; hit: ForwardedHit; report: AnalyticsForwardReport }): Promise<void> {
@@ -145,17 +176,28 @@ const detach = (_task: Promise<void>): void => undefined;
  * then receives the minimised hit without being awaited. Reads and capabilities are the primary's.
  * With no forwarders this is behaviourally the primary itself.
  * @param optional.schedule - Receives each in-flight forward; tests await it, production detaches.
+ * @param optional.limiter - Shared in-flight cap; over it a forward is dropped and reported.
  * @complexity accept O(f) forwarders scheduled; acceptBatch O(n·f).
  */
 export function createFanOutAnalyticsSink(
   required: { primary: AnalyticsSinkPort },
-  optional: { forwarders?: readonly BoundAnalyticsForwarder[]; report?: AnalyticsForwardReport; schedule?: (task: Promise<void>) => void } = {},
+  optional: {
+    forwarders?: readonly BoundAnalyticsForwarder[];
+    report?: AnalyticsForwardReport;
+    schedule?: (task: Promise<void>) => void;
+    limiter?: AnalyticsForwardLimiter;
+  } = {},
 ): AnalyticsSinkPort {
   const { primary } = required;
-  const { forwarders = [], report = () => undefined, schedule = detach } = optional;
+  const { forwarders = [], report = () => undefined, schedule = detach, limiter } = optional;
+  const send = (bound: BoundAnalyticsForwarder, hit: ForwardedHit): void => {
+    if (!limiter) return schedule(forwardOne({ bound, hit, report }));
+    if (!limiter.tryAcquire()) return report({ forwarderId: bound.id, outcome: "dropped", message: "too many vendor calls in flight" });
+    schedule(forwardOne({ bound, hit, report }).finally(() => limiter.release()));
+  };
   const fanOut = (hit: NormalizedHit): void => {
     const forwarded = toForwardedHit({ hit });
-    for (const bound of forwarders) schedule(forwardOne({ bound, hit: forwarded, report }));
+    for (const bound of forwarders) send(bound, forwarded);
   };
   return {
     capabilities: (input) => primary.capabilities(input),

@@ -4,7 +4,7 @@
 
 ### Minor Changes
 
-- Vendor forwarding (`forwarding.ts`): `AnalyticsForwarder` provider contract + `createAnalyticsForwarderRegistry` (shared `@jini-ai/core/provider-registry`), `selectAnalyticsForwarder`, minimised `toForwardedHit` (no region/sessionId), `createFanOutAnalyticsSink` (primary awaited, forwarders detached and isolated), `composeBeforeIngestHooks` (ordered chain; a throwing handler is skipped and reported). `AnalyticsSinkKind` widens to `"local" | string` (forwarder id).
+- Vendor forwarding (`forwarding.ts`): `AnalyticsForwarder` provider contract + `createAnalyticsForwarderRegistry` (shared `@jini-ai/core/provider-registry`), `selectAnalyticsForwarder`, minimised `toForwardedHit` (no region/sessionId), `createFanOutAnalyticsSink` (primary awaited, forwarders detached and isolated), `composeBeforeIngestHooks` (ordered chain; a throwing handler is skipped and reported). Shared `createAnalyticsForwardLimiter` caps vendor calls in flight (over the cap: dropped + reported, local hits unaffected). `AnalyticsSinkKind` widens to `"local" | string` (forwarder id).
 
 ## 0.2.1
 
