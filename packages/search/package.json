@@ -15,7 +15,8 @@
     "entries": {
       ".": "universal",
       "./tools": "universal",
-      "./testkit": "universal"
+      "./testkit": "universal",
+      "./contribution": "node"
     }
   },
   "type": "module",
@@ -30,6 +31,11 @@
       "types": "./dist/tools.d.ts",
       "import": "./dist/tools.js",
       "default": "./dist/tools.js"
+    },
+    "./contribution": {
+      "types": "./dist/contribution.d.ts",
+      "import": "./dist/contribution.js",
+      "default": "./dist/contribution.js"
     },
     "./testkit": {
       "types": "./dist/testkit/index.d.ts",
@@ -57,7 +63,16 @@
     "@jini-ai/core": "workspace:^"
   },
   "devDependencies": {
+    "@jini-ai/agent-plugins": "workspace:*",
     "@vitest/coverage-v8": "^2.1.9",
     "vitest": "^2.1.9"
+  },
+  "peerDependencies": {
+    "@jini-ai/agent-plugins": "^0.4.7"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/agent-plugins": {
+      "optional": true
+    }
   }
 }
