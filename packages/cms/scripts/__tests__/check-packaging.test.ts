@@ -67,7 +67,7 @@ describe('bareImportSpecifiers', () => {
       "import { local } from './local.js';",
       "import { a as again } from 'pkg-a';",
     ].join('\n');
-    expect(bareImportSpecifiers(src)).toEqual(['pkg-a', '@scope/b/sub', 'pkg-c/deep/path', 'side-effect-pkg', 'pkg-d', 'pkg-e']);
+    expect(bareImportSpecifiers({ src })).toEqual(['pkg-a', '@scope/b/sub', 'pkg-c/deep/path', 'side-effect-pkg', 'pkg-d', 'pkg-e']);
   });
 
   it('ignores imports that only appear inside block or line comments', () => {
@@ -76,28 +76,28 @@ describe('bareImportSpecifiers', () => {
       '// import { y } from "commented-line";',
       "import { z } from 'real-dep'; // trailing note: import 'not-this'",
     ].join('\n');
-    expect(bareImportSpecifiers(src)).toEqual(['real-dep']);
+    expect(bareImportSpecifiers({ src })).toEqual(['real-dep']);
   });
 
   it('does not mistake the "//" of a URL for a comment that would hide the rest of the line', () => {
-    expect(bareImportSpecifiers("const u = 'https://cdn.test'; const m = require('real-dep');")).toEqual(['real-dep']);
+    expect(bareImportSpecifiers({ src: "const u = 'https://cdn.test'; const m = require('real-dep');" })).toEqual(['real-dep']);
   });
 });
 
 describe('packageNameOf', () => {
   it('maps scoped and unscoped deep specifiers to their installable package', () => {
-    expect(packageNameOf('@scope/name/deep/file.js')).toBe('@scope/name');
-    expect(packageNameOf('lodash/fp')).toBe('lodash');
-    expect(packageNameOf('plain')).toBe('plain');
+    expect(packageNameOf({ spec: '@scope/name/deep/file.js' })).toBe('@scope/name');
+    expect(packageNameOf({ spec: 'lodash/fp' })).toBe('lodash');
+    expect(packageNameOf({ spec: 'plain' })).toBe('plain');
   });
 });
 
 describe('isCheckedSource', () => {
   it('checks shipped .ts sources only', () => {
-    expect(isCheckedSource('/r/src/a.ts')).toBe(true);
-    expect(isCheckedSource('/r/src/a.test.ts')).toBe(false);
-    expect(isCheckedSource('/r/src/__tests__/fixture.ts')).toBe(false);
-    expect(isCheckedSource('/r/src/a.js')).toBe(false);
+    expect(isCheckedSource({ path: '/r/src/a.ts' })).toBe(true);
+    expect(isCheckedSource({ path: '/r/src/a.test.ts' })).toBe(false);
+    expect(isCheckedSource({ path: '/r/src/__tests__/fixture.ts' })).toBe(false);
+    expect(isCheckedSource({ path: '/r/src/a.js' })).toBe(false);
   });
 });
 

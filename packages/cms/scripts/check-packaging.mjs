@@ -45,8 +45,13 @@ export function walkFiles({ dir }, { fs = nodeFs } = {}) {
   });
 }
 
-/** Only shipped TypeScript sources are checked; tests never reach a consumer. */
-export function isCheckedSource(path) {
+/**
+ * Only shipped TypeScript sources are checked; tests never reach a consumer.
+ * @param {{ path: string }} required
+ * @param {Record<string, never>} [_optional]
+ * @returns {boolean}
+ */
+export function isCheckedSource({ path }, _optional = {}) {
   return path.endsWith('.ts') && !/__tests__|\.test\.ts$/.test(path);
 }
 
@@ -57,10 +62,11 @@ export function isCheckedSource(path) {
  * `import type { Express } from \"express\"`") is indistinguishable from a real import, and the
  * check reports confident nonsense. A packaging guard that cries wolf gets muted, so precision
  * here matters more than catching an exotic import form.
- * @param {string} src
+ * @param {{ src: string }} required
+ * @param {Record<string, never>} [_optional]
  * @returns {string[]} De-duplicated specifiers, `node:` builtins included.
  */
-export function bareImportSpecifiers(src) {
+export function bareImportSpecifiers({ src }, _optional = {}) {
   const code = src
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
@@ -76,26 +82,31 @@ export function bareImportSpecifiers(src) {
   return [...new Set(specs)];
 }
 
-/** The installable package a specifier resolves to: `@scope/name` or the first path segment. */
-export function packageNameOf(spec) {
+/**
+ * The installable package a specifier resolves to: `@scope/name` or the first path segment.
+ * @param {{ spec: string }} required
+ * @param {Record<string, never>} [_optional]
+ * @returns {string}
+ */
+export function packageNameOf({ spec }, _optional = {}) {
   return spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0];
 }
 
 /** Check 1: every bare (non-`node:`) import must be a declared dependency or peerDependency. */
-export function undeclaredImportProblems({ rel, src, pkg }) {
+export function undeclaredImportProblems({ rel, src, pkg }, _optional = {}) {
   const declared = new Set([
     ...Object.keys(pkg.dependencies ?? {}),
     ...Object.keys(pkg.peerDependencies ?? {}),
   ]);
-  return bareImportSpecifiers(src)
+  return bareImportSpecifiers({ src })
     .filter((spec) => !spec.startsWith('node:'))
-    .map(packageNameOf)
+    .map((spec) => packageNameOf({ spec }))
     .filter((name) => !declared.has(name))
     .map((name) => `${rel}: imports "${name}" but it is in neither dependencies nor peerDependencies`);
 }
 
 /** Check 2: import-time side effects must be licensed by the `sideEffects` field. */
-export function sideEffectProblems({ rel, src, pkg }) {
+export function sideEffectProblems({ rel, src, pkg }, _optional = {}) {
   const topLevelCalls = src
     .split('\n')
     .filter((l) => /^[a-zA-Z_$][\w$]*\s*\(/.test(l))
@@ -112,7 +123,7 @@ export function sideEffectProblems({ rel, src, pkg }) {
 }
 
 /** Check 3: host configuration read inside the library. */
-export function envProblems({ rel, src }) {
+export function envProblems({ rel, src }, _optional = {}) {
   return /process\.env/.test(src)
     ? [`${rel}: reads process.env — a library must not resolve host configuration; take it as a parameter`]
     : [];
@@ -121,9 +132,10 @@ export function envProblems({ rel, src }) {
 /**
  * Run all three checks over the given sources, in file order then check order.
  * @param {{ pkg: PackageManifest; files: SourceFile[] }} required
+ * @param {Record<string, never>} [_optional]
  * @returns {string[]} Human-readable problems; empty means the package is clean.
  */
-export function checkPackaging({ pkg, files }) {
+export function checkPackaging({ pkg, files }, _optional = {}) {
   return files.flatMap(({ rel, src }) => [
     ...undeclaredImportProblems({ rel, src, pkg }),
     ...sideEffectProblems({ rel, src, pkg }),
@@ -139,7 +151,7 @@ export function checkPackaging({ pkg, files }) {
  */
 export function runCheckPackaging({ root }, { fs, log, error }) {
   const pkg = JSON.parse(fs.readFileSync(join(root, 'package.json'), 'utf8'));
-  const files = walkFiles({ dir: join(root, 'src') }, { fs }).filter(isCheckedSource);
+  const files = walkFiles({ dir: join(root, 'src') }, { fs }).filter((path) => isCheckedSource({ path }));
   const problems = checkPackaging({
     pkg,
     files: files.map((file) => ({ rel: relative(root, file), src: fs.readFileSync(file, 'utf8') })),
