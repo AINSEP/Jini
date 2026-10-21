@@ -231,13 +231,15 @@
 .jini-middle-truncate__tail { flex: none; }
 
 /* `ScrollJumpButtons`: absolutely placed in the host's positioned content column; hosts move it
-   clear of their own floating controls with the two custom properties. */
+   clear of their own floating controls with the custom properties (a row lines the pair up beside
+   a FAB instead of stacking it above). The wrapper takes no taps, so the gap between the buttons
+   and a hidden slot never block the page under them. */
 .jini-scroll-jump {
   position: absolute; right: var(--jini-scroll-jump-right, 16px); bottom: var(--jini-scroll-jump-bottom, 16px);
-  display: flex; flex-direction: column; gap: 6px; z-index: 20;
+  display: flex; flex-direction: var(--jini-scroll-jump-direction, column); gap: 6px; z-index: 20; pointer-events: none;
 }
 .jini-scroll-jump__btn {
-  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0;
+  pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0;
   border-radius: 50%; border: 1px solid var(--jini-border); background: var(--jini-bg-elevated); color: var(--jini-text-muted);
   box-shadow: var(--jini-shadow-md); cursor: pointer; opacity: 0.85; transition: opacity 0.12s, color 0.12s;
 }

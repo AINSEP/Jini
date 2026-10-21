@@ -16,7 +16,7 @@ const offProps = (show: boolean) => (show ? {} : { "data-off": "" });
 
 /**
  * A quiet ↑/↓ pair for long pages. Hidden on short pages; ↑ hides at the top and ↓ at the bottom.
- * Position it with the host's CSS (`--jini-scroll-jump-right`/`--jini-scroll-jump-bottom`) so it
+ * Position it with the host's CSS (`--jini-scroll-jump-right`/`-bottom`/`-direction`) so it
  * clears that host's own floating controls.
  */
 export function ScrollJumpButtons({ container, labels = DEFAULT_LABELS, useJump = useScrollJump }: ScrollJumpButtonsProps) {
