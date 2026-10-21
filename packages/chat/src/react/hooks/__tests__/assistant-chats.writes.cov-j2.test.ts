@@ -203,7 +203,7 @@ describe('request-bound run stubs', () => {
     const { result, writes } = await mountOn('a');
     act(() => result.current.onMessagesChange({ messages: [reply('r1', { runId: '', runStatus: 'queued' })] }));
     await settle();
-    expect(writes()).toEqual(['a/r1:@queued'.replace(':@', '@')]);
+    expect(writes()).toEqual(['a/r1@queued']);
   });
 
   it('retries a failed stub on the next delta instead of leaving it missing', async () => {
