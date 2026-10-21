@@ -114,6 +114,18 @@ test("AC-16: a legacy transactional send without a lane defaults to notification
     await gated.send(sendInput(FAKE_EMAIL, options), sendOptions(options));
     assert.deepEqual(sends, [options]);
 });
+test("a notification send that names no source module is gated and refused as capability \"unknown\"", async () => {
+    const { mailer, sends } = fakeInnerMailer();
+    const asked: string[] = [];
+    const gated = wrapMailerWithPurposeGate({ inner: mailer, mode: "production",
+        readiness: { isReady: ({ capabilityName }) => { asked.push(capabilityName); return false; } } });
+    // A plain-JS caller can omit sourceContext entirely; the gate must still fail closed.
+    const options = { idempotencyKey: "anon-1", workspaceId: "ws-1", lane: "notification" } as unknown as MailerSendOptions;
+    await assert.rejects(() => gated.send(sendInput(FAKE_EMAIL, options), sendOptions(options)),
+        /MAILER_SEND_REFUSED_NO_DURABLE_PATH: notification-lane mailer send refused for capability "unknown"/);
+    assert.deepEqual(asked, ["unknown"]);
+    assert.equal(sends.length, 0);
+});
 test("AC-17: post-fix vocabulary split resolves members (interactive) and forms (notification) to distinct lanes", async () => {
     const { mailer, sends } = fakeInnerMailer();
     const gated = wrapMailerWithPurposeGate({ inner: mailer, mode: "production", readiness: { isReady: () => false } });
