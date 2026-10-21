@@ -94,3 +94,13 @@ test("missing-domain sweep retains adapter-unavailable even when policy denies i
   assert.equal(h.repo.all({}).length, 1);
   assert.ok(h.records.records.has("record-1"));
 });
+
+test("a due row whose type the entity policy forbids is reported forbidden and never purged", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+  const report = await createTrashSweep({ ...h.deps, entityPolicy: () => false })(claim);
+
+  assert.deepEqual(report, { claimed: 1, purged: 0, results: [{ id: "trash-1", outcome: "forbidden" }] });
+  assert.ok(h.records.records.get("record-1"));
+  assert.equal(h.repo.all({}).length, 1);
+});

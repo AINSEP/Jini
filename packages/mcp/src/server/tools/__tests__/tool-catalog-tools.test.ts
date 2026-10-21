@@ -92,4 +92,17 @@ describe('describeToolTool', () => {
     expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/tools/page.fill' }, { fetchImpl: ctx.fetchImpl });
     expect(result).toEqual({ id: 'page.fill', description: 'Fill a field' });
   });
+
+  it('publishes only the fields the daemon actually described, never inventing a schema or read-only claim', async () => {
+    const published: unknown[] = [];
+    const publishing: McpToolContext = { ...ctx, publishTool: async ({ descriptor }) => { published.push(descriptor); } };
+    getDaemonJson.mockResolvedValueOnce({ id: 'page.fill', description: 7, readOnly: 'yes' });
+    await describeToolTool.handler({ args: { id: 'page.fill' }, ctx: publishing });
+    getDaemonJson.mockResolvedValueOnce({ id: 'page.read', description: 'Read a page', readOnly: true, inputSchema: { type: 'object' } });
+    await describeToolTool.handler({ args: { id: 'page.read' }, ctx: publishing });
+    expect(published).toEqual([
+      { id: 'page.fill' },
+      { id: 'page.read', description: 'Read a page', readOnly: true, inputSchema: { type: 'object' } },
+    ]);
+  });
 });

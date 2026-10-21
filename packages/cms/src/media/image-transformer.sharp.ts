@@ -63,7 +63,7 @@ export class ImageSourceCorruptError extends Error {
 }
 
 /** The narrow slice of `sharp`'s fluent API this adapter calls. */
-interface SharpInstance {
+export interface SharpInstance {
   resize(
     width?: number,
     height?: number,
@@ -73,7 +73,19 @@ interface SharpInstance {
   flatten(options: { background: string }): SharpInstance;
   toBuffer(): Promise<Buffer>;
 }
-type SharpFactory = (input: Buffer, options?: { animated?: boolean }) => SharpInstance;
+export type SharpFactory = (input: Buffer, options?: { animated?: boolean }) => SharpInstance;
+
+/** Options for {@link SharpImageTransformer}; every field defaults at this composition edge. */
+export interface SharpImageTransformerOptional {
+  /** Resolves the `sharp` factory. Defaults to {@link requireSharp}; a host may inject its own
+   *  instance (or a fake), and a loader that throws is reported as {@link ImageTransformUnavailableError}. */
+  loadSharp?: () => SharpFactory;
+}
+
+/** The default loader: a deferred, untyped `require("sharp")` (see file header for why). */
+function requireSharp(): SharpFactory {
+  return require("sharp") as SharpFactory;
+}
 
 /**
  * {@link TransformFormat} values that can actually carry multiple frames on output. GIF and WebP
@@ -92,10 +104,10 @@ const ANIMATION_CAPABLE_FORMATS: ReadonlySet<TransformFormat> = new Set(["webp",
  * on subsequent calls.
  * @overallScore 100
  */
-function loadSharpFactory(): SharpFactory {
+function loadSharpFactory(loadSharp: () => SharpFactory): SharpFactory {
   try {
-    return require("sharp") as SharpFactory;
-  } catch (err) {
+    return loadSharp();
+  } catch {
     throw new ImageTransformUnavailableError({ message: "the 'sharp' npm package is not installed in this environment (run `npm install sharp`) — " +
         "SharpImageTransformer cannot perform a real pixel transform without it. This is a " +
         "disclosed, optional-dependency blocker, not a silent stub: no bytes are faked or passed " +
@@ -157,8 +169,14 @@ function loadSharpFactory(): SharpFactory {
  * API.
  */
 export class SharpImageTransformer implements ImageTransformerPort {
+  private readonly loadSharp: () => SharpFactory;
+
+  constructor(_required: Record<string, never> = {}, optional: SharpImageTransformerOptional = {}) {
+    this.loadSharp = optional.loadSharp ?? requireSharp;
+  }
+
   async transform(input: TransformImageInput): Promise<TransformImageOutput> {
-    const sharpFactory = loadSharpFactory();
+    const sharpFactory = loadSharpFactory(this.loadSharp);
     const preserveAnimation = ANIMATION_CAPABLE_FORMATS.has(input.params.format);
 
     // Pipeline construction through `toBuffer()` all live in one try/catch: any of these steps can

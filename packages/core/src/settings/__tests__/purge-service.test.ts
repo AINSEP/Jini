@@ -221,3 +221,30 @@ test("purgeTenantSettings against an already-empty workspace purges nothing and 
 
   assert.equal(result.purgedCount, 0);
 });
+
+test("a whole-tenant purge skips a malformed user-value row with no principal: it is neither ledgered, deleted, nor counted", async () => {
+  const def = definition("orphan");
+  const orphan = {
+    settingId: def.settingId,
+    scope: "user" as const,
+    workspaceId: "ws-1",
+    principalId: null,
+    valueJson: "kept",
+    state: "set" as const,
+    defVersion: 1,
+    seq: 1,
+    updatedBy: "actor-1",
+    updatedAt: NOW,
+    originPluginId: null,
+  };
+  const repo = new InMemorySettingsRepo({ definitions: [def], userValues: [orphan] });
+
+  const result = await purgeTenantSettings({
+    deps: { repo, clock, authorize: alwaysAllow },
+    input: { workspaceId: "ws-1", callerPrincipalId: "actor-1" },
+  });
+
+  assert.equal(result.purgedCount, 0);
+  assert.deepEqual(await repo.listRevisions({ settingId: def.settingId }), []);
+  assert.deepEqual(await repo.listUserValuesByWorkspace({ workspaceId: "ws-1" }), [orphan]);
+});

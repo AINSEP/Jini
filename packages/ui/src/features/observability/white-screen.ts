@@ -76,25 +76,23 @@ export function installWhiteScreenDetector(options: WhiteScreenDetectorOptions =
     rootElementId,
   });
 
-  let cancelled = false;
-  // The `cancelled` guards at the top of this timer callback and inside the
-  // `monitorMount` completion callback just below are defensive invariant
-  // checks, empirically and structurally unreachable through this
-  // function's real call graph: both places that ever set
+  // There is no `cancelled` flag guarding the timer callback or the
+  // `monitorMount` completion callback just below. Such guards were defensive
+  // invariant checks, empirically and structurally unreachable through this
+  // function's real call graph: both places that ever set the old
   // `cancelled = true` (this closure's returned teardown, and the
   // `monitorMount` completion callback itself) always call
   // `window.clearTimeout(timer)` / `observer.disconnect()` synchronously in
   // that same turn — and in this single-threaded runtime, a timer that's
   // been cleared (or a `MutationObserver` that's been disconnected, which
   // also discards its pending record queue per spec) can never still fire
-  // its callback afterward. So by the time either callback runs at all,
-  // `cancelled` is guaranteed to still be its initial `false`. Left in
-  // place (not stripped) as a guard against a future refactor silently
-  // breaking that invariant — see packages/ui/archived provenance ledger's 2026-07-22
-  // dated entry for the full proof, same pattern as this package's
-  // `stuck-run.ts` `emitStuck` precedent.
+  // its callback afterward. So neither callback can run after teardown or
+  // after the other has finished. The guards (and the then write-only flag)
+  // were removed in the 2026-10-21 coverage pass — unreachable code is
+  // refactored away rather than fake-tested; see packages/ui/archived
+  // provenance ledger's 2026-07-22 dated entry for the full proof, same
+  // pattern as this package's `stuck-run.ts` `emitStuck`.
   const timer = window.setTimeout(() => {
-    if (cancelled) return;
     if (isAppMounted()) return;
     reporter('client_white_screen', {
       reason: 'app_not_mounted_after_timeout',
@@ -109,13 +107,10 @@ export function installWhiteScreenDetector(options: WhiteScreenDetectorOptions =
   }, timeoutMs);
 
   const stopMonitor = monitorMount(isAppMounted, () => {
-    if (cancelled) return;
-    cancelled = true;
     window.clearTimeout(timer);
   });
 
   return () => {
-    cancelled = true;
     window.clearTimeout(timer);
     stopMonitor();
   };
@@ -172,8 +167,8 @@ function isLoadingShell(el: Element, loadingShellClasses: ReadonlySet<string>): 
 }
 
 function monitorMount(isAppMounted: () => boolean, onMounted: () => void): () => void {
-  let stopped = false;
-  // The `stopped` guard at the top of this callback is a defensive
+  // There is no `stopped` flag or guard at the top of this callback (both
+  // removed in the 2026-10-21 coverage pass) — the guard was a defensive
   // invariant check, empirically confirmed unreachable: a `MutationObserver`
   // callback fires at most once per batch of queued mutation records
   // (never re-entrantly mid-callback), `stopped` only ever flips to `true`
@@ -188,9 +183,7 @@ function monitorMount(isAppMounted: () => boolean, onMounted: () => void): () =>
   // zero more. See packages/ui/archived provenance ledger's 2026-07-22 dated entry for
   // the full record.
   const observer = new MutationObserver(() => {
-    if (stopped) return;
     if (isAppMounted()) {
-      stopped = true;
       observer.disconnect();
       onMounted();
     }
@@ -208,12 +201,10 @@ function monitorMount(isAppMounted: () => boolean, onMounted: () => void): () =>
   // Best-effort short-circuit: if the app is already mounted by the time
   // this runs (HMR, slow tab, etc.), fire immediately.
   if (isAppMounted()) {
-    stopped = true;
     observer.disconnect();
     onMounted();
   }
   return () => {
-    stopped = true;
     observer.disconnect();
   };
 }

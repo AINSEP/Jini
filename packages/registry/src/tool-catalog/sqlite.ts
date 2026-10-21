@@ -116,7 +116,7 @@ function tokenize(text: string): string[] {
  */
 export function searchToolCatalog(
   { db, query }: { db: SqliteDb; query: string },
-  { limit = 10 }: { limit?: number } = {},
+  { limit = 10 }: { limit?: number | undefined } = {},
 ): readonly ToolCatalogSearchHit[] {
   const terms = tokenize(query);
   if (terms.length === 0) return [];

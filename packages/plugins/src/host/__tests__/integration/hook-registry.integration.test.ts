@@ -411,3 +411,59 @@ test("failed quarantine persistence preserves the failure and detaches the filte
   assert.deepEqual(await registry.runBeforeSave(draft()), {});
   assert.equal(calls, 1);
 });
+
+test("BR-06: a 'number' field accepts any finite number (not only integers) and still rejects a string", async () => {
+  const registry = createHookRegistry();
+  registry.attach("reading-time", "site", async (entry) => ({ minutes: entry.title === "Hello" ? 1.5 : "slow" }), [
+    { path: "ext.reading-time.minutes", type: "number" },
+  ]);
+  assert.deepEqual(await registry.runBeforeSave(draft()), { "reading-time": { minutes: 1.5 } });
+  await assert.rejects(() => registry.runBeforeSave(draft({ title: "Other" })), /declared type 'number' \(FIELD_TYPE_MISMATCH\)/);
+});
+
+test("BR-06: a declared path with no dot is matched by its whole text as the field name", async () => {
+  const registry = createHookRegistry();
+  registry.attach("flat", "site", async () => ({ flag: true }), [{ path: "flag", type: "boolean" }]);
+  assert.deepEqual(await registry.runBeforeSave(draft()), { flat: { flag: true } });
+});
+
+test("a filter that rejects with a non-Error value is reported with that value's text", async () => {
+  const registry = createHookRegistry();
+  registry.attach("odd", "site", () => Promise.reject("quota exceeded"), []);
+  await assert.rejects(() => registry.runBeforeSave(draft()), (error: unknown) => {
+    assert.ok(error instanceof PluginHookFailedError);
+    assert.equal(error.message, "plugin 'odd' content.entry.beforeSave filter failed: quota exceeded");
+    assert.equal(error.cause, "quota exceeded");
+    return true;
+  });
+});
+
+test("an entry whose ext cannot be snapshotted fails closed as that plugin's hook failure, with the clone error as cause", async () => {
+  let calls = 0;
+  const registry = createHookRegistry();
+  registry.attach("snap", "site", async () => { calls++; return {}; }, []);
+  const entry = draft({ ext: { other: { callback: () => "not cloneable" } } });
+  await assert.rejects(() => registry.runBeforeSave(entry), (error: unknown) => {
+    assert.ok(error instanceof PluginHookFailedError);
+    assert.equal(error.pluginId, "snap");
+    assert.equal(error.message, "plugin 'snap' beforeSave hook failed");
+    assert.equal((error.cause as Error).name, "DataCloneError");
+    return true;
+  });
+  assert.equal(calls, 0, "the filter never sees an entry it could not be isolated from");
+});
+
+test("a quarantine store that rejects with a non-Error value is still reported in the failure message", async () => {
+  const registry = createHookRegistry({ failureThreshold: 1, onQuarantine: () => Promise.reject("disk full") });
+  registry.attach("bad", "site", async () => { throw new Error("boom"); }, []);
+  await assert.rejects(
+    () => registry.runBeforeSave(draft()),
+    { message: "plugin 'bad' content.entry.beforeSave filter failed: boom; automatic quarantine persistence failed: disk full" },
+  );
+});
+
+test("the failure threshold must be a positive integer", () => {
+  for (const failureThreshold of [0, -1, 1.5, Number.NaN]) {
+    assert.throws(() => createHookRegistry({ failureThreshold }), { name: "RangeError", message: "plugin failure threshold must be a positive integer" });
+  }
+});

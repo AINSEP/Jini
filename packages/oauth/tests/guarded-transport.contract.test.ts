@@ -106,6 +106,25 @@ describe('guarded upstream fetch contract', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it('maps a cause-free failure outside the fetch call to the unreachable facade, but keeps facade errors as thrown', async () => {
+    const fetchFn = vi.fn<OAuthFetch>(async () => Response.json({}));
+    const unreachable = { preserveCause: false as const, message: 'could not reach the revocation endpoint', operatorAction: 'Check network access.' };
+    const hostFailure = new Error('host guard crashed with a secret-bearing message');
+    const assertSafeUrl = vi.fn((): URL => { throw hostFailure; });
+    const customFetch = createOAuthCustomFetch({
+      fetchFn, guard: { assertSafeUrl }, responseMessages, endpointLabel: 'revocation endpoint', timeoutMs: 10_000,
+    }, { unreachable });
+    const failure = await customFetch(endpoint, request()).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(OAuthError);
+    expect(failure).toMatchObject({ code: 'OAUTH_PROVIDER_UNREACHABLE', message: unreachable.message, operatorAction: unreachable.operatorAction });
+    expect((failure as OAuthError).cause).toBeUndefined();
+    expect(customFetch.failure).toEqual({ error: failure });
+    const facade = new OAuthError({ code: 'OAUTH_UNSAFE_ENDPOINT', message: 'blocked', operatorAction: 'Check policy.' });
+    assertSafeUrl.mockImplementation(() => { throw facade; });
+    await expect(customFetch(endpoint, request())).rejects.toBe(facade);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   it('uses the exact URL returned by the guard and preserves host policy errors', async () => {
     const fetchFn = vi.fn<OAuthFetch>(async () => Response.json({}));
     const failure = new OAuthError({ code: 'OAUTH_UNSAFE_ENDPOINT', message: 'blocked', operatorAction: 'Check policy.' });

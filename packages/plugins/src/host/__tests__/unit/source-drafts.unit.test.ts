@@ -470,3 +470,10 @@ test('a filesystem fault other than ENOENT while probing a path propagates', asy
   const blocked = createPluginSourceService({ ...f.sourceDeps, installDir: path.join(f.root, 'file', 'plugins') }, { temporaryDir: f.root });
   await assert.rejects(blocked.readApproval({ id }), { code: 'ENOTDIR' });
 });
+
+test('capability sets name a content type without a string key by its JSON text, so an unnamed declaration still counts as a widening', () => {
+  const base = { tier: 'tier-1' as const, capabilities: [], hooks: [], fields: [] };
+  const caps = pluginCapabilitySet({ manifest: { ...base, contentTypes: [{ label: 'Untitled' }, null, { key: 7 }] } });
+  assert.deepEqual(caps, ['content-type:null', 'content-type:{"key":7}', 'content-type:{"label":"Untitled"}', 'tier:tier-1']);
+  assert.deepEqual(addedPluginCapabilities({ approved: pluginCapabilitySet({ manifest: base }), next: caps }), ['content-type:null', 'content-type:{"key":7}', 'content-type:{"label":"Untitled"}']);
+});

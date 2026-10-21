@@ -36,8 +36,10 @@ export function createElectronShellPort(surfaces: ElectronShellSurfaces): ShellP
         properties: ['openDirectory'],
         ...(options?.defaultPath !== undefined ? { defaultPath: options.defaultPath } : {}),
       });
-      if (result.canceled || result.filePaths.length === 0) return null;
-      return result.filePaths[0] ?? null;
+      // One check covers both "nothing chosen" shapes; the former `filePaths[0] ?? null` fallback
+      // after a separate length check could never apply.
+      const [chosen] = result.filePaths;
+      return result.canceled || chosen === undefined ? null : chosen;
     },
   };
 }

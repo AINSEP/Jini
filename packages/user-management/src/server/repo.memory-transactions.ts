@@ -15,12 +15,12 @@ export function createTransactionalInMemoryIdentityRepos(required: {
   if (required.repos.transactions) throw new Error('identity repositories are already bound to a transaction port');
   const context = new AsyncLocalStorage<{ active: boolean }>();
   let tail = Promise.resolve();
-  const stores = Object.entries(required.repos).filter(([key]) => key !== 'transactions');
-  for (const [, repo] of stores) {
+  const stores = Object.entries(required.repos).filter(([key]) => key !== 'transactions').map(([, repo]) => {
     if (!(repo instanceof InMemoryIdentityRows)) {
       throw new Error('memory transactions require in-memory identity repositories');
     }
-  }
+    return repo;
+  });
 
   /** Preserve queue progress after rejection; descendants of a completed body cannot bypass it. */
   async function exclusive<T>(execute: () => Promise<T>): Promise<T> {
@@ -40,8 +40,8 @@ export function createTransactionalInMemoryIdentityRepos(required: {
 
   const transactions: IdentityTransactionPort = {
     run: ({ execute }) => exclusive(async () => {
-      const snapshots = stores.map(([, repo]) => {
-        if (!(repo instanceof InMemoryIdentityRows)) throw new Error('memory transactions require in-memory identity repositories');
+      // Every store was checked to be InMemoryIdentityRows when the bag was bound above.
+      const snapshots = stores.map((repo) => {
         const rows = repo.snapshotRows({});
         return { restore: () => repo.restoreRows({ rows }) };
       });

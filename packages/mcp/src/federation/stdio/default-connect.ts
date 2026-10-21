@@ -87,29 +87,29 @@ async function connectMcpStdioSessionWithSpawnTimeout(
   let channel: McpStdioChannel | undefined;
 
   let timer: NodeJS.Timeout | undefined;
-  try {
-    return await Promise.race([
-      Promise.resolve().then(() => {
-        // Synchronous ports cannot be interrupted by a JS timer. Check elapsed time after each
-        // returns so a slow resolver cannot spawn, and a late spawn cannot begin the handshake.
-        const resolved = resolver.resolve({ spec: launch });
-        if (Date.now() >= deadline) throw timeoutError();
-        channel = spawnChannel({ resolved });
-        if (Date.now() >= deadline) throw timeoutError();
-        return connectMcpStdioSession({ channel, requestTimeoutMs: connection.config.callTimeoutMs, clientInfo, messages });
-      }),
-      // Not `unref()`ed, for the same reason as `adapter.stdio.ts`'s per-request timer: an unref'd
-      // timer would let the loop drain and abandon this race unsettled instead of rejecting. The
-      // `finally` below clears it either way, so it never outlives the connect attempt.
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(timeoutError()), timeoutMs);
-      }),
-    ]);
-  } catch (error) {
-    // Whichever branch lost, the child process must not survive it.
-    channel?.close({});
-    throw error;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  // Promise `.catch`/`.finally` rather than try/catch/finally: same settle semantics, and no
+  // statement follows the rethrow, so the coverage report has no phantom post-throw range.
+  return Promise.race([
+    Promise.resolve().then(() => {
+      // Synchronous ports cannot be interrupted by a JS timer. Check elapsed time after each
+      // returns so a slow resolver cannot spawn, and a late spawn cannot begin the handshake.
+      const resolved = resolver.resolve({ spec: launch });
+      if (Date.now() >= deadline) throw timeoutError();
+      channel = spawnChannel({ resolved });
+      if (Date.now() >= deadline) throw timeoutError();
+      return connectMcpStdioSession({ channel, requestTimeoutMs: connection.config.callTimeoutMs, clientInfo, messages });
+    }),
+    // Not `unref()`ed, for the same reason as `adapter.stdio.ts`'s per-request timer: an unref'd
+    // timer would let the loop drain and abandon this race unsettled instead of rejecting. The
+    // `finally` below clears it either way, so it never outlives the connect attempt.
+    new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(timeoutError()), timeoutMs);
+    }),
+  ])
+    .catch((error: unknown) => {
+      // Whichever branch lost, the child process must not survive it.
+      channel?.close({});
+      throw error;
+    })
+    .finally(() => clearTimeout(timer));
 }

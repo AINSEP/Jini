@@ -25,3 +25,6 @@
    text); a CancelRequest closes its connection; GSSENC requests are answered `N` like SSL.
 9. Removed: hex `inspect` dumps, `EventTarget` events, debug `console.log` (replaced by an optional `log`
    callback), TCP host/port options, stats beyond connections/queued.
+10. **Injectable listener** (2026-10-21): an optional `createServer` option (default `node:net`'s) and
+   structural `SocketServerClient`/`SocketServerListener` types, so tests script a client socket's events
+   without module mocks. Behaviour with the default is unchanged.

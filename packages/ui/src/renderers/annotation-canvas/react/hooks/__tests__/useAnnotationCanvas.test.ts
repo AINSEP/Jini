@@ -412,14 +412,17 @@ describe('useAnnotationCanvas', () => {
       const originalDpr = window.devicePixelRatio;
       Object.defineProperty(window, 'devicePixelRatio', { value: 0, configurable: true });
       try {
-        const { result } = renderHook(() => useAnnotationCanvas({ active: true, port: createFakeAnnotationCanvasPort() }));
-        const wrap = document.createElement('div');
-        Object.defineProperty(wrap, 'offsetWidth', { value: 200, configurable: true });
-        Object.defineProperty(wrap, 'offsetHeight', { value: 100, configurable: true });
-        const canvasEl = document.createElement('canvas');
-        act(() => {
-          result.current.wrapRef.current = wrap;
-          result.current.canvasRef.current = canvasEl;
+        // vitest.setup.ts installs a fake ResizeObserver for every test; withdraw it here so this
+        // case really runs without one.
+        withGlobal('ResizeObserver', undefined, () => {
+          const { result } = renderHook(() => useAnnotationCanvas({ active: true, port: createFakeAnnotationCanvasPort() }));
+          const wrap = document.createElement('div');
+          Object.defineProperty(wrap, 'offsetWidth', { value: 200, configurable: true });
+          Object.defineProperty(wrap, 'offsetHeight', { value: 100, configurable: true });
+          const canvasEl = document.createElement('canvas');
+          act(() => {
+            result.current.wrapRef.current = wrap;
+            result.current.canvasRef.current = canvasEl;
         });
         act(() => result.current.selectMarkTool('pen'));
         act(() => result.current.onPointerDown(fakePointerEvent()));
@@ -427,6 +430,7 @@ describe('useAnnotationCanvas', () => {
         act(() => result.current.onPointerUp(fakePointerEvent()));
         expect(canvasEl.width).toBe(200); // dpr fell back to 1, not 0
         expect(canvasEl.height).toBe(100);
+        });
       } finally {
         Object.defineProperty(window, 'devicePixelRatio', { value: originalDpr, configurable: true });
       }

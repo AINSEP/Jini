@@ -23,7 +23,7 @@ export interface SchemaShape {
   others: string[];
 }
 
-const squash = (text: string | null | undefined) => (text ?? "").replace(/\s+/g, " ").trim();
+const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 
 /** Every user table's shape (internal and `sqlite_`/`pg_` tables excluded), keyed by table name. */
 export async function readSchemaShape(kernel: StorageKernel<unknown>, optional: { exclude?: readonly string[] } = {}): Promise<SchemaShape> {
@@ -34,8 +34,9 @@ export async function readSchemaShape(kernel: StorageKernel<unknown>, optional: 
 }
 
 async function sqliteShape(kernel: StorageKernel<unknown>): Promise<SchemaShape> {
-  const objects = await kernel.query<{ type: string; name: string; tbl_name: string; sql: string | null }>(
-    sql`SELECT type, name, tbl_name, sql FROM sqlite_schema WHERE substr(name, 1, 7) <> 'sqlite_' ORDER BY type, name`
+  // An auto-index (UNIQUE/PRIMARY KEY in the table text) has no SQL of its own: read it as ''.
+  const objects = await kernel.query<{ type: string; name: string; tbl_name: string; sql: string }>(
+    sql`SELECT type, name, tbl_name, coalesce(sql, '') AS sql FROM sqlite_schema WHERE substr(name, 1, 7) <> 'sqlite_' ORDER BY type, name`
   );
   const tables: Record<string, TableShape> = {};
   const others: string[] = [];
@@ -72,7 +73,7 @@ async function sqliteIndexTexts(
   { kernel, tableName, objects }: {
     kernel: StorageKernel<unknown>;
     tableName: string;
-    objects: readonly { type: string; name: string; sql: string | null }[];
+    objects: readonly { type: string; name: string; sql: string }[];
   },
   _optional = {}
 ): Promise<string[]> {
@@ -82,8 +83,10 @@ async function sqliteIndexTexts(
   const indexTexts: string[] = [];
   for (const index of indexes) {
     const cols = await kernel.query<{ name: string | null }>(sql`SELECT name FROM pragma_index_info(${index.name}) ORDER BY seqno`);
-    const definition = objects.find((o) => o.type === "index" && o.name === index.name)?.sql;
-    const where = index.partial ? ` WHERE ${squash(definition).replace(/^.*? WHERE /i, "")}` : "";
+    // Only a CREATE INDEX can be partial, so a partial index always has its own sqlite_schema row.
+    const where = index.partial
+      ? ` WHERE ${squash(objects.find((o) => o.type === "index" && o.name === index.name)!.sql).replace(/^.*? WHERE /i, "")}`
+      : "";
     // Auto-named indexes (UNIQUE/PRIMARY KEY in the table text) are identified by what they cover.
     const label = index.origin === "c" ? index.name : `(${index.origin})`;
     indexTexts.push(`${label} ${index.unique ? "UNIQUE " : ""}(${cols.map((c) => c.name).join(", ")})${where}`);

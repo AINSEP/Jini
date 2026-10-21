@@ -58,11 +58,12 @@ export function FetchQueryProvider({ children, environment = browserFetchQueryEn
   </ScopeContext.Provider></QueryClientProvider>;
 }
 
-/** Fail closed when an adapter hook is used without its provider. */
+/** The provider's scope. This adapter's hooks are not exported: the only route to them is the
+ * `adapter` object this module's own `FetchQueryProvider` binds INSIDE its `ScopeContext`, and the
+ * public hooks already fail closed without a provider (`binding.react.tsx`'s `useAdapter`). So the
+ * old "no scope" throw here was unreachable and is gone; the guarantee is that binding order. */
 function useScope(): Scope {
-  const scope = useContext(ScopeContext);
-  if (!scope) throw new Error('Fetch-query hooks require FetchQueryProvider');
-  return scope;
+  return useContext(ScopeContext)!;
 }
 
 /** Observe only this provider's connectivity; paused reads do not claim network activity. */
@@ -188,7 +189,12 @@ function useFetchMutation<TInput, TOutput>({ run }: Pick<FetchMutationOptions<TI
 function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' | 'fetch'>, { staleTime = DEFAULT_STALE_TIME }: Omit<CachedLoaderOptions<T>, 'key' | 'fetch'> = {}): CachedLoader<T> {
   const scope = useScope();
   return useMemo(() => {
-    const options = { queryKey: key, queryFn: () => read({ scope, key, fetch }),
+    // The template every loader query starts from. It carries no `queryFn`: `load` always supplies
+    // its own (for `required.key`), an observer that later mounts on a `replace`-created query
+    // installs the observer's, and an unobserved query is never refetched — so a template `queryFn`
+    // here could never run. Its `structuralSharing` does run: `replace` on a cold key builds the query
+    // from this template and publishes through it.
+    const options = { queryKey: key,
       structuralSharing: (previous: unknown, incoming: unknown) => saveResult<T>({ scope, key, previous, incoming }), staleTime, gcTime: gcTimeFor({ staleTime }) };
     return {
       peek: () => scope.client.getQueryData<PublishedResult<T>>(key)?.value,

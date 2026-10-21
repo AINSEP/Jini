@@ -48,4 +48,28 @@ describe('run credential Express adapters', () => {
     await handle({ query: {}, get: () => undefined } as never, res as never, next);
     expect(res.status).toHaveBeenCalledWith(401); expect(listRuns).not.toHaveBeenCalled();
   });
+  it('forwards an authorizer that throws to Express instead of answering', () => {
+    const error = new Error('token store unavailable');
+    const res = response(); const next = vi.fn();
+    createDaemonAuthMiddleware({ authorize: () => { throw error; }, authorizationHeaderName: 'authorization' })({ method: 'GET', path: '/', get: () => undefined } as never, res as never, next);
+    expect(next).toHaveBeenCalledWith(error); expect(res.status).not.toHaveBeenCalled();
+  });
+  it('passes an allowed ownership decision through, normalizing an empty runId and missing principal to undefined', async () => {
+    const authorize = vi.fn(async () => ({ allowed: true as const }));
+    const res = response(); const next = vi.fn();
+    await createRunOwnershipMiddleware({ authorize, principalHeaderName: 'x-principal', isEventStream: () => false })({ params: { runId: '' }, path: '/runs', get: () => '' } as never, res as never, next);
+    expect(authorize).toHaveBeenCalledWith({ runId: undefined, principalId: undefined, eventStream: false });
+    expect(next).toHaveBeenCalledWith(); expect(res.status).not.toHaveBeenCalled();
+  });
+  it('lists without a context filter when contextRef is absent or not a string, and relays a denial or a listing failure', async () => {
+    const listRuns = vi.fn(async () => [{ id: 'own' }]);
+    const denied = { allowed: false as const, status: 403 as const, body: { code: 'FORBIDDEN' } };
+    const res = response(); const next = vi.fn();
+    await createOwnedRunListHandler({ listRuns, filterOwnedRuns: () => denied, principalHeaderName: 'x-principal' })({ query: { contextRef: ['a', 'b'] }, get: () => 'principal' } as never, res as never, next);
+    expect(listRuns).toHaveBeenCalledWith({}, {});
+    expect(res.status).toHaveBeenCalledWith(403); expect(res.json).toHaveBeenCalledWith({ code: 'FORBIDDEN' }); expect(next).not.toHaveBeenCalled();
+    const error = new Error('store offline');
+    await createOwnedRunListHandler({ listRuns: async () => { throw error; }, filterOwnedRuns: () => denied, principalHeaderName: 'x-principal' })({ query: {}, get: () => 'principal' } as never, res as never, next);
+    expect(next).toHaveBeenCalledWith(error);
+  });
 });

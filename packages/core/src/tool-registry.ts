@@ -231,6 +231,12 @@ function assertAuthorizationPolicy({ registration }: { registration: ToolRegistr
 }
 // Static register() remains append-only; scoped host contributions below explicitly own removal.
 const registryRevisions = new WeakMap<object, number>();
+/** Advance a core registry's revision. `createToolRegistry` seeds 0 together with the registry's
+ * `registrationsByRegistry` entry, and only such registries reach `register()` or a scope's
+ * `replace()` (a scope refuses any other registry), so the seeded entry is always present. */
+function bumpRegistryRevision(registry: object): void {
+  registryRevisions.set(registry, registryRevisions.get(registry)! + 1);
+}
 /** A host can invalidate its disposable discovery snapshot without exposing handlers. */
 export function toolRegistryRevision(required: { registry: object }, _optional: Record<string, never> = {}): number | undefined {
   return registryRevisions.get(required.registry);
@@ -263,7 +269,7 @@ export function createToolRegistrationScope(required: { registry: ToolRegistry }
         },
       });
       owned = ids;
-      registryRevisions.set(required.registry, (registryRevisions.get(required.registry) ?? 0) + 1);
+      bumpRegistryRevision(required.registry);
     },
   };
 }
@@ -289,7 +295,7 @@ export function createToolRegistry(_required: Record<string, never>): ToolRegist
         throw new Error(`ToolRegistry: tool "${registration.descriptor.id}" is already registered`);
       }
       registrations.set(registration.descriptor.id, registration);
-      registryRevisions.set(registry, (registryRevisions.get(registry) ?? 0) + 1);
+      bumpRegistryRevision(registry);
     },
     has({ toolId }: { toolId: string }): boolean {
       return registrations.has(toolId);

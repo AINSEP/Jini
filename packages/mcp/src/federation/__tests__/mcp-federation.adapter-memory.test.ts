@@ -2,7 +2,7 @@ import { messages as federationMessages, clientInfo, testPermissionGate } from "
 import assert from "node:assert/strict";
 import { test, onTestFinished, vi } from "vitest";
 
-import { InMemoryMcpSession, ScriptedMcpStdioChannel } from "../testing/adapter.memory.js";
+import { InMemoryMcpSession, ScriptedMcpHttpExchange, ScriptedMcpStdioChannel } from "../testing/adapter.memory.js";
 import type { RemoteToolResult } from "../ports.js";
 
 /**
@@ -72,4 +72,25 @@ test("ScriptedMcpStdioChannel: idFor returns undefined for a method the client n
   const channel = new ScriptedMcpStdioChannel({ messages: federationMessages, respond: () => undefined });
   channel.send({ message: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }) });
   assert.equal(channel.idFor({ method: "tools/call" }), undefined);
+});
+
+test("ScriptedMcpHttpExchange: a reply with no body serializes as an empty JSON object with the default status and type", async () => {
+  const exchange = new ScriptedMcpHttpExchange({ respond: () => ({}) });
+  const response = await exchange.send({ url: "https://example.invalid/mcp", method: "POST", headers: {} }, { body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }) });
+  assert.deepEqual(response, { status: 200, contentType: "application/json", text: "{}" });
+});
+
+test("ScriptedMcpHttpExchange: a server that never answers stays pending forever when the client passes no abort signal", async () => {
+  const exchange = new ScriptedMcpHttpExchange({ respond: () => undefined });
+  const pending = exchange.send({ url: "https://example.invalid/mcp", method: "DELETE", headers: {} });
+  const outcome = await Promise.race([pending.then(() => "settled", () => "rejected"), new Promise(resolve => setTimeout(() => resolve("still pending"), 20))]);
+  assert.equal(outcome, "still pending");
+  assert.equal(exchange.sent[0]?.message, undefined, "a bodyless request is captured without a JSON-RPC frame");
+});
+
+test("ScriptedMcpHttpExchange: lastRequestFor returns the most recent matching request, or undefined when none matched", async () => {
+  const exchange = new ScriptedMcpHttpExchange({ respond: () => ({ body: "" }) });
+  for (const id of [1, 2]) await exchange.send({ url: "https://example.invalid/mcp", method: "POST", headers: {} }, { body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/list" }) });
+  assert.equal(exchange.lastRequestFor({ method: "tools/list" })?.message?.id, 2);
+  assert.equal(exchange.lastRequestFor({ method: "tools/call" }), undefined);
 });

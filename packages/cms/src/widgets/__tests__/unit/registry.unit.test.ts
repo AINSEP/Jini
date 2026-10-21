@@ -59,3 +59,21 @@ test("Amendment 3: registration data contains zero executable behavior — every
     assert.deepEqual(roundTripped, registration.configSchema);
   }
 });
+
+// Invariants `resolvers/index.ts`'s `withResolverTimeout` and `write-service.ts`'s config-error
+// message rely on instead of re-checking per call: a resolver-backed type always has a real timeout,
+// and every config schema names its keys.
+test("every resolver-backed type declares a positive timeoutMs, so no resolver call runs unbounded", () => {
+  const dynamic = Object.values(WIDGET_TYPE_REGISTRATIONS).filter((registration: WidgetTypeRegistration) => registration.resolverId);
+  assert.ok(dynamic.length > 0);
+  for (const registration of dynamic as WidgetTypeRegistration[]) {
+    assert.ok(Number.isSafeInteger(registration.clamps.timeoutMs) && registration.clamps.timeoutMs > 0, registration.typeKey);
+  }
+});
+
+test("every configSchema declares a properties object naming its config keys", () => {
+  for (const registration of Object.values(WIDGET_TYPE_REGISTRATIONS) as WidgetTypeRegistration[]) {
+    const properties = registration.configSchema.properties;
+    assert.ok(typeof properties === "object" && properties !== null && !Array.isArray(properties), registration.typeKey);
+  }
+});

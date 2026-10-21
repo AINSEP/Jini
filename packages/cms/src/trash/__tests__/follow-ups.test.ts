@@ -55,3 +55,32 @@ test("before purge sees the record, after purge sees it removed and receives pri
   assert.equal(h.records.records.get("record-1")!.version, 2);
   assert.equal(h.repo.all({}).length, 1);
 });
+
+test("a successful restore fires afterUnhide once with the stored prior marker, and the restore completes", async () => {
+  const h = harness();
+  await h.trash.trash(removal, { priorMarker: "draft" });
+  const seen: unknown[] = [];
+  h.adapters.set("record", withFollowUps({ adapter: h.adapter }, { afterUnhide: async (args) => { seen.push(args); } }));
+
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "restored");
+  assert.deepEqual(seen, [{ workspaceId: WS, entityId: "record-1", priorMarker: "draft", at: AT }]);
+  assert.equal(h.records.records.get("record-1")!.deletedAt, null);
+  assert.equal(h.repo.all({}).length, 0);
+});
+
+test("a successful purge hands beforePurge's result to afterPurge and the purge commits", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+  const seen: unknown[] = [];
+  h.adapters.set("record", withFollowUps({ adapter: h.adapter }, {
+    beforePurge: async ({ entityId }) => ({ title: `prior of ${entityId}` }),
+    afterPurge: async (args) => { seen.push(args); },
+  }));
+
+  assert.deepEqual(
+    await h.trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: ALLOW_ALL }),
+    { purged: 1, results: [{ id: "trash-1", outcome: "purged" }] }
+  );
+  assert.deepEqual(seen, [{ workspaceId: WS, entityId: "record-1", priorState: { title: "prior of record-1" } }]);
+  assert.equal(h.records.records.has("record-1"), false);
+});

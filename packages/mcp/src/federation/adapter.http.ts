@@ -252,10 +252,10 @@ class McpHttpSession implements McpSessionPort {
     const onCallerAbort = forwardAbort(controller, callerSignal);
 
     const timer = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+    let response: McpHttpResponse;
     try {
-      const response = await this.exchange.send({ url: this.spec.url, method: "POST", headers: await this.authenticatedHeaders(headers, controller.signal) }, { body, signal: controller.signal });
+      response = await this.exchange.send({ url: this.spec.url, method: "POST", headers: await this.authenticatedHeaders(headers, controller.signal) }, { body, signal: controller.signal });
       if (response.status === 401) await this.notifyAuthenticationChallenge({ response, signal: controller.signal });
-      return response;
     } catch (error) {
       throw buildPostFailureError({
         error,
@@ -267,6 +267,7 @@ class McpHttpSession implements McpSessionPort {
       clearTimeout(timer);
       callerSignal?.removeEventListener("abort", onCallerAbort);
     }
+    return response;
   }
 
   /** Observes a 401 within the POST's remaining budget, without superseding its typed auth error.

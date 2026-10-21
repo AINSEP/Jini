@@ -69,3 +69,10 @@ it('tool attachment is disposable and policy/handler recheck both host auth and 
   await expect(registration!.handler({...ctx,executionId:'e',signal:new AbortController().signal})).rejects.toThrow(/disabled/);
   attached.dispose({});expect(contributions.list({})).toEqual([]);
 });
+it('a granted route, tool or widget contribution fails loudly when the host never bound contributions', () => {
+  const sdk = buildCapabilityScopedSdk({pluginId:manifest.id,pluginSdkBinding,capabilities:['http.route.register','tools.register','render.contribute'],coreDeps:core});
+  // The capability check passes; the missing host binding is what refuses, never a silent no-op.
+  expect(()=>sdk.routes.add({method:'GET',path:'/hello',access:'public',handler:()=>({})})).toThrow('plugin routes are not bound by this host');
+  expect(()=>sdk.tools.add({name:'hello',description:'hello',inputSchema:{type:'object'},handler:()=>null})).toThrow('plugin tools are not bound by this host');
+  expect(()=>sdk.widgets.add({name:'hello',render:()=>'<b>Hello</b>'})).toThrow('plugin widgets are not bound by this host');
+});

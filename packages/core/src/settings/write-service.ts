@@ -649,6 +649,12 @@ export async function renameDefinition(
 
   const current = await resolveActiveDefinitionOrThrow(deps, input, "rename");
 
+  // A dispatched `rename` item that omits its target arrives here as `""` (see definitions-dispatch);
+  // without this guard the definition was silently moved to the empty name `.`.
+  if (!input.newNamespace || !input.newKey) {
+    throw new DefinitionInvalidError("rename requires a non-empty newNamespace and newKey");
+  }
+
   if (input.namespace === input.newNamespace && input.key === input.newKey) {
     throw new DefinitionInvalidError("rename requires newNamespace/newKey to differ from the current name");
   }

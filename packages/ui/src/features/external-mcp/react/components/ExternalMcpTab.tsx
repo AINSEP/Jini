@@ -19,7 +19,7 @@
 import { useState } from 'react';
 import { DRAFT_TEST_SCOPE } from '../../../source-config-list/constants.js';
 import type { SourceConfigDependencies } from '../../../source-config-list/ports.js';
-import type { SourceConfigItem, SourceFieldSpec } from '../../../source-config-list/types.js';
+import type { SourceConfigItem, SourceFieldSpec, SourceTrustOption } from '../../../source-config-list/types.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { SourceConfigAddForm } from '../../../source-config-list/react/components/SourceConfigAddForm.js';
@@ -39,6 +39,10 @@ export interface ExternalMcpTabProps {
   saveStatusLabel?: string;
   /** Footer "Stored at <path>" text. Shown only when `saveStatusLabel` is also given, matching the footer being one unit in the OD reference. */
   configPath?: string;
+  /** The trust levels each server card offers. The card renders its trust picker only when this is
+   *  non-empty AND the port implements `setTrust`; without it the tab's `setTrust` wiring had no
+   *  control that could ever reach it. Omit for no trust picker (the previous, and still default, look). */
+  trustOptions?: readonly SourceTrustOption[];
 }
 
 /**
@@ -54,6 +58,7 @@ export function ExternalMcpTab({
   connectionError = null,
   saveStatusLabel,
   configPath,
+  trustOptions,
 }: ExternalMcpTabProps) {
   const t = useT();
   const [formOpen, setFormOpen] = useState(false);
@@ -131,6 +136,7 @@ export function ExternalMcpTab({
               key={source.id}
               source={source}
               fieldSpecs={fieldSpecs}
+              {...(trustOptions ? { trustOptions } : {})}
               capabilities={list.capabilities}
               removing={list.isPending(source.id, 'remove')}
               refreshing={list.isPending(source.id, 'refresh')}

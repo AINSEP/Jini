@@ -240,9 +240,13 @@ interface ResolvedAgentRuntimeDeps {
  * grouping the same defaults by concern keeps each resulting function's own complexity low without
  * hiding which options belong together. Pure.
  */
-function resolveAgentRuntimeDeps(options: CreateAgentExecutorOptions): ResolvedAgentRuntimeDeps {
+function resolveAgentRuntimeDeps(
+  options: CreateAgentExecutorOptions & { readonly hostEnv: NodeJS.ProcessEnv; readonly piGracefulShutdownMs: number },
+): ResolvedAgentRuntimeDeps {
   const runtimeOptions = options.runtimeState ? { state: options.runtimeState } : {};
-  const envOptions = options.hostEnv ? { env: options.hostEnv } : {};
+  // `createAgentExecutor` always resolves both before calling here (host env falls back to the
+  // process env, the pi shutdown grace to its env override or 5000 ms), so neither is optional.
+  const envOptions = { env: options.hostEnv };
   const lookupDef = options.getAgentDef ?? getAgentDef;
   return {
     getAgentDef: (input) => {
@@ -256,7 +260,7 @@ function resolveAgentRuntimeDeps(options: CreateAgentExecutorOptions): ResolvedA
     applyAgentLaunchEnv: options.applyAgentLaunchEnv ?? ((input, optional = {}) => applyAgentLaunchEnv(input, { appendPathDirs: userToolchainBinDirs({}, { ...runtimeOptions, ...envOptions }), ...optional })),
     attachAcpSession: options.attachAcpSession ?? attachAcpSession,
     attachPiRpcSession: (required, optional = {}) => (options.attachPiRpcSession ?? attachPiRpcSession)(required, {
-      ...optional, ...(options.piGracefulShutdownMs !== undefined ? { gracefulShutdownMs: options.piGracefulShutdownMs } : {}),
+      ...optional, gracefulShutdownMs: options.piGracefulShutdownMs,
     }),
     preparePromptFileForAgent: options.preparePromptFileForAgent ?? preparePromptFileForAgent,
     prepareAgentLogFile: options.prepareAgentLogFile ?? prepareAgentLogFile,
@@ -500,12 +504,10 @@ export function computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcp
 function computeSystemPromptOverlay(
   promptAugmenter: PromptAugmenter | undefined,
   agentId: string,
-  runtimeContext: RuntimeContext | undefined,
 ): string | null | undefined {
-  return promptAugmenter?.systemOverlay?.({
-    agentId,
-    turnIndex: runtimeContext?.hasPriorAssistantTurn ? 1 : 0,
-  });
+  // Always turn 0: the only prior-turn signal, `RuntimeContext.hasPriorAssistantTurn`, is never
+  // populated by `computeRuntimeContext` (it carries staged-file, MCP and session-id fields only).
+  return promptAugmenter?.systemOverlay?.({ agentId, turnIndex: 0 });
 }
 
 type AgentBuildInput = Parameters<typeof buildAgentBuildArgsOptions>[0]['input'];
@@ -532,7 +534,7 @@ function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = 
 /** Phase 9a: the def's `buildArgs` 4th argument. Historically omitted when every override was absent;
  * that let defs silently enable auto-approval. Always supply the validated restricted default now. Pure. */
 export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'nativeToolAccess' | 'nativeCapabilities' | 'cliParity' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings'>; readonly systemPromptOverlay: string | null | undefined }
-): RuntimeBuildOptions | undefined {
+): RuntimeBuildOptions {
   const permissionMode = input.permissionMode ?? 'restricted';
   if (permissionMode !== 'restricted' && permissionMode !== 'bypass') {
     throw new AgentExecutorError({ code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' });
@@ -707,7 +709,7 @@ export async function buildRunArgs({ input, deps }: { readonly input: {
     const args = input.def.buildArgs(
       { prompt: delivery.prompt, imagePaths: [...(input.imagePaths ?? [])] }, {
         ...(input.imageDelivery.extraAllowedDirs === undefined ? {} : { extraAllowedDirs: [...input.imageDelivery.extraAllowedDirs] }),
-        ...(options === undefined ? {} : { options }),
+        options,
         ...(input.runtimeContext === undefined ? {} : { runtimeContext: input.runtimeContext }),
       },
     );
@@ -742,10 +744,11 @@ export async function buildRunArgs({ input, deps }: { readonly input: {
  * a defensive extra.
  * @param input.def - Only used for its `id`, in the failure message, and its `systemPromptDelivery` declaration.
  * @param input.overlay - The computed `PromptAugmenter.systemOverlay()` result for this run.
+ * @param deps.mkdtemp - Creates the run-scoped directory from a prefix; default a fresh `mkdtemp` under `os.tmpdir()`.
  * @complexity O(1) plus one directory creation and one file write.
  * @overallScore 100/100
  */
-export async function prepareSystemPromptOverlayFileIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly overlay: string | null | undefined }; readonly deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn } }
+export async function prepareSystemPromptOverlayFileIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly overlay: string | null | undefined }; readonly deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn; readonly mkdtemp?: (prefix: string) => Promise<string> } }
 ): Promise<PreparedSystemPromptOverlayFile | null> {
   if (
     input.def.systemPromptDelivery?.strategy !== 'config-instructions-file' ||
@@ -756,7 +759,7 @@ export async function prepareSystemPromptOverlayFileIfNeeded({ input, deps }: { 
   }
   try {
     const safeRunId = input.runId.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80) || 'run';
-    const dir = await fsPromises.mkdtemp(join(tmpdir(), `jini-system-prompt-overlay-${safeRunId}-`));
+    const dir = await (deps.mkdtemp ?? defaultMkdtempInTmpdir)(`jini-system-prompt-overlay-${safeRunId}-`);
     const filePath = join(dir, 'overlay.md');
     await fsPromises.writeFile(filePath, input.overlay, { encoding: 'utf8', mode: 0o600 });
     return {
@@ -773,6 +776,11 @@ export async function prepareSystemPromptOverlayFileIfNeeded({ input, deps }: { 
   }
 }
 
+/** A fresh, randomly named directory under `os.tmpdir()`: the real staging location. */
+function defaultMkdtempInTmpdir(prefix: string): Promise<string> {
+  return fsPromises.mkdtemp(join(tmpdir(), prefix));
+}
+
 /** Phase 11: post-`buildArgs` guard for argv-bound defs whose resolved binary is a Windows shim/.exe — a no-op off-Windows and for non-argv-bound defs. */
 export async function guardWindowsCommandLineBudget({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly launchPath: string; readonly args: readonly string[] }; readonly deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<void> {
@@ -781,7 +789,8 @@ export async function guardWindowsCommandLineBudget({ input, deps }: { readonly 
     checkWindowsDirectExeCommandLineBudget({ def: input.def, resolvedBin: input.launchPath, args: input.args });
   if (windowsBudgetError) {
     await deps.releaseStagedResources();
-    await deps.failBeforeSpawn({ runId: input.runId, code: 'AGENT_PROMPT_TOO_LARGE', message: windowsBudgetError.message });
+    // `failBeforeSpawn` always rejects (`Promise<never>`); returning it propagates that rejection.
+    return deps.failBeforeSpawn({ runId: input.runId, code: 'AGENT_PROMPT_TOO_LARGE', message: windowsBudgetError.message });
   }
 }
 
@@ -838,7 +847,7 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
     await waitForSpawnOrError(input.child);
   } catch (err) {
     await deps.releaseStagedResources();
-    await deps.failBeforeSpawn(
+    return deps.failBeforeSpawn(
       { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: failed to spawn agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
@@ -895,7 +904,7 @@ function stagedChildEnvOptions({ def, preparedCodexHome, preparedClaudeConfigDir
 export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
   // This native composition boundary resolves ambient defaults once, before allowlisting child env.
   const env = optionalArgs.hostEnv ?? process.env;
-  const options: CreateAgentExecutorOptions = { ...requiredArgs, ...optionalArgs,
+  const options: CreateAgentExecutorOptions & { readonly piGracefulShutdownMs: number } = { ...requiredArgs, ...optionalArgs,
     codexDisablePlugins: optionalArgs.codexDisablePlugins ?? (env.CODEX_DISABLE_PLUGINS === '1'),
     piGracefulShutdownMs: optionalArgs.piGracefulShutdownMs ?? (Number(env.PI_GRACEFUL_SHUTDOWN_MS) || 5000),
   };
@@ -999,18 +1008,18 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // inside `buildRunArgs`) could only ever reach `buildArgs`, so the 17 defs that discard that
     // argument, plus grok-build's staged file, silently received no overlay at all.
     //
-    // `computeSystemPromptOverlay`'s third argument is the pre-staging `RuntimeContext`: it reads
-    // only `hasPriorAssistantTurn`, which `computeRuntimeContext` never populates from any of the
+    // `computeSystemPromptOverlay` reads no `RuntimeContext` at all: the one field it could use,
+    // `hasPriorAssistantTurn`, is never populated by `computeRuntimeContext` from any of the
     // staged-file/MCP inputs added to the fuller context built further down, so nothing between
-    // here and there can change the overlay this returns. Passing the narrower context makes that
-    // independence explicit rather than relying on the ordering staying lucky.
+    // here and there can change the overlay this returns. The pre-staging context below is kept
+    // for the overlay delivery's `resumeSessionId` only.
     //
     // `turnIndex` is a coarse 0/1 proxy (no exact turn counter exists on this driver) — sufficient
     // because every `PromptAugmenter.systemOverlay()` implementation this seam has today wants the
     // same overlay on every turn, not a first-turn-only one; a caller that needs finer-grained turn
     // numbering can track it itself and ignore this arg.
     const preStagingRuntimeContext = computeRuntimeContext({ preparedPromptFile: null, preparedLogFile: null, mcpBridge: null }, sessionRuntimeContext(input, {}));
-    const systemPromptOverlay = computeSystemPromptOverlay(promptAugmenter, def.id, preStagingRuntimeContext);
+    const systemPromptOverlay = computeSystemPromptOverlay(promptAugmenter, def.id);
     const overlayDelivery = resolveSystemPromptOverlayDelivery({
       defId: def.id,
       systemPromptDelivery: def.systemPromptDelivery,

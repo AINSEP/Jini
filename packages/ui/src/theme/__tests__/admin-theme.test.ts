@@ -101,4 +101,8 @@ describe('admin theme data', () => {
     expect(matchMedia).toHaveBeenCalledWith('(prefers-color-scheme: dark)');
     expect(() => resolveColorScheme({ preference: 'system' })).toThrow(TypeError);
   });
+
+  it('resolves system to light when the injected media query does not prefer dark', () => {
+    expect(resolveColorScheme({ preference: 'system' }, { matchMedia: () => ({ matches: false }) })).toBe('light');
+  });
 });

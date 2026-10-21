@@ -282,3 +282,13 @@ test("resolveForLocation returns null, not a throw, when the binding index point
 
   assert.equal(result, null);
 });
+
+test("resolveForLocation renders an item with no label as an empty label rather than undefined", async () => {
+  const { repo, bindingRepo } = await seedMenuBoundToLocation([{ id: "item-1", target: { kind: "url", href: "/" } }]);
+  const resolved = await resolveForLocation({
+    deps: { menuRepo: repo, bindingRepo, resolveTargetHref: fakeResolveTargetHref },
+    input: { workspaceId: "ws-1", locationKey: "primary" },
+  });
+  assert.equal(resolved?.items[0]?.label, "");
+  assert.equal(resolved?.items[0]?.href, "/");
+});

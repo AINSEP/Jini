@@ -1,4 +1,7 @@
-import { createElement } from 'react';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { KitProvider } from '../../KitProvider.js';
+import { ConfirmDialog } from '../../confirm/ConfirmDialog.js';
 import type { ReactNode } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createKit } from '../../kit.js';
@@ -197,5 +200,38 @@ describe('conformance orchestration behavior', () => {
     vi.stubGlobal('document', undefined);
     await expect(reactConformanceDriver.run({ kit: createKit({}), agent, scenario: scenario({}) }))
       .rejects.toThrow('React conformance requires a DOM environment');
+  });
+});
+
+describe('React conformance actions', () => {
+  function keyButton(props: { onPress?: (required: Record<string, never>) => void }) {
+    return createElement('button', { id: 'probe', onKeyDown: (event: { key: string }) => { if (event.key === 'Enter') props.onPress?.({}); } }, 'probe');
+  }
+
+  it('reports an action whose target is missing and still evaluates the expectations', async () => {
+    const kit = createKit({ components: { Button: () => null } });
+    expect(await reactConformanceDriver.run({ kit, agent, scenario: scenario({ expectations: [{ type: 'calls', name: 'press', count: 0 }] }, {
+      actions: [{ type: 'click', selector: '#nowhere' }] }) })).toEqual(['action target missing: #nowhere']);
+  });
+
+  it('dispatches key actions as keydown with the given key, and an absent key as an empty key', async () => {
+    const kit = createKit({ components: { Button: keyButton } });
+    expect(await reactConformanceDriver.run({ kit, agent, scenario: scenario({ expectations: [{ type: 'calls', name: 'press', count: 1 }] }, {
+      actions: [{ type: 'key', selector: '#probe', key: 'Enter' }, { type: 'key', selector: '#probe' }] }) })).toEqual([]);
+  });
+
+  it('fails a run during which the kit recorded a guard fallback', async () => {
+    const broken = () => createElement('div', null, 'broken confirmation');
+    const kit = createKit({ components: { ConfirmDialog: broken } });
+    // The same kit is live elsewhere with its development guard on; its inspection lands mid-run.
+    const elsewhere = document.createElement('div'); document.body.append(elsewhere);
+    const root = createRoot(elsewhere);
+    await act(async () => { root.render(createElement(KitProvider, { kit, children: createElement(ConfirmDialog, { open: true, title: 'Delete?', confirmLabel: 'Delete', onCancel() {}, onConfirm() {} }) })); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const errors = await reactConformanceDriver.run({ kit, agent, scenario: scenario({ expectations: [] }, {
+        actions: [{ type: 'focus', selector: 'button' }] }) });
+      expect(errors).toEqual(['conformance must not trigger fallback']);
+    } finally { await act(async () => root.unmount()); elsewhere.remove(); }
   });
 });

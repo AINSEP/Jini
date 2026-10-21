@@ -31,12 +31,18 @@ function authorized({ authorization, token }: { authorization: string | undefine
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+/** The per-request deadline clock; defaults to the global `setTimeout`/`clearTimeout`. */
+export interface RenderBridgeTimers {
+  setTimeout(callback: () => void, ms: number): unknown;
+  clearTimeout(handle: unknown): void;
+}
+
 /** Start one per launched server. No public bind, browser credentials, redirects or cookies.
  * @example const bridge = await startRenderBridge({ capture }); // pass bridge.env to the child
  * @complexity O(bytes) per capture; one active render, at most 16 MiB of PNG output.
  */
 export async function startRenderBridge({ capture }: { capture: UrlCapturePort },
-  { createServer: makeServer = createServer }: { createServer?: typeof createServer } = {},
+  { createServer: makeServer = createServer, timers = { setTimeout, clearTimeout } }: { createServer?: typeof createServer; timers?: RenderBridgeTimers } = {},
 ): Promise<{ env: Record<string, string>; close(): void }> {
   const token = randomBytes(32).toString('hex');
   let active: AbortController | undefined;
@@ -57,7 +63,7 @@ export async function startRenderBridge({ capture }: { capture: UrlCapturePort }
     active = controller;
     const abort = () => controller.abort();
     res.once('close', abort);
-    const timer = setTimeout(() => {
+    const timer = timers.setTimeout(() => {
       controller.abort();
       // A peer that authenticated and then stopped sending its JSON must release the slot too.
       req.destroy();
@@ -72,7 +78,7 @@ export async function startRenderBridge({ capture }: { capture: UrlCapturePort }
       const code = error instanceof RenderServiceError ? error.code : 'load-failed';
       res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: code }));
     } finally {
-      clearTimeout(timer);
+      timers.clearTimeout(timer);
       res.removeListener('close', abort);
       active = undefined;
     }

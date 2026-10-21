@@ -256,6 +256,21 @@ test("seoPageHeadHook: an ancestor chain in context is included as a BreadcrumbL
   }
 });
 
+test("seoPageHeadHook: an untitled ancestor becomes a breadcrumb item with no name rather than an undefined one", async () => {
+  const deps = await makeDeps([seedPost()]);
+  const hook = createSeoPageHeadHook(deps);
+  const ctx = baseCtx("post-1");
+  ctx.entry!.ancestors = [{ title: undefined, url: "/" }, { title: "Blog", url: "/blog" }];
+  const elements = await hook.handle(ctx);
+  const breadcrumb = elements.find((e) => e.kind === "jsonld" && e.data["@type"] === "BreadcrumbList") as Extract<HeadElement, { kind: "jsonld" }> | undefined;
+  const items = breadcrumb?.data.itemListElement as Array<Record<string, unknown>>;
+  assert.deepEqual(items, [
+    { "@type": "ListItem", position: 1, item: "/" },
+    { "@type": "ListItem", position: 2, name: "Blog", item: "/blog" },
+  ]);
+  assert.equal("name" in items[0]!, false);
+});
+
 test("seoPageHeadHook: never throws for a normal case", async () => {
   const deps = await makeDeps([seedPost()]);
   const hook = createSeoPageHeadHook(deps);

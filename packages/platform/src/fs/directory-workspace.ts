@@ -78,6 +78,9 @@ export function createNodeDirectoryWorkspace(
     const previous = oldCatalogs();
     current.merge({ entries: previous.flatMap((catalog) => catalog.list({})), migrations: previous.flatMap((catalog) => catalog.migrations({})), migration: "app-data-catalog-v1" });
   };
+  // One lease adapter for both the app-data and the site-local (legacy) lease locations.
+  const runningLockAt = (filePath: string) => createDirectoryRunningLock({ file: fileAt(filePath), isAlive: ports.process.isAlive,
+    remove: () => ports.filesystem.rmSync(filePath, { force: true }) }, { ...(ports.process.bootIdentity ? { bootIdentity: ports.process.bootIdentity } : {}) });
   const mutate = <T>(operation: () => T): T => settings.withLock({ critical: () => { importOldCatalog(); return operation(); } });
   // Serialize pointer changes with catalog mutations. A caller that obtained a registry before
   // settings changed must still write into the current home, never strand a late registration.
@@ -152,7 +155,6 @@ export function createNodeDirectoryWorkspace(
           const staged = createDirectoryRegistry({ canonicalPath, file: {
             read: () => state === undefined ? { state: "missing" } : { state: "ok", value: state },
             write: ({ value: next }) => { state = next; }, withLock: ({ critical }) => critical(),
-            tempPath: () => "", quarantine: () => false,
           } });
           if (!staged.hasMigration({ migration: "app-data-catalog-v1" })) {
             const previous = oldCatalogs();
@@ -181,13 +183,11 @@ export function createNodeDirectoryWorkspace(
     },
     registry: (_required: Record<string, never>, _options = {}) => registry,
     running: ({ path: dir }: { path: string }, _options = {}) => {
-      const filePath = config?.runningPath({ dir }) ?? path.join(canonicalPath({ path: dir }), runningName);
-      const current = createDirectoryRunningLock({ file: fileAt(filePath), isAlive: ports.process.isAlive,
-        remove: () => ports.filesystem.rmSync(filePath, { force: true }) }, { ...(ports.process.bootIdentity ? { bootIdentity: ports.process.bootIdentity } : {}) });
-      if (!config) return current;
       const legacyPath = path.join(canonicalPath({ path: dir }), runningName);
-      const legacy = createDirectoryRunningLock({ file: fileAt(legacyPath), isAlive: ports.process.isAlive,
-        remove: () => ports.filesystem.rmSync(legacyPath, { force: true }) }, { ...(ports.process.bootIdentity ? { bootIdentity: ports.process.bootIdentity } : {}) });
+      const current = runningLockAt(config?.runningPath({ dir }) ?? legacyPath);
+      if (!config) return current;
+      // The legacy lease is only ever peeked, so its removal callback is never invoked here.
+      const legacy = runningLockAt(legacyPath);
       return { ...current,
         // Older servers may still own a site-local lease. Observe it without moving/editing it;
         // claim serializes against new clients and refuses the old live owner.
@@ -212,13 +212,18 @@ export function createNodeDirectoryWorkspace(
   }
 }
 
-/** Canonicalize existing ancestors without creating the selected directory. */
-function canonicalNodeDirectory({ path: dir }: { path: string }, _options = {}): string {
-  try { return fs.realpathSync(dir); } catch (error) {
+/** Canonicalize existing ancestors without creating the selected directory.
+ * The default canonicalizer of {@link createNodeDirectoryWorkspace}. `realpath` is the native
+ * resolver by default; it is injectable so a missing filesystem root (an unmounted Windows drive)
+ * can be exercised on any host. A missing root resolves to its absolute form.
+ * @complexity O(d) realpath probes for d path segments.
+ */
+export function canonicalNodeDirectory({ path: dir }: { path: string }, { realpath = fs.realpathSync }: { realpath?: (dir: string) => string } = {}): string {
+  try { return realpath(dir); } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     // Resolve the nearest existing ancestor too: a not-yet-created home may sit below a
     // symlink (notably /var on macOS) and must compare equal before and after creation.
     const absolute = path.resolve(dir), parent = path.dirname(absolute);
-    return parent === absolute ? absolute : path.join(canonicalNodeDirectory({ path: parent }), path.basename(absolute));
+    return parent === absolute ? absolute : path.join(canonicalNodeDirectory({ path: parent }, { realpath }), path.basename(absolute));
   }
 }

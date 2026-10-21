@@ -82,6 +82,18 @@ describe('native dialog', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
+  it('a click with coordinates closes only when it lands outside the dialog box (the backdrop)', () => {
+    const onClose = vi.fn();
+    render(h(nativeKit.Dialog, { open: true, title: 'Edit', onClose, children: h('p', null, 'Body') }));
+    const dialog = screen.getByRole('dialog');
+    vi.spyOn(dialog, 'getBoundingClientRect').mockReturnValue({ left: 100, right: 300, top: 50, bottom: 250 } as DOMRect);
+    // Padding inside the box, e.g. where a native date/select popup was just dismissed.
+    fireEvent.click(dialog, { clientX: 150, clientY: 100 });
+    expect(onClose).not.toHaveBeenCalled();
+    for (const [clientX, clientY] of [[50, 100], [350, 100], [150, 10], [150, 300]]) fireEvent.click(dialog, { clientX, clientY });
+    expect(onClose).toHaveBeenCalledTimes(4);
+  });
+
   it('a pending dialog ignores its close button', () => {
     const onClose = vi.fn();
     const { result } = renderHook(() => useNativeDialog({ open: false, title: 'Edit', onClose, pending: true }));

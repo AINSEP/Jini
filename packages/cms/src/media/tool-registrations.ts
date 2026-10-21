@@ -256,13 +256,10 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
       const input = requireInputRecord({ input: ctx.input });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.upload" }, { entityType: "media" });
       return withSchemaOnRejection({ toolId: "media_upload_asset", catalog: CATALOG_BY_ID, isShapeRejection: isMediaShapeRejection, fn: async () => {
-        const dataBase64 = requireString({ input, key: "dataBase64" });
-        let bytes: Uint8Array;
-        try {
-          bytes = new Uint8Array(Buffer.from(dataBase64, "base64"));
-        } catch {
-          throw new Error("'dataBase64' is not valid base64");
-        }
+        // Node's base64 decoder never throws for a string: it skips characters outside the alphabet
+        // and stops at padding, so an invalid payload decodes to fewer bytes, which the upload
+        // validator below then judges (empty/unsniffable bytes are refused there).
+        const bytes = new Uint8Array(Buffer.from(requireString({ input, key: "dataBase64" }), "base64"));
         const { media } = await uploadMedia({
           deps: mediaWriteDeps(),
           input: {

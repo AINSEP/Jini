@@ -96,8 +96,30 @@ describe('connection-time DNS validation through a dispatcher port', () => {
       (lookup as unknown as Function)('auth.example.com', { all }, (error: Error | null, address: unknown, family: number) =>
         error ? reject(error) : resolve(all ? address : { address, family }));
     });
-    return { transport, connect, fetchFn, resolve, dispatcher, close, assertAllowed };
+    const lookupWith = (options: unknown) => new Promise<unknown>((resolve, reject) => {
+      (lookup as unknown as Function)('auth.example.com', options, (error: Error | null, address: unknown, family: number) =>
+        error ? reject(error) : resolve({ address, family }));
+    });
+    return { transport, connect, lookupWith, fetchFn, resolve, dispatcher, close, assertAllowed };
   }
+  it('passes a requested address family to the DNS port, in both the numeric and object lookup forms', async () => {
+    const f = fixture([{ address: '2001:db8::1', family: 6 }]);
+    expect(await f.lookupWith(6)).toEqual({ address: '2001:db8::1', family: 6 });
+    expect(await f.lookupWith({ family: 6 })).toEqual({ address: '2001:db8::1', family: 6 });
+    await f.connect();
+    expect(f.resolve.mock.calls).toEqual([
+      [{ hostname: 'auth.example.com' }, { family: 6 }],
+      [{ hostname: 'auth.example.com' }, { family: 6 }],
+      [{ hostname: 'auth.example.com' }, {}],
+    ]);
+  });
+  it('hands the socket an Error even when the DNS port rejects with a non-Error value', async () => {
+    const f = fixture();
+    f.resolve.mockImplementationOnce(() => Promise.reject('ENOTFOUND auth.example.com'));
+    const failure = await f.connect().catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toBe('ENOTFOUND auth.example.com');
+  });
   it.each(['https://169.254.169.254/token', 'https://127.0.0.1/token', 'https://[::1]/token', 'https://[fe80::1]/token'])
     ('rejects a denied IP literal before dispatch, without relying on DNS: %s', async url => {
       const f = fixture();

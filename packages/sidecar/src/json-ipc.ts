@@ -221,16 +221,12 @@ export async function createJsonIpcServer({
     // newline-terminated frame (or dribbles bytes indefinitely) would otherwise hold the
     // connection — and this closure's buffer — open forever.
     const idleTimer = setTimeout(() => {
-      // Defense-in-depth, not reachable through any real timer/socket
-      // interleaving: every real path that sets `handled = true` (a
-      // complete frame arriving, or the oversized-frame guard) calls
-      // `clearTimeout(idleTimer)` in the very same synchronous prefix of a
-      // single `data`-listener invocation — and Node/V8's single-threaded
-      // execution model means no other callback (including this one) can
-      // run in between that assignment and the `clearTimeout` call. Kept as
-      // a real fail-safe (in case a future edit reorders that sequence)
-      // rather than asserted away — see archived provenance ledger's 2026-07-22 entry.
-      if (handled) return;
+      // No `handled` re-check is needed here: the only way to set `handled` from a `data`
+      // event is `claimFrame()` below, which clears this timer in the same synchronous step —
+      // and Node/V8's single-threaded execution model means no other callback (including this
+      // one) can run in between that assignment and the `clearTimeout` call. The fail-safe the
+      // archived provenance ledger's 2026-07-22 entry kept against a future edit reordering that
+      // sequence is now structural: the two steps live in one function and cannot be split.
       handled = true;
       traceJsonIpc("server.idle_timeout", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
@@ -241,6 +237,11 @@ export async function createJsonIpcServer({
       socket.destroy();
     }, idleTimeoutMs);
     idleTimer.unref();
+    /** Claim this connection's one frame: stop accepting data and cancel the idle deadline together. */
+    const claimFrame = (): void => {
+      handled = true;
+      clearTimeout(idleTimer);
+    };
 
     socket.on("error", (error) => {
       // `error instanceof Error` here is defense-in-depth, not reachable
@@ -254,7 +255,7 @@ export async function createJsonIpcServer({
       // behavior (see archived provenance ledger's 2026-07-22 entry).
       traceJsonIpc("server.socket_error", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
         socketPath,
         traceId,
       });
@@ -277,8 +278,7 @@ export async function createJsonIpcServer({
       });
       receivedBytes += chunk.byteLength;
       if (receivedBytes > maxFrameBytes) {
-        handled = true;
-        clearTimeout(idleTimer);
+        claimFrame();
         traceJsonIpc("server.frame_too_large", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           maxFrameBytes,
@@ -297,8 +297,7 @@ export async function createJsonIpcServer({
       buffer += decoder.write(chunk);
       const newlineIndex = buffer.indexOf("\n");
       if (newlineIndex < 0) return;
-      handled = true; // Claim the connection before awaiting the handler — see the flag's own doc above.
-      clearTimeout(idleTimer);
+      claimFrame(); // Claim the connection before awaiting the handler — see the flag's own doc above.
       const frame = buffer.slice(0, newlineIndex);
       buffer = buffer.slice(newlineIndex + 1);
       let message: unknown;
@@ -313,7 +312,7 @@ export async function createJsonIpcServer({
         // archived provenance ledger's 2026-07-22 entry).
         traceJsonIpc("server.frame_parse_failed", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage(error),
           frameBytes: Buffer.byteLength(frame),
           socketPath,
           traceId,
@@ -354,7 +353,7 @@ export async function createJsonIpcServer({
         // same trust-boundary concern as SEC-005's HTTP fix). The peer gets a stable code plus
         // the traceId as a correlation handle; the real detail is redacted and logged
         // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
-        const redactedDetail = redactSecrets({ input: error instanceof Error ? error.message : String(error) });
+        const redactedDetail = redactSecrets({ input: errorMessage(error) });
         // eslint-disable-next-line no-console
         console.error(`[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})`, redactedDetail);
         traceJsonIpc("server.handler_failed", {
@@ -512,7 +511,7 @@ export async function requestJsonIpc<T = any>(
       // comment + archived provenance ledger's 2026-07-22 entry).
       traceJsonIpc("client.socket_error", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
         message: messageSummary,
         socketPath,
         traceId,

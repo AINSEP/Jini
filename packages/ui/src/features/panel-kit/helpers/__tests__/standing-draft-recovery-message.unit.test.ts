@@ -22,3 +22,19 @@ test("a host-supplied formatter replaces the default", () => {
   expect(standingDraftRecoveryMessage({ draft, t: key => key }, { formatSavedAt: () => "just now" }))
     .toBe("Restore unsaved changes from just now · Local changes are newer.");
 });
+
+test("says the server copy is newer when the host's server timestamp is later than the capture", () => {
+  expect(standingDraftRecoveryMessage({ draft, t: key => `[${key}]`, serverUpdatedAt: "2026-10-11T20:00:00.000Z" }, { formatSavedAt: () => "then" }))
+    .toBe("[Restore unsaved changes from] then · [Server content is newer.]");
+});
+
+test("says the copies tie when the timestamps are equal", () => {
+  expect(standingDraftRecoveryMessage({ draft: { ...draft, serverUpdatedAt: draft.savedAt }, t: key => key }, { formatSavedAt: () => "then" }))
+    .toBe("Restore unsaved changes from then · Both copies have the same timestamp.");
+});
+
+test("omits the comparison when no server timestamp is known", () => {
+  const { serverUpdatedAt: _omitted, ...withoutServer } = draft;
+  expect(standingDraftRecoveryMessage({ draft: withoutServer, t: key => key }, { formatSavedAt: () => "then" }))
+    .toBe("Restore unsaved changes from then");
+});

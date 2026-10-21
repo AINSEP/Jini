@@ -13,11 +13,16 @@ function identityKey(workspaceId: string, entityType: string, entityId: string):
   return `${workspaceId}\u0000${entityType}\u0000${entityId}`;
 }
 
-/** Newest first, `id` breaking ties so the keyset cursor is total. @complexity O(1). */
+/**
+ * Newest first, `id` breaking ties so the keyset cursor is total. @complexity O(1).
+ *
+ * The `id` comparison is written branch-free: `rows` is a `Map` keyed by `id`, so two distinct rows
+ * never share one and an `id` tie can only arise from a self-comparison — which still correctly
+ * yields `0` here, without a dedicated `return 0` branch no stored data can reach.
+ */
 function compareDesc(a: TrashItem, b: TrashItem): number {
   if (a.trashedAt !== b.trashedAt) return a.trashedAt < b.trashedAt ? 1 : -1;
-  if (a.id !== b.id) return a.id < b.id ? 1 : -1;
-  return 0;
+  return Number(a.id < b.id) - Number(a.id > b.id);
 }
 
 export class InMemoryTrashRepo implements TrashRepoPort {

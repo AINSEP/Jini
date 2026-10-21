@@ -43,6 +43,15 @@ describe('VibecodingWorkbench', () => {
     });
   });
 
+  test('merges a host style over the default root layout', () => {
+    const session = createVibecodingSession({ target: makeTarget({}) });
+    const { container } = render(<VibecodingWorkbench session={session} className="bench" style={{ height: '480px' }} />);
+    const root = container.querySelector('.bench') as HTMLElement;
+
+    expect(root.style.height).toBe('480px');
+    expect(root.style.display).toBe('flex');
+  });
+
   test('prefers host-supplied documentHtml over the selected part\'s own content', async () => {
     const session = createVibecodingSession({ target: makeTarget({ hero: '<h1>Hero</h1>' }) });
     const { container } = render(

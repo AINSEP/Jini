@@ -102,10 +102,12 @@ export function batchDescriptorFor(
   };
 }
 
-/** The domain message without `withSchemaOnRejection`'s appended schema. */
+/** The domain message without `withSchemaOnRejection`'s appended schema: the text before the
+ * first schema marker, or the whole message when no schema was appended. */
 function itemErrorMessage({ error, toolId }: { error: unknown; toolId: string }): string {
   const message = error instanceof Error ? error.message : String(error);
-  return message.split(` Schema for '${toolId}': `)[0] ?? message;
+  const schemaAt = message.indexOf(` Schema for '${toolId}': `);
+  return schemaAt === -1 ? message : message.slice(0, schemaAt);
 }
 
 /** Validates the batch half of an input and returns its items, or throws a caller-actionable error. */

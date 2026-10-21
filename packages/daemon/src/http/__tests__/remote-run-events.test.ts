@@ -394,6 +394,45 @@ describe('remote-run-events — remaining contract surface', () => {
     expect(result.error.requestId).toBe(context.correlationId);
   });
 
+  it('without a host sink, the real failure goes to console.error with the correlation id the caller received', async () => {
+    const deps = makeDeps();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-default-sink' });
+    const failure = new Error('disk full');
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const result = await remoteToolResultRoute.handle({
+        input: { runId: run.id, toolUseId: 'tu-1', content: 'x' }, deps: {
+          ...deps,
+          recorder: { recordToolUse: deps.recorder.recordToolUse.bind(deps.recorder), recordToolResult: () => Promise.reject(failure) },
+        },
+      });
+      if (result.ok) throw new Error('expected failure');
+      expect(result.error.code).toBe('INTERNAL_ERROR');
+      expect(logged).toHaveBeenCalledOnce();
+      expect(logged.mock.calls[0]).toEqual([
+        `[@jini-ai/http-kit] internal error (remote-run-events/tool-result, correlationId=${result.error.requestId})`, failure,
+      ]);
+    } finally { logged.mockRestore(); }
+  });
+
+  it('reports NOT_FOUND when the run disappears between the recorder failure and the status re-check', async () => {
+    const deps = makeDeps();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-vanished' });
+    let lookups = 0;
+    const onInternalError = vi.fn();
+    const lifecycle = Object.assign(Object.create(deps.lifecycle) as typeof deps.lifecycle, {
+      get: (args: { runId: string }) => (++lookups === 1 ? deps.lifecycle.get(args) : Promise.reject(new Error('store closed'))),
+    });
+    const result = await remoteToolUseRoute.handle({
+      input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: {
+        ...deps, lifecycle, onInternalError,
+        recorder: { recordToolUse: () => Promise.reject(new Error('write failed')), recordToolResult: deps.recorder.recordToolResult.bind(deps.recorder) },
+      },
+    });
+    expect(result).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: `run "${run.id}" was not found` } });
+    expect(onInternalError).not.toHaveBeenCalled();
+  });
+
   it('applies the same redaction to tool-result, not just tool-use', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-storage-fault-result' });

@@ -167,6 +167,16 @@ describe("writes preserve every byte outside the edited region", () => {
 });
 
 describe("validate — the allowlist cannot be extended by the model", () => {
+  test("an edit addressed to a handle that does not exist is rejected with the lookup reason", async () => {
+    const { store, target } = setup();
+
+    expect(await target.validate({ id: "footer", content: "new footer" })).toEqual({
+      ok: false,
+      reason: 'no region is tagged data-agent-element="footer"',
+    });
+    expect(store.html()).toBe(DOC);
+  });
+
   test("content that invents a new data-agent-element handle is REJECTED", async () => {
     const { store, target } = setup();
 
@@ -245,6 +255,22 @@ describe("validate — the allowlist cannot be extended by the model", () => {
 });
 
 describe("validate — whole-document and size rules", () => {
+  test("an edit after which the parser finds no region at all is rejected as removing the handle", async () => {
+    // A real parser can lose every region when injected markup swallows the rest of the document
+    // (an unterminated comment, say). Model that with a parser that sees nothing past one.
+    const base = makeParser();
+    const parser: HtmlRegionParser = {
+      findRegions: ({ html }) => (html.includes("<!-- unterminated") ? [] : base.findRegions({ html })),
+    };
+    const { store, target } = setup(DOC, parser);
+
+    const outcome = await applyEdit({ target, edit: { id: "hero", content: "<!-- unterminated" } });
+
+    expect(outcome.status).toBe("rejected");
+    expect(outcome.status === "rejected" && outcome.reason).toMatch(/removes existing data-agent-element handles \(hero, pricing\)/);
+    expect(store.html()).toBe(DOC);
+  });
+
   test("the parser's structural verdict is judged on the PROSPECTIVE document, not the fragment", async () => {
     let sawProspective = "";
     const parser = makeParser();
@@ -309,6 +335,19 @@ describe("snapshot and restore", () => {
     expect(await target.readPart({ id: "hero" })).toBe("OLD HERO");
     expect(await target.readPart({ id: "pricing" })).toBe("OLD PRICING");
     expect(store.html()).toContain("<!-- a comment the author cares about -->");
+  });
+
+  test("restore skips a region that no longer exists and still restores the others", async () => {
+    const { store, target } = setup();
+    const snapshot = await target.snapshot();
+    await target.replacePart({ id: "pricing", content: "CHANGED" });
+    // The host removed the hero region entirely; its snapshot content has nowhere to go.
+    await store.write({ html: store.html().replace(/<section data-agent-element="hero"[^>]*>[^<]*<\/section>/, "") });
+
+    await target.restore({ snapshot });
+
+    expect(await target.readPart({ id: "pricing" })).toBe("OLD PRICING");
+    expect(store.html()).not.toContain("OLD HERO");
   });
 
   test("snapshot captures only valid, unambiguous regions", async () => {

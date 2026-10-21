@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,6 +11,7 @@ import {
   removeDaemonRegistryRecordIfCurrent,
   resolveDaemonRegistryPath,
   writeDaemonRegistryRecord,
+  type DaemonRegistryFilePorts,
   type LocalDaemonRegistryRecord,
 } from "../daemon-registry.js";
 import { readJsonFile } from "../json-file.js";
@@ -159,6 +160,47 @@ describe("removeDaemonRegistryRecordIfCurrent", () => {
     await removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid + 1 });
 
     await expect(readJsonFile({ filePath: registryPath })).resolves.toEqual(record);
+  });
+
+  it("treats a record another remover detached first (rename ENOENT) as already removed", async () => {
+    const dir = await makeTempDir();
+    const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
+    await writeDaemonRegistryRecord({ registryPath, record: makeRecord({ pid: process.pid }) });
+    const files: DaemonRegistryFilePorts = { link, rename: async () => { throw Object.assign(new Error("gone"), { code: "ENOENT" }); } };
+
+    await expect(removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid }, { files })).resolves.toBeUndefined();
+    expect(await readdir(dir)).toEqual(["daemon.json"]);
+  });
+
+  it("propagates any other detach failure and leaves the record in place", async () => {
+    const dir = await makeTempDir();
+    const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
+    const record = makeRecord({ pid: process.pid });
+    await writeDaemonRegistryRecord({ registryPath, record });
+    const denied = Object.assign(new Error("permission denied"), { code: "EACCES" });
+    const files: DaemonRegistryFilePorts = { link, rename: async () => { throw denied; } };
+
+    await expect(removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid }, { files })).rejects.toBe(denied);
+    await expect(readJsonFile({ filePath: registryPath })).resolves.toEqual(record);
+  });
+
+  it("propagates a refused restore of a foreign captured record and keeps the tombstone for recovery", async () => {
+    const dir = await makeTempDir();
+    const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
+    await writeDaemonRegistryRecord({ registryPath, record: makeRecord({ pid: process.pid }) });
+    const foreign = makeRecord({ pid: process.pid + 1 });
+    const refused = Object.assign(new Error("cross-device link"), { code: "EXDEV" });
+    const files: DaemonRegistryFilePorts = {
+      // A newer daemon's record lands between the ownership read and the detach.
+      rename: async (from, to) => { await writeDaemonRegistryRecord({ registryPath: from, record: foreign }); await rename(from, to); },
+      link: async () => { throw refused; },
+    };
+
+    await expect(removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid }, { files })).rejects.toBe(refused);
+    const remaining = await readdir(dir);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]).toMatch(/^daemon\.json\..+\.removed$/);
+    await expect(readJsonFile({ filePath: join(dir, remaining[0]!) })).resolves.toEqual(foreign);
   });
 
   it("is a no-op when no record file exists", async () => {

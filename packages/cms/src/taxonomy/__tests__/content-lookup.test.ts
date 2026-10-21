@@ -124,3 +124,20 @@ test("createPostBackedContentLookup: a live post (no deletedAt) still resolves n
   const resolved = await lookup.resolve({ contentType: "post", contentId: "p1" });
   assert.deepEqual(resolved, { workspaceId: "w", kind: "post" });
 });
+
+test("createPostBackedContentLookup: an id the post repo does not know resolves to null (the join guard then reports it missing)", async () => {
+  const seen: Array<{ workspaceId: string; id: string }> = [];
+  const lookup = createPostBackedContentLookup({
+    postRepo: {
+      async findById(query) {
+        seen.push(query);
+        return null;
+      },
+    },
+    workspaceId: "w",
+  });
+
+  assert.equal(await lookup.resolve({ contentType: "page", contentId: "gone" }), null);
+  // The lookup is scoped to the adapter's own workspace, never one the caller could supply.
+  assert.deepEqual(seen, [{ workspaceId: "w", id: "gone" }]);
+});

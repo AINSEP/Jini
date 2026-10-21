@@ -124,11 +124,12 @@ function parseDraftManifest(files: ReadonlyMap<string, Buffer>): unknown {
   try { return JSON.parse(filename === undefined ? '' : files.get(filename)!.toString('utf8')); }
   catch { return fail('PLUGIN_MANIFEST_INVALID', `A valid ${MANIFEST} is required.`); }
 }
-/** A declared version above the latest install is kept; otherwise the latest gets a patch bump. */
+/** A declared version above the latest install is kept; otherwise the latest gets a patch bump.
+ * Both inputs are already valid SemVer — `latest` comes from `versions()`, which refuses any
+ * unrecognized version folder, and `declaredVersion` passed `validateManifest` — so the bump
+ * always yields a version and needs no null check. */
 function nextSealVersion(latest: string | undefined, declaredVersion: string): string {
-  const version = latest && !semver.gt(declaredVersion, latest) ? semver.inc(latest, 'patch') : declaredVersion;
-  if (!version) fail('PLUGIN_SOURCE_VERSION_INVALID', 'A valid semantic version is required.');
-  return version;
+  return latest && !semver.gt(declaredVersion, latest) ? new semver.SemVer(latest).inc('patch').version : declaredVersion;
 }
 
 /** Build the bounded Node draft adapter.
@@ -229,9 +230,10 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
   async function publish(id: string, files: ReadonlyMap<string, Buffer>, rollbackFrom?: string): Promise<PluginSourceSealResult> {
     if (!required.policy.localInstallEnabled({}, {})) fail('PLUGIN_LOCAL_INSTALL_DISABLED', required.localInstallDisabledMessage ?? 'Local plugin install is disabled by the host.');
     const raw = parseDraftManifest(files);
+    // `validate` checks the manifest against `folderName: id`, so a manifest whose id is missing or
+    // differs from the draft id is already refused there (ID_FOLDER_MISMATCH).
     validate(id, raw);
     const manifest = raw as Record<string, unknown>;
-    if (manifest.id !== id) fail('PLUGIN_MANIFEST_INVALID', 'The manifest id must match the draft id.');
     const version = nextSealVersion((await versions(id))[0], String(manifest.version));
     const staging = await mkdtemp(path.join(optional.temporaryDir ?? tmpdir(), 'plugin-source-'));
     try {

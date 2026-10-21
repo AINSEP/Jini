@@ -17,6 +17,7 @@ import {
   runBlobGcDeletePass,
   runBlobGcUnlinkPass,
   runBlobGcCycle,
+  runMonthlyOrphanSweepStub,
   tombstoneBlobIfUnreferenced,
 } from "../blob-gc.js";
 import { withSha256Lock } from "../blob-gc-lock.js";
@@ -420,4 +421,59 @@ test("runBlobGcCycle deletes every eligible tombstoned blob and drains the journ
 
   assert.equal(await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: mediaA.source.sha256 }), null);
   assert.equal(await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: mediaB.source.sha256 }), null);
+});
+
+// ---------------------------------------------------------------------------
+// Host-supplied reference probes and missing-row outcomes
+// ---------------------------------------------------------------------------
+
+test("isBlobUnreferenced honors a host's live entry_refs probe and retained-snapshot probe", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadOne(deps, "probed");
+  await deps.mediaRepo.remove({ workspaceId: WORKSPACE_ID, id: media.id });
+  const input = { workspaceId: WORKSPACE_ID, sha256: media.source.sha256 };
+  const asked: string[] = [];
+  const probe = (name: string, answer: boolean) => async (probed: typeof input) => { asked.push(`${name}:${probed.sha256 === input.sha256}`); return answer; };
+
+  assert.equal(await isBlobUnreferenced({ deps: { ...deps, referenceProbes: { hasLiveEntryRefs: probe("refs", true) } }, input }), false);
+  assert.equal(await isBlobUnreferenced({ deps: { ...deps, referenceProbes: { hasRetainedSnapshot: probe("snapshot", true) } }, input }), false);
+  assert.equal(await isBlobUnreferenced({ deps: { ...deps, referenceProbes: { hasLiveEntryRefs: probe("refs", false), hasRetainedSnapshot: () => false } }, input }), true);
+  assert.deepEqual(asked, ["refs:true", "snapshot:true", "refs:true"]);
+});
+
+test("a blob a host probe still references is neither tombstoned nor, once a reference appears after tombstoning, deleted", async () => {
+  const { deps, setNow } = makeDeps();
+  const { media } = await uploadOne(deps, "late-reference");
+  await deps.mediaRepo.remove({ workspaceId: WORKSPACE_ID, id: media.id });
+  const input = { workspaceId: WORKSPACE_ID, sha256: media.source.sha256 };
+
+  assert.deepEqual(
+    await tombstoneBlobIfUnreferenced({ deps: { ...deps, referenceProbes: { hasLiveEntryRefs: () => true } }, input }),
+    { tombstoned: false, reason: "still-referenced" },
+  );
+  assert.deepEqual(await tombstoneBlobIfUnreferenced({ deps, input }), { tombstoned: true, reason: "tombstoned" });
+  setNow(advance("2026-07-10T00:00:00.000Z", DEFAULT_GC_GRACE_MS + 1000));
+
+  // A retained snapshot taken after the tombstone-pass is exactly what the delete-pass re-check exists for.
+  const snapshotted = { ...deps, referenceProbes: { hasRetainedSnapshot: () => true } };
+  assert.deepEqual(await runBlobGcDeletePass({ deps: snapshotted, input }), { deleted: false, reason: "resurrected" });
+  assert.equal((await deps.blobRepo.findByHash(input))?.status, "tombstoned");
+  assert.deepEqual(await deps.journalRepo.list({ workspaceId: WORKSPACE_ID }), []);
+});
+
+test("both GC passes report no-blob-row for a sha256 that has no asset_blobs row at all", async () => {
+  const { deps } = makeDeps();
+  const input = { workspaceId: WORKSPACE_ID, sha256: "f".repeat(64) };
+  assert.deepEqual(await tombstoneBlobIfUnreferenced({ deps, input }), { tombstoned: false, reason: "no-blob-row" });
+  assert.deepEqual(await runBlobGcDeletePass({ deps, input }), { deleted: false, reason: "no-blob-row" });
+  assert.deepEqual(await deps.journalRepo.list({ workspaceId: WORKSPACE_ID }), []);
+});
+
+test("the monthly orphan sweep is a named no-op seam: it reports unimplemented and touches neither store nor repo", async () => {
+  const untouchable = new Proxy({}, { get: (_target, name) => { throw new Error(`orphan sweep stub touched ${String(name)}`); } });
+  const result = await runMonthlyOrphanSweepStub({
+    deps: { blobStore: untouchable as InMemoryBlobStore, blobRepo: untouchable as InMemoryAssetBlobRepo },
+    input: { workspaceId: WORKSPACE_ID },
+  }, {});
+  assert.deepEqual(result, { implemented: false });
 });

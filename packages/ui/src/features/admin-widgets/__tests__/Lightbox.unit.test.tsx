@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Lightbox } from "../components/Lightbox/Lightbox.js";
-import { closeLightboxDialog, openLightboxDialog } from "../components/Lightbox/Lightbox.hooks.js";
+import { closeLightboxDialog, openLightboxDialog, useLightbox } from "../components/Lightbox/Lightbox.hooks.js";
 
 /**
  * @file The shared `Lightbox`. jsdom implements neither `showModal` nor `close`, so the
@@ -168,5 +168,22 @@ describe("native dialog helpers", () => {
     closeLightboxDialog(dialog);
     closeLightboxDialog(dialog);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useLightbox without a mounted dialog", () => {
+  it("a custom view that has not attached the dialog yet neither opens nor steals focus, and still routes navigation", () => {
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+    const onNavigate = vi.fn(), onClose = vi.fn();
+    const { result } = renderHook(() => useLightbox({ open: true, onClose, count: 3, index: 1, onNavigate }));
+    expect(document.activeElement).toBe(outside);
+    expect(result.current.counter).toBe("2 / 3");
+    result.current.next();
+    expect(onNavigate).toHaveBeenCalledWith(2);
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    outside.remove();
   });
 });

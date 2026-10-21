@@ -250,4 +250,44 @@ describe('RunLifecycle — slow-run notice', () => {
     // Contained, not fatal to the run: still running, exactly as before the failed notice attempt.
     expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
   });
+
+  describe('when the notice\'s emit() fails and the failure sink is missing or itself throws', () => {
+    function failingNoticeLog(appendError: Error): EventLog {
+      const inner = createInMemoryEventLog({});
+      return {
+        ...inner,
+        append: async (appendInput) => {
+          const data = appendInput.data as { type?: string } | undefined;
+          if (appendInput.event === 'agent' && data?.type === 'slow_running') throw appendError;
+          return inner.append(appendInput);
+        },
+      };
+    }
+
+    it('logs the failure to the console when no onInternalError sink is configured', async () => {
+      const appendError = new Error('event database is closed');
+      const lifecycle = createRunLifecycle({ eventLog: failingNoticeLog(appendError) }, { slowRunThresholdMs: 1_000 });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-slow-notice-console' });
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error (slow-run-notice, runId=${run.id})`, appendError);
+      } finally { consoleError.mockRestore(); }
+      expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
+    });
+
+    it('contains a throwing sink, logging the sink\'s own failure instead of rejecting unhandled', async () => {
+      const sinkError = new Error('sink exploded');
+      const lifecycle = createRunLifecycle({ eventLog: failingNoticeLog(new Error('closed')) }, {
+        slowRunThresholdMs: 1_000, onInternalError: () => { throw sinkError; },
+      });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-slow-notice-sink' });
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${run.id})`, sinkError);
+      } finally { consoleError.mockRestore(); }
+      expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
+    });
+  });
 });

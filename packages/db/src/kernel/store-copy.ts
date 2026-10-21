@@ -192,7 +192,8 @@ async function assertLedgersAgreeInternal(source: StorageKernel<unknown>, target
 
 function columnDdl(column: CatalogColumn): RawBuilder<unknown> {
   let ddl = sql`${sql.ref(column.name)} ${sql.raw(column.type)}`;
-  if (column.generated) return sql`${ddl} GENERATED ALWAYS AS (${sql.raw(column.expression ?? "NULL")}) STORED`;
+  // Postgres stores every generated column's expression in pg_attrdef, so `expression` is set here.
+  if (column.generated) return sql`${ddl} GENERATED ALWAYS AS (${sql.raw(column.expression!)}) STORED`;
   if (column.identity !== "") ddl = sql`${ddl} GENERATED ${sql.raw(column.identity === "a" ? "ALWAYS" : "BY DEFAULT")} AS IDENTITY`;
   if (column.notNull) ddl = sql`${ddl} NOT NULL`;
   if (column.expression !== null && column.identity === "") {

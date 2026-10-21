@@ -28,4 +28,18 @@ describe('note-store injected effects', () => {
       await filesystem.rm(dataDir, { recursive: true, force: true });
     }
   });
+
+  it('refuses a temporary-ID port value that could escape the note directory, before opening any file', async () => {
+    const dataDir = await filesystem.mkdtemp(join(tmpdir(), 'jini-memory-ports-'));
+    const open = vi.fn(filesystem.open.bind(filesystem));
+    const store = createNoteStore({ validTypes: ['fact'], defaultType: 'fact' }, { filesystem: { ...filesystem, open }, ids: () => '../escape' });
+    try {
+      await expect(store.upsertEntry({ dataDir, input: { name: 'Preference', type: 'fact', body: 'Tea' } }))
+        .rejects.toThrow('invalid temporary note file id');
+      expect(open).not.toHaveBeenCalled();
+      expect(await store.readEntry({ dataDir, id: 'fact_preference' })).toBeNull();
+    } finally {
+      await filesystem.rm(dataDir, { recursive: true, force: true });
+    }
+  });
 });

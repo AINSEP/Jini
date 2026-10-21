@@ -38,8 +38,10 @@ export function createStandingDraftLocalBackup(
   { keyPrefix: KEY_PREFIX, getStorage }: { keyPrefix: string; getStorage: (required: Record<string, never>, optional?: Record<string, never>) => Pick<Storage, "getItem" | "setItem" | "removeItem"> },
   _options: Record<string, never> = {},
 ) {
-  function keyFor(entryId: string, principalId?: string | null | undefined): string {
-    return principalId === undefined ? `${KEY_PREFIX}${entryId}` : `${KEY_PREFIX}${encodeURIComponent(principalId ?? "")}.${encodeURIComponent(entryId)}`;
+  // Never sees a `null` principal: write/read/clear each return before reaching storage for one, so
+  // the old `principalId ?? ""` fallback here could not run.
+  function keyFor(entryId: string, principalId: string | undefined): string {
+    return principalId === undefined ? `${KEY_PREFIX}${entryId}` : `${KEY_PREFIX}${encodeURIComponent(principalId)}.${encodeURIComponent(entryId)}`;
   }
 
   /** Mirrors a refused draft for this browser profile. Silent no-op on any storage failure.

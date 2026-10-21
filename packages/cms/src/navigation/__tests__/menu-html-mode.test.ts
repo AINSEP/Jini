@@ -8,7 +8,7 @@ import { menusAgentToolCatalog } from "../agent-tools.js";
 import { MAX_MENU_HTML_LENGTH } from "../menu-html.js";
 import { mergeMenuHtml } from "../menu-html.js";
 import { createMenu as createUniversalMenu } from "../menu-service.js";
-import { createMenu, MenuValidationError, updateMenuTree, buildMenusRegistrations } from "../node/index.js";
+import { createMenu, MenuValidationError, updateMenuTree, buildMenusRegistrations, mergeMenuHtml as nodeMergeMenuHtml } from "../node/index.js";
 import { InMemoryMenuRepo, InMemoryNavLocationBindingRepo } from "../repo.memory.js";
 import type { MenusToolDeps } from "../tool-registrations.js";
 
@@ -196,4 +196,10 @@ test("the published create/update schemas declare mode and html, and update no l
   }
   const update = menusAgentToolCatalog.find((t) => t.name === "menus_update_menu_tree")?.inputSchema as { required: string[] };
   assert.deepEqual(update.required, ["id", "expectedVersion"]);
+});
+
+test("the Node merge balances submitted HTML with parse5 by default, defers to a caller normalizer, and keeps stored HTML when none is submitted", () => {
+  assert.deepEqual(nodeMergeMenuHtml({ input: { mode: "html", html: "<ul><li>Home" } }), { mode: "html", html: "<ul><li>Home</li></ul>" });
+  assert.deepEqual(nodeMergeMenuHtml({ input: { html: "<b>x" } }, { normalizeHtml: ({ html }) => `[${html}]` }), { html: "[<b>x]" });
+  assert.deepEqual(nodeMergeMenuHtml({ input: {}, existing: { mode: "html", html: "<p>kept</p>" } }), { mode: "html", html: "<p>kept</p>" });
 });

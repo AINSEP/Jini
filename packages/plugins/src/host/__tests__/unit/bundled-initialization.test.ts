@@ -26,4 +26,15 @@ describe('absent-row-only bundled initializer', () => {
     expect(result).toEqual({ enabled: ['good'], skipped: [], failed: [{ pluginId: 'bad', error }] });
     expect(await repo.getActivation({ workspaceId: 'w', pluginId: 'bad' })).toBeNull();
   });
+
+  it('skips an id that discovery knows only as a site plugin, or does not know at all, without enabling it', async () => {
+    const repo = new InMemoryPluginActivationRepo();
+    const loads: string[] = [];
+    const site: PluginDiscoveryRecord = { ...record('site-only'), source: 'site' };
+    const result = await initializeBundledPlugins({ deps: { repo, clock: { nowMs: () => 0 }, discovery: [site], onEnabled: async (id) => { loads.push(id); } },
+      input: { workspaceId: 'w', pluginIds: ['site-only', 'missing'] } });
+    expect(result).toEqual({ enabled: [], skipped: ['site-only', 'missing'], failed: [] });
+    expect(loads).toEqual([]);
+    expect(await repo.listAll()).toEqual([]);
+  });
 });

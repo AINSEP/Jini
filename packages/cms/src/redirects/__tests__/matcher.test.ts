@@ -244,3 +244,41 @@ for (const statusCode of [302, 307, 308] as const) {
     });
   });
 }
+
+test("a prefix rule written with a trailing slash matches nested paths beneath it without doubling the slash", () => {
+  const rules = [rule({ matchType: "prefix", fromPattern: "/old/", toTarget: "/new/" })];
+  assert.deepEqual(match({ request: req("/old/a/b"), rules }), { matched: true, redirectId: rules[0]!.id, location: "/new/a/b", statusCode: 301, matchType: "prefix" });
+  assert.equal(match({ request: req("/old"), rules }).matched, false);
+});
+
+test("a wildcard target that references a capture the pattern does not have keeps the placeholder literally", () => {
+  const rules = [rule({ matchType: "wildcard", fromPattern: "/p/*", toTarget: "/q/$1/$2/$0" })];
+  const result = match({ request: req("/p/x"), rules });
+  assert.equal(result.matched && result.location, "/q/x/$2/$0");
+});
+
+test("a stored rule whose matchType the matcher does not implement never matches", () => {
+  const rules = [
+    rule({ matchType: "regex", fromPattern: "/a" }),
+    rule({ matchType: "glob" as RedirectRecord["matchType"], fromPattern: "/a" }),
+  ];
+  assert.deepEqual(match({ request: req("/a"), rules }), { matched: false });
+});
+
+test("tie-break recency uses createdAt for a rule never updated, in either comparison order", () => {
+  const older = rule({ updatedAt: "", createdAt: "2026-01-01T00:00:00.000Z" });
+  const newer = rule({ updatedAt: "", createdAt: "2026-02-01T00:00:00.000Z" });
+  for (const rules of [[older, newer], [newer, older]]) {
+    const result = match({ request: req("/a"), rules });
+    assert.equal(result.matched && result.redirectId, newer.id);
+  }
+});
+
+test("tie-break by id is order-independent, and the same rule listed twice still resolves to it", () => {
+  const a = rule({ id: "rule-a" });
+  const b = rule({ id: "rule-b" });
+  for (const rules of [[a, b], [b, a], [b, b]]) {
+    const result = match({ request: req("/a"), rules }, {});
+    assert.equal(result.matched && result.redirectId, rules.includes(a) ? "rule-a" : "rule-b");
+  }
+});

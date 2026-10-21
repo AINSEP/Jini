@@ -864,7 +864,11 @@ export function attachmentSidecarFileName({ id }: { readonly id: string }, _opti
 
 /** Writes only persisted fields, atomically, so an interrupted backfill preserves the old sidecar.
  * Propagates write failures; callers must not treat a failed migration as an invalid attachment. */
-async function writePersistedAttachment({ record, sidecarPath }: { readonly record: AttachmentRecord; readonly sidecarPath: string }, _optional: Record<string, never> = {}): Promise<void> {
+/** A record whose integrity timestamps are known: every record registered by this process, and every
+ * legacy record once {@link verifyClaimedAttachments} has backfilled them. Only these are written. */
+type TimestampedAttachmentRecord = AttachmentRecord & { readonly mtimeMs: number; readonly ctimeMs: number };
+
+async function writePersistedAttachment({ record, sidecarPath }: { readonly record: TimestampedAttachmentRecord; readonly sidecarPath: string }, _optional: Record<string, never> = {}): Promise<void> {
   const persisted: PersistedAttachmentRecord = {
     id: record.id,
     filePath: record.filePath,
@@ -874,8 +878,8 @@ async function writePersistedAttachment({ record, sidecarPath }: { readonly reco
     batchId: record.batchId,
     dev: record.dev,
     ino: record.ino,
-    ...(record.mtimeMs === undefined ? {} : { mtimeMs: record.mtimeMs }),
-    ...(record.ctimeMs === undefined ? {} : { ctimeMs: record.ctimeMs }),
+    mtimeMs: record.mtimeMs,
+    ctimeMs: record.ctimeMs,
     createdAt: record.createdAt,
     ...(record.ownerId === undefined ? {} : { ownerId: record.ownerId }),
   };
@@ -903,13 +907,15 @@ async function readPersistedAttachment(
  * the SAME `dev`/`ino`/`size`/`realpath` gate `claim()` applies, or a restart would become the one
  * moment at which a file swapped underneath the store gets handed to an agent anyway.
  */
-async function isAdoptableAttachment(record: AttachmentRecord): Promise<boolean> {
+/** The record, now timestamped, when its file is still the one registration accepted; else `undefined`. */
+async function adoptableAttachment(record: AttachmentRecord): Promise<TimestampedAttachmentRecord | undefined> {
   try {
     await verifyClaimedAttachments({ claimed: [record] });
-    return true;
   } catch {
-    return false;
+    return undefined;
   }
+  // A successful verification backfills both timestamps in place (`record.mtimeMs ??= ...`).
+  return record as TimestampedAttachmentRecord;
 }
 
 function needsAttachmentTimestampBackfill(
@@ -947,18 +953,30 @@ export async function loadPersistedAttachments(requiredArgs: Omit<{ readonly can
   await mkdir(sidecarDirectory, { recursive: true, mode: 0o700 });
   const adopted = new Map<string, AttachmentRecord>();
   for (const entry of await readdir(sidecarDirectory)) {
-    const sidecarPath = resolve(sidecarDirectory, entry);
-    const record = await readPersistedAttachment(sidecarPath, canonicalUploadDirectory);
-    const needsBackfill = needsAttachmentTimestampBackfill({ record });
-    if (record && now - record.createdAt < retentionMs && await isAdoptableAttachment(record)) {
-      if (needsBackfill) await writePersistedAttachment({ record, sidecarPath });
-      adopted.set(record.id, record);
-      continue;
-    }
-    await rm(sidecarPath, { force: true });
-    if (record) await rm(record.filePath, { force: true });
+    const record = await adoptOrDiscardSidecar({ sidecarPath: resolve(sidecarDirectory, entry), canonicalUploadDirectory, retentionMs, now });
+    if (record) adopted.set(record.id, record);
   }
   return adopted;
+}
+
+/**
+ * One sidecar of {@link loadPersistedAttachments}: the adopted (timestamp-backfilled) record, or
+ * `undefined` after deleting the sidecar and — only when its record parsed, i.e. passed
+ * containment — the file it named. @complexity O(1) file operations.
+ */
+async function adoptOrDiscardSidecar({ sidecarPath, canonicalUploadDirectory, retentionMs, now }: {
+  readonly sidecarPath: string; readonly canonicalUploadDirectory: string; readonly retentionMs: number; readonly now: number;
+}): Promise<TimestampedAttachmentRecord | undefined> {
+  const record = await readPersistedAttachment(sidecarPath, canonicalUploadDirectory);
+  const needsBackfill = needsAttachmentTimestampBackfill({ record });
+  const adoptable = record && now - record.createdAt < retentionMs ? await adoptableAttachment(record) : undefined;
+  if (adoptable) {
+    if (needsBackfill) await writePersistedAttachment({ record: adoptable, sidecarPath });
+    return adoptable;
+  }
+  await rm(sidecarPath, { force: true });
+  if (record) await rm(record.filePath, { force: true });
+  return undefined;
 }
 
 /** Deletes everything in one batch directory that no adopted record names, then tidies the
@@ -1053,7 +1071,7 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
    * exact failure mode this whole option exists to remove. `register`'s own `catch` deletes the
    * file, so the caller sees a failed upload rather than one that quietly evaporates later.
    */
-  const persistRecord = async (record: AttachmentRecord): Promise<void> => {
+  const persistRecord = async (record: TimestampedAttachmentRecord): Promise<void> => {
     if (!retainAcrossRestarts) return;
     try {
       await writePersistedAttachment({ record, sidecarPath: sidecarPathFor(record) });
@@ -1167,7 +1185,7 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
           throw new AttachmentRejectedError({ reason: 'storage-full', message: 'Attachment storage is full' });
         }
         const id = `attachment:${randomUUID()}`;
-        const record: AttachmentRecord = {
+        const record: TimestampedAttachmentRecord = {
           id,
           filePath,
           name: input.name,

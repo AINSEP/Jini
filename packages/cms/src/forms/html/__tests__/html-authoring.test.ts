@@ -87,3 +87,42 @@ test("malformed outer closers cannot terminate the server wrapper; authored chec
   assert.ok(authored.fields[0]);
   assert.equal(authored.fields[0].type, "checkbox");
 });
+
+test("a builder-mode create through the authoring port keeps the caller's builder fields", async () => {
+  const { writeDeps } = harness();
+  const fields = [{ id: "name", label: "Name", type: "text" as const, required: true }];
+  const { definition } = await createFormDefinition({ deps: writeDeps, input: { ...target, name: "Contact", slug: "contact", mode: "builder", fields } });
+  assert.deepEqual(definition.fields, fields);
+  assert.equal((definition as HtmlFormDefinitionRecord).mode, "builder");
+});
+
+test("switching an HTML form back to builder replaces its derived fields only when the patch sends fields", async () => {
+  const { writeDeps, repo } = harness();
+  const html = '<input name="email" type="email" required>';
+  const created = await createFormDefinition({ deps: writeDeps, input: { ...target, name: "Contact", slug: "contact", mode: "html", fields: [], html } });
+  const builderFields = [{ id: "name", label: "Name", type: "text" as const, required: true }];
+  await updateFormDefinition({ deps: writeDeps, input: { ...target, formId: created.definition.id, patch: { mode: "builder", fields: builderFields } } });
+  const switched = await repo.findById({ workspaceId: "ws", id: created.definition.id }) as HtmlFormDefinitionRecord;
+  assert.deepEqual(switched.fields, builderFields);
+  assert.equal(switched.mode, "builder");
+  assert.equal(switched.html, undefined);
+
+  const second = await createFormDefinition({ deps: writeDeps, input: { ...target, name: "Signup", slug: "signup", mode: "html", fields: [], html } });
+  await updateFormDefinition({ deps: writeDeps, input: { ...target, formId: second.definition.id, patch: { mode: "builder" } } });
+  const kept = await repo.findById({ workspaceId: "ws", id: second.definition.id }) as HtmlFormDefinitionRecord;
+  assert.deepEqual(kept.fields.map((field) => field.id), ["email"]);
+  assert.equal(kept.mode, "builder");
+});
+
+test("an HTML-mode record without stored markup round-trips as empty markup instead of the string 'undefined'", () => {
+  const record: HtmlFormDefinitionRecord = {
+    id: "f", workspaceId: "ws", name: "Contact", slug: "contact", fields: [], mode: "html", html: undefined,
+    notify: { enabled: false, recipients: [] }, status: "active", version: 1, createdAt: "2026-10-04T12:00:00Z", updatedAt: "2026-10-04T12:00:00Z",
+  };
+  assert.deepEqual(JSON.parse(encodeFormFields({ definition: record }, {})), { fields: [], mode: "html", html: "" });
+  // A row written before markup was stored (or by another writer) still reads back as an HTML form.
+  const row = { ...toDefinitionRow(record), fields_json: JSON.stringify({ fields: [], mode: "html" }) } as FormDefinitionRow;
+  const read = toDefinitionRecord(row) as HtmlFormDefinitionRecord;
+  assert.equal(read.mode, "html");
+  assert.equal(read.html, "");
+});

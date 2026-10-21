@@ -110,6 +110,14 @@ test("CIC-3: a host port that itself throws when mounting a module's registratio
   assert.match(result!.quarantined[0]!.detail, /mount failed/);
 });
 
+test("a module whose build throws a non-Error value is quarantined with that value's string form", () => {
+  const { hostPort, calls } = fakeHostPort();
+  const module: GlueToolModuleContribution = { moduleId: "odd", build: () => { throw "not an Error object"; } };
+  const result = mergeGlueToolRegistrations({ coreToolIds: [], glueModules: [module], hostPort });
+  assert.deepEqual(result.quarantined, [{ moduleId: "odd", reason: "THROW", detail: "registration build failed: not an Error object" }]);
+  assert.equal(calls.length, 0);
+});
+
 test("zero glue modules is a no-op: empty result, host port never called", () => {
   const { hostPort, calls } = fakeHostPort();
   const result = mergeGlueToolRegistrations({ coreToolIds: ["core_tool_x"], glueModules: [], hostPort });

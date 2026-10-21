@@ -1134,6 +1134,25 @@ describe('RunLifecycle — terminal run retention', () => {
     expect(await lifecycle.get({ runId: 'run-b' })).toMatchObject({ state: 'succeeded' });
   });
 
+  it('a cap-evicted run\'s own retention timer later fires as a harmless no-op, leaving the surviving run intact', async () => {
+    const eventLog = createInMemoryEventLog({});
+    const lifecycle = createRunLifecycle({ eventLog }, { maxTerminalRuns: 1, terminalRetentionMs: 1_000 });
+
+    const first = await lifecycle.start({ contextRef: 'ctx-1' }, { runId: 'run-a' });
+    await lifecycle.finish({ runId: first.run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+    await vi.advanceTimersByTimeAsync(400);
+    const second = await lifecycle.start({ contextRef: 'ctx-1' }, { runId: 'run-b' });
+    await lifecycle.finish({ runId: second.run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+    expect(await lifecycle.get({ runId: 'run-a' })).toBeUndefined();
+
+    // run-a's retention timer (armed before the cap evicted it) fires now; it must not disturb run-b.
+    await vi.advanceTimersByTimeAsync(700);
+    expect(await lifecycle.get({ runId: 'run-b' })).toMatchObject({ state: 'succeeded' });
+
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await lifecycle.get({ runId: 'run-b' })).toBeUndefined();
+  });
+
   it('resume() cancels the pending eviction so a reclaimed run survives past its original retention window', async () => {
     const eventLog = createInMemoryEventLog({});
     const lifecycle = createRunLifecycle({ eventLog }, { terminalRetentionMs: 1_000 });

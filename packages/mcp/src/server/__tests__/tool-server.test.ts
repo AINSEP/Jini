@@ -162,6 +162,16 @@ describe('createMcpToolServer', () => {
     await runPromise;
   });
 
+  it('refuses delegated publication on an embedding whose server cannot announce tools/list_changed', async () => {
+    const server = makeFakeServer();
+    const connect = vi.spyOn(server, 'connect');
+    const handle = createMcpToolServer(...splitServerFixture(baseOptions({
+      delegatedTools: { runId: 'run' }, createServer: () => server, createTransport: () => new FakeTransport(),
+    })));
+    await expect(handle.run({})).rejects.toThrow('delegated publication requires tools/list_changed support');
+    expect(connect).not.toHaveBeenCalled();
+  });
+
   it('honors a caller-supplied idleMs', async () => {
     const server = makeFakeServer();
     const transport = new FakeTransport();

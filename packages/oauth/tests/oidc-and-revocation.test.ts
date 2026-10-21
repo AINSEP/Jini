@@ -337,3 +337,14 @@ test('JWKS retrieval applies the adapter deadline before exposing identity claim
         assert.deepEqual(server.requests, []);
     } finally { await server.close(); }
 });
+
+test('an empty token is refused as an invalid request before anything is sent', async () => {
+    const http = createFetchDouble([]);
+    const error = await assertOAuthRejects(() => revokeOAuthToken({ fetchFn: http.fetchFn, guard: fixtureGuard,
+        revocationEndpoint: 'https://issuer.example/revoke', client: TEST_CLIENT, token: '',
+    }), 'OAUTH_INVALID_REQUEST');
+    assert.equal(error.message, 'the OAuth revocation or client configuration is invalid');
+    assert.equal(error.operatorAction, 'Check the client identity, authentication method and token.');
+    assert.equal(error.cause, undefined);
+    assert.equal(http.callCount(), 0);
+});

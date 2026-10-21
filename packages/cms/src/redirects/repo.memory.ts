@@ -91,9 +91,7 @@ export class InMemoryRedirectRepo implements RedirectRepoPort, RedirectDbHandle 
     const candidates = this.all(required.workspaceId).filter(
       (r) => r.status === "active" && r.fromPattern === required.fromPattern
     );
-    if (candidates.length === 0) return null;
-    candidates.sort((a, b) => compareSamePatternExactFirst({ a, b }, {}));
-    const winner = candidates[0];
+    const [winner] = candidates.sort((a, b) => compareSamePatternExactFirst({ a, b }, {}));
     return winner ? { ...winner } : null;
   }
 

@@ -63,3 +63,15 @@ it('propagates failed acquisition without acquiring any other resource', () => {
   expect(() => openSqliteEventLog({ file: ':memory:', open })).toThrow(failure);
   expect(open).toHaveBeenCalledTimes(1);
 });
+
+it('a cleanup close that itself throws never masks the original schema failure', () => {
+  const db = new Database(':memory:');
+  const failure = new Error('schema denied');
+  vi.spyOn(db, 'exec').mockImplementation(() => { throw failure; });
+  const realClose = db.close.bind(db);
+  const close = vi.spyOn(db, 'close').mockImplementation(() => { throw new Error('close failed'); });
+  try {
+    expect(() => openSqliteEventLog({ file: ':memory:', open: () => db })).toThrow(failure);
+    expect(close).toHaveBeenCalledTimes(1);
+  } finally { close.mockRestore(); if (db.open) realClose(); }
+});

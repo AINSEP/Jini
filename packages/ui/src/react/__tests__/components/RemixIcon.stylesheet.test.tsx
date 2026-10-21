@@ -224,3 +224,70 @@ describe('installRemixIconStylesheet', () => {
     expect(markedElements()).toEqual([override]);
   });
 });
+
+describe('font recovery wiring for marked stylesheets', () => {
+  function stubFonts() {
+    const probes: string[] = [];
+    const fonts = { async load(font: string) { probes.push(font); return [{}]; }, check: () => true, add: () => {} };
+    const original = Object.getOwnPropertyDescriptor(document, 'fonts');
+    Object.defineProperty(document, 'fonts', { configurable: true, value: fonts });
+    vi.stubGlobal('FontFace', class { readonly status = 'loaded'; });
+    return { probes, restore: () => { if (original) Object.defineProperty(document, 'fonts', original); else Reflect.deleteProperty(document, 'fonts'); } };
+  }
+
+  it('starts recovery for an installed link only once its stylesheet has loaded', async () => {
+    const { probes, restore } = stubFonts();
+    try {
+      const { installRemixIconStylesheet } = await loadFresh();
+      expect(installRemixIconStylesheet({ href: '/assets/remixicon.css' })).toBe(true);
+      const link = markedElements()[0] as HTMLLinkElement;
+      await Promise.resolve();
+      expect(probes).toEqual([]);
+      const faceRule = { type: 5, style: { getPropertyValue: (name: string) => (name === 'font-family' ? '"remixicon"' : 'url("/assets/remixicon.woff2")') } };
+      Object.defineProperty(link, 'sheet', { configurable: true, value: { href: 'http://localhost/assets/remixicon.css', cssRules: [faceRule] } });
+      link.dispatchEvent(new Event('load'));
+      await Promise.resolve();
+      expect(probes).toEqual(['16px "remixicon"']);
+    } finally {
+      restore();
+    }
+  });
+
+  it('honours a marker on a non-stylesheet element without attempting font recovery on it', async () => {
+    const { probes, restore } = stubFonts();
+    const marker = document.createElement('meta');
+    marker.setAttribute(MARKER, '');
+    document.head.appendChild(marker);
+    try {
+      const { RemixIcon } = await loadFresh();
+      render(<RemixIcon name="settings-line" />);
+      await Promise.resolve();
+      expect(markedElements()).toEqual([marker]);
+      expect(probes).toEqual([]);
+    } finally {
+      restore();
+    }
+  });
+});
+
+describe('default stylesheet resolution failures', () => {
+  it('injects nothing and warns when the module URL cannot be resolved at all', async () => {
+    vi.stubGlobal('URL', class { constructor() { throw new TypeError('Invalid URL'); } });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { RemixIcon } = await loadFresh();
+    render(<RemixIcon name="settings-line" />);
+    expect(markedElements()).toHaveLength(0);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain('defeated the default stylesheet');
+  });
+
+  it('warns once even if the failed default link reports its error again', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { RemixIcon } = await loadFresh();
+    render(<RemixIcon name="settings-line" />);
+    const link = markedElements()[0];
+    link?.dispatchEvent(new Event('error'));
+    link?.dispatchEvent(new Event('error'));
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+});

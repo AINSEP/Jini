@@ -2,7 +2,8 @@ import { EventEmitter } from "node:events";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { expect, test, vi } from "vitest";
-import { createNodeDaemonProcessAdapter, type NodeDaemonProcessOptions, type SupervisorRegistry } from "../supervisor-node.js";
+import { spawnSync } from "node:child_process";
+import { createNodeDaemonProcessAdapter, createNodeSupervisorScheduler, type NodeDaemonProcessOptions, type SupervisorRegistry } from "../supervisor-node.js";
 
 // Exercise the real adapter with native effect ports, including win32 on a POSIX test host.
 function harness({ platform = "win32", pipe = true }: { platform?: NodeJS.Platform; pipe?: boolean } = {}) {
@@ -147,4 +148,33 @@ test("POSIX still ignores stdin and synchronously signals the process group befo
   await pending;
   expect(h.stop).toHaveBeenCalledWith([43, 42]);
   expect(h.order).toEqual(["descendants", "registry"]);
+});
+
+test.skipIf(process.platform === "win32")("without a platform override the host's own platform picks the stop path (POSIX here)", async () => {
+  const h = harness();
+  const { platform: _platform, ...hostPlatform } = h.options;
+  const child = h.adapter.spawnDaemonProcess();
+  await createNodeDaemonProcessAdapter(h.required, hostPlatform).terminateProcess({ child });
+  expect(h.signal).toHaveBeenCalledWith(-42, "SIGTERM");
+  expect(h.force).not.toHaveBeenCalled();
+});
+
+test("win32 without an injected exit wait uses the platform wait, which sees an already-exited daemon at once", async () => {
+  const exitedPid = spawnSync(process.execPath, ["-e", ""]).pid;
+  const h = harness();
+  const { waitForProcessExit: _wait, ...realWait } = h.options;
+  const native = Object.assign(new EventEmitter(), { pid: exitedPid, stdin: new PassThrough(), kill: vi.fn() }) as unknown as ChildProcess;
+  const adapter = createNodeDaemonProcessAdapter(h.required, { ...realWait, spawn: () => native });
+  await adapter.terminateProcess({ child: adapter.spawnDaemonProcess() });
+  expect(h.force).not.toHaveBeenCalled();
+  expect(h.remove).toHaveBeenCalledWith({ pid: exitedPid });
+});
+
+test("the Node scheduler runs a task after its delay and a cancelled task never runs", async () => {
+  const scheduler = createNodeSupervisorScheduler({});
+  const ran: string[] = [];
+  const cancel = scheduler.schedule({ delayMs: 1, run: () => { ran.push("cancelled"); } });
+  cancel();
+  await new Promise<void>((resolve) => { scheduler.schedule({ delayMs: 1, run: () => { ran.push("kept"); resolve(); } }); });
+  expect(ran).toEqual(["kept"]);
 });

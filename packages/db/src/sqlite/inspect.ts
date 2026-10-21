@@ -162,7 +162,9 @@ export interface VerifyDbOptions {
 }
 
 function hasSuccessfulIntegrityResult({ rows, pragma }: { rows: Array<Record<string, unknown>>; pragma: string }, _options = {}): boolean {
-  return rows.length === 1 && String(rows[0]?.[pragma] ?? Object.values(rows[0] ?? {})[0]).toLowerCase() === 'ok';
+  // Exactly one row, read once: `row !== undefined` and an empty `rest` together are `rows.length === 1`.
+  const [row, ...rest] = rows;
+  return row !== undefined && rest.length === 0 && String(row[pragma] ?? Object.values(row)[0]).toLowerCase() === 'ok';
 }
 
 function readIntegrityIssues({ db, pragma }: { db: SqliteDb; pragma: string }, { strict = false }: { strict?: boolean } = {}): DbIntegrityIssue[] {

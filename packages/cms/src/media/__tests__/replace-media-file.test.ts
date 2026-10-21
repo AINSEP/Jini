@@ -84,3 +84,24 @@ test('SVG replacement uses the upload sanitizer before hashing and persistence',
   assert.doesNotMatch(stored, /script|onload|alert/);
   assert.match(stored, /rect/);
 });
+
+test('a document asset never has its bytes replaced, so its immutable filename keeps describing them', async () => {
+  const f = await fixture();
+  await assert.rejects(
+    replaceMediaFile({ deps: f.deps, media: { ...f.media, kind: 'document' }, bytes: new Uint8Array([2]), contentType: 'application/pdf', principalId: 'owner' }),
+    /document file replacement is unavailable/,
+  );
+  assert.deepEqual(f.switches, []);
+});
+
+test('an SVG that grows past the cap during sanitizing is refused after sanitizing, before staging', async () => {
+  const f = await fixture();
+  // A bare ">" in text is legal XML but serializes back as "&gt;", so the sanitized bytes are longer.
+  const source = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><text>>>>></text></svg>');
+  await assert.rejects(
+    replaceMediaFile({ deps: f.deps, media: f.media, bytes: source, contentType: 'image/svg+xml', principalId: 'owner' }, { maxUploadBytes: source.byteLength }),
+    /sanitized file exceeds the upload size cap/,
+  );
+  assert.equal((await f.deps.assetBlobRepo.list({ workspaceId: f.deps.workspaceId })).length, 1);
+  assert.deepEqual(f.switches, []);
+});

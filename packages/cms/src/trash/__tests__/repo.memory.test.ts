@@ -160,6 +160,28 @@ function runSuite(adapterName: string, makeRepo: () => TrashRepoPort) {
     await repo.deleteById({ workspaceId: WS, id: "theirs" });
     assert.notEqual(await repo.findByEntity({ workspaceId: WS2, entityType: "post", entityId: "post-2" }), null);
   });
+
+  test(`[${adapterName}] claimDue keeps rows sharing one purgeAfter instant together, oldest instant first`, async () => {
+    const repo = makeRepo();
+    const tied = "2026-09-01T00:00:00.000Z";
+    await repo.insert({ row: item({ id: "tie-a", entityId: "post-a", purgeAfter: tied }) });
+    await repo.insert({ row: item({ id: "later", entityId: "post-later", purgeAfter: "2026-09-01T12:00:00.000Z" }) });
+    await repo.insert({ row: item({ id: "tie-b", entityId: "post-b", purgeAfter: tied }) });
+    const claims = await repo.claimDue({ now: "2026-09-02T00:00:00.000Z", leaseOwner: "a", leaseUntil: "2026-09-02T00:05:00.000Z", limit: 10 });
+
+    assert.deepEqual(claims.map((c) => c.id).slice(0, 2).sort(), ["tie-a", "tie-b"]);
+    assert.equal(claims[2]!.id, "later");
+  });
+
+  test(`[${adapterName}] list orders rows trashed at the same instant by id, newest-first semantics preserved`, async () => {
+    const repo = makeRepo();
+    for (const id of ["b", "c", "a"]) await repo.insert({ row: item({ id, entityId: `post-${id}` }) });
+    const page = await repo.list({ workspaceId: WS, now: "2026-09-02T00:00:00.000Z", limit: 2 });
+
+    assert.deepEqual(page.items.map((r) => r.id), ["c", "b"]);
+    const rest = await repo.list({ workspaceId: WS, now: "2026-09-02T00:00:00.000Z", limit: 2 }, { cursor: page.nextCursor });
+    assert.deepEqual(rest.items.map((r) => r.id), ["a"]);
+  });
 }
 
 

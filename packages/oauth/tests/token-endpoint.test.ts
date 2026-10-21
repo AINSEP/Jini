@@ -430,3 +430,39 @@ describe('exchangeOAuthAuthorizationCode / refreshAccessToken', () => {
     ).rejects.toMatchObject({ code: 'OAUTH_MALFORMED_RESPONSE', message: "the authorization server's response contained no access token" });
   });
 });
+test('a refresh_token grant with no refresh token is refused as invalid input before any request', async () => {
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'unwanted' } }]);
+    const error = await assertOAuthRejects(() => requestOAuthToken({
+        ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
+        tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: 'refresh_token' },
+    }), 'OAUTH_INVALID_REQUEST');
+    assert.equal(error.message, 'the OAuth grant or client configuration is invalid');
+    assert.equal(error.operatorAction, "Check this provider's client id, secret and grant parameters.");
+    assert.equal(error.cause, undefined, 'upstream errors may retain token request secrets');
+    assert.equal(http.callCount(), 0);
+});
+test('refreshAccessToken applies a caller-supplied request deadline', async () => {
+    const fetchFn = async (_args: { readonly url: string | URL | Request }, init?: RequestInit): Promise<Response> =>
+        new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+        });
+    const started = Date.now();
+    const error = await assertOAuthRejects(() => refreshAccessToken({
+        ...fixturePorts, clock: createTestClock(), fetchFn, tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, refreshToken: 'rt',
+    }, { timeoutMs: 20 }), 'OAUTH_PROVIDER_UNREACHABLE');
+    assert.equal(error.message, 'could not reach the authorization server at auth.example.com');
+    assert.ok(Date.now() - started < 5_000, 'the 20ms deadline, not the default, ended the request');
+});
+test('a non-OAuth error page on a failed token request is reported as a refusal with its status, never its body', async () => {
+    for (const step of [{ status: 503, text: '<html>fixture-private-outage-page</html>' }, { status: 500, json: { message: 'fixture-private-detail' } }]) {
+        const http = createFetchDouble([step]);
+        const error = await assertOAuthRejects(() => requestOAuthToken({
+            ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
+            tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: 'authorization_code', code: 'c' },
+        }), 'OAUTH_PROVIDER_REJECTED');
+        assert.equal(error.message, `the authorization server refused the request (HTTP ${step.status})`);
+        assert.equal(error.operatorAction, "Check this provider's client id, secret, scopes and redirect URI, then try connecting again.");
+        assert.equal(error.cause, undefined);
+        assert.equal(JSON.stringify(error).includes('fixture-private'), false);
+    }
+});

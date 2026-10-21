@@ -125,9 +125,11 @@ export function createUsersController({ api, safety }: { api: UsersApiPort; safe
   async function enableUser({ principalId }: { principalId: string }, _optional: Record<string, never> = {}) {
     if (read({}).rowSavingId || !gate(principalId, 'enable')) return false;
     set({ rowSavingId: principalId, rowError: null });
-    try { await api.enableUser({ principalId }, call); await load({}); return store.active({}); }
-    catch (error) { set({ rowError: report(error, 'failed to change status') }); return false; }
+    let enabled = false;
+    try { await api.enableUser({ principalId }, call); await load({}); enabled = store.active({}); }
+    catch (error) { set({ rowError: report(error, 'failed to change status') }); }
     finally { if (read({}).rowSavingId === principalId) set({ rowSavingId: null }); }
+    return enabled;
   }
   type Pending = NonNullable<UsersState['pending']>;
   /** The pending target when it may be confirmed now; a reset also needs a matching, non-empty pair. */

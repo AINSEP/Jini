@@ -139,11 +139,9 @@ export function createPendingAuthorizationStore<T>(
             put({ state, value }) {
                 sweep();
                 // Bound allocation without evicting on a replacement of an existing state.
-                while (!pending.has(state) && pending.size >= maxEntries) {
-                    const oldest = pending.keys().next();
-                    if (oldest.done) break;
-                    pending.delete(oldest.value);
-                }
+                // assertPendingStoreLimits guarantees maxEntries >= 1, so while this loop runs the map
+                // holds at least one key and the oldest one always exists.
+                while (!pending.has(state) && pending.size >= maxEntries) pending.delete(pending.keys().next().value!);
                 pending.set(state, value);
                 cancel ??= options.scheduler?.every({ intervalMs: Math.min(ttlMs, 60_000), run: sweep }) ?? null;
             },

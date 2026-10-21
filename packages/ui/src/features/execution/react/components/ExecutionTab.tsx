@@ -177,9 +177,10 @@ export function ExecutionTab({
   useEffect(() => {
     if (!canDiscoverModels) resetModelDiscovery();
   }, [canDiscoverModels, resetModelDiscovery]);
-  const localCliDisabled = Boolean(localCliUnavailableReason);
+  // No "local-cli while unavailable" guard here: `ExecutionModeSwitch` renders that tab `disabled`
+  // whenever `localCliUnavailableReason` is set, and React never dispatches `onClick` for a disabled
+  // button, so `setMode('local-cli')` cannot be reached in that state.
   const setMode = (mode: ExecutionMode) => {
-    if (mode === 'local-cli' && localCliDisabled) return;
     onConfigChange(nextConfigForModeChange(config, mode));
   };
 

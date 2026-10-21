@@ -327,3 +327,19 @@ it('uses the supplied fetch for the archive download and keeps its upload deadli
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(timeout).toHaveBeenCalledWith(120_000);
 });
+
+it('downloads through the host-supplied fetch prop instead of the global fetch', async () => {
+  const user = userEvent.setup();
+  const hostFetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response('zip', {
+    headers: { 'content-disposition': 'attachment; filename="host.zip"' },
+  }));
+  const globalFetch = vi.fn();
+  vi.stubGlobal('fetch', globalFetch);
+  vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:host'), revokeObjectURL: vi.fn() });
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  render(<ExportDiagnosticsButton exportPath="/host/export" fetch={hostFetch} />);
+  await user.click(screen.getByRole('button'));
+  await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Exported to host.zip'));
+  expect(hostFetch).toHaveBeenCalledWith('/host/export', expect.objectContaining({ credentials: 'same-origin' }));
+  expect(globalFetch).not.toHaveBeenCalled();
+});

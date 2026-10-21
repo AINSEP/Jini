@@ -288,6 +288,24 @@ describe("usePanelPosition — scroll/resize reposition guard", () => {
   });
 });
 
+describe("usePanelPosition — initial focus", () => {
+  function mounted<T extends HTMLElement>(element: T): T { document.body.append(element); return element; }
+
+  it("once positioned, moves focus into the search box when it is shown, else onto the panel itself", () => {
+    for (const showSearch of [true, false]) {
+      const trigger = mounted(document.createElement("button"));
+      const panel = mounted(Object.assign(document.createElement("div"), { tabIndex: -1 }));
+      const search = mounted(document.createElement("input"));
+      const { result } = renderHook(() => usePanelPosition({
+        open: true, triggerRef: { current: trigger }, panelRef: { current: panel }, searchInputRef: { current: search }, showSearch, onOutOfView: vi.fn(),
+      }));
+      expect(result.current.position).not.toBeNull();
+      expect(document.activeElement).toBe(showSearch ? search : panel);
+      trigger.remove(); panel.remove(); search.remove();
+    }
+  });
+});
+
 describe("edgeHighlightIndex", () => {
   // Direct coverage of the ternary extracted out of `handlePanelKeyDown`'s `"Home"`/`"End"` cases
   // under the 2026-08-12 ≤9/≤9 pass. `Select.unit.test.tsx`'s "Home/End jump the highlight..." and

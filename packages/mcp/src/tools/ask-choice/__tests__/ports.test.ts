@@ -327,3 +327,14 @@ test('mixed flat and nested questions fail before rendering or minting a ticket'
   await expect(createAskChoiceTool(deps).handler({ ctx: { ...context, input: { ...question, question: 'Conflicting question', options: [{ label: 'Now' }] } } })).rejects.toThrow('do not mix');
   expect(pending.redeem({ ticket: 't-1', principalId: 'human', params: { choice: 'Now' } })).toBe(false);
 });
+
+test('minting sweeps expired tickets, so an expired id no longer counts as taken while a live one still does', () => {
+  let nowMs = 0;
+  const pending = createAskChoiceAnswerTicketStore({ now: () => nowMs, newTicketId: () => 'fixed', ttlMs: 100 });
+  pending.mint({ principalId: 'human', question });
+  nowMs = 99;
+  expect(() => pending.mint({ principalId: 'human', question })).toThrow('Ticket ID must be non-empty and unique');
+  nowMs = 100;
+  expect(pending.mint({ principalId: 'human', question })).toBe('fixed');
+  expect(pending.redeem({ ticket: 'fixed', principalId: 'human', params: { choice: 'now' } })).toBe(true);
+});

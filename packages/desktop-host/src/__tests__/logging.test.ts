@@ -244,3 +244,21 @@ it('serializes the core Logger error bag alongside structured metadata', () => {
     { level: 'error', meta: { context: 'host', error: { message: 'detail', name: 'Error' } } },
   ]);
 });
+
+it('echoes metadata and the error bag to the injected console exactly as it writes them', () => {
+  const echoed: unknown[][] = [];
+  const out = { error: (...args: unknown[]) => { echoed.push(['error', ...args]); }, info: (...args: unknown[]) => { echoed.push(['info', ...args]); }, warn: (...args: unknown[]) => { echoed.push(['warn', ...args]); } };
+  const lines: string[] = [];
+  const logger = createFileLogger({ logPath: '/unused' }, { console: out, append: ({ data }) => { lines.push(data); } });
+  const error = new Error('detail');
+  for (const level of ['error', 'info', 'warn'] as const) {
+    logger[level]({ message: `${level} with meta` }, { meta: { context: 'host' } });
+    logger[level]({ message: `${level} with error` }, { meta: { context: 'host' }, error });
+  }
+  expect(echoed).toEqual([
+    ['error', 'error with meta', { context: 'host' }], ['error', 'error with error', { context: 'host', error }],
+    ['info', 'info with meta', { context: 'host' }], ['info', 'info with error', { context: 'host', error }],
+    ['warn', 'warn with meta', { context: 'host' }], ['warn', 'warn with error', { context: 'host', error }],
+  ]);
+  expect(lines).toHaveLength(6);
+});
