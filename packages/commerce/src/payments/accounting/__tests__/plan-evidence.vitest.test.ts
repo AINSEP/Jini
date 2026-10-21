@@ -163,12 +163,15 @@ describe("L3 review fixes (planner)", () => {
     expect(planIntentEvidence({ payment: paid, evidence: pe({ correlationId: "pay_1" }) })).toMatchObject({ kind: "intent" });
   });
 
-  test("no echo: bind to the single unbound in-flight refund of that amount; defer when ambiguous; else a new row", () => {
+  test("no echo: defer while a response is awaited; bind a success only to the single lost (unknown) row of that amount", () => {
     const noEcho = ev({ correlationId: undefined });
-    expect(planRefundEvidence({ payment: paid, refunds: [reserved], evidence: noEcho, newId: "n" })).toMatchObject({ kind: "refund", write: "update", row: { id: "rf_1", providerRefundRef: "re_9" } });
-    const twin: RefundState = { ...reserved, id: "rf_2", status: "unknown" };
-    expect(planRefundEvidence({ payment: paid, refunds: [reserved, twin], evidence: noEcho, newId: "n" })).toEqual({ kind: "deferred" });
-    const other: RefundState = { ...reserved, amountMinor: 1_000 };
+    expect(planRefundEvidence({ payment: paid, refunds: [reserved], evidence: noEcho, newId: "n" })).toEqual({ kind: "deferred" });
+    const lost: RefundState = { ...reserved, status: "unknown" };
+    expect(planRefundEvidence({ payment: paid, refunds: [lost], evidence: noEcho, newId: "n" })).toMatchObject({ kind: "refund", write: "update", row: { id: "rf_1", providerRefundRef: "re_9" } });
+    expect(planRefundEvidence({ payment: paid, refunds: [lost], evidence: ev({ correlationId: undefined, status: "failed" }), newId: "n" })).toEqual({ kind: "deferred" });
+    const twin: RefundState = { ...lost, id: "rf_2" };
+    expect(planRefundEvidence({ payment: paid, refunds: [lost, twin], evidence: noEcho, newId: "n" })).toEqual({ kind: "deferred" });
+    const other: RefundState = { ...lost, amountMinor: 1_000 };
     expect(planRefundEvidence({ payment: paid, refunds: [other], evidence: noEcho, newId: "n" })).toMatchObject({ kind: "refund", write: "insert", row: { id: "n" } });
   });
 

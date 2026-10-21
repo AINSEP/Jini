@@ -232,6 +232,7 @@ describe("property: any delivery order of the same facts ends in the same ledger
   async function scenario(kind: LedgerKind, seed: number) {
     // Every third seed: equal amounts, the ambiguous case for providers that do not echo.
     const [a1, a2] = seed % 3 === 0 ? [2_500, 2_500] : [3_000, 2_000];
+    const foreign = (["succeeded", "failed", undefined, undefined] as const)[seed % 4];
     const w = await paidPayment(kind, { echoesCorrelation: seed % 2 === 0 });
     await w.reserve("rf_1", a1);
     await w.reserve("rf_2", a2);
@@ -249,11 +250,16 @@ describe("property: any delivery order of the same facts ends in the same ledger
       async () => w.payment(await w.webhook("charge.refunded", "ch_1", "e3")),
       async () => w.payment(await w.webhook("charge.refunded", "ch_1", "e3")),
       () => w.payment(early, "retrieve"),
+      // A dashboard refund of the SAME amount as ours, with no correlation id (seeds 0/1 mod 4).
+      ...(foreign ? [() => w.refundEvidence({ providerRefundRef: "re_D", amount: USD(a1), status: foreign })] : []),
     ], seed));
     const { payment, refunds, outbox, quarantine } = await w.read();
     return {
       actual: { stuck, refunded: payment.refundedMinor, held: payment.refundHeldMinor, rows: refunds.length, announced: count(outbox, "refund.succeeded"), quarantine: quarantine.length },
-      expected: { stuck: 0, refunded: a1 + a2, held: 0, rows: 2, announced: 2, quarantine: 0 },
+      expected: {
+        stuck: 0, refunded: a1 + a2 + (foreign === "succeeded" ? a1 : 0), held: 0,
+        rows: foreign ? 3 : 2, announced: foreign === "succeeded" ? 3 : 2, quarantine: 0,
+      },
     };
   }
 
@@ -311,15 +317,32 @@ describe("guards", () => {
 });
 
 describe("providers that do not echo our correlation id", () => {
-  test("one in-flight refund of that amount: the webhook binds to it even before the response", async () => {
+  test("one in-flight refund awaiting its response: the webhook is deferred, then matches by ref", async () => {
     const w = await paidPayment("memory", { echoesCorrelation: false });
     await w.reserve("rf_1", 3_000);
-    await w.dispatch("rf_1", 3_000);
+    const response = await w.dispatch("rf_1", 3_000);
     w.fake.server.settleRefund({ refundId: "re_2", status: "succeeded" });
-    expect(await w.payment(await w.webhook("refund.updated", "re_2", "evt_1"))).toMatchObject({ kind: "applied", deferred: 0 });
+    const early = await w.webhook("refund.updated", "re_2", "evt_1");
+    expect(await w.payment(early)).toMatchObject({ kind: "applied", deferred: 1 });
+    await w.refundEvidence((response as { value: never }).value, "rf_1");
+    expect(await w.payment(early)).toMatchObject({ kind: "applied", deferred: 0 });
     const { refunds, payment } = await w.read();
     expect(refunds).toEqual([expect.objectContaining({ id: "rf_1", providerRefundRef: "re_2", status: "succeeded" })]);
     expect(payment.refundedMinor).toBe(3_000);
+  });
+
+  test("a foreign dashboard refund of the same amount never takes our awaited reservation", async () => {
+    const w = await paidPayment("memory", { echoesCorrelation: false });
+    await w.reserve("rf_1", 500);
+    const response = await w.dispatch("rf_1", 500);
+    const foreign = { providerRefundRef: "re_D", amount: USD(500), status: "failed" as const };
+    expect(await w.refundEvidence(foreign)).toEqual({ kind: "deferred" });
+    await w.refundEvidence((response as { value: never }).value, "rf_1");
+    expect(await w.refundEvidence({ ...foreign, status: "succeeded" })).toMatchObject({ kind: "applied" });
+    const { refunds, payment } = await w.read();
+    expect(refunds.find((r) => r.id === "rf_1")).toMatchObject({ providerRefundRef: "re_2", status: "pending" });
+    expect(refunds.filter((r) => r.id !== "rf_1").map((r) => [r.providerRefundRef, r.status])).toEqual([["re_D", "succeeded"]]);
+    expect(payment).toMatchObject({ refundedMinor: 500, refundHeldMinor: 500 });
   });
 
   test("timeout without echo: a retrieve snapshot settles the unknown row (no endless deferral)", async () => {

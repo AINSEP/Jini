@@ -157,17 +157,26 @@ function writeKind<T>(existing: T | undefined, row: T): "insert" | "update" | "n
 }
 
 /**
- * Which row this evidence is about. Correlation id or provider ref first. A provider that does not
- * echo our id: bind to the ONE unbound in-flight refund of exactly this amount; when several such
- * refunds are in flight, defer (parking) instead of guessing; when none, it is a new refund made at
- * the provider. Binding by amount keeps a non-echo timeout from waiting forever (L3 review).
+ * Which row this evidence is about. Correlation id or provider ref first. For a provider that
+ * does not echo our id:
+ *  - while any of our refunds still awaits its synchronous response (`reserved`/`pending`, no
+ *    ref), DEFER: the response will bind the ref, then this evidence matches by ref or is a new
+ *    refund. Guessing here could let a dashboard refund of the same amount take our row and cancel
+ *    our hold (re-review blocker);
+ *  - a refund whose outcome was lost (`unknown`, no ref) has no response coming, so a SUCCESS or
+ *    PENDING of exactly that amount binds to it when it is the only such row — otherwise a timeout
+ *    would wait forever. A failure never binds by amount (it would release our hold on a guess).
+ *    If the guess picked a foreign refund, totals stay right: our own refund then arrives by ref
+ *    as a new row; only the label on the unknown row is the other refund's.
  */
 function resolveRefund({ refunds, evidence }: { refunds: readonly RefundState[]; evidence: RefundEvidence }): { existing: RefundState | undefined } | Deferred {
   const matched = matchRefund({ refunds, evidence });
   if (matched || evidence.correlationId !== undefined) return { existing: matched };
-  const candidates = refunds.filter((r) => isUnboundInFlight(r) && r.amountMinor === evidence.amount.minorUnits);
-  if (candidates.length > 1) return { kind: "deferred" };
-  return { existing: candidates[0] };
+  const unbound = refunds.filter(isUnboundInFlight);
+  if (unbound.some((r) => r.status !== "unknown")) return { kind: "deferred" };
+  const candidates = unbound.filter((r) => r.amountMinor === evidence.amount.minorUnits);
+  if (candidates.length === 0) return { existing: undefined };
+  return candidates.length === 1 && evidence.status !== "failed" ? { existing: candidates[0] } : { kind: "deferred" };
 }
 
 function refundProblem({ payment, existing, evidence }: { payment: PaymentState; existing: RefundState | undefined; evidence: RefundEvidence }): EvidenceQuarantineReason | null {
