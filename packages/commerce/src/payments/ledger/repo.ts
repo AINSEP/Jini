@@ -128,10 +128,21 @@ export interface LedgerTx {
   parkInbox(required: { id: string; error: string; nextAttemptAt: number }, optional?: Record<string, never>): Promise<boolean>;
   /**
    * `dead`: no more retries; left for an operator (stuck-money alert) with the error and body hash.
-   * The payload is purged (`facts_json` NULL, `purged_at` = `purgedAt`), as on apply. Only from an
-   * open state: false for a missing, applied or dead row.
+   * The payload is KEPT (`facts_json` untouched, `purged_at` stays NULL): a dead letter has not been
+   * used, and {@link LedgerTx.reviveInbox} replays it once the cause is fixed. Only from an open
+   * state: false for a missing, applied or dead row.
    */
-  deadInbox(required: { id: string; error: string; purgedAt: number }, optional?: Record<string, never>): Promise<boolean>;
+  deadInbox(required: { id: string; error: string }, optional?: Record<string, never>): Promise<boolean>;
+  /**
+   * Reopens a `dead` row (an operator requeue, or a verified redelivery of its event): `received`,
+   * `attempts` 0, due at `nextAttemptAt`; `last_error` is kept for the record. `payload` replaces
+   * the facts and body hash (a redelivery's freshly verified copy) and clears `purged_at`. Only from
+   * `dead`: false for a missing, open or applied row (an applied event is never re-applied).
+   */
+  reviveInbox(
+    required: { id: string; nextAttemptAt: number },
+    optional?: { payload?: { factsJson: string; bodySha256: string } }
+  ): Promise<boolean>;
   /**
    * `received`/`parked` rows whose `next_attempt_at <= now`, soonest first (ties by id). A plain
    * read, NOT a claim: two concurrent workers would both get the same rows. v1 runs a single inbox

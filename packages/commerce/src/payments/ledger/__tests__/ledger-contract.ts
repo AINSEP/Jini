@@ -462,13 +462,36 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
           expect(await tx.parkInbox({ id: "in-p", error: "later", nextAttemptAt: 1 })).toBe(true);
           expect(await tx.markInboxApplied({ id: "in-p", appliedAt: 2 })).toBe(true);
           expect(await tx.parkInbox({ id: "in-a", error: "later", nextAttemptAt: 1 })).toBe(true);
-          expect(await tx.deadInbox({ id: "in-a", error: "gave up", purgedAt: 3 })).toBe(true);
-          expect(await tx.deadInbox({ id: "in-d", error: "gave up", purgedAt: 4 })).toBe(true);
+          expect(await tx.deadInbox({ id: "in-a", error: "gave up" })).toBe(true);
+          expect(await tx.deadInbox({ id: "in-d", error: "gave up" })).toBe(true);
           for (const id of ["in-p", "in-a", "in-d"]) {
             const before = await tx.getInbox({ id });
             expect(await tx.markInboxApplied({ id, appliedAt: 9 }), id).toBe(false);
             expect(await tx.parkInbox({ id, error: "revive", nextAttemptAt: 9 }), id).toBe(false);
-            expect(await tx.deadInbox({ id, error: "again", purgedAt: 9 }), id).toBe(false);
+            expect(await tx.deadInbox({ id, error: "again" }), id).toBe(false);
+            expect(await tx.getInbox({ id }), id).toEqual(before);
+          }
+        });
+      });
+
+      test("revive: only a dead row is reopened (received, attempts reset, due at nextAttemptAt), with a fresh payload when given", async () => {
+        await within(async (tx) => {
+          await tx.insertInbox({ entry: inbox({ id: "in-d", providerEventId: "d" }) });
+          await tx.insertInbox({ entry: inbox({ id: "in-o", providerEventId: "o" }) });
+          await tx.insertInbox({ entry: inbox({ id: "in-a", providerEventId: "a" }) });
+          await tx.parkInbox({ id: "in-d", error: "later", nextAttemptAt: 5 });
+          await tx.deadInbox({ id: "in-d", error: "gave up" });
+          await tx.markInboxApplied({ id: "in-a", appliedAt: 6 });
+          expect(await tx.reviveInbox({ id: "in-d", nextAttemptAt: 70 })).toBe(true);
+          expect(await tx.getInbox({ id: "in-d" })).toMatchObject({
+            state: "received", attempts: 0, nextAttemptAt: 70, lastError: "gave up", factsJson: inbox().factsJson, purgedAt: null,
+          });
+          await tx.deadInbox({ id: "in-d", error: "gave up again" });
+          expect(await tx.reviveInbox({ id: "in-d", nextAttemptAt: 80 }, { payload: { factsJson: "{\"v\":2}", bodySha256: "cd".repeat(32) } })).toBe(true);
+          expect(await tx.getInbox({ id: "in-d" })).toMatchObject({ state: "received", factsJson: "{\"v\":2}", bodySha256: "cd".repeat(32), nextAttemptAt: 80 });
+          for (const id of ["in-o", "in-a", "missing"]) {
+            const before = await tx.getInbox({ id });
+            expect(await tx.reviveInbox({ id, nextAttemptAt: 90 }), id).toBe(false);
             expect(await tx.getInbox({ id }), id).toEqual(before);
           }
         });
@@ -485,13 +508,14 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
           expect(await tx.parkInbox({ id: "in-a", error: "no-payment-yet", nextAttemptAt: 60 })).toBe(true);
           expect(await tx.parkInbox({ id: "in-a", error: "still none", nextAttemptAt: 70 })).toBe(true);
           expect(await tx.getInbox({ id: "in-a" })).toMatchObject({ state: "parked", attempts: 2, lastError: "still none", nextAttemptAt: 70 });
-          expect(await tx.deadInbox({ id: "in-d", error: "gave up", purgedAt: 90 })).toBe(true);
+          expect(await tx.deadInbox({ id: "in-d", error: "gave up" })).toBe(true);
+          // A dead letter keeps its facts: it has not been used, and an operator or a redelivery may replay it.
           expect(await tx.getInbox({ id: "in-d" })).toMatchObject({
-            state: "dead", lastError: "gave up", attempts: 0, factsJson: null, purgedAt: 90, appliedAt: null, bodySha256: "ab".repeat(32),
+            state: "dead", lastError: "gave up", attempts: 0, factsJson: inbox().factsJson, purgedAt: null, appliedAt: null, bodySha256: "ab".repeat(32),
           });
           await tx.markInboxApplied({ id: "in-e", appliedAt: 1 });
           expect(await tx.parkInbox({ id: "missing", error: "x", nextAttemptAt: 1 })).toBe(false);
-          expect(await tx.deadInbox({ id: "missing", error: "x", purgedAt: 1 })).toBe(false);
+          expect(await tx.deadInbox({ id: "missing", error: "x" })).toBe(false);
           expect((await tx.listDueInbox({ now: 100, limit: 10 })).map((r) => r.id)).toEqual(["in-b", "in-c", "in-a"]);
           expect((await tx.listDueInbox({ now: 100, limit: 2 })).map((r) => r.id)).toEqual(["in-b", "in-c"]);
           expect(await tx.listDueInbox({ now: 5, limit: 10 })).toEqual([]);

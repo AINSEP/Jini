@@ -11,6 +11,8 @@
  * Receive only VERIFIES and RECORDS: each verified fact is written to the inbox (insert-or-ignore
  * on the provider event id) in one ledger transaction, and the provider gets its 2xx fast. Nothing
  * is applied in the request — the inbox worker (`worker.ts`) applies, retries and dead-letters.
+ * A redelivery of an event whose row was dead-lettered REVIVES that row with the freshly verified
+ * fact (counted as received): a later redelivery is how a provider-side or transient failure heals.
  * The raw body is never stored, only the verified fact and the body's sha256.
  */
 import { createHash } from "node:crypto";
@@ -123,14 +125,16 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps, _optional: Reco
         const results: boolean[] = [];
         for (const fact of verified.facts) {
           const now = deps.now();
+          const factsJson = JSON.stringify(fact);
           const row = await tx.insertInbox({
             entry: {
               id: deps.newId(), workspaceId: scope.workspaceId, siteId: scope.siteId, providerId: scope.providerId,
               providerAccountId: scope.providerAccountId, mode: scope.mode, providerEventId: fact.providerEventId,
-              factsJson: JSON.stringify(fact), bodySha256, nextAttemptAt: now, receivedAt: now,
+              factsJson, bodySha256, nextAttemptAt: now, receivedAt: now,
             },
           });
-          results.push(row.inserted);
+          // A duplicate of a dead letter reopens it; of an open or applied row, it is a plain duplicate (false).
+          results.push(row.inserted || (await tx.reviveInbox({ id: row.id, nextAttemptAt: now }, { payload: { factsJson, bodySha256 } })));
         }
         return results;
       });

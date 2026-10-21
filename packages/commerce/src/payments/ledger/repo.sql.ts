@@ -5,7 +5,7 @@ import {
   ATTEMPT_PATCH_COLUMNS, DISPUTE_PATCH_COLUMNS, LEDGER_TABLES, OPEN_INBOX_STATES, PAYMENT_PATCH_COLUMNS, REFUND_PATCH_COLUMNS,
   attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, encodeColumns, encodeMinor, evidenceFromRow, evidenceToRow,
   inboxFromRow, inboxToRow, outboxFromRow, outboxToRow, patchColumns, paymentFromRow, paymentToRow, quarantineFromRow,
-  quarantineToRow, refundFromRow, refundToRow, operatorActionFromRow, operatorActionToRow, UNSETTLED_REFUND_STATUSES,
+  quarantineToRow, refundFromRow, refundToRow, operatorActionFromRow, operatorActionToRow, revivedPayload, UNSETTLED_REFUND_STATUSES,
   type OperatorActionRecord, type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
   type NewInbox, type NewOutbox, type NewPayment, type NewQuarantine, type OutboxRecord, type PaymentPatch,
   type PaymentRecord, type PaymentsLedgerDatabase, type PaymentsTable, type QuarantineRecord, type RefundPatch, type RefundRecord,
@@ -287,9 +287,17 @@ class SqlLedgerTx implements LedgerTx {
     return this.updateById({ table: LEDGER_TABLES.inbox, id, set }, { states: OPEN_INBOX_STATES });
   }
 
-  deadInbox({ id, error, purgedAt }: { id: string; error: string; purgedAt: number }): Promise<boolean> {
-    const set = encodeColumns({ state: "dead", last_error: error, facts_json: null, purged_at: purgedAt });
+  deadInbox({ id, error }: { id: string; error: string }): Promise<boolean> {
+    const set = encodeColumns({ state: "dead", last_error: error });
     return this.updateById({ table: LEDGER_TABLES.inbox, id, set }, { states: OPEN_INBOX_STATES });
+  }
+
+  reviveInbox(
+    { id, nextAttemptAt }: { id: string; nextAttemptAt: number },
+    optional: { payload?: { factsJson: string; bodySha256: string } } = {}
+  ): Promise<boolean> {
+    const set = encodeColumns({ state: "received", attempts: 0, next_attempt_at: nextAttemptAt, ...revivedPayload(optional) });
+    return this.updateById({ table: LEDGER_TABLES.inbox, id, set }, { states: ["dead"] });
   }
 
   async listDueInbox({ now, limit }: { now: number; limit: number }): Promise<InboxRecord[]> {

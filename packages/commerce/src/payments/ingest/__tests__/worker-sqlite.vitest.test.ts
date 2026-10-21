@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { applyPaymentEvidence } from "../../accounting/apply-evidence.js";
 import type { WebhookFact } from "../../contract/evidence.js";
+import { createKernelProviderRegistry } from "../../provider-registry.js";
 import { createInboxWorker } from "../worker.js";
 import { USD, ingestWorld } from "./harness.js";
 
@@ -52,8 +53,23 @@ describe("inbox worker on SQLite", () => {
     expect(after.payment).toEqual(before.payment);
     expect(after.evidence).toEqual([]);
     expect(after.refunds).toEqual([]);
-    expect(await w.inbox(id)).toMatchObject({ state: "dead", factsJson: null, lastError: "ledger: unique constraint violated on commerce_refunds" });
+    expect(await w.inbox(id)).toMatchObject({ state: "dead", factsJson: JSON.stringify(stolen), lastError: "ledger: unique constraint violated on commerce_refunds" });
     expect(after.quarantine).toEqual([expect.objectContaining({ reason: "ref-conflict", paymentId: "pay_2" })]);
     expect(w.alerts.raised.map((a) => [a.kind, a.paymentId])).toEqual([["inbox-dead-letter", "pay_2"]]);
+  });
+
+  test("a dead letter keeps its facts and a verified redelivery revives it (SQL adapter)", async () => {
+    const w = await ingestWorld("sqlite");
+    await w.insertPayment();
+    await w.charge();
+    await w.deliver("charge.succeeded", "ch_1", "evt_1");
+    const [row] = await w.tx((t) => t.listDueInbox({ now: w.now(), limit: 1 }));
+    const deps = { ledger: w.ledger, contexts: w.contexts, now: w.now, newId: w.newId };
+    const unloaded = createInboxWorker({ ...deps, providers: createKernelProviderRegistry({ items: [] }) }, { maxAttempts: 1 });
+    expect(await unloaded.runOnce({ limit: 10 })).toEqual({ seen: 1, applied: 0, parked: 0, dead: 1, quarantined: 0 });
+    expect(await w.inbox(row!.id)).toMatchObject({ state: "dead", factsJson: row!.factsJson, purgedAt: null });
+    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 1, duplicates: 0 } });
+    expect(await createInboxWorker({ ...deps, providers: w.providers }).runOnce({ limit: 10 })).toEqual({ seen: 1, applied: 1, parked: 0, dead: 0, quarantined: 0 });
+    expect((await w.read()).payment.intentStatus).toBe("succeeded");
   });
 });

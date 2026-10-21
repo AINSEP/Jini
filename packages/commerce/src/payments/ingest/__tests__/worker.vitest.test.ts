@@ -218,7 +218,7 @@ describe("inbox worker: quarantine", () => {
     expect(after.payment.version).toBe(before.payment.version);
     expect(after.evidence).toEqual(before.evidence);
     expect(after.refunds).toEqual([]);
-    expect(await w.inbox(id)).toMatchObject({ state: "dead", factsJson: null, lastError: "ledger: unique constraint violated on commerce_refunds" });
+    expect(await w.inbox(id)).toMatchObject({ state: "dead", factsJson: JSON.stringify(stolen), lastError: "ledger: unique constraint violated on commerce_refunds" });
     expect(after.quarantine).toEqual([expect.objectContaining({ reason: "ref-conflict", paymentId: "pay_2", subject: "payment" })]);
     expect(JSON.parse(after.quarantine[0]!.evidenceJson)).toEqual(stolen.evidence);
     expect(w.alerts.raised).toEqual([expect.objectContaining({ kind: "inbox-dead-letter", paymentId: "pay_2" })]);
@@ -236,7 +236,7 @@ describe("inbox worker: quarantine", () => {
 });
 
 describe("inbox worker: retry and dead letter", () => {
-  test("after maxAttempts the row is dead-lettered with an alert; the fact is purged", async () => {
+  test("after maxAttempts the row is dead-lettered with an alert; the fact is KEPT for a replay", async () => {
     const w = await ingestWorld();
     await w.charge();
     await w.deliver("charge.succeeded", "ch_1", "evt_1");
@@ -246,7 +246,7 @@ describe("inbox worker: retry and dead letter", () => {
     expect(await w.inbox(row!.id)).toMatchObject({ nextAttemptAt: T0 + 1_000 });
     w.clock.now = T0 + 1_000;
     expect(await worker.runOnce({ limit: 10 })).toEqual(counts({ seen: 1, dead: 1 }));
-    expect(await w.inbox(row!.id)).toMatchObject({ state: "dead", factsJson: null, purgedAt: T0 + 1_000, lastError: "payment not found yet (gave up after 2 attempts)" });
+    expect(await w.inbox(row!.id)).toMatchObject({ state: "dead", factsJson: row!.factsJson, purgedAt: null, lastError: "payment not found yet (gave up after 2 attempts)" });
     expect(w.alerts.raised).toEqual([{
       kind: "inbox-dead-letter", workspaceId: "ws", mode: "test", paymentId: null,
       detail: `inbox ${row!.id} (lipay event evt_1): payment not found yet (gave up after 2 attempts)`,
@@ -369,5 +369,55 @@ describe("inbox worker: retry and dead letter", () => {
     await w.insertInbox({ factsJson: null });
     await w.insertInbox({ factsJson: null });
     expect(await workerOf(w).runOnce({ limit: 1 })).toEqual(counts({ seen: 1, dead: 1 }));
+  });
+});
+
+describe("inbox worker: dead-letter recovery", () => {
+  /** A charge webhook dead-lettered because its provider plugin was not loaded (retries exhausted). */
+  async function deadForMissingProvider(w: World) {
+    await w.insertPayment();
+    await w.charge();
+    await w.deliver("charge.succeeded", "ch_1", "evt_1");
+    const [row] = await w.tx((t) => t.listDueInbox({ now: w.now(), limit: 1 }));
+    expect(await workerOf(w, { provider: null, maxAttempts: 1 }).runOnce({ limit: 10 })).toEqual(counts({ seen: 1, dead: 1 }));
+    expect(await w.inbox(row!.id)).toMatchObject({ state: "dead", factsJson: row!.factsJson });
+    return row!;
+  }
+
+  test("provider restored, then the provider redelivers the event: the dead letter is revived and applied", async () => {
+    const w = await ingestWorld();
+    const row = await deadForMissingProvider(w);
+    w.clock.now = T0 + 5_000;
+    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 1, duplicates: 0 } });
+    expect(await w.inbox(row.id)).toMatchObject({ state: "received", attempts: 0, nextAttemptAt: T0 + 5_000 });
+    expect(await workerOf(w).runOnce({ limit: 10 })).toEqual(counts({ seen: 1, applied: 1 }));
+    expect((await w.read()).payment).toMatchObject({ intentStatus: "succeeded", providerRef: "ch_1" });
+    expect(await w.inbox(row.id)).toMatchObject({ state: "applied", factsJson: null });
+    // Once applied, a further redelivery is a plain duplicate again.
+    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 0, duplicates: 1 } });
+  });
+
+  test("an operator requeues a dead letter from its kept facts; it then applies", async () => {
+    const w = await ingestWorld();
+    const row = await deadForMissingProvider(w);
+    w.clock.now = T0 + 7_000;
+    const worker = workerOf(w);
+    expect(await worker.requeue({ id: row.id })).toBe(true);
+    expect(await w.inbox(row.id)).toMatchObject({ state: "received", attempts: 0, nextAttemptAt: T0 + 7_000 });
+    expect(await worker.runOnce({ limit: 10 })).toEqual(counts({ seen: 1, applied: 1 }));
+    expect((await w.read()).payment.intentStatus).toBe("succeeded");
+  });
+
+  test("requeue refuses what it cannot replay: an open or applied row, a missing one, a dead letter with no facts", async () => {
+    const w = await ingestWorld();
+    const worker = workerOf(w);
+    const open = await w.insertInbox({ providerEventId: "evt_open", fact: { providerEventId: "evt_open", providerRef: "ch_1" } });
+    expect(await worker.requeue({ id: open.id })).toBe(false);
+    expect(await worker.requeue({ id: "missing" })).toBe(false);
+    const purged = await w.insertInbox({ providerEventId: "evt_purged", factsJson: null });
+    await w.tx((t) => t.deadInbox({ id: purged.id, error: "no facts" }));
+    expect(await w.tx((t) => t.getInbox({ id: purged.id }))).toMatchObject({ state: "dead", factsJson: null });
+    expect(await worker.requeue({ id: purged.id })).toBe(false);
+    expect(await w.inbox(purged.id)).toMatchObject({ state: "dead" });
   });
 });

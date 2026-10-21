@@ -8,7 +8,8 @@
  * that same transaction, so the fact never outlives its apply). What cannot be applied yet — a
  * webhook that beat our own insert, an unmatched refund, a provider that cannot be reached — is
  * parked with backoff, and dead-lettered with an alert after `maxAttempts`. A row is never lost:
- * any unexpected throw parks it.
+ * any unexpected throw parks it, and a dead letter KEEPS its fact — `requeue` (an operator, once the
+ * cause is fixed) or a verified redelivery of the same event (`receive.ts`) reopens it.
  *
  * `LedgerConstraintError` (a provider ref already held by ANOTHER payment, L3 known limit) is
  * fatal for its transaction — on Postgres it poisons it — so the apply is rolled back and the
@@ -55,6 +56,12 @@ export interface InboxRunCounts {
 
 export interface InboxWorker {
   runOnce(required: { limit: number }, optional?: Record<string, never>): Promise<InboxRunCounts>;
+  /**
+   * Operator recovery: reopens a dead letter from its kept fact, due now. False (nothing changed)
+   * for a missing, open or applied row, or a dead letter with no fact to replay (wait for the
+   * provider to redeliver it instead).
+   */
+  requeue(required: { id: string }, optional?: Record<string, never>): Promise<boolean>;
 }
 
 const DEFAULT_MAX_ATTEMPTS = 8;
@@ -117,7 +124,7 @@ function alertFor(row: InboxRecord, kind: PaymentsAlert["kind"], paymentId: stri
 
 async function deadLetter(env: Env, tx: LedgerTx, row: InboxRecord, verdict: { error: string; paymentId: string | null; quarantine?: Quarantine }): Promise<Settled> {
   const now = env.deps.now();
-  await tx.deadInbox({ id: row.id, error: verdict.error, purgedAt: now });
+  await tx.deadInbox({ id: row.id, error: verdict.error });
   if (verdict.quarantine) {
     await tx.insertQuarantine({
       entry: {
@@ -252,5 +259,10 @@ export function createInboxWorker(deps: InboxWorkerDeps, optional: InboxWorkerOp
       }
       return counts;
     },
+    requeue: ({ id }) => deps.ledger.transaction(async (tx) => {
+      const row = await tx.getInbox({ id });
+      if (row?.state !== "dead" || row.factsJson === null) return false;
+      return tx.reviveInbox({ id, nextAttemptAt: deps.now() });
+    }),
   };
 }

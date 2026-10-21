@@ -335,6 +335,17 @@ export type EvidenceSubject = "payment" | "refund" | "dispute";
 export type InboxState = "received" | "applied" | "parked" | "dead";
 /** The states an inbox row is still open in: due for an apply attempt, and the only ones that may move on. */
 export const OPEN_INBOX_STATES: readonly InboxState[] = ["received", "parked"];
+
+/**
+ * The inbox columns a revive replaces when it carries a fresh payload (a redelivery's verified copy;
+ * none for an operator requeue, which replays the kept facts). Both adapters build the revive from it.
+ */
+export function revivedPayload(
+  { payload }: { payload?: { factsJson: string; bodySha256: string } },
+  _optional: Record<string, never> = {}
+): { facts_json?: string; body_sha256?: string; purged_at?: null } {
+  return payload === undefined ? {} : { facts_json: payload.factsJson, body_sha256: payload.bodySha256, purged_at: null };
+}
 export type LedgerOutboxTopic = "payment.succeeded" | "refund.succeeded" | "refund.failed" | "dispute.opened" | "dispute.closed";
 /** Open-ended on purpose: L3/L4 add reasons without a migration (the column is free TEXT). */
 export type LedgerQuarantineReason = "over-refund" | "bad-amount" | "currency-mismatch" | "unmatched" | (string & {});
