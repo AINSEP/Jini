@@ -83,6 +83,28 @@ export interface UseComposerOptions {
    * Captured in a ref, so an inline arrow is safe and will not re-run the restore on every render.
    */
   validateAttachments?: (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
+  /**
+   * Where the page-exit signals that flush a pending draft write come from (`pagehide` on the
+   * window, `visibilitychange` to hidden on the document). Defaults to the browser's own
+   * {@link browserPageLifecycle}; `null` means there is no page to leave (a non-DOM renderer runs
+   * effects without `window`), so only unmount, send and switch flush. Captured once at mount.
+   */
+  pageLifecycle?: ComposerPageLifecycle | null;
+}
+
+/** The page-exit event sources {@link useComposer} listens to, injectable so a host or test can supply its own. */
+export interface ComposerPageLifecycle {
+  readonly window: Pick<Window, 'addEventListener' | 'removeEventListener'>;
+  readonly document: Pick<Document, 'addEventListener' | 'removeEventListener' | 'visibilityState'>;
+}
+
+/**
+ * The real window/document pair, or `null` when this runtime has no `window` — a non-DOM React
+ * renderer still runs effects, and subscribing there would throw.
+ * @complexity Time/space: O(1).
+ */
+export function browserPageLifecycle(): ComposerPageLifecycle | null {
+  return typeof window === 'undefined' ? null : { window, document };
 }
 
 export interface MentionPopoverState {
@@ -145,9 +167,12 @@ interface DeferredDraftWrite {
  * One pending durable draft write at a time, trailing-edge debounced. Flushes on unmount and when
  * the page is hidden (`pagehide`, or `visibilitychange` to hidden — the last event a mobile browser
  * reliably delivers before discarding the tab).
+ * @param pageLifecycle The page-exit event sources, captured at mount; `undefined` resolves the
+ *   browser's own, `null` subscribes to nothing (unmount still flushes).
  * @complexity Time/space: O(1) per call.
  */
-function useDeferredDraftWrite(): DeferredDraftWrite {
+function useDeferredDraftWrite(pageLifecycle: ComposerPageLifecycle | null | undefined): DeferredDraftWrite {
+  const [lifecycle] = useState(() => (pageLifecycle === undefined ? browserPageLifecycle() : pageLifecycle));
   const pendingRef = useRef<{ timer: ReturnType<typeof setTimeout>; write: () => void } | null>(null);
 
   const cancel = useCallback(() => {
@@ -175,18 +200,19 @@ function useDeferredDraftWrite(): DeferredDraftWrite {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return flush;
+    if (lifecycle === null) return flush;
+    const { window: page, document: doc } = lifecycle;
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') flush();
+      if (doc.visibilityState === 'hidden') flush();
     };
-    window.addEventListener('pagehide', flush);
-    document.addEventListener('visibilitychange', onVisibilityChange);
+    page.addEventListener('pagehide', flush);
+    doc.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
-      window.removeEventListener('pagehide', flush);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
+      page.removeEventListener('pagehide', flush);
+      doc.removeEventListener('visibilitychange', onVisibilityChange);
       flush();
     };
-  }, [flush]);
+  }, [flush, lifecycle]);
 
   return useMemo(() => ({ schedule, flush, cancel }), [schedule, flush, cancel]);
 }
@@ -200,7 +226,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   const [agent, setAgent] = useState<AgentSelection | undefined>(options.initialAgent);
   const [mention, setMention] = useState<MentionPopoverState>(EMPTY_MENTION);
 
-  const deferredWrite = useDeferredDraftWrite();
+  const deferredWrite = useDeferredDraftWrite(options.pageLifecycle);
   const commitDraft = useCallback(
     (next: string) => {
       setDraftState(next);
