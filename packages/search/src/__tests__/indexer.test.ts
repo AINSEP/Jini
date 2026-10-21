@@ -377,6 +377,20 @@ describe('createSearchIndexer — reconcile', () => {
     expect(state.row(ACTIVE, key('x', 'retired'))).toMatchObject({ status: 'failed', lastError: 'no_source', attempts: 2 });
   });
 
+  it('exhausted failures never starve the actionable rows queued behind them', async () => {
+    const { indexer, vendor, state, source } = setup({ optional: { maxAttempts: 2 } });
+    for (const id of ['spent1', 'spent2', 'spent3']) await state.put({ row: row({ documentId: id, status: 'failed', attempts: 2 }) });
+    await state.put({ row: row({ documentId: 'landed', status: 'unknown' }) });
+    await state.put({ row: row({ documentId: 'retry', status: 'failed', attempts: 1 }) });
+    vendor.held.set(encodeSearchKey({ key: key('landed') }), { revision: 3, deleted: false });
+    source.records.set('retry', record('retry', 3));
+    const result = await indexer.reconcile({ siteId: SITE, workspaceId: WS }, { limit: 2 });
+    expect(state.row(ACTIVE, key('landed'))?.status).toBe('indexed');
+    expect(state.row(ACTIVE, key('retry'))).toMatchObject({ status: 'indexed', attempts: 2 });
+    expect(source.loads.map(l => l.documentId)).toEqual(['retry']);
+    expect(result).toEqual({ settled: 2, remaining: 3 });
+  });
+
   it('bounds each target by limit and resolves no provider when there is nothing in flight', async () => {
     const { indexer, state, contextCalls, source } = setup({ targets: { active: ACTIVE, building: BUILDING } });
     for (const id of ['a', 'b', 'c']) {

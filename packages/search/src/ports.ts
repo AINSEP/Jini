@@ -111,7 +111,12 @@ export interface SearchIndexStatePort {
    * an older write's (or task's) completion can never overwrite the newer revision's bookkeeping.
    */
   settle(required: { readonly row: SearchIndexStateRow; readonly expected: SearchSettleExpectation }): Promise<boolean>;
-  listByStatus(required: { readonly target: SearchTarget; readonly statuses: readonly SearchIndexStatus[]; readonly limit: number }): Promise<readonly SearchIndexStateRow[]>;
+  /**
+   * Rows of a target in the given statuses, oldest first, at most `limit`. With
+   * `optional.failedBelowAttempts`, `failed` rows whose `attempts` reached it are excluded BEFORE the
+   * limit applies, so exhausted rows can never fill every page and starve actionable work.
+   */
+  listByStatus(required: { readonly target: SearchTarget; readonly statuses: readonly SearchIndexStatus[]; readonly limit: number }, optional?: { readonly failedBelowAttempts?: number }): Promise<readonly SearchIndexStateRow[]>;
   counts(required: { readonly target: SearchTarget }): Promise<SearchStatusCounts>;
   /** Backfill watermark per (target, collection): `null` = not started, `{ done: true }` = complete. */
   getWatermark(required: { readonly target: SearchTarget; readonly collection: string }): Promise<{ readonly cursor?: string; readonly done: boolean } | null>;

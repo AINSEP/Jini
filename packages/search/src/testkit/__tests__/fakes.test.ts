@@ -122,3 +122,14 @@ test('index state: settle is a compare-and-swap on the observed revision and tas
   expect(await indexState.settle({ row: row('a', { status: 'failed' }), expected: { revision: 1, taskId: null } })).toBe(true);
   expect((await indexState.get({ target, key: key('a') }))?.status).toBe('failed');
 });
+
+test('index state: listByStatus can exclude exhausted failures before the limit', async () => {
+  const { indexState } = createInMemorySearchState();
+  await indexState.put({ row: row('spent', { status: 'failed', attempts: 3 }) });
+  await indexState.put({ row: row('retry', { status: 'failed', attempts: 2 }) });
+  await indexState.put({ row: row('wait', { status: 'unknown', attempts: 7 }) });
+  const ids = async (optional?: { failedBelowAttempts?: number }) =>
+    (await indexState.listByStatus({ target, statuses: ['failed', 'unknown'], limit: 2 }, optional)).map(entry => entry.key.documentId);
+  expect(await ids()).toEqual(['spent', 'retry']);
+  expect(await ids({ failedBelowAttempts: 3 })).toEqual(['retry', 'wait']);
+});

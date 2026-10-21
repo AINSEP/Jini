@@ -252,7 +252,8 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
   };
 
   const reconcileTarget = async (target: SearchTarget, workspaceId: string, limit: number): Promise<number> => {
-    const rows = await state.listByStatus({ target, statuses: RECONCILE_STATUSES, limit });
+    // Exhausted failures are excluded before the limit, or the oldest of them would fill every sweep.
+    const rows = await state.listByStatus({ target, statuses: RECONCILE_STATUSES, limit }, { failedBelowAttempts: maxAttempts });
     const retry = rows.filter(row => row.status === 'failed' && row.attempts < maxAttempts);
     const inFlight = rows.filter(row => row.status !== 'failed');
     const resolved = inFlight.length === 0 ? null : await resolve(target, workspaceId);

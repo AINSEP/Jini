@@ -65,8 +65,9 @@ function createIndexState(): SearchIndexStatePort {
       rows.set(rowId(row.target, row.key), Object.freeze({ ...row }));
       return true;
     },
-    async listByStatus({ target, statuses, limit }) {
-      return rowsOf(target).filter(row => statuses.includes(row.status)).slice(0, limit);
+    async listByStatus({ target, statuses, limit }, { failedBelowAttempts = Infinity } = {}) {
+      const actionable = (row: SearchIndexStateRow) => !(row.status === 'failed' && row.attempts >= failedBelowAttempts);
+      return rowsOf(target).filter(row => statuses.includes(row.status) && actionable(row)).slice(0, limit);
     },
     async counts({ target }) {
       const counts = Object.fromEntries(STATUSES.map(status => [status, 0])) as Record<SearchIndexStatus, number>;

@@ -115,7 +115,9 @@ export function makeState(): FakeState {
       rows.set(rowKey(row.target, row.key), row);
       return true;
     },
-    async listByStatus({ target, statuses, limit }) { return ofTarget(target).filter(row => statuses.includes(row.status)).slice(0, limit); },
+    async listByStatus({ target, statuses, limit }, { failedBelowAttempts = Infinity } = {}) {
+      return ofTarget(target).filter(row => statuses.includes(row.status) && !(row.status === 'failed' && row.attempts >= failedBelowAttempts)).slice(0, limit);
+    },
     async counts({ target }) {
       const counts = { ...ZERO };
       for (const row of ofTarget(target)) counts[row.status] += 1;
