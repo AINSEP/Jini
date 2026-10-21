@@ -378,6 +378,13 @@ export interface ContinuationOptions {
 export interface McpJsonInjectionOptions {
   /** Read current host-registered tool IDs at launch, outside model-controlled input. */
   readonly diagnosticToolIds?: () => readonly string[];
+  /**
+   * Visible registry IDs to resolve before the bridge's first tools/list, including for clients
+   * whose mid-run refresh is unverified. Independent of diagnostic/redaction IDs; this grants
+   * no execution permission. The bridge fetches authoritative descriptors using the run credential.
+   * @example startupToolIds: ({ runId }) => visibleToolsForRun(runId).map(tool => tool.id)
+   */
+  readonly startupToolIds?: (requiredArgs: { readonly runId: string }, optionalArgs?: Record<string, never>) => readonly string[];
   /** Probe a reported bridge failure before emitting its error. @default true when injection is configured. */
   readonly probeOnFailure?: boolean;
   /** Absolute path (or PATH-resolvable name) to the `jini-mcp` bin entry (`packages/mcp/src/bin/serve.ts`) this driver tells the spawned CLI to launch as its own MCP server subprocess. */

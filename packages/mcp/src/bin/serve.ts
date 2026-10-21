@@ -39,10 +39,11 @@
 import type { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { isLoopbackHostname } from '@jini-ai/platform/net';
+import type { ToolDescriptor } from '@jini-ai/core';
 import { createMcpToolServer as createMcpToolServerDefault, type McpToolServerRequiredArgs, type McpToolServerOptions } from '../server/tool-server.js';
 import type { McpToolDef } from '../server/tool-protocol.js';
 import { RUN_TOOLS } from '../server/tools/run-tools.js';
-import { TOOL_CATALOG_TOOLS } from '../server/tools/tool-catalog-tools.js';
+import { describeToolTool, TOOL_CATALOG_TOOLS } from '../server/tools/tool-catalog-tools.js';
 import { COMPONENT_CATALOG_TOOLS } from '../server/tools/component-catalog-tools.js';
 import { createExecuteDelegatedToolTool, createExecuteReadonlyDelegatedToolTool } from '../server/tools/delegated-tool.js';
 import { KERNEL_RESOURCES } from '../server/resources/active-resource.js';
@@ -77,6 +78,8 @@ export const DAEMON_TOKEN_ENV_VAR = 'JINI_DAEMON_TOKEN';
  * policy that would make a given number correct, so it must not refuse to boot over one.
  */
 export const DELEGATED_TOOL_TIMEOUT_ENV_VAR = 'JINI_DELEGATED_TOOL_TIMEOUT_MS';
+/** JSON array of host-selected visible registry IDs; never sourced from diagnostic IDs. */
+export const STARTUP_TOOL_IDS_ENV_VAR = 'JINI_STARTUP_TOOL_IDS';
 
 const SERVER_NAME = 'jini-mcp';
 const SERVER_VERSION = '0.0.0';
@@ -84,6 +87,8 @@ const INSTRUCTIONS =
   'Tools proxying this host\'s Jini daemon over loopback HTTP, scoped to the run that spawned this MCP server process. ' +
   'Use execute_delegated_tool to invoke a Jini-registered tool (never an agent-vendor-specific tool name) against that run — ' +
   'every call is routed through the daemon\'s deny-by-default ToolExecutor gate. ' +
+  'Concrete operation tools accept their own arguments directly. describe_tool publishes a concrete definition; ' +
+  'refresh tools/list when supported, or use the delegated gateways as the compatibility fallback. ' +
   'When the host provides site_guide, consult jini://site-guide or call site_guide with operation overview ' +
   'through execute_readonly_delegated_tool; follow with explain for the relevant topic ids. ' +
   'If the host does not provide site_guide, report that availability gap.';
@@ -150,7 +155,8 @@ function defaultWriteErr({ text }: { text: string }): void {
  * has no meaningful default run to serve) plus `DAEMON_URL_ENV_VAR` resolution, then hosts
  * `RUN_TOOLS` (run-agnostic) alongside a fresh `execute_delegated_tool` def scoped to the resolved
  * `runId`, and `KERNEL_RESOURCES`. Resolves once the client disconnects (stdin EOF) or the
- * idle-exit window elapses (`createMcpToolServer`'s own default) — never bare-throws: every error
+ * idle-exit window elapses (`createMcpToolServer`'s own default). Enables describe publication and
+ * resolves startup descriptors before connecting stdio. Never bare-throws: every error
  * path below writes a message to `writeErr` and calls `exit(1)` instead.
  */
 export async function serve(_requiredArgs: Record<string, never>, deps: ServeDeps = {}): Promise<void> {
@@ -162,9 +168,11 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
     return exit({ code: 1 });
   }
 
+  let baseUrlResolution: Promise<string> | undefined;
   const resolveBaseUrl = (): Promise<string> => {
     const options: McpDaemonUrlOptions = { flagUrl: null, env, envVarName: DAEMON_URL_ENV_VAR, warn: ({ message }) => writeErr({ text: message }) };
-    return resolveDaemonUrlFn({}, options);
+    // Startup discovery and subsequent execution must use the same resolved daemon.
+    return baseUrlResolution ??= resolveDaemonUrlFn({}, options);
   };
 
   const delegatedGatewayOptions = buildDelegatedGatewayOptions({ env }, deps);
@@ -177,8 +185,12 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
   const serverOptions = buildServerOptions({ env, runId, delegatedGatewayOptions }, deps);
 
   try {
-    const diagnosticToolIds = parseDiagnosticToolIds({ env });
+    const diagnosticToolIds = parseLaunchToolIds({ env, key: 'JINI_DIAGNOSTIC_TOOL_IDS' });
     if (diagnosticToolIds.length) Object.assign(serverOptions, { diagnosticToolIds });
+    const initialTools = await resolveStartupTools({
+      toolIds: parseLaunchToolIds({ env, key: STARTUP_TOOL_IDS_ENV_VAR }), resolveBaseUrl, serverOptions,
+    });
+    Object.assign(serverOptions, { delegatedTools: { runId, ...delegatedGatewayOptions, initialTools } });
     await createMcpToolServerFn(requiredArgs, serverOptions).run({});
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -253,12 +265,35 @@ function buildServerOptions(
 
 // Only the spawning host supplies registration metadata. Never learn exceptions from an
 // error body or model arguments: either would turn a secret into its own redaction exemption.
-function parseDiagnosticToolIds({ env }: { env: NodeJS.ProcessEnv }): string[] {
-  const diagnosticToolIds: unknown = JSON.parse(env.JINI_DIAGNOSTIC_TOOL_IDS ?? '[]');
-  if (!Array.isArray(diagnosticToolIds) || !diagnosticToolIds.every(id => typeof id === 'string')) {
-    throw new Error('JINI_DIAGNOSTIC_TOOL_IDS must be a JSON array of registered tool IDs');
+function parseLaunchToolIds({ env, key }: { env: NodeJS.ProcessEnv; key: string }): string[] {
+  const toolIds: unknown = JSON.parse(env[key] ?? '[]');
+  if (!Array.isArray(toolIds) || !toolIds.every(id => typeof id === 'string')) {
+    throw new Error(`${key} must be a JSON array of registered tool IDs`);
   }
-  return diagnosticToolIds;
+  return toolIds;
+}
+
+/**
+ * Resolve each unique startup ID through the existing authenticated describe/publication owner.
+ * The temporary descriptor list seeds M1's bounded exposure; it is not an execution catalog.
+ * Failure aborts startup before any partially resolved list can reach the client.
+ * @returns Authoritative descriptors; no daemon I/O when startup IDs are absent.
+ * @throws The existing descriptor/daemon errors, reported by serve's stderr/exit boundary.
+ * @complexity O(n + s) space/time plus n sequential bounded GETs for n unique IDs and s schema bytes.
+ */
+async function resolveStartupTools({ toolIds, resolveBaseUrl, serverOptions }: {
+  toolIds: readonly string[]; resolveBaseUrl: () => Promise<string>; serverOptions: McpToolServerOptions;
+}): Promise<readonly ToolDescriptor[]> {
+  if (toolIds.length === 0) return [];
+  const descriptors: ToolDescriptor[] = [];
+  const ctx = {
+    baseUrl: await resolveBaseUrl(),
+    fetchImpl: serverOptions.fetchImpl ?? fetch,
+    ...definedOnly({ authHeaders: serverOptions.authHeaders, diagnosticToolIds: serverOptions.diagnosticToolIds }),
+    publishTool: async ({ descriptor }: { descriptor: ToolDescriptor }) => { descriptors.push(descriptor); },
+  };
+  for (const id of new Set(toolIds)) await describeToolTool.handler({ args: { id }, ctx });
+  return descriptors;
 }
 
 // Only run for real when this module is the actual process entrypoint (`node dist/bin/serve.js`,

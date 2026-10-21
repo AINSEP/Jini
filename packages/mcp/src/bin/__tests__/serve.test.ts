@@ -1,8 +1,13 @@
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { McpToolServerHandle, McpToolServerRequiredArgs, McpToolServerOptions } from '../../server/tool-server.js';
-import { DAEMON_TOKEN_ENV_VAR, DAEMON_URL_ENV_VAR, RUN_ID_ENV_VAR, serve, type ServeDeps } from '../serve.js';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import type { CallToolResult, InitializeResult, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
+import { createToolRegistry } from '@jini-ai/core';
+// The existing daemon owners exercise confirmation without a listener or a new execution path.
+import { createInMemoryEventLog, createRunLifecycle, createToolExecutor } from '../../../../daemon/dist/index.js';
+import { delegatedToolExecuteRoute } from '../../../../daemon/dist/http/delegated-tools.js';
+import { createMcpToolServer, type McpToolServerHandle, type McpToolServerRequiredArgs, type McpToolServerOptions } from '../../server/tool-server.js';
+import { DAEMON_TOKEN_ENV_VAR, DAEMON_URL_ENV_VAR, RUN_ID_ENV_VAR, STARTUP_TOOL_IDS_ENV_VAR, serve, type ServeDeps } from '../serve.js';
 
 class ExitSentinel extends Error {
   constructor(public code: number) {
@@ -50,7 +55,7 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
         diagnostic = error.message;
       } }),
     }));
-    expect(diagnostic).toBe(`daemon 400 on http://d.example/api/x: ${message}`);
+    expect(diagnostic).toBe(`HTTP 400: ${message}`);
   });
 
   it('exits 1 without ever calling createMcpToolServer when JINI_RUN_ID is missing', async () => {
@@ -496,4 +501,218 @@ describe('serve() — characterization pins (before refactor)', () => {
     const { errors } = await resolveWith('http://:pw@daemon.example');
     expect(errors).toEqual(['daemon URL http://daemon.example/ is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.']);
   });
+});
+
+/** Real stdio framing through serve's production assembly; no sockets or CLI subprocesses. */
+async function bootPublishedBridge(options: { env?: NodeJS.ProcessEnv; fetchImpl: typeof fetch }) {
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  const responses = new Map<number, { result: unknown; error?: unknown }>();
+  const notifications: string[] = [];
+  let buffer = '';
+  let sequence = 0;
+  stdout.on('data', (chunk: Buffer) => {
+    buffer += chunk.toString('utf8');
+    let newline: number;
+    while ((newline = buffer.indexOf('\n')) >= 0) {
+      const frame = JSON.parse(buffer.slice(0, newline)) as { id?: number; method?: string; result: unknown; error?: unknown };
+      buffer = buffer.slice(newline + 1);
+      if (frame.id !== undefined) responses.set(frame.id, frame);
+      if (frame.method) notifications.push(frame.method);
+    }
+  });
+  let connected!: () => void;
+  const ready = new Promise<void>(resolve => { connected = resolve; });
+  const running = serve({}, makeDeps({
+    env: { [RUN_ID_ENV_VAR]: 'published-run', [DAEMON_URL_ENV_VAR]: 'http://127.0.0.1:4111', ...options.env },
+    stdin, stdout, fetchImpl: options.fetchImpl, generateToolUseId: () => 'published-use',
+    createMcpToolServer: (required, serverOptions) => {
+      const server = createMcpToolServer(required, serverOptions);
+      return { run: async () => { const promise = server.run({}); connected(); await promise; } };
+    },
+  }));
+  onTestFinished(async () => { stdin.end(); await running; stdout.destroy(); });
+  await ready;
+  const request = async <T>(method: string, params: Record<string, unknown> = {}): Promise<T> => {
+    const id = ++sequence;
+    stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
+    await vi.waitFor(() => expect(responses.has(id)).toBe(true));
+    const response = responses.get(id)!;
+    expect(response.error).toBeUndefined();
+    return response.result as T;
+  };
+  const init = await request<InitializeResult>('initialize', {
+    protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'm2-fixture', version: '1' },
+  });
+  stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
+  return { request, notifications, init, stdin };
+}
+
+const startupDescriptor = {
+  id: 'content.read', description: 'Read content', readOnly: true,
+  inputSchema: { type: 'object' as const, properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false },
+};
+
+describe('serve() — startup descriptors and live publication', () => {
+  it('authenticates and deduplicates startup lookups before the first list, then invokes the concrete read tool', async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const fetchImpl: typeof fetch = async (url, init = {}) => {
+      calls.push({ url: String(url), init });
+      if (init.method === 'GET') return Response.json(startupDescriptor);
+      return Response.json({ result: { executionId: 'read', status: 'completed', output: { title: 'hello' } } });
+    };
+    const bridge = await bootPublishedBridge({ fetchImpl, env: {
+      [STARTUP_TOOL_IDS_ENV_VAR]: JSON.stringify(['content.read', 'content.read']),
+      JINI_DIAGNOSTIC_TOOL_IDS: '["diagnostic_only"]', [DAEMON_TOKEN_ENV_VAR]: 'run-token',
+    } });
+    expect(bridge.init.capabilities.tools?.listChanged).toBe(true);
+    const listed = await bridge.request<ListToolsResult>('tools/list');
+    const concrete = listed.tools.find(tool => tool.annotations?.title === 'content.read')!;
+    expect(concrete.inputSchema).toEqual(startupDescriptor.inputSchema);
+    expect(concrete.annotations?.readOnlyHint).toBe(true);
+    expect(listed.tools.some(tool => tool.name === 'diagnostic_only')).toBe(false);
+    expect(calls.map(call => call.url)).toEqual(['http://127.0.0.1:4111/api/tools/content.read']);
+    expect(bridge.notifications).not.toContain('notifications/tools/list_changed');
+    const result = await bridge.request<CallToolResult>('tools/call', { name: concrete.name, arguments: { id: 'page' } });
+    expect(result.isError).toBeUndefined();
+    expect(result.content).toEqual([{ type: 'text', text: JSON.stringify({ executionId: 'read', status: 'completed', output: { title: 'hello' } }) }]);
+    expect(JSON.parse(String(calls[1]!.init.body))).toEqual({ runId: 'published-run', toolUseId: 'published-use', toolId: 'content.read', input: { id: 'page' }, requireReadOnly: true });
+    expect(calls.every(call => new Headers(call.init.headers).get('Authorization') === 'Bearer run-token')).toBe(true);
+  });
+
+  it('enables describe publication without startup IDs and never discovers from diagnostic IDs', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => init?.method === 'GET'
+      ? Response.json(startupDescriptor)
+      : Response.json({ result: { executionId: 'dynamic', status: 'completed', output: 'ok' } }));
+    const bridge = await bootPublishedBridge({ fetchImpl, env: { JINI_DIAGNOSTIC_TOOL_IDS: '["content.read"]' } });
+    expect((await bridge.request<ListToolsResult>('tools/list')).tools.some(tool => tool.annotations?.title === 'content.read')).toBe(false);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    const described = await bridge.request<CallToolResult>('tools/call', { name: 'describe_tool', arguments: { id: 'content.read' } });
+    expect(described.isError).toBeUndefined();
+    await vi.waitFor(() => expect(bridge.notifications).toContain('notifications/tools/list_changed'));
+    const concrete = (await bridge.request<ListToolsResult>('tools/list')).tools.find(tool => tool.annotations?.title === 'content.read')!;
+    expect((await bridge.request<CallToolResult>('tools/call', { name: concrete.name, arguments: { id: 'page' } })).isError).toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['[', '{}', '["ok",2]', 'null'])('rejects malformed startup metadata %s before server construction', async raw => {
+    const createServer = vi.fn(() => ({ run: async () => {} }));
+    const deps = makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run', [STARTUP_TOOL_IDS_ENV_VAR]: raw }, createMcpToolServer: createServer });
+    await expect(serve({}, deps)).rejects.toMatchObject({ code: 1 });
+    expect(createServer).not.toHaveBeenCalled();
+    expect(deps.errWritten).toHaveLength(1);
+  });
+
+  it.each([401, 403, 404])('fails startup on a %i descriptor response without exposing a partial list', async status => {
+    const createServer = vi.fn(() => ({ run: async () => {} }));
+    const deps = makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run', [STARTUP_TOOL_IDS_ENV_VAR]: '["first","second"]', [DAEMON_URL_ENV_VAR]: 'http://127.0.0.1' },
+      createMcpToolServer: createServer, fetchImpl: async url => String(url).endsWith('/first')
+        ? Response.json({ ...startupDescriptor, id: 'first' })
+        : Response.json({ error: { code: 'DENIED', message: 'not admitted' } }, { status }),
+    });
+    await expect(serve({}, deps)).rejects.toMatchObject({ code: 1 });
+    expect(createServer).not.toHaveBeenCalled();
+    expect(deps.errWritten).toEqual([`jini-mcp: HTTP ${status}: DENIED: not admitted\n`]);
+  });
+
+  it('rejects a descriptor whose identity differs from the requested startup ID', async () => {
+    const createServer = vi.fn(() => ({ run: async () => {} }));
+    const deps = makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run', [STARTUP_TOOL_IDS_ENV_VAR]: '["requested"]', [DAEMON_URL_ENV_VAR]: 'http://127.0.0.1' },
+      createMcpToolServer: createServer, fetchImpl: async () => Response.json(startupDescriptor),
+    });
+    await expect(serve({}, deps)).rejects.toMatchObject({ code: 1 });
+    expect(createServer).not.toHaveBeenCalled();
+    expect(deps.errWritten).toEqual(['jini-mcp: daemon returned a mismatched tool descriptor\n']);
+  });
+
+  it('isolates startup definitions and credentials across concurrent runs', async () => {
+    const requests: { token: string | null; body: unknown }[] = [];
+    const fetchImpl: typeof fetch = async (_url, init = {}) => {
+      const token = new Headers(init.headers).get('Authorization');
+      const id = token === 'Bearer first' ? 'first_tool' : 'second_tool';
+      if (init.method === 'GET') return Response.json({ ...startupDescriptor, id });
+      requests.push({ token, body: JSON.parse(String(init.body)) });
+      return Response.json({ result: { executionId: id, status: 'completed', output: id } });
+    };
+    const bridges = await Promise.all(['first', 'second'].map(run => bootPublishedBridge({ fetchImpl,
+      env: { [RUN_ID_ENV_VAR]: run, [DAEMON_TOKEN_ENV_VAR]: run, [STARTUP_TOOL_IDS_ENV_VAR]: JSON.stringify([`${run}_tool`]) },
+    })));
+    for (const [index, run] of ['first', 'second'].entries()) {
+      const bridge = bridges[index]!;
+      const names = (await bridge.request<ListToolsResult>('tools/list')).tools.map(tool => tool.name);
+      expect(names.filter(name => name === 'first_tool' || name === 'second_tool')).toEqual([`${run}_tool`]);
+      await bridge.request<CallToolResult>('tools/call', { name: `${run}_tool`, arguments: { id: run } });
+    }
+    expect(requests.map(request => ({ token: request.token, runId: (request.body as { runId: string }).runId })))
+      .toEqual([{ token: 'Bearer first', runId: 'first' }, { token: 'Bearer second', runId: 'second' }]);
+  });
+
+  it.each([true, false])('preserves delegated approval outcomes through typed and legacy write ingress (allowed=%s)', async allowed => {
+    const posts: Record<string, unknown>[] = [];
+    const registry = createToolRegistry({});
+    const handler = vi.fn(async () => 'done');
+    const confirm = vi.fn(() => allowed ? 'confirm' as const : 'deny' as const);
+    const descriptor = { ...startupDescriptor, readOnly: false, requiresConfirmation: true };
+    registry.register({ descriptor, policy: { authorize: () => 'allow' }, handler });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'm2-approval' });
+    const toolExecutor = createToolExecutor({ registry }, { delegate: { onConfirm: confirm } });
+    const fetchImpl: typeof fetch = async (_url, init = {}) => {
+      if (init.method === 'GET') return Response.json(descriptor);
+      posts.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+      const parsed = delegatedToolExecuteRoute.parse({ body: JSON.parse(String(init.body)), query: {}, params: {} });
+      if (!parsed.ok) throw new Error('invalid delegated request');
+      const result = await delegatedToolExecuteRoute.handle({ input: parsed.value, deps: {
+        lifecycle, toolExecutor, toolRegistry: registry, resolvePrincipal: () => ({ id: 'host' }), onInternalError: () => {},
+      } }, init.signal ? { signal: init.signal } : {});
+      return result.ok ? Response.json(result.value) : Response.json({ error: result.error }, { status: 403 });
+    };
+    const bridge = await bootPublishedBridge({ fetchImpl, env: { [RUN_ID_ENV_VAR]: run.id, [STARTUP_TOOL_IDS_ENV_VAR]: '["content.read"]' } });
+    const concrete = (await bridge.request<ListToolsResult>('tools/list')).tools.find(tool => tool.annotations?.title === 'content.read')!;
+    expect(concrete.annotations?.readOnlyHint).toBe(false);
+    const typed = await bridge.request<CallToolResult>('tools/call', { name: concrete.name, arguments: { id: 'page' } });
+    const legacy = await bridge.request<CallToolResult>('tools/call', { name: 'execute_delegated_tool', arguments: { toolId: 'content.read', input: { id: 'page' } } });
+    expect(typed.isError).toBe(legacy.isError);
+    expect(typed.isError).toBe(allowed ? undefined : true);
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(handler).toHaveBeenCalledTimes(allowed ? 2 : 0);
+    expect(posts).toEqual(Array.from({ length: 2 }, () => ({ runId: run.id, toolUseId: 'published-use', toolId: 'content.read', input: { id: 'page' } })));
+  });
+
+  it('forwards MCP cancellation for a typed startup operation to the delegated callback', async () => {
+    let signal: AbortSignal | undefined;
+    const fetchImpl: typeof fetch = async (_url, init = {}) => {
+      if (init.method === 'GET') return Response.json(startupDescriptor);
+      signal = init.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        signal!.addEventListener('abort', () => reject(signal!.reason), { once: true });
+      });
+    };
+    const bridge = await bootPublishedBridge({ fetchImpl, env: { [STARTUP_TOOL_IDS_ENV_VAR]: '["content.read"]' } });
+    const concrete = (await bridge.request<ListToolsResult>('tools/list')).tools.find(tool => tool.annotations?.title === 'content.read')!;
+    bridge.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 99, method: 'tools/call', params: { name: concrete.name, arguments: { id: 'page' } } })}\n`);
+    await vi.waitFor(() => expect(signal).toBeDefined());
+    bridge.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 99, reason: 'user cancelled' } })}\n`);
+    await vi.waitFor(() => expect(signal?.aborted).toBe(true));
+  });
+});
+
+it('finishes every startup lookup before constructing the server and pins one daemon URL', async () => {
+  let releaseDescriptor!: (value: Response) => void;
+  const descriptorPending = new Promise<Response>(resolve => { releaseDescriptor = resolve; });
+  const resolveDaemonUrl = vi.fn(async () => 'http://127.0.0.1:4111');
+  const fetchImpl = vi.fn<typeof fetch>(async () => descriptorPending);
+  const createServer = vi.fn((required: McpToolServerRequiredArgs, options: McpToolServerOptions = {}) => ({ run: async () => {
+    expect(await required.resolveBaseUrl()).toBe('http://127.0.0.1:4111');
+    expect(options.delegatedTools?.initialTools).toEqual([startupDescriptor]);
+  } }));
+  const running = serve({}, makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run', [STARTUP_TOOL_IDS_ENV_VAR]: '["content.read"]' },
+    fetchImpl, resolveDaemonUrl, createMcpToolServer: createServer,
+  }));
+  await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1));
+  expect(createServer).not.toHaveBeenCalled();
+  releaseDescriptor(Response.json(startupDescriptor));
+  await running;
+  expect(createServer).toHaveBeenCalledTimes(1);
+  expect(resolveDaemonUrl).toHaveBeenCalledTimes(1);
 });
