@@ -49,10 +49,11 @@ function serializeCleaned(editor: Editor): string {
   // GrapesJS's getCss typing omits its JSON return type; successful init supplies a wrapper.
   const rules = editor.getCss({ json: true, avoidProtected: true, keepUnusedStyles: true }) as unknown as CssRule[];
   const css = rules.map(rule => rule.toCSS()).join('');
-  const wrapper = editor.getWrapper();
-  // `wrapper` is undefined only before/without a successful init, which cannot be true once this
-  // hook's `editor` has fired `update` — defensive only, mirroring `serializeCleaned`'s own doc.
-  const html = wrapper ? wrapper.getInnerHTML() : editor.getHtml();
+  // `getWrapper()` is undefined only before/without a successful init, which cannot be true once this
+  // hook's `editor` has fired `update` — and `serializeEditorSource` has already walked the wrapper
+  // (`assertProtectedSourceMetadata`) before reaching here. The old `: editor.getHtml()` fallback for a
+  // missing wrapper was therefore unreachable and is gone.
+  const html = editor.getWrapper()!.getInnerHTML();
   return css ? `<style>${prettifyCss(css)}</style>${html}` : html;
 }
 
@@ -91,7 +92,7 @@ function serializeWithSplice(
   original: string,
   dirty: Map<string, DirtyTextEdit>,
   structuralChange: string | undefined,
-  sourcePlan?: PreparedEditorSource,
+  sourcePlan: PreparedEditorSource,
 ): string {
   if (structuralChange) {
     warnFallback(`a block was added, moved, copied or deleted since mount (first: ${structuralChange})`);
@@ -112,7 +113,7 @@ function serializeWithSplice(
   let result = original;
   for (const edit of ordered) {
     const range = originalIndex.get(pathKey(edit.path));
-    if (range && sourcePlan?.instances.some(raw => range.start < raw.outerEnd && range.end > raw.outerStart)) {
+    if (range && sourcePlan.instances.some(raw => range.start < raw.outerEnd && range.end > raw.outerStart)) {
       warnFallback('text edit overlaps a protected source region');
       return serializeCleaned(editor);
     }

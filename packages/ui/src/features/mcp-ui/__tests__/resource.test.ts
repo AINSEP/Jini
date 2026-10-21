@@ -209,6 +209,7 @@ describe('readActionPlan', () => {
     ['a non-string description', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', description: 7, actions: [] } }],
     ['a missing actions array', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T' } }],
     ['a non-array actions', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: 'nope' } }],
+    ['a non-object action', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: ['confirm'] } }],
     ['an action with no id', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ label: 'X' }] } }],
     ['an action with an empty id', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ id: '', label: 'X' }] } }],
     ['an action with no label', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ id: 'a' }] } }],

@@ -145,7 +145,9 @@ function LocalCliAgentFeedback({ agent, card, onEnvChange }:
           className={'jini-agent-card-test-result is-' + result.status}
           role={result.status === 'error' ? 'alert' : 'status'}
         >
-          {result.message ?? (result.status === 'ok' ? t('Agent is ready.') : t('Agent check failed'))}
+          {/* Only an `ok` verdict may arrive without a message: `AgentTestState`'s `error` variant
+              requires one, so there is no message-less failure to word here. */}
+          {result.status === 'ok' ? (result.message ?? t('Agent is ready.')) : result.message}
         </p>
       ) : null}
 

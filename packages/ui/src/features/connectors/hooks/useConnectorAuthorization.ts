@@ -240,6 +240,12 @@ export function useConnectorAuthorization(
           // (not stripped) as a guard against a future refactor breaking
           // that invariant — see packages/ui/archived provenance ledger's 2026-07-22
           // dated entry for the full proof.
+          // Correction (2026-10-21 coverage pass): the proof above misses one interleaving. While this
+          // sweep's `cancelConnectorAuthorization` call is still awaiting, a `runConnectorAction(id,
+          // 'connect')` that resolves with `{ error }` sets `authError[id]`; the cancel then succeeds and
+          // this clear removes that NEWER error. Reproduced in
+          // `__tests__/hooks/useConnectorAuthorization.stale-race.test.ts`; flagged for an owner decision
+          // on whether the sweep should leave a fresher error alone.
           setAuthError((curr) => {
             if (curr[connectorId] === undefined) return curr;
             const next = { ...curr };
