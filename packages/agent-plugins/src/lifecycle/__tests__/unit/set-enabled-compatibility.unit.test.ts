@@ -131,3 +131,20 @@ test('a toggle waits for the per-plugin state lock and re-checks installation on
     expect(Object.hasOwn(activations.plugins, 'held')).toBe(false);
   });
 });
+
+test('with two installed digests of one id, enable is refused when ANY revision is host-incompatible', async () => {
+  await withHarness(async ({ api, layout, workspaceRoot, install }) => {
+    await install('twin', { hostRange: '^1' });
+    const packagesDir = layout.forWorkspace({ workspaceId }).pluginPackagesDir({ pluginId: 'twin' });
+    const [digest] = await fs.readdir(packagesDir);
+    const stale = path.join(packagesDir, 'f'.repeat(64));
+    await fs.cp(path.join(packagesDir, digest!), stale, { recursive: true });
+    await fs.chmod(stale, 0o700);
+    await fs.chmod(path.join(stale, 'plugin.json'), 0o600);
+    const raw = JSON.parse(await fs.readFile(path.join(stale, 'plugin.json'), 'utf8'));
+    raw.extensions[namespace].hostRange = '>=99';
+    await fs.writeFile(path.join(stale, 'plugin.json'), JSON.stringify(raw));
+    expect((await api.listInstalledPlugins({ workspaceRoot })).filter(plugin => plugin.pluginId === 'twin')).toHaveLength(2);
+    await expect(api.setAgentPluginEnabled(toggle('twin', true))).rejects.toBeInstanceOf(AgentPluginHostIncompatibleError);
+  });
+});

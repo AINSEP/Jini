@@ -10,9 +10,10 @@ import * as semver from 'semver';
 /** Stored in place of a present-but-unusable range so the plugin stays listable but never enables. */
 export const INVALID_AGENT_PLUGIN_HOST_RANGE = '<invalid>';
 
-/** A blank string is a semver wildcard, so blank is rejected here rather than silently allowed. */
+/** A blank string is a semver wildcard, so blank is rejected here rather than silently allowed.
+ * The same holds for a blank `||` alternative: semver reads '>=99 ||' as '*', i.e. allow-all. */
 export function isValidAgentPluginHostRange({ range }: { readonly range: string }, _optional: Record<string, never> = {}): boolean {
-  return range.trim().length > 0 && semver.validRange(range) !== null;
+  return range.split('||').every(part => part.trim().length > 0) && semver.validRange(range) !== null;
 }
 
 function isCapabilityId(value: unknown): value is string {
@@ -21,7 +22,7 @@ function isCapabilityId(value: unknown): value is string {
 
 function readRequires({ value, warnings }: { readonly value: unknown; readonly warnings: string[] }): readonly string[] | undefined {
   if (value === undefined) return undefined;
-  if (Array.isArray(value) && value.every(isCapabilityId)) return [...new Set<string>(value)];
+  if (Array.isArray(value) && value.every(isCapabilityId)) return [...new Set<string>(value.map(id => id.trim()))];
   warnings.push('requires must be an array of non-empty capability ids');
   return undefined;
 }

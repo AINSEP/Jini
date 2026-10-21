@@ -57,7 +57,12 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     const activations = await readAgentPluginActivations(workspaceRoot);
     if (!input.enabled) return agentPluginDependentWarnings({ plugin, installed, activations, nextProvides: [] });
     const compatibility = describeAgentPluginCompatibility({ plugin, installed, activations });
-    if (!compatibility.hostOk) throw new AgentPluginHostIncompatibleError({ pluginId: input.pluginId });
+    // Several digests of one id can be installed (a bundled upgrade lands beside the old one), and
+    // the listing order is arbitrary, so every installed revision must be host-compatible.
+    const revisions = installed.filter(candidate => candidate.pluginId === plugin.pluginId);
+    if (revisions.some(revision => !describeAgentPluginCompatibility({ plugin: revision, installed, activations }).hostOk)) {
+      throw new AgentPluginHostIncompatibleError({ pluginId: input.pluginId });
+    }
     return compatibility.missingRequires.map(id => `Needs ${id}`);
   }
 

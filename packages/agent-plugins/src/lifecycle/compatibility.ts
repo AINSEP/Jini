@@ -71,8 +71,9 @@ export function agentPluginDependentWarnings(
 ): string[] {
   const removed = new Set((plugin.provides ?? []).filter(id => !nextProvides.includes(id)));
   const others = activeOthers({ installed, activations, excludeId: plugin.pluginId });
-  return others.flatMap(dependent => lostRequirements({ dependent, providers: others, removed })
-    .map(id => `${dependent.pluginId} needs ${id}`));
+  // One dependent id may have several installed digests; report each lost capability once.
+  return [...new Set(others.flatMap(dependent => lostRequirements({ dependent, providers: others, removed })
+    .map(id => `${dependent.pluginId} needs ${id}`)))];
 }
 
 /** Checks the declared host contract and advisory capabilities; never throws for a bad range.

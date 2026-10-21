@@ -28,7 +28,7 @@ describe('host contract range (semver.satisfies over AGENT_PLUGIN_CONTRACT_VERSI
     expect(checkAgentPluginCompatibility({ manifest: { hostRange }, hostVersion: '1.0.0', activeProvides: [] }).hostOk).toBe(false);
   });
   // A blank range is a semver wildcard; treating it as "any host" would silently allow a malformed manifest.
-  test.each(['', '   ', 'wat', INVALID_AGENT_PLUGIN_HOST_RANGE])('refuses malformed range %j without throwing', hostRange => {
+  test.each(['', '   ', 'wat', '||', '>=99 ||', ' || >=99', INVALID_AGENT_PLUGIN_HOST_RANGE])('refuses malformed range %j without throwing', hostRange => {
     expect(isValidAgentPluginHostRange({ range: hostRange })).toBe(false);
     expect(checkAgentPluginCompatibility({ manifest: { hostRange }, hostVersion: '1.0.0', activeProvides: [] }).hostOk).toBe(false);
   });
@@ -60,7 +60,7 @@ describe('manifest metadata in extensions.<namespace>', () => {
       expect(parsed.warnings).toEqual(warnings);
     }
   });
-  test.each([42, null, '', ' ', 'wat', ['^1']])('a malformed hostRange %j stays listable, warns, and is never compatible', hostRange => {
+  test.each([42, null, '', ' ', 'wat', '||', '>=99 ||', ['^1']])('a malformed hostRange %j stays listable, warns, and is never compatible', hostRange => {
     const parsed = parseAgentPluginManifest({ value: { ...manifest, extensions: { host: { id, hostRange } } } }, { identityNamespace: 'host' });
     if (!parsed.ok) throw new Error('invalid metadata must stay listable');
     expect(parsed.manifest.hostRange).toBe(INVALID_AGENT_PLUGIN_HOST_RANGE);
@@ -70,6 +70,14 @@ describe('manifest metadata in extensions.<namespace>', () => {
   test.each([[[null]], [['']], [[' ']], ['a'], [{ a: true }], [[1]]])('malformed requires %j is dropped with a warning (advisory only)', requires => {
     expect(readAgentPluginCompatibilityMetadata({ extension: { requires } }))
       .toEqual({ warnings: ['requires must be an array of non-empty capability ids'] });
+  });
+  test('requires ids are trimmed before de-duplication', () => {
+    expect(readAgentPluginCompatibilityMetadata({ extension: { requires: [' cap:a', 'cap:a ', 'cap:b'] } }))
+      .toEqual({ requires: ['cap:a', 'cap:b'], warnings: [] });
+  });
+  test('the declared contract version is a release, so prerelease exclusion in satisfies cannot bite', async () => {
+    const semver = await import('semver');
+    expect(semver.prerelease(AGENT_PLUGIN_CONTRACT_VERSION)).toBeNull();
   });
   test('an empty requires list is valid', () => {
     expect(readAgentPluginCompatibilityMetadata({ extension: { requires: [] } })).toEqual({ requires: [], warnings: [] });
@@ -94,6 +102,12 @@ describe('live requirement projection', () => {
     const self = installed('self', ['a', 'b']);
     const dependent = installed('dependent', [], ['a', 'a', 'b']);
     expect(agentPluginDependentWarnings({ plugin: self, installed: [self, dependent], activations: none, nextProvides: ['b'] }))
+      .toEqual(['dependent needs a']);
+  });
+  test('a dependent installed at two digests is warned about once', () => {
+    const self = installed('self', ['a']);
+    const dependent = installed('dependent', [], ['a']);
+    expect(agentPluginDependentWarnings({ plugin: self, installed: [self, dependent, { ...dependent, archiveDigest: 'other' }], activations: none, nextProvides: [] }))
       .toEqual(['dependent needs a']);
   });
   test('another enabled provider satisfies the dependent; disabled providers and the dependent itself do not', () => {
