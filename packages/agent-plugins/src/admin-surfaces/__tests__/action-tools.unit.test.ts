@@ -99,4 +99,28 @@ describe('admin action tools', () => {
     expect(result.refusals).toEqual(["agent tool 'p_acme__account_save' was not loaded: more than one contribution declares it"]);
     expect(registry.list({}).flatMap(row => row.tools)).toEqual([]);
   });
+  test('a hand-built descriptor without an effect projects a write tool', () => {
+    const { effect: _dropped, ...action } = descriptor().actions[0]!;
+    const surface = { ...descriptor(), actions: [action] };
+    const [tool] = buildAdminSurfaceActionTools({ surfaces: [{ pluginId: 'acme', descriptor: surface }], handlersFor: () => ({}), authorize: async () => undefined });
+    expect(tool!.tool.effect).toBe('write');
+  });
+  test('refuses an unauthenticated call before authorization or any handler runs', async () => {
+    const f = fixture();
+    const authorized: unknown[] = [];
+    const tools = buildAdminSurfaceActionTools({ surfaces: [{ pluginId: 'acme', descriptor: f.surface }], handlersFor: f.host.handlersFor,
+      authorize: async input => { authorized.push(input); } });
+    await expect(tools[0]!.tool.handler({ pluginId: 'acme', auth: { workspaceId: 'workspace' }, input: { payload: { value: 'x' } } }))
+      .rejects.toThrow('Admin actions require an authenticated principal.');
+    expect(authorized).toEqual([]);
+    expect(f.calls).toEqual([]);
+  });
+  test('the optional run decorator wraps the same dispatch and can decorate its outcome', async () => {
+    const f = fixture();
+    const tools = buildAdminSurfaceActionTools({ surfaces: [{ pluginId: 'acme', descriptor: f.surface }], handlersFor: f.host.handlersFor,
+      authorize: async () => undefined }, { run: async ({ dispatch }) => ({ decorated: await dispatch() }) });
+    const plain = await f.call({ payload: { value: 'hello' } });
+    expect(await tools[0]!.tool.handler({ pluginId: 'acme', auth: context, input: { payload: { value: 'hello' } } })).toEqual({ decorated: plain });
+    expect(f.calls).toHaveLength(2);
+  });
 });

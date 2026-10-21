@@ -112,6 +112,11 @@ describe('protocol and sandbox', () => {
     expect(adminSurfaceInitMessage({ mountId: 'm-1' }, { bootstrap })).toEqual({ protocol: 'jini.admin-surface', version: 1, kind: 'init', mountId: 'm-1', bootstrap });
   });
 
+  test('the init envelope carries the theme when one is given, alongside or without a bootstrap', () => {
+    const theme = { scheme: 'dark', tokens: {} } as const;
+    expect(adminSurfaceInitMessage({ mountId: 'm-1' }, { theme })).toStrictEqual({ protocol: 'jini.admin-surface', version: 1, kind: 'init', mountId: 'm-1', theme });
+  });
+
   test('a file type outside the served set is labelled as opaque bytes, still nosniff, with no CORS grant', () => {
     const headers = adminSurfaceFileHeaders({ descriptor: { csp: {} }, path: 'notes.txt' });
     expect(headers['Content-Type']).toBe('application/octet-stream');
