@@ -31,7 +31,7 @@ function context(input: unknown, signal = new AbortController().signal): ToolExe
   return { executionId: 'e', principal: { id: 'p' }, run: { id: 'r' }, signal, input } as ToolExecutionContext;
 }
 
-type Invoke = NonNullable<Parameters<ToolHandler>[1]>['invokeTool'];
+type Invoke = NonNullable<NonNullable<Parameters<ToolHandler>[1]>['invokeTool']>;
 
 describe('batchDescriptorFor', () => {
   it('adds a bounded items array, moves required fields into its description and leaves the input untouched', () => {

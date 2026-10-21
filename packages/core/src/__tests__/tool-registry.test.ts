@@ -4,8 +4,11 @@ import * as publicBarrel from '../index.js';
 import { authorizeToolInvocation } from '../composition.js';
 import type { Principal } from '../principal.js';
 import {
+  createToolRegistrationScope,
   createToolRegistry,
   isReadOnlyTool,
+  toolDiscoveryMetadata,
+  toolRegistryRevision,
   type ToolAuthorizationContext,
   type ToolRegistration,
   type ToolRegistry,
@@ -197,5 +200,49 @@ describe('isReadOnlyTool', () => {
       ['reader', true],
       ['writer', false],
     ]);
+  });
+});
+
+describe('schema-bearing invocation', () => {
+  it('normalizes input against the published schema before the policy sees it, and returns the notes', async () => {
+    const registry = createToolRegistry({});
+    const seen: unknown[] = [];
+    registry.register({
+      descriptor: { id: 'count', inputSchema: { type: 'object', properties: { limit: { type: 'integer' } } } },
+      handler: async () => 'ok',
+      policy: { authorize: ({ input }) => { seen.push(input); return 'allow'; } },
+    });
+    const result = await authorizeToolInvocation({ registry, toolId: 'count', principal, run, input: { limit: '5' } });
+    expect(seen).toEqual([{ limit: 5 }]);
+    expect(result).toMatchObject({ decision: 'allow', input: { limit: 5 }, normalizationNotes: ['limit: string→integer'] });
+  });
+});
+
+describe('toolDiscoveryMetadata', () => {
+  it('projects the execution read-only decision and keeps an unclassified tool unknown', () => {
+    expect(toolDiscoveryMetadata({ descriptor: { id: 'r', readOnly: true } })).toEqual({ readOnly: true, sideEffects: 'none' });
+    expect(toolDiscoveryMetadata({ descriptor: { id: 'w' } })).toEqual({ readOnly: false, sideEffects: 'unknown' });
+    expect(toolDiscoveryMetadata({ descriptor: undefined })).toEqual({ readOnly: false, sideEffects: 'unknown' });
+  });
+
+  it('reports a declared side-effect class verbatim instead of inferring one', () => {
+    expect(toolDiscoveryMetadata({ descriptor: { id: 'w', readOnly: false, sideEffects: 'mutates-durable-state' } })).toEqual({ readOnly: false, sideEffects: 'mutates-durable-state' });
+  });
+});
+
+describe('registry revisions and scopes', () => {
+  it('starts each core registry at revision 0 and bumps it on every static or scoped change', () => {
+    const registry = createToolRegistry({});
+    expect(toolRegistryRevision({ registry })).toBe(0);
+    registry.register({ descriptor: { id: 'a' }, handler: async () => undefined, policy: { authorize: () => 'allow' } });
+    expect(toolRegistryRevision({ registry })).toBe(1);
+    createToolRegistrationScope({ registry }).replace({ registrations: [{ descriptor: { id: 'b' }, handler: async () => undefined, policy: { authorize: () => 'allow' } }] });
+    expect(toolRegistryRevision({ registry })).toBe(2);
+    expect(toolRegistryRevision({ registry: {} })).toBeUndefined();
+  });
+
+  it('refuses to scope a registry it did not create', () => {
+    const fakeRegistry = { register() {}, has: () => false, list: () => [] } as ToolRegistry;
+    expect(() => createToolRegistrationScope({ registry: fakeRegistry })).toThrow('registration scopes require a core ToolRegistry');
   });
 });
