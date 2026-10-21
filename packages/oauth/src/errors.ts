@@ -69,7 +69,7 @@ export async function adaptOAuthResponse({ response }: { readonly response: Resp
     const body = await response.json() as Record<string, unknown> | null;
     if (body !== null && typeof body === 'object') project?.(body);
     normalizeProviderError({ body });
-    return Response.json(body, { status: oauthResponseStatus({ body, response }, { successStatus }) });
+    return Response.json(body, { status: oauthResponseStatus({ body, response }, successStatus === undefined ? {} : { successStatus }) });
 }
 
 /** Bound protocol identifiers before upstream decoding; never retain arbitrary provider text. */

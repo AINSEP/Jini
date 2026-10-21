@@ -118,7 +118,7 @@ export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCod
     // Validate/format before committing state so an upstream configuration refusal cannot leave
     // a pending request behind. Only the host-issued state is attached after storage succeeds.
     const formattedUrl = new URL(formatAuthorizationUrl({ url: authorizationUrl, clientId: input.client.clientId }));
-    const entry = await storeAuthorizationRequest({ deps, authorization }, { resource: input.resource });
+    const entry = await storeAuthorizationRequest({ deps, authorization }, input.resource === undefined ? {} : { resource: input.resource });
     assertIssuedAuthorizationState({ state: entry.state });
     formattedUrl.searchParams.set('state', entry.state);
     return { authorizationUrl: formattedUrl.href, state: entry.state, expiresAt: entry.expiresAt };
