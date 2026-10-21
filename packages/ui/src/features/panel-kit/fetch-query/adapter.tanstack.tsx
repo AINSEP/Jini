@@ -58,11 +58,12 @@ export function FetchQueryProvider({ children, environment = browserFetchQueryEn
   </ScopeContext.Provider></QueryClientProvider>;
 }
 
-/** Fail closed when an adapter hook is used without its provider. */
+/** The provider's scope. This adapter's hooks are not exported: the only route to them is the
+ * `adapter` object this module's own `FetchQueryProvider` binds INSIDE its `ScopeContext`, and the
+ * public hooks already fail closed without a provider (`binding.react.tsx`'s `useAdapter`). So the
+ * old "no scope" throw here was unreachable and is gone; the guarantee is that binding order. */
 function useScope(): Scope {
-  const scope = useContext(ScopeContext);
-  if (!scope) throw new Error('Fetch-query hooks require FetchQueryProvider');
-  return scope;
+  return useContext(ScopeContext)!;
 }
 
 /** Observe only this provider's connectivity; paused reads do not claim network activity. */
