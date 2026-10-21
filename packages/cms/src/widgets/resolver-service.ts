@@ -1352,7 +1352,7 @@ export const HTML_EMBED_RESOLVERS: Readonly<Record<string, HtmlEmbedResolver>> =
  * `injectPostAuthor` fills the byline. Without it this stage warned once per post render while the
  * byline rendered correctly.
  */
-export const THEME_OWNED_MARKER_TYPES: ReadonlySet<string> = new Set(["partial", "menu", "post-previews", "collection", "featured-image", "post-author"]);
+export const THEME_OWNED_MARKER_TYPES: ReadonlySet<string> = new Set(["partial", "menu", "post-previews", "collection", "featured-image", "post-author", "comments"]);
 
 /**
  * `isPageEmbedType` (the "does this stage OWN the marker type" question, with its own doc) lives in

@@ -35,6 +35,7 @@ test('barrels expose callable facades without leaking internal composition facto
   expect(typeof manifest.parseAgentPluginMcpConfig).toBe('function');
   expect(typeof manifest.validatePluginManifest).toBe('function');
   expect(typeof lifecycle.createAgentPluginLifecycle).toBe('function');
+  expect(typeof lifecycle.isAgentPluginName).toBe('function');
   expect(typeof node.createNodeAgentPluginEffects).toBe('function');
   expect(node).not.toHaveProperty('createNodeAgentPluginFilesystem');
   expect(lifecycle).not.toHaveProperty('withExclusiveFileLock');

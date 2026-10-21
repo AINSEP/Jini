@@ -12,7 +12,7 @@ import { buildWidgetAreaFieldsJson, buildWidgetInstanceFieldsJson } from "../../
 import type { PageHtmlEmbedRef } from "../../html/html-embeds.js";
 import type { MediaContentTypeStorePort, PostRecord, PostRepoPort, WidgetHostPorts } from "../../host-ports.js";
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
-import { HTML_EMBED_RESOLVERS, resolveGalleryWidgetMedia, resolvePageWidgets, type ResolveHtmlPageEmbedsDeps } from "../../resolver-service.js";
+import { THEME_OWNED_MARKER_TYPES, HTML_EMBED_RESOLVERS, resolveGalleryWidgetMedia, resolvePageWidgets, type ResolveHtmlPageEmbedsDeps } from "../../resolver-service.js";
 import { createContactFormResolver, registerCoreResolver } from "../../resolvers/index.js";
 import type { FormDefinitionReadPort, FormDefinitionView } from "../../resolvers/ports.js";
 import type { TaxonomyListPort, TermListPort } from "../../../taxonomy/index.js";
@@ -668,4 +668,9 @@ describe("post embed resolution", () => {
     expect((await postEmbed([], deps())).size).toBe(0);
     expect(warn).not.toHaveBeenCalled();
   });
+});
+
+test('comments markers belong to the host renderer rather than the CMS content resolver', () => {
+  assert.equal(THEME_OWNED_MARKER_TYPES.has('comments'), true);
+  assert.equal(HTML_EMBED_RESOLVERS['comments'], undefined);
 });

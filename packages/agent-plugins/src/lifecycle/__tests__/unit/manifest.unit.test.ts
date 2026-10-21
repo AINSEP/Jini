@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "../legacy-test.js";
 
-import { parseAgentPluginManifest as parseManifest, parseAgentPluginMcpConfig as parseMcp } from "../../manifest.js";
+import { isAgentPluginName, parseAgentPluginManifest as parseManifest, parseAgentPluginMcpConfig as parseMcp } from "../../manifest.js";
 const parseAgentPluginManifest = (value: unknown) => parseManifest({ value });
 // Fixtures express transport and client metadata together; production keeps the latter in a namespace.
 function parseAgentPluginMcpConfig(value: unknown) {
@@ -338,4 +338,13 @@ test("mcp.json: several servers of mixed transports and validity all resolve ind
   if (!result.ok) return;
   assert.deepEqual([...result.config.serverIds].sort(), ["broken", "local", "remote"]);
   assert.deepEqual(Object.keys(result.config.servers).sort(), ["local", "remote"]);
+});
+
+test("isAgentPluginName: the plugin.json name grammar, capped at 64 characters, for any input type", () => {
+  for (const value of ["notes", "acme-office", "a.b-c", "x1", "a".repeat(64)]) assert.equal(isAgentPluginName({ value }), true, value);
+  for (const value of ["", "Notes", "-notes", "notes-", "a..b", "../etc", "a/b", "a".repeat(65), 7, undefined, null]) assert.equal(isAgentPluginName({ value }), false, String(value));
+  // The manifest parser applies the same grammar: one owner, so the two cannot disagree.
+  const nameErrors = (name: string) => { const parsed = parseAgentPluginManifest({ name }); return parsed.ok ? [] : parsed.errors.filter(error => error.includes("'name'")); };
+  assert.equal(nameErrors("a".repeat(65)).length, 1);
+  assert.deepEqual(nameErrors("a".repeat(64)), []);
 });

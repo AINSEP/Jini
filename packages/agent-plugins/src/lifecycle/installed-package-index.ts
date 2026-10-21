@@ -108,6 +108,8 @@ export function createInstalledPackageIndex(required: { readonly ports: AgentPlu
       pluginId: parsed.manifest.name,
       id: parsed.manifest.id,
       provides: parsed.manifest.provides,
+      ...(parsed.manifest.requires === undefined ? {} : { requires: parsed.manifest.requires }),
+      ...(parsed.manifest.hostRange === undefined ? {} : { hostRange: parsed.manifest.hostRange }),
       version: parsed.manifest.version,
 
       ...(/**

@@ -117,3 +117,30 @@ test("a request with no parsed body answers 500, not a 4xx (reported, not fixed)
   assert.deepEqual([out.status, out.payload], [500, { error: "internal error", code: "INTERNAL_ERROR" }]);
   assert.equal(submissions.length, 0);
 });
+
+test('host-selected form redirects use 303 and keep pending/rejected records private', async () => {
+  for (const accepted of [true, false]) {
+    const { deps } = harness({ submit: async () => accepted
+      ? { ok: true, comment: ACCEPTED, autoClassified: 'pending' }
+      : { ok: false, reason: 'honeypot-tripped' } });
+    let redirect: unknown;
+    const response = { redirect: (status: number, location: string) => { redirect = { status, location }; } };
+    await createCommentSubmitHandler(deps, { formRedirect: () => '/entry' })(
+      { body: {} } as Request, response as unknown as Response, () => undefined);
+    assert.deepEqual(redirect, { status: 303, location: `/entry#${accepted ? 'comment-pending' : 'comment-error'}` });
+  }
+  const { deps } = harness();
+  let payload: unknown;
+  const response = { status() { return response; }, json(value: unknown) { payload = value; } };
+  await createCommentSubmitHandler(deps, { formRedirect: () => undefined })({ body: {} } as Request, response as unknown as Response, () => undefined);
+  assert.deepEqual(payload, { id: ACCEPTED.id, status: 'pending' });
+});
+
+test('trusted-proxy client resolution produces independent salted visitor rate-limit keys', async () => {
+  const keys: string[] = [];
+  const { deps } = harness({ overrides: { clientIp: ({ request }) => request.ip!, rateLimiter: { check: async ({ key }) => { keys.push(key); return { allowed: true }; } } } });
+  const response = { status() { return response; }, json() { return response; } };
+  for (const ip of ['203.0.113.1', '203.0.113.2']) await createCommentSubmitHandler(deps)({ body: {}, ip } as Request, response as Response, () => undefined);
+  assert.equal(new Set(keys).size, 2);
+  assert.ok(keys.every(key => /^[a-f0-9]{64}$/.test(key)));
+});

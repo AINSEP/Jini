@@ -63,6 +63,7 @@ import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core
  * "how does the archive get here" is out of this slice) and no execution of anything extracted.
  */
 import { createPersistentStateModule } from "./persistent-state.js";
+import { createAgentPluginUpdateStore, settleAgentPluginUpdateJournal } from "./update-store.js";
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
@@ -293,6 +294,12 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       return await persistentState.withIdentityLock({ workspaceRoot: workspaceLayout.root, run: async () => {
         await assertIdentityAvailable(workspaceLayout.root, indexed);
         const publishWithinPluginLock = () => persistentState.withPluginLock({ workspaceRoot: workspaceLayout.root, pluginId: indexed.pluginId, run: async () => {
+          // Every install and replacement, not only an update, is a mutation of this plugin: an
+          // unfinished update journal refuses it here, under the same plugin lock, because boot
+          // recovery removes only the journal's own candidate digest and would otherwise restore the
+          // old revision beside whatever this install published.
+          // The journal lives under the layout this install was given, the one it publishes into.
+          await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports: { ...ports, layout }, workspaceId, pluginId: indexed.pluginId }) });
           // Layout B needs the manifest id before choosing the package destination. Dedup still
           // skips publication and freezing, after one bounded staging extraction.
           // Owner decision 2026-10-04: learned facts begin empty for each site; author guidance stays

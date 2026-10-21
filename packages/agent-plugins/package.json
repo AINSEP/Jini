@@ -130,13 +130,16 @@
     "@jini-ai/core": "^0.4.2",
     "@jini-ai/platform": "^0.5.0",
     "@cfworker/json-schema": "^4.1.1",
-    "@jini-ai/plugins": "workspace:^"
+    "@jini-ai/plugins": "workspace:^",
+    "@types/semver": "^7.5.8",
+    "semver": "^7.6.2"
   },
   "peerDependencies": {
     "yauzl": "^3.4.0",
     "@jini-ai/core": "^0.4.9",
     "@jini-ai/platform": "^0.5.3",
-    "@cfworker/json-schema": "^4.1.1"
+    "@cfworker/json-schema": "^4.1.1",
+    "semver": "^7.6.2"
   },
   "peerDependenciesMeta": {
     "yauzl": {
@@ -146,6 +149,9 @@
       "optional": true
     },
     "@cfworker/json-schema": {
+      "optional": true
+    },
+    "semver": {
       "optional": true
     }
   }

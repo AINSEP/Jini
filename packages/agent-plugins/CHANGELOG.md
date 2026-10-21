@@ -3,6 +3,21 @@
 ## Unreleased
 
 - `./lifecycle`: `defineProviderContribution()` wraps `defineExecutablePluginContribution` so a bundled plugin can contribute a provider for `@jini-ai/core/provider-registry` (id checked before import), and `contributeProviders()` merges loader and registry refusals. Needs `@jini-ai/core` with `./provider-registry`: the peer range is raised to `^0.4.9` (the first core release carrying that subpath), so release core 0.4.9 before this. Without recovery policies, an unreadable manifest, a throwing module/validator/parser or a hostile descriptor is now a refusal line (never a throw), so one broken plugin no longer discards the healthy contributions loaded with it.
+## Unreleased — compatibility and advisory requirements
+
+- Uses `semver`, the same library as site plugins (`@jini-ai/plugins` checks `sdkRange` with
+  `semver.satisfies`), for `hostRange` and update ordering. Declared the way site plugins declare it
+  (optional peer + dev dependency, as `pnpm guard`'s subpath isolation requires): hosts that parse
+  manifests or use `./lifecycle` must install `semver@^7.6.2`.
+- `extensions.<ns>.hostRange` is checked against `AGENT_PLUGIN_CONTRACT_VERSION` (the host's Agent
+  Plugin contract, not an app version). A malformed range is listable with a parse warning but is
+  incompatible: `setAgentPluginEnabled({ enabled: true })` throws `AgentPluginHostIncompatibleError`
+  (`PLUGIN_HOST_INCOMPATIBLE`). Disabling is never refused.
+- `extensions.<ns>.requires` (capability ids) is advisory and computed live from other active
+  plugins: enabling returns `warnings: ['Needs <cap>']`; disabling a provider returns
+  `'<dependent> needs <cap>'`. Never blocks.
+- `setAgentPluginEnabled` now runs under the per-plugin state lock shared with install/update/uninstall.
+- `planAgentPluginUpdate()`: manifest semver orders releases, the digest identifies bytes.
 
 ## 0.4.7 — 2026-10-15 — folder uploads share one ZIP encoder
 

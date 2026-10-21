@@ -267,9 +267,15 @@ importers:
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins
+      '@types/semver':
+        specifier: ^7.5.8
+        version: 7.8.0
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
+      semver:
+        specifier: ^7.6.2
+        version: 7.8.5
       yazl:
         specifier: ^3.3.1
         version: 3.3.1

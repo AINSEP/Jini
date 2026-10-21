@@ -20,7 +20,8 @@
       "./adapters/sqlite": "node",
       "./adapters/blob-storage": "node",
       "./adapters/jwt-auth": "node",
-      "./adapters/stripe": "universal"
+      "./adapters/stripe": "universal",
+      "./comments": "universal"
     },
     "isolation": {
       "entries": {
@@ -76,6 +77,11 @@
       "types": "./dist/adapters/stripe/index.d.ts",
       "import": "./dist/adapters/stripe/index.js",
       "default": "./dist/adapters/stripe/index.js"
+    },
+    "./comments": {
+      "types": "./dist/comments/index.d.ts",
+      "import": "./dist/comments/index.js",
+      "default": "./dist/comments/index.js"
     }
   },
   "files": [

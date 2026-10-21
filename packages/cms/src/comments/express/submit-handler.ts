@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 
 import type { Request, RequestHandler } from "express";
 
-import type { CommentIngressPolicy, CommentIngressResult } from "../ports.js";
 import type { CommentRateLimiter } from "../ingress.js";
 import type { CommentSubmission } from "../types.js";
 
@@ -16,7 +15,8 @@ import type { CommentSubmission } from "../types.js";
  * discard-raw-IP-at-the-boundary discipline). The host provides the salt at construction.
  */
 export interface CommentSubmitRequired {
-  ingressPolicy: CommentIngressPolicy;
+  ingressPolicy: { submit: (submission: CommentSubmission) => Promise<
+    { ok: true; comment: { id: string; status: string } } | { ok: false; reason: string }> };
   workspaceId: string;
   ipHashSalt: string;
   /** Host-owned HTTP request budget, separate from the ingress policy's submission budget. */
@@ -84,17 +84,22 @@ function assertSubmitDeps(deps: CommentSubmitRequired): void {
  * @returns An Express handler preserving the source route's normalization and HTTP responses.
  * @complexity O(body length) normalization and hashing plus the ingress port's work.
  */
-export function createCommentSubmitHandler(deps: CommentSubmitRequired, _optional: Record<string, never> = {}): RequestHandler {
+export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional: { formRedirect?: (required: { request: Request }) => string | undefined } = {}): RequestHandler {
   assertSubmitDeps(deps);
   return async (req, res) => {
     try {
       const body = req.body as Record<string, unknown>;
       const submission = buildCommentSubmission(req, body, deps);
       const rateLimit = await deps.rateLimiter.check({ key: String(submission.ingressContext.authorIpHash) });
-      const result: CommentIngressResult = rateLimit.allowed
+      const result = rateLimit.allowed
         ? await deps.ingressPolicy.submit(submission)
         : { ok: false, reason: "rate-limited" };
 
+      const redirect = optional.formRedirect?.({ request: req });
+      if (redirect !== undefined) {
+        res.redirect(303, `${redirect}#${result.ok ? 'comment-pending' : 'comment-error'}`);
+        return;
+      }
       if (!result.ok) {
         // No oracle: every rejection reason maps to the SAME generic 422, distinguishable only in
         // the response body's `reason` for legitimate client-side form UX, never a status-code tell.

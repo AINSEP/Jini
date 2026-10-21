@@ -54,6 +54,7 @@
  * own "receives a JS value, never a file path or raw bytes" contract. `install.ts` is the only
  * caller that reads the file and hands the parsed value here.
  */
+import { readAgentPluginCompatibilityMetadata } from "./compatibility-metadata.js";
 import { readPluginIdentity, validatePluginIdentity } from "@jini-ai/core/plugin-directory";
 export { validatePluginManifest, validateMcpManifest } from '../manifest.js';
 export type { PluginManifest, McpManifest, McpServerEntry } from '../manifest.js';
@@ -118,6 +119,16 @@ function readSpecVersion(value: unknown, file: "plugin" | "mcp"): SpecVersion {
 const NAME_PATTERN = /^[a-z0-9]+(?:[-.][a-z0-9]+)*$/;
 const MAX_NAME_LENGTH = 64;
 
+/**
+ * True when `value` is a valid Agent Plugin id: `plugin.json`'s `name` grammar (§5.5, see
+ * `NAME_PATTERN`), 1-64 characters. The one owner of that grammar: a host checks an id taken from a
+ * URL or a tool input here before it names anything on disk, instead of restating the pattern.
+ * @complexity O(n) in the value's length.
+ */
+export function isAgentPluginName({ value }: { readonly value: unknown }, _optional: Record<string, never> = {}): boolean {
+  return typeof value === "string" && value.length <= MAX_NAME_LENGTH && NAME_PATTERN.test(value);
+}
+
 export interface AgentPluginManifest {
   readonly name: string;
   readonly version?: (string) | undefined;
@@ -129,6 +140,10 @@ export interface AgentPluginManifest {
   /** Normalized publisher identity, independent of name/storage key and version. */
   readonly id?: string | undefined;
   readonly provides?: readonly string[] | undefined;
+  /** `extensions.<ns>.requires`: advisory capability ids other active plugins should provide. */
+  readonly requires?: readonly string[] | undefined;
+  /** `extensions.<ns>.hostRange`: semver range over AGENT_PLUGIN_CONTRACT_VERSION; a malformed value is stored as `<invalid>`. */
+  readonly hostRange?: string | undefined;
 }
 
 export type ParseAgentPluginManifestResult =
@@ -182,7 +197,7 @@ function parseManifestAuthor(value: unknown): string | PluginManifestAuthor | un
 function resolveManifestName(raw: Readonly<Record<string, unknown>>): { name: string; error?: undefined } | { name?: undefined; error: string } {
   const name = coerceOptionalString(raw.name);
   if (name === undefined) return { error: "plugin.json 'name' is required and must be a string" };
-  if (name.length === 0 || name.length > MAX_NAME_LENGTH || !NAME_PATTERN.test(name)) {
+  if (!isAgentPluginName({ value: name })) {
     return {
       error: `plugin.json 'name' ('${name}') must be 1-${MAX_NAME_LENGTH} lowercase alphanumeric/hyphen/period characters, start and end alphanumeric, with no consecutive delimiters`,
     };
@@ -231,8 +246,12 @@ export function parseAgentPluginManifest({ value }: { readonly value: unknown },
   if (errors.length > 0) return { ok: false, errors };
   const identity = readPluginIdentity({ manifest: raw, namespace: identityNamespace });
   warnings.push(...identity.warnings);
+  const extension = isJsonObject(raw.extensions) && isJsonObject(raw.extensions[identityNamespace]) ? raw.extensions[identityNamespace] : {};
+  const { warnings: compatibilityWarnings, ...compatibility } = readAgentPluginCompatibilityMetadata({ extension });
+  warnings.push(...compatibilityWarnings);
 
   const manifest: AgentPluginManifest = {
+    ...compatibility,
     name: nameResult.name as string,
     id: identity.id,
     provides: identity.provides,
