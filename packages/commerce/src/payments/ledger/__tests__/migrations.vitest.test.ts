@@ -11,7 +11,6 @@ import { MigrationChecksumError, runMigrations, sourceChecksum } from "@jini-ai/
 import { PAYMENTS_LEDGER_ID, paymentsLedger } from "../migrations/0001_payments_ledger.js";
 import { PAYMENTS_OPERATOR_ACTIONS_ID } from "../migrations/0002_payments_operator_actions.js";
 import { PAYMENTS_ATTEMPT_RECOVERY_ID } from "../migrations/0004_payments_attempt_recovery.js";
-import { LEGACY_LIPAY_IMPORT_ID } from "../migrations/0005_legacy_lipay_import.js";
 import { COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS } from "../migrations/checksums.js";
 import { LEDGER_INTEGER_COLUMNS, LEDGER_TABLE_RULES, LEDGER_TABLES } from "../rows.js";
 
@@ -60,7 +59,7 @@ describe("payments ledger migrations", () => {
       expect(step.checksum).toBe(COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS[step.id]);
     }
     expect(COMMERCE_PAYMENTS_MIGRATIONS.map((step) => step.id)).toEqual(STEP_IDS);
-    expect(STEP_IDS).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, LEGACY_LIPAY_IMPORT_ID]);
+    expect(STEP_IDS).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID]);
   });
 
   test("pinnedChecksum refuses an id with no pin", async () => {
@@ -74,11 +73,11 @@ describe("payments ledger migrations", () => {
     const kernel = openKernel();
     try {
       const first = await migrateCommercePayments({ kernel });
-      expect(first.applied).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, LEGACY_LIPAY_IMPORT_ID]);
+      expect(first.applied).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID]);
       const tables = await listTables(kernel);
       expect(tables).toEqual(expect.arrayContaining([...Object.values(LEDGER_TABLES), COMMERCE_PAYMENTS_LEDGER_TABLE]));
       const second = await migrateCommercePayments({ kernel });
-      expect(second).toEqual({ applied: [], alreadyApplied: [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, LEGACY_LIPAY_IMPORT_ID], notes: [] });
+      expect(second).toEqual({ applied: [], alreadyApplied: [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID], notes: [] });
       const indexes = await kernel.query<{ name: string }>(sql`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'commerce_%' ORDER BY name`);
       expect(indexes.map((row) => row.name)).toEqual(expect.arrayContaining([
         "commerce_payment_attempts_payment", "commerce_refunds_payment", "commerce_disputes_payment",
