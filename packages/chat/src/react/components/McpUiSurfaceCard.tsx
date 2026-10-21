@@ -100,7 +100,7 @@ export interface McpUiSurfaceCardProps extends ExtEventRenderProps {
    * scrolling for content taller than its `preferredFrameSize` guess. A host embedding this card in
    * a fixed-width sidebar should pass a cap sized to its own viewport.
    */
-  maxHeight?: number;
+  maxHeight?: number | undefined;
   /**
    * Time source for a card's answer deadline (`MCP_UI_EXPIRES_AT_META_KEY`). Omit for the wall clock;
    * a test injects a fake one to step through the countdown.
@@ -132,8 +132,10 @@ function latestResourcesByUri(events: readonly unknown[]): readonly UIResource[]
  * has teeth for a producer whose id scheme this package has never seen.
  */
 function pendingMirrorHandle(uri: string): string {
+  // Never empty: only resources whose URI starts with `ui://` reach a card (`@jini-ai/ui/mcp-ui`'s
+  // resource parser rejects every other scheme), so the sanitized handle always keeps at least `ui`.
   const sanitized = uri.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  return `mcp-ui-pending-${sanitized === '' ? 'surface' : sanitized}`;
+  return `mcp-ui-pending-${sanitized}`;
 }
 
 /** The one label a mirror region carries — what is pending, and what an agent could report or wait on. */
@@ -273,7 +275,7 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
               {...(toolCall === undefined ? {} : { onToolCall: toolCall })}
               {...(onOpenLink === undefined ? {} : { onOpenLink })}
               {...(height === undefined || Number.isNaN(height) ? {} : { initialHeight: height })}
-              {...(maxHeight === undefined ? {} : { maxHeight })}
+              maxHeight={maxHeight}
             />
             {plan !== undefined && <PendingSurfaceMirror uri={resource.resource.uri} plan={plan} t={t} />}
           </Fragment>
@@ -329,7 +331,7 @@ export function registerMcpUiSurfaceRenderer(options: {
       sandboxProxyUrl={options.sandboxProxyUrl}
       {...(options.onToolCall === undefined ? {} : { onToolCall: options.onToolCall })}
       {...(options.onOpenLink === undefined ? {} : { onOpenLink: options.onOpenLink })}
-      {...(options.maxHeight === undefined ? {} : { maxHeight: options.maxHeight })}
+      maxHeight={options.maxHeight}
     />
   ) }, { slotKey: mcpUiSurfaceSlotKey });
 }

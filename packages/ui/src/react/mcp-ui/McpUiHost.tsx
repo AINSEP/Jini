@@ -28,7 +28,7 @@ export interface McpUiHostProps extends McpUiHostOptions {
   /** Follow the View's reported height. Defaults to `true`. */
   readonly autoResize?: boolean;
   /** Ceiling for the followed height, so a View reporting an enormous size cannot push the rest of the page off-screen. */
-  readonly maxHeight?: number;
+  readonly maxHeight?: number | undefined;
 }
 
 /**
