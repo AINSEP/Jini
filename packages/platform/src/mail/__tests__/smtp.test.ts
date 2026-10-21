@@ -84,6 +84,15 @@ test("createNodemailerSmtpTransport maps configuration and forwards the complete
     assert.equal(configurations.length, 2);
     assert.equal(payloads.length, 2);
 });
+test("createNodemailerSmtpTransport leaves nodemailer's own connection timeout in place when none is given", () => {
+    const configurations: unknown[] = [];
+    const nodemailer = { createTransport(configuration: unknown) {
+        configurations.push(configuration);
+        return { sendMail: async (_mail: SmtpMailPayload) => ({ messageId: "unused" }) };
+    } };
+    createNodemailerSmtpTransport({ host: "smtp.example.com", port: 587, secure: false, auth: { user: "fixture-user", pass: "fixture-password" }, nodemailer });
+    assert.deepEqual(configurations, [{ host: "smtp.example.com", port: 587, secure: false, auth: { user: "fixture-user", pass: "fixture-password" } }]);
+});
 // PARITY: retained behavior against the canonical shared implementation.
 test("send() forwards HTML-only content, headers and a named recipient without inventing text", async () => {
     const transport = new FakeSmtpTransport();
@@ -235,6 +244,16 @@ test("send() defaults an unrecognized error shape to retryable rather than dropp
         errorCode: "SMTP_UNKNOWN_ERROR",
         message: "something nodemailer has never told us about",
     });
+});
+test("send() reports a thrown non-Error value as a retryable unknown failure carrying its string form", async () => {
+    const transport = new FakeSmtpTransport([
+        () => {
+            throw "socket hang up";
+        },
+    ]);
+    const adapter = new SmtpMailerAdapter({ transport: transport, clock: { nowMs: () => Date.parse("2026-10-01T00:00:00Z") } });
+    const result = await adapter.send(sendInput(makeMessage(), SEND_OPTIONS), sendOptions(SEND_OPTIONS));
+    assert.deepEqual(result, { ok: false, retryable: true, errorCode: "SMTP_UNKNOWN_ERROR", message: "socket hang up" });
 });
 // PARITY: retained behavior against the canonical shared implementation.
 test("sendBatch() loops send() once per message, preserving result[i] <-> messages[i] ordering under partial failure", async () => {

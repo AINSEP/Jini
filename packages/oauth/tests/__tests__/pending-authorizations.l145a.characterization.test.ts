@@ -34,6 +34,21 @@ describe('pending authorization limits characterization', () => {
     expect(createPendingAuthorizationStore({ clock: createTestClock() }, { expiry: ({ ttlMs }) => ttlMs }).size({})).toBe(0);
   });
 
+  it('schedules the owner-bound sweep through an injected scheduler and cancels it once the store empties', async () => {
+    const clock = createTestClock();
+    const scheduled: { intervalMs: number; run: () => void }[] = [];
+    let cancelled = 0;
+    const scheduler: PendingAuthorizationScheduler = { every: ({ intervalMs, run }) => { scheduled.push({ intervalMs, run }); return () => { cancelled += 1; }; } };
+    const store = createPendingAuthorizationStore({ clock, randomBytesFn: entropy({}) }, { ttlMs: 5_000, scheduler });
+    await store.put(authorization);
+    await store.put(authorization);
+    expect(scheduled.map(({ intervalMs }) => intervalMs)).toEqual([5_000]);
+    clock.advance(5_000);
+    scheduled[0]!.run();
+    expect(cancelled).toBe(1);
+    expect(await store.size({})).toBe(0);
+  });
+
   it('uses default TTL and capacity and evicts the oldest state', async () => {
     const clock = createTestClock();
     const randomBytesFn: OAuthRandomBytes = ({ byteLength }) => {

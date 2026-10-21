@@ -168,3 +168,15 @@ test("ADR-057 Decision 2: exactly three call sites are wired and exactly three a
 
 
 const vocabulary = { capabilities: ["content.read", "content.extend", "hooks.attach", "tools.register", "events.subscribe", "admin.nav.register", "render.contribute", "http.route.register"], callSites: ALL_SIX_CALL_SITES };
+
+test("wrongly typed scalar and list fields are each reported, without crashing the remaining checks", () => {
+  const result = validateGlueManifest(required({ id: 7, version: 1, sdkRange: false, capabilities: "content.read", attachments: { callSite: "admin.nav" } }));
+  assert.deepEqual(result.errors.map((error) => error.message), [
+    "'id' must be a string",
+    "'version' must be a string",
+    "'sdkRange' must be a string",
+    "'capabilities' must be an array",
+    "'attachments' must be an array",
+  ]);
+  assert.deepEqual(codesOf(result), Array(5).fill("MANIFEST_MALFORMED"));
+});

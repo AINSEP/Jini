@@ -52,3 +52,27 @@ test("nested key order is canonical; drift invalidates approval", () => {
 test("host fingerprint domain changes invalidate remembered approvals", () => {
   assert.notEqual(federatedToolApprovalFingerprint({ identity, fingerprintDomain: "host-v3" }), expected);
 });
+
+// PARITY: a preset connection has no admission revision, so only its kind is pinned.
+test("preset origin pins only the kind and differs from roster and absent origins", () => {
+  const presetIdentity: FederatedToolIdentity = { ...identity, origin: { kind: "preset" } };
+  const presetPreimage = preimage.replace("[\"roster\",\"revision-1\"]", "[\"preset\"]");
+  const absentPreimage = preimage.replace("[\"roster\",\"revision-1\"]", "null");
+  const preset = federatedToolApprovalFingerprint({ identity: presetIdentity, fingerprintDomain: "g3-approval-v2" });
+  const absent = federatedToolApprovalFingerprint({ identity: { ...identity, origin: undefined }, fingerprintDomain: "g3-approval-v2" });
+  assert.equal(preset, createHash("sha256").update(presetPreimage).digest("hex"));
+  assert.equal(absent, createHash("sha256").update(absentPreimage).digest("hex"));
+  assert.notEqual(preset, expected);
+  assert.notEqual(preset, absent);
+});
+
+// PARITY: values JSON cannot express (undefined array slots, functions) hash as `null`, like JSON.stringify.
+test("unserialisable schema values canonicalise to null instead of vanishing", () => {
+  const withHole = federatedToolApprovalFingerprint({ fingerprintDomain: "d", identity: { ...identity, inputSchema: { enum: [undefined, "a"] } } });
+  const withNull = federatedToolApprovalFingerprint({ fingerprintDomain: "d", identity: { ...identity, inputSchema: { enum: [null, "a"] } } });
+  const withFn = federatedToolApprovalFingerprint({ fingerprintDomain: "d", identity: { ...identity, inputSchema: { enum: [() => 1, "a"] } } });
+  const withoutSlot = federatedToolApprovalFingerprint({ fingerprintDomain: "d", identity: { ...identity, inputSchema: { enum: ["a"] } } });
+  assert.equal(withHole, withNull);
+  assert.equal(withFn, withNull);
+  assert.notEqual(withHole, withoutSlot);
+});

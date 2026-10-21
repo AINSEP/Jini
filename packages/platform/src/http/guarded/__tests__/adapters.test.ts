@@ -75,6 +75,13 @@ test("native ports are constructed without initiating DNS or HTTP", () => {
   expect(ports.clock.nowMs()).toBeGreaterThan(0);
 });
 
+test("the native DNS port resolves every address the system resolver returns for a name", async () => {
+  // localhost resolves from the hosts file, so this needs no network.
+  const addresses = await createNodeGuardedHttpPorts({}).dns.resolve({ hostname: "localhost" });
+  expect(addresses.length).toBeGreaterThan(0);
+  expect(addresses.every((address) => address === "127.0.0.1" || address === "::1")).toBe(true);
+});
+
 // PARITY: retained behavior against the canonical shared implementation.
 
 test("DNS and redirect hops have no implicit total deadline", async () => {

@@ -19,7 +19,7 @@ export { createOAuthClientRegistrar } from './registration-cache.js';
 export type { OAuthClientRegistrar, OAuthClientRegistrarDeps, CachedRegistrationInput } from './registration-cache.js';
 export { createFileClientRegistrationCache } from './file-registration-cache.js';
 export type { RegistrationCacheFilePort, FileClientRegistrationCacheOptions } from './file-registration-cache.js';
-export { createNodeRegistrationCacheFileIO } from './node-file-cache.js';
+export { createNodeRegistrationCacheFileIO, type NodeRegistrationCacheFs } from './node-file-cache.js';
 export { DEFAULT_TOKEN_REQUEST_TIMEOUT_MS } from './token-endpoint.js';
 export { requestOAuthToken } from './api.js';
 export type { TokenRequestDeps, TokenRequestInput } from './token-endpoint.js';

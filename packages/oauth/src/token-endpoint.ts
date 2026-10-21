@@ -93,7 +93,9 @@ function projectTokenSet({ tokens, idToken, tokenType, clock }: {
 }): OAuthTokenSet {
     return {
         accessToken: tokens.access_token, ...(idToken === undefined ? {} : { idToken }),
-        refreshToken: tokens.refresh_token ?? null, tokenType: tokenType ?? tokens.token_type,
+        // Upstream token-response validation refuses a non-string token_type, and project() records
+        // every string one before upstream lower-cases it, so a returned token set always has one here.
+        refreshToken: tokens.refresh_token ?? null, tokenType: tokenType!,
         scopes: tokens.scope?.split(/[\s,]+/).filter(Boolean) ?? [],
         expiresAt: tokens.expires_in === undefined || tokens.expires_in <= 0 ? null
             : new Date(Date.parse(nowIso({ clock })) + tokens.expires_in * 1000).toISOString(),
