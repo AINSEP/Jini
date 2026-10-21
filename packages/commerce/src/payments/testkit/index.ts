@@ -4,3 +4,4 @@
  * runtime barrel into their test runner.
  */
 export * from "./provider-conformance.js";
+export * from "./lipay-fake.js";

@@ -1,0 +1,240 @@
+/**
+ * @file The pure half of the SINGLE writer: given what the ledger holds for one payment and one
+ * piece of evidence, decide what changes. No I/O — `apply-evidence.ts` reads the rows under the
+ * payment lock, calls these, and writes the result. Keeping the decision pure is what lets the
+ * race tests replay every delivery order cheaply.
+ *
+ * The rules, each traced to a bug in today's `lipay-plugin.ts`:
+ *   - The refunded total is RE-DERIVED from refund rows on every apply, never incremented
+ *     (B2: the direct refund and its webhook echo each added the amount).
+ *   - A refund is matched by OUR correlation id first, then by the provider's refund id, so a
+ *     webhook that beats the synchronous response lands on the reserved row instead of creating a
+ *     second one.
+ *   - Evidence whose amount disagrees with the row it matched, whose currency differs from the
+ *     payment's, or that would refund more than was captured is QUARANTINED, never silently capped
+ *     (B1: refund webhooks carried the charge's amount).
+ *   - Record statuses merge along the L1 transition tables, so reordered or stale evidence cannot
+ *     regress a row.
+ */
+import type { DisputeEvidence, PaymentEvidence, RefundEvidence } from "../contract/evidence.js";
+import {
+  derivePaymentStatus,
+  disputedMinor,
+  mergeDisputeStatus,
+  mergeIntentStatus,
+  mergeRefundStatus,
+  refundTotals,
+  type DerivedPaymentStatus,
+  type DisputeStatus,
+  type IntentStatus,
+  type RefundStatus,
+} from "../state/status.js";
+
+/** The ledger's view of one payment, as the planner needs it. */
+export interface PaymentState {
+  readonly id: string;
+  readonly currency: string;
+  readonly amountMinor: number;
+  readonly capturedMinor: number;
+  readonly intentStatus: IntentStatus;
+  readonly providerRef: string | null;
+}
+
+export interface RefundState {
+  readonly id: string;
+  readonly providerRefundRef: string | null;
+  readonly amountMinor: number;
+  readonly status: RefundStatus;
+}
+
+export interface DisputeState {
+  readonly id: string;
+  readonly providerDisputeRef: string;
+  readonly amountMinor: number;
+  readonly status: DisputeStatus;
+}
+
+export type QuarantineReason =
+  | "bad-amount"
+  | "currency-mismatch"
+  | "amount-mismatch"
+  | "ref-conflict"
+  | "over-refund";
+
+export type OutboxTopic = "payment.succeeded" | "refund.succeeded" | "refund.failed" | "dispute.opened" | "dispute.closed";
+
+export interface Quarantined {
+  readonly kind: "quarantined";
+  readonly reason: QuarantineReason;
+}
+
+/** The derived caches the writer stores on the payment row after every apply. */
+export interface PaymentTotals {
+  readonly refundedMinor: number;
+  readonly refundHeldMinor: number;
+  readonly disputedMinor: number;
+  readonly status: DerivedPaymentStatus;
+}
+
+export interface RefundPlan {
+  readonly kind: "refund";
+  /** `insert` = no row matched (an unsolicited refund made at the provider). */
+  readonly write: "insert" | "update" | "none";
+  readonly row: RefundState;
+  readonly refunds: readonly RefundState[];
+  readonly outbox: readonly OutboxTopic[];
+}
+
+export interface DisputePlan {
+  readonly kind: "dispute";
+  readonly write: "insert" | "update" | "none";
+  readonly row: DisputeState;
+  readonly disputes: readonly DisputeState[];
+  readonly outbox: readonly OutboxTopic[];
+}
+
+export interface IntentPlan {
+  readonly kind: "intent";
+  readonly changed: boolean;
+  readonly payment: PaymentState;
+  readonly outbox: readonly OutboxTopic[];
+}
+
+function amountProblem({ currency, amountMinor, minorUnits, evidenceCurrency }: {
+  currency: string; amountMinor?: number; minorUnits: number; evidenceCurrency: string;
+}): QuarantineReason | null {
+  if (!Number.isSafeInteger(minorUnits) || minorUnits <= 0) return "bad-amount";
+  if (evidenceCurrency !== currency) return "currency-mismatch";
+  if (amountMinor !== undefined && amountMinor !== minorUnits) return "amount-mismatch";
+  return null;
+}
+
+/** Correlation id first (it is OUR id, so it cannot collide), then the provider's refund id. */
+export function matchRefund(
+  { refunds, evidence }: { refunds: readonly RefundState[]; evidence: RefundEvidence },
+  _optional: Record<string, never> = {}
+): RefundState | undefined {
+  const byCorrelation = evidence.correlationId === undefined ? undefined : refunds.find((r) => r.id === evidence.correlationId);
+  return byCorrelation ?? refunds.find((r) => r.providerRefundRef === evidence.providerRefundRef);
+}
+
+function refundOutbox(previous: RefundStatus | undefined, next: RefundStatus): OutboxTopic[] {
+  if (next === previous) return [];
+  if (next === "succeeded") return ["refund.succeeded"];
+  // Only a refund that had SUCCEEDED and then failed returns money the consumer already counted.
+  return next === "failed" && previous === "succeeded" ? ["refund.failed"] : [];
+}
+
+function nextRefundRow({ existing, evidence, newId }: { existing: RefundState | undefined; evidence: RefundEvidence; newId: string }): RefundState {
+  if (!existing) {
+    return { id: newId, providerRefundRef: evidence.providerRefundRef, amountMinor: evidence.amount.minorUnits, status: evidence.status };
+  }
+  return {
+    ...existing,
+    providerRefundRef: evidence.providerRefundRef,
+    status: mergeRefundStatus({ current: existing.status, incoming: evidence.status }),
+  };
+}
+
+function writeKind<T>(existing: T | undefined, row: T): "insert" | "update" | "none" {
+  if (!existing) return "insert";
+  return JSON.stringify(existing) === JSON.stringify(row) ? "none" : "update";
+}
+
+/**
+ * Plan one refund observation. `newId` names the row only when nothing matches (an unsolicited
+ * refund issued at the provider's dashboard is still money that left).
+ */
+export function planRefundEvidence(
+  { payment, refunds, evidence, newId }: {
+    payment: PaymentState; refunds: readonly RefundState[]; evidence: RefundEvidence; newId: string;
+  },
+  _optional: Record<string, never> = {}
+): RefundPlan | Quarantined {
+  const existing = matchRefund({ refunds, evidence });
+  const bad = amountProblem({
+    currency: payment.currency, minorUnits: evidence.amount.minorUnits, evidenceCurrency: evidence.amount.currency,
+    ...(existing ? { amountMinor: existing.amountMinor } : {}),
+  });
+  if (bad) return { kind: "quarantined", reason: bad };
+  if (existing && existing.providerRefundRef !== null && existing.providerRefundRef !== evidence.providerRefundRef) {
+    return { kind: "quarantined", reason: "ref-conflict" };
+  }
+  const row = nextRefundRow({ existing, evidence, newId });
+  const next = existing ? refunds.map((r) => (r.id === row.id ? row : r)) : [...refunds, row];
+  if (refundTotals({ refunds: next }).succeeded > payment.capturedMinor) return { kind: "quarantined", reason: "over-refund" };
+  return { kind: "refund", write: writeKind(existing, row), row, refunds: next, outbox: refundOutbox(existing?.status, row.status) };
+}
+
+function disputeOutbox(previous: DisputeStatus | undefined, next: DisputeStatus): OutboxTopic[] {
+  if (previous === undefined) return next === "open" ? ["dispute.opened"] : ["dispute.opened", "dispute.closed"];
+  return previous !== next ? ["dispute.closed"] : [];
+}
+
+/** Plan one dispute observation. Disputes are a separate dimension: they never change the intent status. */
+export function planDisputeEvidence(
+  { payment, disputes, evidence, newId }: {
+    payment: PaymentState; disputes: readonly DisputeState[]; evidence: DisputeEvidence; newId: string;
+  },
+  _optional: Record<string, never> = {}
+): DisputePlan | Quarantined {
+  const existing = disputes.find((d) => d.providerDisputeRef === evidence.providerDisputeRef);
+  const bad = amountProblem({ currency: payment.currency, minorUnits: evidence.amount.minorUnits, evidenceCurrency: evidence.amount.currency });
+  if (bad) return { kind: "quarantined", reason: bad };
+  const row: DisputeState = existing
+    ? { ...existing, status: mergeDisputeStatus({ current: existing.status, incoming: evidence.status }) }
+    : { id: newId, providerDisputeRef: evidence.providerDisputeRef, amountMinor: evidence.amount.minorUnits, status: evidence.status };
+  const next = existing ? disputes.map((d) => (d.id === row.id ? row : d)) : [...disputes, row];
+  return { kind: "dispute", write: writeKind(existing, row), row, disputes: next, outbox: disputeOutbox(existing?.status, row.status) };
+}
+
+/** Captured never decreases; `succeeded` without an explicit capture amount means the full amount. */
+function nextCaptured({ payment, evidence, intent }: { payment: PaymentState; evidence: PaymentEvidence; intent: IntentStatus }): number {
+  const reported = evidence.captured?.minorUnits ?? (intent === "succeeded" ? payment.amountMinor : 0);
+  return Math.max(payment.capturedMinor, reported);
+}
+
+function intentProblem({ payment, evidence }: { payment: PaymentState; evidence: PaymentEvidence }): QuarantineReason | null {
+  if (payment.providerRef !== null && payment.providerRef !== evidence.providerRef) return "ref-conflict";
+  const checks = [evidence.amount, evidence.captured].filter((m) => m !== undefined);
+  for (const reported of checks) {
+    const bad = amountProblem({ currency: payment.currency, minorUnits: reported.minorUnits, evidenceCurrency: reported.currency });
+    if (bad) return bad;
+  }
+  if (evidence.amount !== undefined && evidence.amount.minorUnits !== payment.amountMinor) return "amount-mismatch";
+  if (evidence.captured !== undefined && evidence.captured.minorUnits > payment.amountMinor) return "amount-mismatch";
+  return null;
+}
+
+/** Plan the intent half of a payment observation (status, provider ref, captured amount). */
+export function planIntentEvidence(
+  { payment, evidence }: { payment: PaymentState; evidence: PaymentEvidence },
+  _optional: Record<string, never> = {}
+): IntentPlan | Quarantined {
+  const problem = intentProblem({ payment, evidence });
+  if (problem) return { kind: "quarantined", reason: problem };
+  const intentStatus = mergeIntentStatus({ current: payment.intentStatus, incoming: evidence.status });
+  const next: PaymentState = {
+    ...payment,
+    intentStatus,
+    providerRef: evidence.providerRef,
+    capturedMinor: nextCaptured({ payment, evidence, intent: intentStatus }),
+  };
+  const changed = JSON.stringify(next) !== JSON.stringify(payment);
+  const becameSucceeded = intentStatus === "succeeded" && payment.intentStatus !== "succeeded";
+  return { kind: "intent", changed, payment: next, outbox: becameSucceeded ? ["payment.succeeded"] : [] };
+}
+
+/** The derived caches for the payment row, from its current rows. */
+export function computeTotals(
+  { payment, refunds, disputes }: { payment: PaymentState; refunds: readonly RefundState[]; disputes: readonly DisputeState[] },
+  _optional: Record<string, never> = {}
+): PaymentTotals {
+  const totals = refundTotals({ refunds });
+  return {
+    refundedMinor: totals.succeeded,
+    refundHeldMinor: totals.held,
+    disputedMinor: disputedMinor({ disputes }),
+    status: derivePaymentStatus({ intent: payment.intentStatus, capturedMinor: payment.capturedMinor, refundedMinor: totals.succeeded }),
+  };
+}
