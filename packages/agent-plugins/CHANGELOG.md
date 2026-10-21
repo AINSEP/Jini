@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `./lifecycle`: `defineProviderContribution()` wraps `defineExecutablePluginContribution` so a bundled plugin can contribute a provider for `@jini-ai/core/provider-registry` (id checked before import), and `contributeProviders()` merges loader and registry refusals. Needs `@jini-ai/core` with `./provider-registry` (next core release).
+- `./lifecycle`: `defineProviderContribution()` wraps `defineExecutablePluginContribution` so a bundled plugin can contribute a provider for `@jini-ai/core/provider-registry` (id checked before import), and `contributeProviders()` merges loader and registry refusals. Needs `@jini-ai/core` with `./provider-registry`: the peer range is raised to `^0.4.9` (the first core release carrying that subpath), so release core 0.4.9 before this. Without recovery policies, an unreadable manifest, a throwing module/validator/parser or a hostile descriptor is now a refusal line (never a throw), so one broken plugin no longer discards the healthy contributions loaded with it.
 
 ## 0.4.7 — 2026-10-15 — folder uploads share one ZIP encoder
 
