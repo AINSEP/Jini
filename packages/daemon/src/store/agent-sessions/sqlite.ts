@@ -35,6 +35,7 @@ export function getAgentSession({ db, conversationId, agentId }: { readonly db: 
  * ability to detect staleness via stablePromptHash and lastMessageId.
  * @param db - Open SQLite database handle.
  * @param input - Session fields to persist; conversationId, agentId, and sessionId are required.
+ * @param nowMs - Clock for `updated_at`; defaults to wall time.
  */
 export function upsertAgentSession({ db, input }: { readonly db: SqliteDb; readonly input: {
     conversationId: string;
@@ -44,7 +45,8 @@ export function upsertAgentSession({ db, input }: { readonly db: SqliteDb; reado
     model?: string | null;
     cwd?: string | null;
     lastMessageId?: string | null;
-  } }
+  } },
+  { nowMs = Date.now }: { readonly nowMs?: () => number } = {},
 ): void {
   db.prepare(
     `INSERT INTO agent_sessions
@@ -65,7 +67,7 @@ export function upsertAgentSession({ db, input }: { readonly db: SqliteDb; reado
     input.model ?? null,
     input.cwd ?? null,
     input.lastMessageId ?? null,
-    Date.now(),
+    nowMs(),
   );
 }
 
@@ -155,13 +157,15 @@ export function latestCompletedAssistantMessageId({ db, conversationId, excludeM
  * @param conversationId - Conversation scope for the session.
  * @param agentId - Agent whose session to update.
  * @param stablePromptHash - The new prompt hash to record.
+ * @param nowMs - Clock for `updated_at`; defaults to wall time.
  */
-export function updateAgentSessionStableHash({ db, conversationId, agentId, stablePromptHash }: { readonly db: SqliteDb; readonly conversationId: string; readonly agentId: string; readonly stablePromptHash: string }
+export function updateAgentSessionStableHash({ db, conversationId, agentId, stablePromptHash }: { readonly db: SqliteDb; readonly conversationId: string; readonly agentId: string; readonly stablePromptHash: string },
+  { nowMs = Date.now }: { readonly nowMs?: () => number } = {},
 ): void {
   db.prepare(
     `UPDATE agent_sessions SET stable_prompt_hash = ?, updated_at = ?
       WHERE conversation_id = ? AND agent_id = ?`,
-  ).run(stablePromptHash, Date.now(), conversationId, agentId);
+  ).run(stablePromptHash, nowMs(), conversationId, agentId);
 }
 
 /**

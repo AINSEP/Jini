@@ -953,19 +953,30 @@ export async function loadPersistedAttachments(requiredArgs: Omit<{ readonly can
   await mkdir(sidecarDirectory, { recursive: true, mode: 0o700 });
   const adopted = new Map<string, AttachmentRecord>();
   for (const entry of await readdir(sidecarDirectory)) {
-    const sidecarPath = resolve(sidecarDirectory, entry);
-    const record = await readPersistedAttachment(sidecarPath, canonicalUploadDirectory);
-    const needsBackfill = needsAttachmentTimestampBackfill({ record });
-    const adoptable = record && now - record.createdAt < retentionMs ? await adoptableAttachment(record) : undefined;
-    if (adoptable) {
-      if (needsBackfill) await writePersistedAttachment({ record: adoptable, sidecarPath });
-      adopted.set(adoptable.id, adoptable);
-      continue;
-    }
-    await rm(sidecarPath, { force: true });
-    if (record) await rm(record.filePath, { force: true });
+    const record = await adoptOrDiscardSidecar({ sidecarPath: resolve(sidecarDirectory, entry), canonicalUploadDirectory, retentionMs, now });
+    if (record) adopted.set(record.id, record);
   }
   return adopted;
+}
+
+/**
+ * One sidecar of {@link loadPersistedAttachments}: the adopted (timestamp-backfilled) record, or
+ * `undefined` after deleting the sidecar and — only when its record parsed, i.e. passed
+ * containment — the file it named. @complexity O(1) file operations.
+ */
+async function adoptOrDiscardSidecar({ sidecarPath, canonicalUploadDirectory, retentionMs, now }: {
+  readonly sidecarPath: string; readonly canonicalUploadDirectory: string; readonly retentionMs: number; readonly now: number;
+}): Promise<TimestampedAttachmentRecord | undefined> {
+  const record = await readPersistedAttachment(sidecarPath, canonicalUploadDirectory);
+  const needsBackfill = needsAttachmentTimestampBackfill({ record });
+  const adoptable = record && now - record.createdAt < retentionMs ? await adoptableAttachment(record) : undefined;
+  if (adoptable) {
+    if (needsBackfill) await writePersistedAttachment({ record: adoptable, sidecarPath });
+    return adoptable;
+  }
+  await rm(sidecarPath, { force: true });
+  if (record) await rm(record.filePath, { force: true });
+  return undefined;
 }
 
 /** Deletes everything in one batch directory that no adopted record names, then tidies the

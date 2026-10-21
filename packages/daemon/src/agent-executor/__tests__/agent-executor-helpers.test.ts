@@ -69,6 +69,7 @@ describe('applyAgentTranslationSideEffects', () => {
     applyAgentTranslationSideEffects({ payload: { type: 'tool_use', id: 'c1', name: 'Bash', input: null }, sessionId: undefined, sink: { onSessionId: vi.fn(), onToolCall, onUserVisibleOutput } }
     );
     expect(onToolCall).toHaveBeenCalledTimes(1);
+    expect(onToolCall).toHaveBeenCalledWith({ toolUse: { type: 'tool_use', id: 'c1', name: 'Bash', input: null } });
     expect(onUserVisibleOutput).not.toHaveBeenCalled();
   });
 

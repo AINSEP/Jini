@@ -238,7 +238,8 @@ export function translateAcpError(payload: unknown): RunErrorPayload {
 /** The side-effect signals {@link applyAgentTranslationSideEffects} reports through, one callback per signal so a caller only wires the ones it actually tracks. */
 interface AgentTranslationSideEffectSink {
   readonly onSessionId: (args: { readonly sessionId: string }) => void;
-  readonly onToolCall: () => void;
+  /** Receives the already-narrowed `tool_use` payload, so a caller never re-checks its variant. */
+  readonly onToolCall: (args: { readonly toolUse: Extract<RunAgentPayload, { type: 'tool_use' }> }) => void;
   readonly onUserVisibleOutput: () => void;
 }
 
@@ -258,7 +259,7 @@ export function applyAgentTranslationSideEffects({ payload, sessionId, sink }: {
 ): void {
   if (sessionId !== undefined) sink.onSessionId({ sessionId });
   if (payload.type === 'tool_use') {
-    sink.onToolCall();
+    sink.onToolCall({ toolUse: payload });
   } else if ((payload.type === 'text_delta' || payload.type === 'thinking_delta') && payload.delta.length > 0) {
     sink.onUserVisibleOutput();
   }

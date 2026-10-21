@@ -540,8 +540,10 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
     if (!acceptsMidRunUserMessages({ def: def })) return;
     controlScanBuffer += text;
     if (!text.includes('\n')) return;
-    const lines = controlScanBuffer.split('\n');
-    controlScanBuffer = lines.pop() ?? '';
+    // `text` holds a newline, so the buffer does: split off the complete lines, keep the partial tail.
+    const lastNewline = controlScanBuffer.lastIndexOf('\n');
+    const lines = controlScanBuffer.slice(0, lastNewline).split('\n');
+    controlScanBuffer = controlScanBuffer.slice(lastNewline + 1);
     for (const line of lines) {
       // Both checked: either word can also appear inside the other kind of line's text.
       if (line.includes('"control_response"')) settleInterruptAck(line);
@@ -663,10 +665,10 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
             if (receipt) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: receipt } }));
             applyAgentTranslationSideEffects({ payload: translation.payload, sessionId: translation.sessionId, sink: {
               onSessionId: ({ sessionId }) => { capturedSessionId = sessionId; },
-              onToolCall: () => {
-                // A tool signal always carries the tool_use variant; retain its full input for continuation.
-                if (translation.payload.type !== 'tool_use') return;
-                pendingToolUse = { id: translation.payload.id, name: translation.payload.name, input: translation.payload.input };
+              onToolCall: ({ toolUse }) => {
+                // A tool signal always carries the tool_use variant (the sink hands it over narrowed);
+                // retain its full input for continuation.
+                pendingToolUse = { id: toolUse.id, name: toolUse.name, input: toolUse.input };
                 toolCallSeen = true;
               },
               onUserVisibleOutput: () => { userVisibleOutputSeen = true; },
@@ -1324,7 +1326,8 @@ export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDi
       deps.onCleanupFailure,
     );
     await deps.releaseStagedResources();
-    await deps.failBeforeSpawn(
+    // `failBeforeSpawn` always rejects (`Promise<never>`); returning it propagates that rejection.
+    return deps.failBeforeSpawn(
       { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach ACP session for agent "${input.agentId}": ${errorMessage(err)}` },
     );
   }
@@ -1387,7 +1390,7 @@ export async function runPiRpcDispatch({ input, deps }: { readonly input: RunPiR
       deps.onCleanupFailure,
     );
     await deps.releaseStagedResources();
-    await deps.failBeforeSpawn(
+    return deps.failBeforeSpawn(
       { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach pi-rpc session for agent "${input.agentId}": ${errorMessage(err)}` },
     );
   }
