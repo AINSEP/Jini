@@ -26,27 +26,66 @@ export type ConsoleMailerAdapter = MailerPort; // development adapter (logs to s
 // Console/memory fakes do not establish that two real external-delivery providers are swappable.
 export type InMemoryMailerAdapter = MailerPort; // test double (captures sends)
 
+/** `all` blocks every send (hard bounce, manual); `bulk` blocks only bulk mail (complaints), so a
+ * member who marked a newsletter as spam can still receive their own sign-in link. */
+export type MailSuppressionScope = "all" | "bulk";
+
 export interface MailSuppressionRepoPort {
   // Keep the do-not-send ledger in an always-present write path. A module's status is only a
   // projection: disabling/re-enabling that module must not erase a complaint and permit re-mailing.
+  // It is keyed by address, never by provider, so it survives a provider switch.
   isSuppressed(required: {
     workspaceId: UUID;
     normalizedAddress: string;
-    scope: "global" | { module: string };
+    /** The lane being sent: `transactional` consults `all` only, `bulk` consults both scopes. */
+    lane: MailDeliveryLane;
   }): Promise<boolean>;
   suppress(required: {
     workspaceId: UUID;
     normalizedAddress: string;
-    scope: "global" | { module: string };
+    scope: MailSuppressionScope;
     reason: "bounced" | "complained" | "manual";
   }): Promise<void>;
 }
 
+/** Hard delivery lanes. Distinct from `MailerSendOptions.lane` (interactive/notification readiness). */
+export type MailDeliveryLane = "transactional" | "bulk";
+
+export type MailLedgerOutcome = "reserved" | "sent" | "failed" | "unknown";
+
+export interface MailSendLedgerPort {
+  // Reserve → send → mark replaces wasSent/markSent: a check-then-send pair either double-sends
+  // (two workers both see "not sent") or loses mail (crash after markSent, before the send).
+  /**
+   * Atomically insert (workspaceId, idempotencyKey, recipient) as `reserved`. An existing row is
+   * returned as-is, except `failed`, which the port flips back to `reserved` in the same statement
+   * (a definitive failure means nothing was sent, so retrying under the same identity is safe).
+   * With `optional.reclaimUnknown`, an `unknown` row with the SAME payloadHash is flipped to
+   * `reserved` in that same statement too: the caller that wins the flip is the only one that
+   * re-sends, and a concurrent retry sees `reserved` (an unknown outcome) instead of also re-sending.
+   */
+  reserve(required: {
+    workspaceId: UUID; idempotencyKey: string; recipient: string; payloadHash: string;
+    lane: MailDeliveryLane; providerId: string;
+  }, optional?: { reclaimUnknown?: boolean }): Promise<
+    | { status: "reserved" }
+    | { status: "existing"; outcome: Exclude<MailLedgerOutcome, "failed">; payloadHash: string; providerMessageId?: string }
+  >;
+  mark(required: {
+    workspaceId: UUID; idempotencyKey: string; recipient: string;
+    outcome: Exclude<MailLedgerOutcome, "reserved">; providerMessageId?: string; errorCode?: string;
+  }): Promise<void>;
+}
+
+/** @deprecated Racy check-then-send pair; use {@link MailSendLedgerPort}. Kept for type consumers. */
 export interface MailSendDedupRepoPort {
-  // Providers without idempotency keys (SMTP) need a ledger before dispatch so outbox redelivery
-  // cannot double-send. This port is declared only; the SMTP adapter does not consult it itself.
   wasSent(required: { workspaceId: UUID; idempotencyKey: string }): Promise<boolean>;
   markSent(required: { workspaceId: UUID; idempotencyKey: string }): Promise<void>;
+}
+
+/** Test/capture mode sink: messages are stored for the operator instead of leaving the process. */
+export interface MailCapturePort {
+  capture(required: { message: OutboundEmail; lane: MailDeliveryLane; idempotencyKey: string }): Promise<{ id: string }>;
 }
 
 export interface DeliveryReadinessPolicy { isReady(required: { capabilityName: string }): boolean; }

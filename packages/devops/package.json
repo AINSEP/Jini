@@ -26,7 +26,9 @@
       "./checks/node": "node",
       "./local-dev": "node",
       "./deploy/node": "node",
-      "./static-export/failure-summary": "universal"
+      "./static-export/failure-summary": "universal",
+      "./dns": "node",
+      "./dns/node": "node"
     },
     "isolation": {
       "shared": [
@@ -108,6 +110,16 @@
       "types": "./dist/core/export-failure-summary.d.ts",
       "import": "./dist/core/export-failure-summary.js",
       "default": "./dist/core/export-failure-summary.js"
+    },
+    "./dns": {
+      "types": "./dist/dns/index.d.ts",
+      "import": "./dist/dns/index.js",
+      "default": "./dist/dns/index.js"
+    },
+    "./dns/node": {
+      "types": "./dist/dns/node/index.d.ts",
+      "import": "./dist/dns/node/index.js",
+      "default": "./dist/dns/node/index.js"
     }
   },
   "files": [

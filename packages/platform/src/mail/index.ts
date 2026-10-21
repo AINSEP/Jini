@@ -6,3 +6,12 @@ export type { WrapMailerWithPurposeGateOptions } from "./purpose-scoped-mailer.j
 export { isMailDeliveryAvailable } from "./delivery-availability.js";
 export { createMailSenderIdentityResolver, NON_DELIVERING_MAIL_DRIVERS, SenderIdentityNotConfiguredError } from "./sender-identity.js";
 export type { ConfiguredMailSender, CreateMailSenderIdentityResolverOptional, MailSenderIdentityPort } from "./sender-identity.js";
+export { createMailProviderRegistry, validateMailProvider, initialMailProviderSetting, computeMailStatus, MAIL_PROVIDER_SETTING_KEY } from "./provider.js";
+export type * from "./provider.js";
+export { createMailLaneLimiter } from "./rate-limit.js";
+export type { MailLaneLimiter } from "./rate-limit.js";
+export { createMailDeliveryPolicy, createPolicyMailer, laneForPurpose, hasOneClickUnsubscribe, mailPayloadHash, MAIL_RATE_LIMITED, isMailRateLimited } from "./policy.js";
+export type { MailDeliveryPolicy, MailDeliveryPolicyDeps, MailDeliveryPolicyOptions, MailResendPolicy, MailTestMode } from "./policy.js";
+export { createMailFeedbackIngest, suppressionScopeFor } from "./feedback.js";
+export type { MailFeedbackInboxPort, MailFeedbackIngestDeps, MailFeedbackIngestOptions, MailFeedbackResponse } from "./feedback.js";
+export { createSmtpMailProvider, createConsoleMailProvider, parseSmtpEndpoint } from "./builtin-providers.js";

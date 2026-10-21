@@ -58,7 +58,14 @@ export interface MailerSendOptions {
 /** Serializable outcomes cross the adapter ABI; live thrown objects cannot be carried as results. */
 export type MailerSendResult =
   | { ok: true; providerMessageId: string; acceptedAt: ISODateTime }
-  | { ok: false; retryable: boolean; errorCode: string; message: string };
+  | {
+      ok: false; retryable: boolean; errorCode: string; message: string;
+      /** The provider may have accepted the message (timeout after submit, crash mid-send): never
+       * auto-retry under a new identity; the send ledger records the outcome as `unknown`. */
+      unknown?: boolean;
+      /** Rate-limit hint (provider 429 or the local token bucket); absent means "caller's backoff". */
+      retryAfterMs?: number;
+    };
 
 export interface MailerCapabilities {
   
@@ -82,6 +89,10 @@ export interface MailerFeedbackEvent {
   providerMessageId: string;
   sourceContext: { module: string; ref?: string };
   kind: "delivered" | "bounced" | "complained";
+  /** Provider event id: the inbox dedups replays on (providerId, eventId). Optional for v1 parsers. */
+  eventId?: string;
+  /** Lower-cased recipient address; suppression needs it, provider message ids alone cannot key it. */
+  recipient?: string;
   
   hardBounce: boolean;
   occurredAt: ISODateTime;
