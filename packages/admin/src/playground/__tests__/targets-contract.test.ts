@@ -29,8 +29,8 @@ it('swallows a throwing listener when the host supplied no error sink', () => {
 
 it('names the first broken contract of a non-conforming target bus', () => {
   const inner = createMemoryPlaygroundTargets({});
-  // A bus that lets any stale publisher clear the current target.
-  const careless: PlaygroundRenderTargetPort = { ...inner, register: (input) => { inner.register(input); return { release: () => { inner.register({ target: null }); } }; } };
+  // A bus whose release always replaces the current target, even for a stale publisher.
+  const careless: PlaygroundRenderTargetPort = { ...inner, register: (input) => { inner.register(input); return { release: () => { inner.register({ target: {} }); } }; } };
   expect(() => runPlaygroundApiConformance({ targets: careless })).toThrow('Playground conformance: stale publisher cannot clear current target');
 });
 

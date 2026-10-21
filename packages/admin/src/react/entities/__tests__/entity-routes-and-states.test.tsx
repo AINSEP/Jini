@@ -74,7 +74,7 @@ describe('entity detail states', () => {
 describe('entity cell', () => {
   const relation = { name: 'tag', kind: 'relation', target: 'tags' } as const;
   it('shows a resolved relation title, and flags an unresolved id', () => {
-    const { rerender } = render(<EntityCell field={relation} row={{ id: 'r', tag: 't1' }} relations={{ tags: { titles: { t1: 'Red' }, truncated: false } }} translate={translate} />);
+    const { rerender } = render(<EntityCell field={relation} row={{ id: 'r', tag: 't1' }} relations={{ tags: { options: [{ id: 't1', title: 'Red' }], titles: { t1: 'Red' }, truncated: false } }} translate={translate} />);
     expect(screen.getByText('Red')).toBeVisible();
     rerender(<EntityCell field={relation} row={{ id: 'r', tag: 'gone' }} relations={{}} translate={translate} />);
     expect(screen.getByText('gone ⚠')).toHaveAttribute('title', 'tr:Unresolved {target}: {id}'.replace('{target}', 'tags').replace('{id}', 'gone'));
