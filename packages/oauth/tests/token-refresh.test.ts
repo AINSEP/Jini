@@ -445,6 +445,17 @@ test("a lease holder that never publishes leaves the loser on its still-valid to
     }), "at-current");
     assert.equal(double.refreshCalls, 0);
 });
+test("a stored token that disappears while waiting on another lease holder falls back to the token read before the wait", async () => {
+    const clock = createTestClock("2026-08-25T12:04:00.000Z");
+    const double = makePort({ leaseGranted: false });
+    let loads = 0;
+    // The first load is getAccessToken's own read; every re-read during the wait finds nothing.
+    const port: TokenRefreshPort = { ...double.port, load: async () => (loads++ === 0 ? double.stored : null) };
+    const refresher = createTokenRefresher({ clock, port, sleep: async () => clock.advance(5) }, { leasePollMs: 1, leaseWaitMs: 10 });
+    assert.equal(await refresher.getAccessToken({ key: KEY }), "at-current");
+    assert.ok(loads > 2, "the loser must keep re-reading until its wait deadline");
+    assert.equal(double.refreshCalls, 0);
+});
 test("a lease holder that never publishes, on an already-expired token, fails loudly", async () => {
     const clock = createTestClock("2026-08-25T12:10:00.000Z");
     const double = makePort({ leaseGranted: false });

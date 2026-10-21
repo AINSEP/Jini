@@ -307,3 +307,16 @@ test('a returned protected-resource redirect stops discovery before root or issu
     assert.equal(error.message, 'refusing to follow an OAuth endpoint redirect');
     assert.deepEqual(requests, ['https://resource.example.com/.well-known/oauth-protected-resource/api']);
 });
+
+// With issuer binding explicitly disabled, a blank advertised issuer is attributed to the issuer that was asked;
+// a document with no issuer at all is still refused by upstream metadata processing.
+test('without a metadata policy, a blank advertised issuer reports the requested issuer', async () => {
+    const issuer = 'https://auth.example.com';
+    const serve = (document: Record<string, unknown>) => fetchAuthorizationServerMetadata({
+        issuer, guard: fixturePorts.guard, fetchFn: async () => Response.json(document),
+    });
+    const discovered = await serve({ issuer: '   ', token_endpoint: 'https://auth.example.com/token' });
+    assert.equal(discovered.issuer, issuer);
+    assert.equal(discovered.tokenEndpoint, 'https://auth.example.com/token');
+    await assertOAuthRejects(() => serve({ token_endpoint: 'https://auth.example.com/token' }), 'OAUTH_MALFORMED_RESPONSE');
+});
