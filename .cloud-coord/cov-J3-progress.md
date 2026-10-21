@@ -8,5 +8,7 @@ Personas: vendored /home/user/Jini/AI-Dev-Shop/agents (tdd, programmer, software
 | sessions | lots | status |
 |---|---|---|
 | 1 | 067-068 | running |
-| 2 | 069-070 | running |
-| 3 | 071-072 | running |
+| 2 | 069-070 | MERGED — 24/24 files 100/100/100 re-verified on cloud/cov-J3 (881 tests in scope); cms 3556→3658 tests |
+| 3 | 071-072 | MERGED — all at 100 except core/src/fetch/cache.ts br 99.14 (line 138 `?? Promise.resolve` only reachable by external writes to public CacheEntry.pending); 2 *.typecheck.ts skipped (compile-only) |
+| 4 | 073-074 | running |
+| 5 | 075-076 | running |
