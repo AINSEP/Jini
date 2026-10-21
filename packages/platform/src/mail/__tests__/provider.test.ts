@@ -121,7 +121,19 @@ describe("built-in providers", () => {
     const message = { workspaceId: "w", to: { email: "a@b.c" }, from: { email: "f@b.c" }, subject: "Hello", text: "t" };
     const results = await mailer.sendBatch({ ...delivery, messages: [message, message] });
     assert.deepEqual(results.map((r) => r.ok && r.providerMessageId), ["console-1", "console-2"]);
-    assert.deepEqual(lines, ['[mail:console] to=a@b.c subject="Hello"', '[mail:console] to=a@b.c subject="Hello"']);
+    assert.deepEqual(lines, ['[mail:console] to=a@b.c subject="Hello"\nt', '[mail:console] to=a@b.c subject="Hello"\nt']);
+  });
+  test("console provider previews the body, so a local sign-in or confirmation link is usable", async () => {
+    const lines: string[] = [];
+    const mailer = createConsoleMailProvider({ clock: CLOCK }, { log: (line) => lines.push(line) }).create({ credential: { token: "" }, kit: { httpClient: {} as never } });
+    const delivery = { idempotencyKey: "k", workspaceId: "w", sourceContext: { module: "members" } };
+    const link = "http://localhost:4321/members/verify?token=abc";
+    await mailer.send({ ...delivery, message: { workspaceId: "w", to: { email: "a@b.c" }, from: { email: "f@b.c" }, subject: "Sign in", text: `Sign in: ${link}`, html: "<a>ignored when text exists</a>" } });
+    await mailer.send({ ...delivery, message: { workspaceId: "w", to: { email: "a@b.c" }, from: { email: "f@b.c" }, subject: "Confirm", html: `<a href="${link}">Confirm</a>` } });
+    await mailer.send({ ...delivery, message: { workspaceId: "w", to: { email: "a@b.c" }, from: { email: "f@b.c" }, subject: "Empty" } });
+    assert.ok(lines[0]?.includes(link) && !lines[0].includes("ignored"));
+    assert.ok(lines[1]?.includes(`href="${link}"`), "an html-only message previews its html");
+    assert.equal(lines[2], '[mail:console] to=a@b.c subject="Empty"');
   });
   test("console provider defaults to console.log", async () => {
     const original = console.log;

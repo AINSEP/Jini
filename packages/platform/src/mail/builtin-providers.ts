@@ -2,7 +2,8 @@
  * @file The two built-in mail providers: `smtp` (any mailbox/relay) and `console` (local only).
  *
  * SMTP gets its transport from the host (nodemailer is never loaded by this package); console logs
- * and reports `hosted: false`, so it can never make a site look configured.
+ * each message with its body (the local preview of sign-in/confirmation links) and reports
+ * `hosted: false`, so it can never make a site look configured.
  */
 import { nowIso, type Clock } from "@jini-ai/core/primitives";
 import type { MailAdapterCredential } from "./adapter-module.js";
@@ -47,7 +48,10 @@ export function createConsoleMailProvider(
     capabilities: () => ({ driver: "console", supportsIdempotencyKey: false, supportsWebhookFeedback: false, maxBatchSize: 1, supportsAttachments: true }),
     async send({ message }) {
       counter += 1;
-      log(`[mail:console] to=${message.to.email} subject=${JSON.stringify(message.subject)}`);
+      // The body is the point of a local mailer: a sign-in or confirmation link must be usable from the
+      // log, since nothing is delivered. Text is preferred (readable); an html-only message shows its html.
+      const body = message.text ?? message.html;
+      log(`[mail:console] to=${message.to.email} subject=${JSON.stringify(message.subject)}${body === undefined ? "" : `\n${body}`}`);
       return { ok: true, providerMessageId: `console-${counter}`, acceptedAt: nowIso({ clock: required.clock }) };
     },
     async sendBatch({ messages, ...delivery }) {
