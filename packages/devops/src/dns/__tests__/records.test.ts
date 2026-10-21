@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { chunkTxt, TXT_CHUNK_BYTES } from '../contract.js';
-import { buildRecord, dnsValueKey, normalizeDnsName, parseAnswerValue, parseCaaText, parseMxText, requirementValue, sameValueSet, unquoteTxt } from '../records.js';
+import { buildRecord, canonicalIpv6, dnsValueKey, isMxValue, normalizeDnsName, parseAnswerValue, parseCaaText, parseMxText, requirementValue, sameValueSet, unquoteTxt } from '../records.js';
 import { isSpfValue, mergeSpf, spfSatisfies } from '../spf.js';
 
 describe('chunkTxt', () => {
@@ -16,6 +16,41 @@ describe('chunkTxt', () => {
     expect(chunks).toEqual(['a'.repeat(254), `é${'bbb'}`]);
     for (const chunk of chunkTxt({ value: '€'.repeat(200) })) expect(new TextEncoder().encode(chunk).length).toBeLessThanOrEqual(TXT_CHUNK_BYTES);
     expect(chunkTxt({ value: '€'.repeat(200) }).join('')).toBe('€'.repeat(200));
+  });
+});
+
+// Regression (review 13-dns #9): equivalent IPv6 spellings compared unequal, so a satisfied AAAA
+// record was planned as an update and never verified as propagated.
+describe('IPv6 canonical form (RFC 5952)', () => {
+  test.each([
+    ['2001:0DB8:0000:0000:0000:0000:0000:0001', '2001:db8::1'],
+    ['2001:db8::1', '2001:db8::1'],
+    ['::', '::'],
+    ['::1', '::1'],
+    ['1::', '1::'],
+    ['2001:db8:0:0:1:0:0:1', '2001:db8::1:0:0:1'],
+    ['2001:db8:0:1:1:1:1:1', '2001:db8:0:1:1:1:1:1'],
+    ['1:2:3:4:5:6:7::', '1:2:3:4:5:6:7:0'],
+    ['::ffff:192.0.2.1', '::ffff:c000:201'],
+  ])('%s -> %s', (address, canonical) => {
+    expect(canonicalIpv6({ address })).toBe(canonical);
+  });
+  test.each(['1:2:3', '1::2::3', 'g::1', '1:2:3:4:5:6:7:8:9', '1:2:3:4:5:6:7:8::', '::1.2.3.256', '::1.2.3', '12345::', '192.0.2.1', ''])('rejects %j', address => {
+    expect(canonicalIpv6({ address })).toBeUndefined();
+  });
+  test('AAAA answers and requirements compare in canonical form; invalid text is only lowercased', () => {
+    expect(parseAnswerValue({ type: 'AAAA', text: '2001:DB8:0:0:0:0:0:1' })).toBe('2001:db8::1');
+    expect(requirementValue({ record: { type: 'AAAA', name: 'x.test', value: '2001:db8:0000::0001' } })).toBe('2001:db8::1');
+    expect(sameValueSet({ left: [parseAnswerValue({ type: 'AAAA', text: '2001:db8::1' }) as string], right: [parseAnswerValue({ type: 'AAAA', text: '2001:0db8:0:0::1' }) as string] })).toBe(true);
+    expect(parseAnswerValue({ type: 'AAAA', text: ' Not-An-Address ' })).toBe('not-an-address');
+  });
+});
+
+describe('isMxValue', () => {
+  test('takes the value in a required object', () => {
+    expect(isMxValue({ value: { priority: 10, exchange: 'mx.test' } })).toBe(true);
+    expect(isMxValue({ value: 'mx.test' })).toBe(false);
+    expect(isMxValue({ value: { flags: 0, tag: 'issue', value: 'ca.test' } }, {})).toBe(false);
   });
 });
 

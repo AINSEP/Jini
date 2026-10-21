@@ -57,7 +57,9 @@ export function answerMatches(required: { readonly record: DomainRecordRequireme
   const expected = requirementValue({ record });
   if (actual === undefined || expected === undefined) return false;
   // An MX requirement without a priority accepts any priority for its exchange.
-  if (record.priority === undefined && isMxValue(actual) && isMxValue(expected)) return actual.exchange === expected.exchange;
+  const have = { value: actual };
+  const want = { value: expected };
+  if (record.priority === undefined && isMxValue(have) && isMxValue(want)) return have.value.exchange === want.value.exchange;
   return typeof actual === 'string' && typeof expected === 'string' ? textMatches(actual, expected) : dnsValueKey({ value: actual }) === dnsValueKey({ value: expected });
 }
 

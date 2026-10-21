@@ -16,16 +16,81 @@ export function normalizeDnsName(required: { readonly name: string }, _optional 
   return required.name.trim().toLowerCase().replace(/\.$/, '');
 }
 
-export function isMxValue(value: DnsRecordValue): value is MxValue {
-  return typeof value === 'object' && 'exchange' in value;
+/** True when the value is an MX value (narrows `required.value`). */
+export function isMxValue(required: { readonly value: DnsRecordValue }, _optional = {}): required is { readonly value: MxValue } {
+  return typeof required.value === 'object' && 'exchange' in required.value;
+}
+
+const IPV6_GROUP = /^[0-9a-f]{1,4}$/;
+const IPV4_TAIL = /^(.*:)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+/** A trailing dotted IPv4 (`::ffff:192.0.2.1`) as its two hex groups; undefined when out of range. */
+function expandIpv4Tail(text: string): string | undefined {
+  const match = IPV4_TAIL.exec(text);
+  if (!match) return text;
+  const octets = match.slice(2).map(Number);
+  if (octets.some(octet => octet > 255)) return undefined;
+  const [a, b, c, d] = octets as [number, number, number, number];
+  return `${match[1] as string}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+}
+
+function parseGroups(text: string): number[] | undefined {
+  const groups = text === '' ? [] : text.split(':');
+  return groups.every(group => IPV6_GROUP.test(group)) ? groups.map(group => parseInt(group, 16)) : undefined;
+}
+
+/** The eight 16-bit groups of an IPv6 address; undefined when the text is not one. */
+function ipv6Groups(text: string): number[] | undefined {
+  const halves = text.split('::');
+  if (halves.length > 2) return undefined;
+  const head = parseGroups(halves[0] as string);
+  const tail = halves.length === 2 ? parseGroups(halves[1] as string) : [];
+  if (head === undefined || tail === undefined) return undefined;
+  const missing = 8 - head.length - tail.length;
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return undefined;
+  return [...head, ...new Array<number>(Math.max(missing, 0)).fill(0), ...tail];
+}
+
+/** The first longest run of two or more zero groups, as [start, length]; length 0 when none. */
+function longestZeroRun(groups: readonly number[]): [number, number] {
+  let best: [number, number] = [0, 0];
+  let start = -1;
+  for (let index = 0; index <= groups.length; index += 1) {
+    if (groups[index] === 0) {
+      if (start < 0) start = index;
+    } else if (start >= 0) {
+      if (index - start > best[1] && index - start >= 2) best = [start, index - start];
+      start = -1;
+    } else {
+      // Not inside a zero run: nothing to close.
+    }
+  }
+  return best;
+}
+
+/**
+ * RFC 5952 text of a valid IPv6 address (lowercase, no leading zeros, the first longest zero run
+ * as `::`), so equivalent spellings compare equal; undefined when the text is not an IPv6 address.
+ * @complexity O(1) — an address has eight groups.
+ */
+export function canonicalIpv6(required: { readonly address: string }, _optional = {}): string | undefined {
+  const expanded = expandIpv4Tail(required.address.trim().toLowerCase());
+  const groups = expanded === undefined ? undefined : ipv6Groups(expanded);
+  if (groups === undefined) return undefined;
+  const [start, length] = longestZeroRun(groups);
+  const hex = groups.map(group => group.toString(16));
+  if (length === 0) return hex.join(':');
+  return `${hex.slice(0, start).join(':')}::${hex.slice(start + length).join(':')}`;
 }
 
 /** A stable string per value, so RRset membership is a string-set comparison. */
 export function dnsValueKey(required: { readonly value: DnsRecordValue }, _optional = {}): string {
   const { value } = required;
   if (typeof value === 'string') return value;
-  if (isMxValue(value)) return `${value.priority} ${value.exchange}`;
-  return `${value.flags} ${value.tag} "${value.value}"`;
+  if (isMxValue(required)) return `${required.value.priority} ${required.value.exchange}`;
+  // Strings and MX values returned above; a type guard on `required` does not narrow `value`.
+  const caa = value as CaaValue;
+  return `${caa.flags} ${caa.tag} "${caa.value}"`;
 }
 
 /** `10 mx.example.com.` → MX value. */
@@ -48,7 +113,10 @@ export function unquoteTxt(required: { readonly text: string }, _optional = {}):
 }
 
 function plainValue(required: { readonly type: DnsRecordType; readonly text: string }): string {
-  return HOST_VALUE_TYPES.has(required.type) ? normalizeDnsName({ name: required.text }) : required.text.trim().toLowerCase();
+  if (HOST_VALUE_TYPES.has(required.type)) return normalizeDnsName({ name: required.text });
+  const text = required.text.trim().toLowerCase();
+  // Expanded and compressed IPv6 spellings are the same address; an invalid one is kept as typed.
+  return required.type === 'AAAA' ? (canonicalIpv6({ address: text }) ?? text) : text;
 }
 
 /** One presentation-format answer (what a DNS query returns) as a typed value. */

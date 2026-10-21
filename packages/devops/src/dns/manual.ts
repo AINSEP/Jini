@@ -10,6 +10,7 @@ import {
   DEFAULT_DNS_TTL,
   chunkTxt,
   type AuthoritativeDnsPort,
+  type CaaValue,
   type DnsChange,
   type DnsChangePlan,
   type DnsInstructionRow,
@@ -45,8 +46,10 @@ export function relativeHost(required: { readonly name: string; readonly zone: s
 }
 
 function valueText(type: DnsRecordType, value: DnsRecordValue): string {
-  if (isMxValue(value)) return value.exchange;
-  if (typeof value !== 'string') return `${value.flags} ${value.tag} "${value.value}"`;
+  const input = { value };
+  if (isMxValue(input)) return input.value.exchange;
+  // MX returned above; a type guard on `input` does not narrow `value`.
+  if (typeof value !== 'string') return `${(value as CaaValue).flags} ${(value as CaaValue).tag} "${(value as CaaValue).value}"`;
   // Long TXT values must be entered as several quoted strings on most DNS hosts.
   if (type === 'TXT' && new TextEncoder().encode(value).length > 255) return chunkTxt({ value }).map(chunk => `"${chunk}"`).join(' ');
   return value;
@@ -54,11 +57,14 @@ function valueText(type: DnsRecordType, value: DnsRecordValue): string {
 
 function rowsFor(record: DnsRecord, action: DnsInstructionRow['action'], zone: string): DnsInstructionRow[] {
   const values: readonly DnsRecordValue[] = record.values;
-  return values.map(value => ({
-    action, type: record.type, name: record.name, host: relativeHost({ name: record.name, zone }),
-    value: valueText(record.type, value), ttl: record.ttl,
-    ...(isMxValue(value) ? { priority: value.priority } : {}),
-  }));
+  return values.map(value => {
+    const input = { value };
+    return {
+      action, type: record.type, name: record.name, host: relativeHost({ name: record.name, zone }),
+      value: valueText(record.type, value), ttl: record.ttl,
+      ...(isMxValue(input) ? { priority: input.value.priority } : {}),
+    };
+  });
 }
 
 const ACTION: Readonly<Record<DnsChange['op'], DnsInstructionRow['action']>> = { create: 'add', update: 'change', delete: 'remove' };
