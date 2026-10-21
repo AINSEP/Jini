@@ -21,3 +21,6 @@ Started 16:56Z. Scope: packages/payments-stripe/** + pnpm-lock.yaml only.
 ## 17:12Z — DONE
 - README added. guard checks run directly (self-test fails pre-existing, R2 endpoint-policy fixture): only L0-unlisted-package for payments-stripe; simulated `'payments-stripe': 7` in check-package-layers -> 0 layer violations repo-wide. Coordinator must add that line.
 - Final: 144 tests pass, 100% x4 all 10 src files, tsc src+tests clean, eslint complexity/cognitive <=10 clean, build ok.
+
+## 17:11Z — coordinator change applied
+- refund.*/charge.refund.updated/charge.dispute.* -> id-only WebhookFact (no evidence; ingest retrieves). charge.refunded + payment_intent.* unchanged. 144 tests, 100% x4, tsc/eslint clean, build ok.
