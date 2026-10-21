@@ -32,3 +32,18 @@ test('prebuilds retain multi-architecture tags and maps keep only explicitly sup
   assert.equal(strippableReason({ relPath: '@vendor/core/a.d.ts.map', keepScopes }), 'declaration');
   assert.equal(strippableReason({ relPath: 'third/a.js.map', keepScopes }), 'sourceMap');
 });
+test('prebuild tags without a platform-architecture split or with an empty architecture are left unclassified', () => {
+  // No dash at all, and a dash in first position, both mean there is no platform segment to read.
+  assert.equal(prebuildTarget({ entryName: 'linux.node' }), undefined);
+  assert.equal(prebuildTarget({ entryName: '-x64.node' }), undefined);
+  // A trailing or doubled '+' yields an empty architecture, which is not guessed at.
+  assert.equal(prebuildTarget({ entryName: 'linux-x64+.node' }), undefined);
+  assert.equal(prebuildTarget({ entryName: 'win32-x64++arm64' }), undefined);
+  // Directory-style tags (no .node suffix) classify the same way as file tags.
+  assert.deepEqual(prebuildTarget({ entryName: 'linuxmusl-arm64' }), { platform: 'linuxmusl', architectures: ['arm64'] });
+});
+test('explicit platform/arch options override the host target; an empty override falls back to the host', () => {
+  assert.deepEqual(resolveTargets({ host: { platform: 'darwin', arch: 'x64' } }, { platform: 'linux', arch: 'arm64' }), [{ platform: 'linux', arch: 'arm64' }]);
+  assert.deepEqual(resolveTargets({ host: { platform: 'darwin', arch: 'x64' } }, { platform: '', arch: '' }), [{ platform: 'darwin', arch: 'x64' }]);
+  assert.deepEqual(resolveNpmLsCommand({ platform: 'linux', execPath: 'node' }), { command: 'npm', args: ['ls', '--omit=dev', '--parseable', '--all'], shell: false });
+});

@@ -10,9 +10,15 @@ function isLookupAddress(value: unknown): value is LookupAddress {
     typeof value.address === 'string' && 'family' in value && typeof value.family === 'number';
 }
 
-export function createReachabilityDispatcher(_required: Record<string, never>, { lookupImpl }: { lookupImpl?: typeof lookup } = {}): Agent {
+/**
+ * Socket-level lookup for deployment probes: platform's validating lookup (private-address
+ * refusal) narrowed to the shapes Node's `net.connect` accepts — a single address string, or the
+ * `{ address, family }[]` list returned for `all: true` lookups. Anything else is refused rather
+ * than forwarded untyped to the socket.
+ */
+export function createReachabilityLookup(_required: Record<string, never>, { lookupImpl }: { lookupImpl?: typeof lookup } = {}): LookupFunction {
   const validatingLookup = createValidatingLookup(lookupImpl);
-  const connectionLookup: LookupFunction = (hostname, options, callback) => {
+  return (hostname, options, callback) => {
     validatingLookup(hostname, options, (error, address, family) => {
       if (error) { callback(error, ''); return; }
       if (typeof address === 'string') { callback(null, address, family); return; }
@@ -20,7 +26,10 @@ export function createReachabilityDispatcher(_required: Record<string, never>, {
       callback(new Error('DNS lookup returned an invalid address'), '');
     });
   };
-  return new Agent({ connect: { lookup: connectionLookup } });
+}
+
+export function createReachabilityDispatcher(_required: Record<string, never>, { lookupImpl }: { lookupImpl?: typeof lookup } = {}): Agent {
+  return new Agent({ connect: { lookup: createReachabilityLookup({}, lookupImpl ? { lookupImpl } : {}) } });
 }
 
 /**

@@ -8,15 +8,17 @@ import {
   createRoleGatedDeployPublishPolicy,
   denyAllDeployPublishPolicy,
 } from '../tool.js';
-import type { DeployPublishInput, DeployPublishResult, DeployTarget, DeploymentUrlCheck } from '../types.js';
+import type { DeployPublishInput, DeployPublishOptions, DeployPublishResult, DeployTarget, DeploymentUrlCheck } from '../types.js';
 
 class FakeDeployTarget implements DeployTarget {
   public lastInput: DeployPublishInput | undefined;
+  public lastOptions: DeployPublishOptions | undefined;
 
   constructor(readonly id: string) {}
 
-  async publish(input: DeployPublishInput): Promise<DeployPublishResult> {
+  async publish(input: DeployPublishInput, options?: DeployPublishOptions): Promise<DeployPublishResult> {
     this.lastInput = input;
+    this.lastOptions = options;
     return { targetId: this.id, url: `https://${input.projectName}.example`, status: 'ready' };
   }
 
@@ -163,6 +165,38 @@ describe('createDeployPublishToolRegistration', () => {
     expect(result).toEqual({ targetId: 'target-b', url: 'https://demo.example', status: 'ready' });
     expect(targetB.lastInput).toEqual({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
     expect(targetA.lastInput).toBeUndefined();
+  });
+
+  it('forwards tool-input metadata to the target as a publish option, never as part of the file input', async () => {
+    const target = new FakeDeployTarget('target-a');
+    const registration = createDeployPublishToolRegistration({ targets: [target] }, { policy: { authorize: () => 'allow' } });
+    const metadata = { runId: 'run-1', reviewer: 'ops' };
+
+    await registration.handler({
+      executionId: 'exec-2',
+      principal: { id: 'user-1' },
+      run,
+      input: { targetId: 'target-a', files: [{ file: 'index.html', data: 'x' }], projectName: 'demo', metadata },
+      signal: new AbortController().signal,
+    });
+
+    expect(target.lastOptions).toEqual({ metadata });
+    expect(target.lastInput).toEqual({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
+  });
+
+  it('passes no metadata option when the tool input carries none', async () => {
+    const target = new FakeDeployTarget('target-a');
+    const registration = createDeployPublishToolRegistration({ targets: [target] }, { policy: { authorize: () => 'allow' } });
+
+    await registration.handler({
+      executionId: 'exec-3',
+      principal: { id: 'user-1' },
+      run,
+      input: { targetId: 'target-a', files: [], projectName: 'demo' },
+      signal: new AbortController().signal,
+    });
+
+    expect(target.lastOptions).toEqual({});
   });
 });
 
