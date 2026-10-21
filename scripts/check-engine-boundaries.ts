@@ -394,20 +394,7 @@ export async function checkEngineBoundaries(
         }
         if (topSegment === 'packages') {
           const targetPackage = packageNameOf(resolvedRel);
-          // R2 exception #5 (2026-08-05, REF-001 review backlog): this ONE file, reaching for this
-          // ONE target, on purpose — not a pattern. `endpoint-policy.parity.test.ts`'s own header
-          // comment explains why: it holds @jini-ai/ui's endpoint-policy.ts and agent-runtime's
-          // connection-guard.ts in agreement by comparing them from SOURCE. Importing the built
-          // @jini-ai/agent-runtime package instead would compare against its (possibly stale) dist,
-          // silently defeating the one thing this test exists to catch — source-level drift between
-          // two independently-maintained copies of the same block-list logic. Gated on both the
-          // exact file AND the exact resolved target, not on "any relative reach from this file" or
-          // "any test file reaching into agent-runtime" — a second unrelated cross-package import
-          // added to this same file later would still be caught.
-          const isEndpointPolicyParitySourceComparison =
-            file === 'packages/ui/src/__tests__/utils/endpoint-policy.parity.test.ts' &&
-            resolvedRel === 'packages/agent-runtime/src/providers/connection-guard.js';
-          if (targetPackage && ownPackage && targetPackage !== ownPackage && !isEndpointPolicyParitySourceComparison) {
+          if (targetPackage && ownPackage && targetPackage !== ownPackage) {
             violations.push({
               rule: 'R2-deep-path',
               file,

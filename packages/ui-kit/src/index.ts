@@ -1,5 +1,5 @@
-export { KIT_CONTRACT, kitSpec, kitParts, implementedComponents } from './kit.spec.js';
-export type { KitComponentName, ImplementedComponentName, KitPart } from './kit.spec.js';
+export { KIT_CONTRACT, kitSpec, kitParts, implementedComponents } from './kit-contract.js';
+export type { KitComponentName, ImplementedComponentName, KitPart } from './kit-contract.js';
 export type { KitAttrs, AgentSpec, AgentAttrsPort } from './attrs.js';
 export { needs, assertKitContract, KitConfigError } from './needs.js';
 export type { KitNeeds } from './needs.js';

@@ -5,7 +5,7 @@ import { afterEach, describe, it, expect } from 'vitest';
 import { createAdmin } from '@jini-ai/admin/core/module';
 import { roles } from '../index.js';
 import { useRolesPage } from '../hooks/RolesPage.hooks.js';
-import type { RolesPageProps, RolesTabProps } from '../hooks/RolesBinding.hooks.js';
+import type { RolesPageProps, RolesTabProps } from '../hooks/RolesScope.hooks.js';
 import { createMemoryRolesApi } from '../../adapters/memory.js';
 import { role, policy } from '../../__tests__/people.fixtures.js';
 

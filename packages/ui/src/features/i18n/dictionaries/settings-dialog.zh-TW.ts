@@ -20,6 +20,7 @@ import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_ZH_TW: SettingsDialogDict = {
   "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "我已從你的訊息中移除疑似金鑰的內容。如果是真實金鑰，請更換它。請使用安全表單儲存。",
+  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- Translation of user-facing credential-safety guidance; the value is prose, not a password.
   "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "請使用安全表單儲存金鑰、權杖、密碼和機密資訊。聊天回答會傳送給助理。",
 
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# 我的技能\n\n1. 說明工作流程。\n2. 描述輸入與輸出。',

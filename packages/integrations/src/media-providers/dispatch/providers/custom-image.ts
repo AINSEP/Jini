@@ -30,7 +30,7 @@ import { buildOpenAIImageEditUrl, buildOpenAIImageUrl, bytesFromOpenAICompatible
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import type { VendorAdapterRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 
 export const CUSTOM_IMAGE_MODEL_ID = 'custom-image';
 

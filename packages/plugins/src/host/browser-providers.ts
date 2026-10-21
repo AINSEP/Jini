@@ -1,15 +1,7 @@
 /** Bundled chart declarations only. ADR-025 trust comes from composition, never the manifest. */
-import type { PluginValidationError } from './manifest.js';
+import type { BrowserProviderDeclaration, PluginValidationError } from './manifest-types.js';
+export type { BrowserProviderDeclaration } from './manifest-types.js';
 import { isNonArrayRecord } from '@jini-ai/core/records';
-
-export interface BrowserProviderDeclaration {
-  readonly id: string;
-  readonly kind: 'chart';
-  readonly contractVersion: 1;
-  readonly kinds: readonly string[];
-  readonly javascript: string;
-  readonly stylesheet?: string;
-}
 export interface BrowserProviderAsset {
   readonly path: string;
   readonly digest: string;

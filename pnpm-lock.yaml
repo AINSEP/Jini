@@ -1074,6 +1074,9 @@ importers:
       '@excalidraw/excalidraw':
         specifier: 0.18.1
         version: 0.18.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(immer@11.1.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@jini-ai/agent-runtime':
+        specifier: workspace:^
+        version: link:../agent-runtime
       '@jini-ai/agentic':
         specifier: workspace:^
         version: link:../agentic

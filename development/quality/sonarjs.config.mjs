@@ -2,8 +2,10 @@
 // Reviewed against the installed 4.2.0 rule catalog and docs, including deprecated
 // security hotspots omitted by recommended. Upgrades require reviewing this policy.
 import sonarjs from 'eslint-plugin-sonarjs';
+import tseslint from 'typescript-eslint';
 
 export const skippedSonarRules = {
+  'no-redundant-optional': 'exactOptionalPropertyTypes deliberately distinguishes omission from an explicit undefined.',
   'no-unused-function-argument': 'Preserve the required (input, options = {}) boundary and callback contracts.',
   'function-name': 'PascalCase React components and public API names are intentional.',
   'variable-name': 'Public protocol/property names may follow external conventions.',
@@ -48,6 +50,39 @@ export const sonarSourceFiles = [
   'packages/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}',
   'packages/cms/forms/src/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}',
 ];
-export const sonarTestFiles = ['**/__tests__/**', '**/tests/**', '**/test/**', '**/*.test.*', '**/*.spec.*'];
+export const sonarTestFiles = [
+  '**/__tests__/**', '**/tests/**', '**/test/**', '**/*.test.*', '**/*.spec.*',
+  // Compile-only rejection proofs deliberately contain invalid calls and unthrown errors.
+  '**/*.typecheck.ts',
+];
+
+// These two legacy React directives belong to plugins this report does not load.
+// Filter only their comment metadata; source, locations and Sonar directives stay intact.
+export const sonarParser = {
+  ...tseslint.parser,
+  parseForESLint(source, options) {
+    const parsed = tseslint.parser.parseForESLint(source, options);
+    parsed.ast.comments = parsed.ast.comments.filter(comment =>
+      !/^\s*eslint-disable-next-line\s+react(?:-hooks\/exhaustive-deps|\/no-danger)(?:\s*--[^]*)?\s*$/.test(comment.value));
+    return parsed;
+  },
+};
+
+export const sonarTypeScriptConfig = {
+  files: sonarSourceFiles.map(pattern => pattern.replace('js,jsx,mjs,cjs,', '')),
+  rules: { 'sonarjs/no-reference-error': 'off' }, // tsc owns TypeScript names and globals.
+};
+
+// These Node scripts also run callbacks in Playwright's page context. Declare only
+// their runtime globals; keep reference checking enabled on JavaScript.
+export const sonarScriptConfig = {
+  files: ['packages/agent-runtime/src/skills/web-clone/scripts/**/*.mjs'],
+  languageOptions: {
+    globals: Object.fromEntries([
+      'process', 'console', 'URL', 'fetch', 'Buffer', 'performance',
+      'document', 'window', 'location', 'getComputedStyle', 'CSS', 'Node', 'CSSFontFaceRule', 'Image',
+    ].map(name => [name, 'readonly'])),
+  },
+};
 
 export default sonarjsConfig;

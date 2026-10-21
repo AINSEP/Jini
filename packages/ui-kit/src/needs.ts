@@ -1,4 +1,4 @@
-import { KIT_CONTRACT, kitSpec, type KitComponentName } from './kit.spec.js';
+import { KIT_CONTRACT, kitSpec, type KitComponentName } from './kit-contract.js';
 export interface KitNeeds<N extends KitComponentName = KitComponentName> {
   readonly id: string; readonly contract: string; readonly components: readonly N[];
 }

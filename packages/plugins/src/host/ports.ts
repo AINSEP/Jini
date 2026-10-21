@@ -1,5 +1,5 @@
 /** Host contracts only. No product SDK, content-type implementation or executable importer lives here. */
-import type { PluginManifest, PluginValidationError } from './manifest.js';
+import type { PluginManifest, PluginValidationError } from './manifest-types.js';
 import type { PluginDiscoveryRecord } from './discovery-types.js';
 import type { ClaimMode } from './claim-conflicts.js';
 

@@ -27,7 +27,7 @@ import {
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import type { VendorAdapterRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 
 // Maps (not object literals) so an inherited key such as `constructor` can never resolve as an aspect.
 const PORTRAIT_AND_4_3_SIZES: ReadonlyArray<readonly [string, string]> = [['9:16', '576x1024'], ['4:3', '1024x768'], ['3:4', '768x1024']];

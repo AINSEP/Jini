@@ -1,3 +1,4 @@
+import { appendSerialTask } from "@jini-ai/core/primitives";
 import { randomUUID } from 'node:crypto';
 import type { probeMcpBridge, McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import type { ModelCatalogSnapshot } from '@jini-ai/agent-runtime';
@@ -138,6 +139,12 @@ async function terminateChildTree(deps: TerminateChildTreeDeps, child: ChildProc
   const processes = await deps.listProcessSnapshots();
   const pids = deps.collectProcessTreePids({ processes, rootPids: [child.pid] });
   await deps.stopProcesses({ pids });
+}
+
+// A late emit can race a terminal run. Keep later events/cleanup ordered even after failure;
+// lifecycle exceptions can contain provider text, so report only this fixed diagnostic.
+function reportDroppedEmit(): void {
+  console.warn('[daemon] Queued lifecycle event could not be delivered.');
 }
 
 /** Default sink when a host does not supply `onCleanupFailure`: still observable, never silent. Redacted per SEC-007 (a spawn/permission error can embed paths/host detail). */
@@ -468,15 +475,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   let droppedStdoutBytes = 0;
 
   function enqueueEmit(task: () => Promise<unknown>): void {
-    emitQueue = emitQueue.then(async () => {
-      try {
-        await task();
-      } catch {
-        // A single emit failing (e.g. a race against an already-terminal
-        // run) must not block delivery of subsequently queued events —
-        // see this function's own doc.
-      }
-    });
+    emitQueue = appendSerialTask({ previous: emitQueue, task, onError: reportDroppedEmit });
   }
 
   if (ctx.startingModel) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'starting_model', model: ctx.startingModel! } } }));
@@ -1034,14 +1033,7 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
   let toolCallSeen = false;
 
   function enqueueEmit(task: () => Promise<unknown>): void {
-    emitQueue = emitQueue.then(async () => {
-      try {
-        await task();
-      } catch {
-        // A late event racing a terminal lifecycle is intentionally dropped;
-        // it must not prevent subsequent queued cleanup from running.
-      }
-    });
+    emitQueue = appendSerialTask({ previous: emitQueue, task, onError: reportDroppedEmit });
   }
 
   if (ctx.model) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'starting_model', model: ctx.model! } } }));
@@ -1164,14 +1156,7 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
   let toolCallSeen = false;
 
   function enqueueEmit(task: () => Promise<unknown>): void {
-    emitQueue = emitQueue.then(async () => {
-      try {
-        await task();
-      } catch {
-        // A late event racing a terminal lifecycle is intentionally dropped;
-        // it must not prevent subsequent queued cleanup from running.
-      }
-    });
+    emitQueue = appendSerialTask({ previous: emitQueue, task, onError: reportDroppedEmit });
   }
 
   if (ctx.model) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'starting_model', model: ctx.model! } } }));

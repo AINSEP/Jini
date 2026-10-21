@@ -1,6 +1,6 @@
 import tseslint from 'typescript-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
-import { sonarjsConfig, sonarSourceFiles, sonarTestFiles } from './development/quality/sonarjs.config.mjs';
+import { sonarjsConfig, sonarSourceFiles, sonarTestFiles, sonarParser, sonarTypeScriptConfig, sonarScriptConfig } from './development/quality/sonarjs.config.mjs';
 
 export default [
   {
@@ -31,9 +31,12 @@ export default [
     ...sonarjsConfig,
     files: sonarSourceFiles,
     ignores: sonarTestFiles,
-    languageOptions: { parser: tseslint.parser },
-    linterOptions: { noInlineConfig: true },
+    plugins: { ...sonarjsConfig.plugins, '@typescript-eslint': tseslint.plugin },
+    languageOptions: { parser: sonarParser },
+    linterOptions: { noInlineConfig: false, reportUnusedDisableDirectives: 'off' },
   },
+  { ...sonarTypeScriptConfig, ignores: sonarTestFiles },
+  sonarScriptConfig,
   {
     files: ['packages/*/src/**/*.{ts,tsx,mts,cts}', 'packages/cms/forms/src/**/*.{ts,tsx,mts,cts}'],
     languageOptions: { parser: tseslint.parser },

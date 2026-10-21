@@ -252,7 +252,7 @@ export function useTooltipLayer(): UseTooltipLayerResult {
       const target = readTooltipTarget(event.target);
       if (target) showTooltip(target);
     };
-    const onPointerOut = (event: PointerEvent) => {
+    const onTargetExit = (event: PointerEvent | FocusEvent) => {
       const target = readTooltipTarget(event.target);
       if (!target) return;
       const next = event.relatedTarget;
@@ -279,13 +279,6 @@ export function useTooltipLayer(): UseTooltipLayerResult {
       }
       suppressNativeTitle(target);
     };
-    const onFocusOut = (event: FocusEvent) => {
-      const target = readTooltipTarget(event.target);
-      if (!target) return;
-      const next = event.relatedTarget;
-      if (next instanceof Node && target.contains(next)) return;
-      hideTooltip();
-    };
     const onKeyDown = (event: KeyboardEvent) => {
       lastInputRef.current = 'keyboard';
       if (event.key === 'Escape') hideTooltip();
@@ -295,23 +288,23 @@ export function useTooltipLayer(): UseTooltipLayerResult {
     };
 
     document.addEventListener('pointerover', onPointerOver);
-    document.addEventListener('pointerout', onPointerOut);
+    document.addEventListener('pointerout', onTargetExit);
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('pointercancel', onPointerCancel);
     document.addEventListener('click', onClick);
     document.addEventListener('focusin', onFocusIn);
-    document.addEventListener('focusout', onFocusOut);
+    document.addEventListener('focusout', onTargetExit);
     document.addEventListener('keydown', onKeyDown);
     window.addEventListener('resize', scheduleUpdatePosition);
     window.addEventListener('scroll', scheduleUpdatePosition, true);
     return () => {
       document.removeEventListener('pointerover', onPointerOver);
-      document.removeEventListener('pointerout', onPointerOut);
+      document.removeEventListener('pointerout', onTargetExit);
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('pointercancel', onPointerCancel);
       document.removeEventListener('click', onClick);
       document.removeEventListener('focusin', onFocusIn);
-      document.removeEventListener('focusout', onFocusOut);
+      document.removeEventListener('focusout', onTargetExit);
       document.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', scheduleUpdatePosition);
       window.removeEventListener('scroll', scheduleUpdatePosition, true);

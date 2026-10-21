@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Notice, Spinner, Button } from '@jini-ai/ui-kit/react';
-import type { MembersPageProps } from '../hooks/MembersBinding.hooks.js';
+import type { MembersPageProps } from '../hooks/MembersScope.hooks.js';
 import { MembersViewContext, useMembersPage } from '../hooks/MembersPage.hooks.js';
 import { membersMessagesEn as m } from '../../messages.en.js';
 import { MembersConfirmation } from '../components/MembersConfirmation.js';

@@ -2,7 +2,7 @@ import { createElement, forwardRef } from 'react';
 import type { Attributes } from 'react';
 import { useFacade, renderOverlay, useOverlayContainer } from './Kit.hooks.js';
 import type { ReactKitProps } from './types.js';
-import type { ImplementedComponentName } from '../kit.spec.js';
+import type { ImplementedComponentName } from '../kit-contract.js';
 type RefTargets = { Button: HTMLButtonElement; IconButton: HTMLButtonElement; TextField: HTMLInputElement;
   TextArea: HTMLTextAreaElement; Select: HTMLSelectElement; Checkbox: HTMLInputElement; Switch: HTMLInputElement; Dialog: HTMLDialogElement };
 function control<K extends keyof RefTargets>(required: { name: K }, _optional: Record<string, never> = {}) {

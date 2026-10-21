@@ -7,6 +7,7 @@ import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_JA: SettingsDialogDict = {
   "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "メッセージからキーと思われる文字列を削除しました。本物のキーだった場合は再発行してください。保存には安全なフォームを使ってください。",
+  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- Translation of user-facing credential-safety guidance; the value is prose, not a password.
   "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "キー、トークン、パスワード、シークレットの保存には安全なフォームを使ってください。チャットの回答はアシスタントに送信されます。",
 
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# マイスキル\n\n1. ワークフローを説明してください。\n2. 入力と出力を説明してください。',

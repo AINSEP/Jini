@@ -4,8 +4,8 @@ import { createMembersController } from '../../controllers/members.controller.js
 import type { MembersController } from '../../controllers/members.controller.js';
 import { hasAdminGrant } from '../../people.rules.js';
 import type { MenuItem } from '@jini-ai/ui-kit/react';
-import { useMembersScope } from './MembersBinding.hooks.js';
-import type { MembersPageProps } from './MembersBinding.hooks.js';
+import { useMembersScope } from './MembersScope.hooks.js';
+import type { MembersPageProps } from './MembersScope.hooks.js';
 import { usePeopleController } from './PeopleController.hooks.js';
 export interface MembersView { controller: MembersController; state: MembersState; canManage: boolean }
 export const MembersViewContext = createContext<MembersView | null>(null);

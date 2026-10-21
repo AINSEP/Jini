@@ -3,7 +3,7 @@
  * Tier-3 currently runs with full in-process authority; TODO: hardened worker at this boundary. */
 import { createContributionRegistry } from '@jini-ai/core/contribution-registry';
 import { normalizeRoute, resolveClaimConflicts, type ExtensionClaim } from './claim-conflicts.js';
-import type { PluginManifest } from './manifest.js';
+import type { PluginManifest } from './manifest-types.js';
 import type { PluginSdk } from './ports.js';
 
 export const PLUGIN_CONTRIBUTION_CAPABILITIES = ['http.route.register', 'tools.register', 'render.contribute'] as const;

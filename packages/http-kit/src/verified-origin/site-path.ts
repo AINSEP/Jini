@@ -48,7 +48,9 @@ export type SiteRelativeTargetCheck =
  * {@link checkSiteRelativeTarget}). Both are bare origins, so a reference resolves to the same
  * pathname against either.
  */
+// eslint-disable-next-line sonarjs/no-clear-text-protocols -- Reserved .invalid probe origin used only for URL parsing; no network transport is invoked.
 const PROBE_ORIGIN = "http://reserved-path-probe.invalid";
+// eslint-disable-next-line sonarjs/no-clear-text-protocols -- Reserved .invalid probe origin used only for URL parsing; no network transport is invoked.
 const SECOND_PROBE_ORIGIN = "http://reserved-path-probe-2.invalid";
 
 /**

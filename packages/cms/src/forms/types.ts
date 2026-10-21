@@ -92,3 +92,10 @@ export interface FormFileStoragePort {
   /** Compensates originals created by this attempt if the submission transaction fails. */
   discard(required: { workspaceId: string; reference: FormFileReference }, optional?: Record<string, never>): Promise<void>;
 }
+
+export interface SubmitFormInput {
+  workspaceId: UUID;
+  slug: string;
+  body: Record<string, unknown>;
+  sourceIp: string;
+}

@@ -21,6 +21,8 @@
  * and its event are written in one transaction, so a failed enqueue leaves nothing a retry could
  * mistake for a finished submission.
  */
+import type { SubmitFormInput } from "./types.js";
+export type { SubmitFormInput } from "./types.js";
 import type { Logger } from "@jini-ai/core/primitives";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /** Anonymous submission path: active lookup, honeypot, validation, rate check, persistence + event enqueue in one host transaction, then background dispatch. */
@@ -52,13 +54,6 @@ export interface SubmitFormDeps {
   files?: FormFileStoragePort;
   /** Omitted: the two writes run back to back with no rollback between them. */
   transaction?: SubmissionTransactionPort;
-}
-
-export interface SubmitFormInput {
-  workspaceId: UUID;
-  slug: string;
-  body: Record<string, unknown>;
-  sourceIp: string;
 }
 
 export interface SubmitFormRequired {

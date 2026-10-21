@@ -9,6 +9,24 @@ const escaped = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const tests = '(?:^|/)(?:__tests__|tests?|testing|fixtures)(?:/|$)|\\.(?:test|spec|fixture)\\.[cm]?[jt]sx?$';
 const sourceTree = '^packages/(?:[^/]+/src|cms/forms/src)/';
 const publicPaths = [...publicEntries.map(entry => entry.source), ...binSources].map(source => '^' + escaped(source) + '$');
+// These are copied into consumer projects, not executed in Jini. The Remotion
+// template has its own package.json; shadcn examples require a consumer's @/ UI.
+// Keep their edges in the graph, but resolve their host dependencies in that host.
+const consumerSources = [
+  '^packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/',
+  '^packages/agent-plugins/ui-ux-design/skills/shadcn-ui/examples/',
+];
+const kernelCore = '^packages/db/src/kernel/kernel-core\\.ts$';
+const implicitEntries = [
+  // Included by ui/tsconfig.json: ambient matcher augmentation, no importer needed.
+  'packages/ui/src/vitest-env.d.ts',
+  'packages/ui/src/vitest-jest-dom.d.ts',
+  // node-worker-native.test.ts passes these URLs to the native worker/bootstrap.
+  'packages/sandbox/src/__tests__/fixtures/register-worker.cjs',
+  'packages/sandbox/src/__tests__/fixtures/exit-worker.cjs',
+  // Loaded by commerce/vitest.config.ts's setupFiles.
+  'packages/commerce/src/react/__tests__/setup.ts',
+].map(source => '^' + escaped(source) + '$');
 
 // Guard's residual-JS TODO has no approved allowlist. Surface every source JS file for review
 // (including isolated files, which an edge-only rule misses), without inventing exemptions.
@@ -23,8 +41,13 @@ export default {
     { name: 'no-production-to-tests', severity: 'warn',
       from: { path: sourceTree, pathNot: tests }, to: { path: tests } },
     { name: 'no-orphans', severity: 'warn',
-      from: { orphan: true, path: sourceTree, pathNot: publicPaths }, to: {} },
-    { name: 'no-unresolved', severity: 'warn', from: {}, to: { couldNotResolve: true } },
+      from: { orphan: true, path: sourceTree, pathNot: [...publicPaths, ...implicitEntries] }, to: {} },
+    { name: 'no-unresolved', severity: 'warn',
+      from: { pathNot: [...consumerSources, kernelCore] }, to: { couldNotResolve: true } },
+    // This file's locally declared require(capability) is not CommonJS loading.
+    // Still report every other unresolved specifier in the same file.
+    { name: 'no-unresolved-kernel', severity: 'warn', from: { path: kernelCore },
+      to: { couldNotResolve: true, pathNot: '^(?:interactiveTransactions|backup)$' } },
     // A malformed bare deep import remains visible even when package exports refuse resolution.
     { name: 'no-unresolved-package-internals', severity: 'warn', from: {},
       to: { path: '^@jini-ai/[^/]+/(?:src|dist)/', couldNotResolve: true } },
@@ -57,6 +80,10 @@ export default {
     webpackConfig: { fileName: 'development/quality/workspace-resolution.mjs' },
     doNotFollow: { path: '(^|/)node_modules/' },
     exclude: { path: '(^|/)(?:node_modules|dist|coverage|generated|\\.generated)/' },
-    enhancedResolveOptions: { exportsFields: ['exports'], conditionNames: ['import', 'node', 'default'] },
+    enhancedResolveOptions: {
+      exportsFields: ['exports'],
+      // Excalidraw's public type subpaths expose only the `types` condition.
+      conditionNames: ['import', 'node', 'default', 'types'],
+    },
   },
 };

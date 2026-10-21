@@ -374,6 +374,7 @@ export async function createLocalNodeDaemon(
   const xaiListenerRef: { current: OAuthCallbackListener | null } = { current: null };
 
   const app: Express = express();
+  app.disable('x-powered-by');
   installRouteRegistrationGuard({ app });
 
   const kernel = await composeJiniKernel({

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { createRolesController } from '../../controllers/roles.controller.js';
 import type { RolesController } from '../../controllers/roles.controller.js';
-import { useRolesScope } from './RolesBinding.hooks.js';
+import { useRolesScope } from './RolesScope.hooks.js';
 /** Controller creation belongs to the effect, so StrictMode replay gets a fresh instance.
  * Both tabs read the page-owned controller; neither tab starts its own duplicate fetches. */
 export function useRolesController(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {

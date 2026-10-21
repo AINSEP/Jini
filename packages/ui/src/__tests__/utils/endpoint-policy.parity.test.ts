@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-// Reached by relative path on purpose: compare the runtime URL wrapper from
-// source rather than a potentially stale dist. Hostname predicates are shared
-// through platform's public browser-safe leaf; URL parsing/trimming still have
-// independent UI and runtime contracts and must remain in agreement.
-import { validateBaseUrl } from '../../../../agent-runtime/src/providers/connection-guard.js';
+// Compare the public runtime URL wrapper. Vitest aliases this package to its
+// source entry so the parity check cannot silently pass against stale dist.
+// Hostname predicates are shared through platform's browser-safe leaf; URL
+// parsing/trimming retain independent UI and runtime contracts.
+import { validateBaseUrl } from '@jini-ai/agent-runtime';
 import { isAllowedEndpointUrl } from '../../utils/endpoint-policy.js';
 
 /**

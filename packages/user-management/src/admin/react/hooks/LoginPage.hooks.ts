@@ -3,8 +3,8 @@ import type { FormEvent } from 'react';
 import type { AuthState } from '../../models.js';
 import { createAuthController } from '../../controllers/auth.controller.js';
 import type { AuthController } from '../../controllers/auth.controller.js';
-import { useAuthScope } from './AuthBinding.hooks.js';
-import type { AuthPageProps } from './AuthBinding.hooks.js';
+import { useAuthScope } from './AuthScope.hooks.js';
+import type { AuthPageProps } from './AuthScope.hooks.js';
 import { usePeopleController } from './PeopleController.hooks.js';
 export interface AuthView { controller: AuthController; state: AuthState }
 export const AuthViewContext = createContext<AuthView | null>(null);

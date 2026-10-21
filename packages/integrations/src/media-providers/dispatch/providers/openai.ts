@@ -57,7 +57,7 @@ import { createRawBytesParser } from '../response-parsers.js';
 import type { MediaSpeechFormat, ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import type { VendorAdapterRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 
 // Image generation can legitimately take minutes (gpt-image-2 4K renders
 // especially). The guarded client owns the socket and deadline budgets,

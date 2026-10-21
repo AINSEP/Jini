@@ -1,3 +1,4 @@
+import { deleteMapRecord } from "@jini-ai/core/records";
 // The local trash fork was removed; @jini-ai/cms/trash owns the shared adapter/hooks.
 import { encodeKeysetCursor } from "../core/keyset-cursor.js";
 import type { UUID } from "@jini-ai/core/primitives";
@@ -124,10 +125,7 @@ export class InMemoryFormDefinitionRepo implements FormDefinitionRepoPort {
    *  composition root pairs this with `InMemoryFormSubmissionRepo.deleteAllForDefinition` the same
    *  way `features/trash/adapters/form.ts` deletes submissions before the definition. */
   async hardDelete(required: { workspaceId: UUID; id: UUID }): Promise<void> {
-    const row = this.rows.get(required.id);
-    if (row && row.workspaceId === required.workspaceId) {
-      this.rows.delete(required.id);
-    }
+    deleteMapRecord({ records: this.rows, key: required.id, fields: { workspaceId: required.workspaceId } });
   }
 }
 
@@ -228,10 +226,7 @@ export class InMemoryFormSubmissionRepo implements FormSubmissionRepoPort {
 
   /** Trash-BLIND purge — see `findAnyById`. */
   async hardDelete(required: { workspaceId: UUID; id: UUID }): Promise<void> {
-    const row = this.rows.get(required.id);
-    if (row && row.workspaceId === required.workspaceId) {
-      this.rows.delete(required.id);
-    }
+    deleteMapRecord({ records: this.rows, key: required.id, fields: { workspaceId: required.workspaceId } });
   }
 
   /** Memory-only, NOT part of `FormSubmissionRepoPort`. Bulk cascade for a form purge — see

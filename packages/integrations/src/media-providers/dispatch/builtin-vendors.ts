@@ -1,5 +1,5 @@
 /** Built-in registration has one owner and runs on first registry use, never on import. */
-import type { VendorAdapterRegistry } from './vendor-registry.js';
+import type { VendorAdapterRegistry } from './vendor-registry-core.js';
 import { registerVendorAdapters as registerAihubmix } from './providers/aihubmix.js';
 import { registerVendorAdapters as registerCustomImage } from './providers/custom-image.js';
 import { registerVendorAdapters as registerElevenLabs } from './providers/elevenlabs.js';

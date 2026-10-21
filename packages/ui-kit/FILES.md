@@ -20,7 +20,7 @@ All paths below are relative to `packages/ui-kit/`. Authored files are listed in
 - `src/attrs.ts`
 - `src/confirm.ts`
 - `src/index.ts`
-- `src/kit.spec.ts`
+- `src/kit-contract.ts`
 - `src/needs.ts`
 - `src/react/Kit.hooks.ts`
 - `src/react/KitProvider.tsx`
@@ -66,10 +66,10 @@ All paths below are relative to `packages/ui-kit/`. Authored files are listed in
 - `dist/index.d.ts.map`
 - `dist/index.js`
 - `dist/index.js.map`
-- `dist/kit.spec.d.ts`
-- `dist/kit.spec.d.ts.map`
-- `dist/kit.spec.js`
-- `dist/kit.spec.js.map`
+- `dist/kit-contract.d.ts`
+- `dist/kit-contract.d.ts.map`
+- `dist/kit-contract.js`
+- `dist/kit-contract.js.map`
 - `dist/needs.d.ts`
 - `dist/needs.d.ts.map`
 - `dist/needs.js`

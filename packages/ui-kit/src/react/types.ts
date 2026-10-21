@@ -1,7 +1,7 @@
 import type { ComponentType, ReactNode, Ref, RefObject, HTMLAttributes } from 'react';
 import type { KitAttrs, AgentAttrsPort } from '../attrs.js';
 import type { ConfirmInput, DismissReason } from '../confirm.js';
-import type { ImplementedComponentName } from '../kit.spec.js';
+import type { ImplementedComponentName } from '../kit-contract.js';
 import type { KitNeeds } from '../needs.js';
 import type { ToastService } from '../toast.js';
 export interface BaseProps { readonly attrs?: KitAttrs; readonly className?: string }

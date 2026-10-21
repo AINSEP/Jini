@@ -27,7 +27,7 @@
  */
 import type { Principal } from './principal.js';
 import type { AgentToolSideEffect } from './agent-tools.js';
-import type { ToolMetadata } from './tool-metadata.js';
+import type { ToolMetadata } from './tool-metadata-types.js';
 import { normalizeToolInput, type ToolInputNormalizer } from './tool-input-normalization.js';
 
 /** A structural run reference — anything with a stable `id` satisfies this (e.g. `@jini-ai/protocol`'s `RunStatus`). No import needed to satisfy it; see the module doc. */

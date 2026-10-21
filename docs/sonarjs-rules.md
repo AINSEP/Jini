@@ -4,11 +4,13 @@ Reviewed from the installed package's full docs and exported rule metadata.
 The executable owner is [sonarjs.config.mjs](../development/quality/sonarjs.config.mjs);
 this table records the review and must be refreshed with dependency upgrades.
 
-279 total; 217 recommended + 45 additional enabled; 17 convention exclusions.
+279 total; 216 recommended + 45 additional enabled for JavaScript; 18 convention
+exclusions. TypeScript also disables `no-reference-error` (260 enabled rules).
 All enabled rules are warnings. Type-dependent rules have limited or no effect
 under the current syntax-only parser; these are enabled settings, not measured coverage.
 ESLint metadata exposes problem/suggestion, not Sonar's full category taxonomy.
-Every problem rule and every non-recommended security hotspot is included.
+Every problem rule except the TypeScript reference checker, and every
+non-recommended security hotspot, is included.
 Test-specific rules remain selected in the shared policy but are inert in the
 production-only Jini scope. Thresholds and operational limits: [quality-tools.md](quality-tools.md).
 
@@ -197,9 +199,9 @@ production-only Jini scope. Thresholds and operational limits: [quality-tools.md
 | `sonarjs/no-redundant-assignments` | yes | suggestion | no | warn |
 | `sonarjs/no-redundant-boolean` | yes | suggestion | no | warn |
 | `sonarjs/no-redundant-jump` | yes | suggestion | no | warn |
-| `sonarjs/no-redundant-optional` | yes | suggestion | yes | warn |
+| `sonarjs/no-redundant-optional` | yes | suggestion | yes | off — `?: T \| undefined` is intentional with exactOptionalPropertyTypes |
 | `sonarjs/no-redundant-parentheses` | no | suggestion | no | warn |
-| `sonarjs/no-reference-error` | no | problem | no | warn |
+| `sonarjs/no-reference-error` | no | problem | no | off on TypeScript (tsc owns references); warn on JavaScript with scoped runtime globals |
 | `sonarjs/no-referrer-policy` | yes | problem | no | warn |
 | `sonarjs/no-regex-spaces` | yes | suggestion | yes | warn |
 | `sonarjs/no-require-or-define` | no | suggestion | yes | warn |

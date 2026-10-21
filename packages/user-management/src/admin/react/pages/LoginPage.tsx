@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { Notice, Spinner } from '@jini-ai/ui-kit/react';
 import { AuthViewContext, useLoginPage } from '../hooks/LoginPage.hooks.js';
-import type { AuthPageProps } from '../hooks/AuthBinding.hooks.js';
+import type { AuthPageProps } from '../hooks/AuthScope.hooks.js';
 export default function LoginPage(props: AuthPageProps, _optional: Record<string, never> = {}) {
   const v = useLoginPage(props);
   if (!v.visible) return <Notice>Login is unavailable.</Notice>;

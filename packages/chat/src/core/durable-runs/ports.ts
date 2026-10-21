@@ -1,5 +1,5 @@
 import type { AgentEvent, ChatMessage } from "../index.js";
-import type { RunRef, RunSettlement } from "./ledger-contracts.js";
+import type { RunRef, RunSettlement } from "./run-contracts.js";
 
 export interface AcceptedRunRequest {
   readonly agentId?: string;

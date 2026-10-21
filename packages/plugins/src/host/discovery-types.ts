@@ -1,4 +1,4 @@
-import type { PluginManifest, PluginValidationError } from "./manifest.js";
+import type { PluginManifest, PluginValidationError } from "./manifest-types.js";
 
 /** A built-in plugin's in-code manifest-equivalent (ADR Decision item 4) — no tarball, no
  * integrity file (compiled-in code is definitionally not tampered), but still validated through

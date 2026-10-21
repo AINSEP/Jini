@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Button, Notice, Spinner, Tabs } from '@jini-ai/ui-kit/react';
-import type { RolesPageProps } from '../hooks/RolesBinding.hooks.js';
+import type { RolesPageProps } from '../hooks/RolesScope.hooks.js';
 import { RolesViewContext, useRolesPage } from '../hooks/RolesPage.hooks.js';
 import type { RolesView } from '../hooks/RolesPage.hooks.js';
 import { DestructiveDialog } from '../components/DestructiveDialog.js';

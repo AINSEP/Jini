@@ -23,7 +23,6 @@ import type { RequiredArgs, OptionalArgs } from '../../args.js';
  * attachments; provider dispatch performs network I/O through its transport.
  */
 import type { HttpClientPort } from '@jini-ai/core/primitives';
-import type { VendorAdapterRegistry } from './vendor-registry.js';
 import type { MediaOutboundOptions } from './outbound.js';
 import type { AudioKind, MediaSurface } from '../types.js';
 
@@ -101,7 +100,9 @@ export interface MediaGenerationResult {
 }
 
 /** Dispatch only reads routes; the host owns registration and registry lifetime. */
-export type VendorAdapterLookup = Pick<VendorAdapterRegistry, 'get'>;
+export interface VendorAdapterLookup {
+  get(required: { providerId: string; routeKey: string }): VendorAdapter<never> | undefined;
+}
 
 export interface MediaDispatchEngineRequired {
   readonly registry: VendorAdapterLookup;
@@ -153,4 +154,44 @@ export interface RenderContext extends MediaOutboundOptions {
   readonly requestInit: MediaGenerationRequestInit;
   readonly speechFormat: MediaSpeechFormat;
   readonly onProgress?: ((message: string) => void) | undefined;
+}
+
+// Vendor contracts share RenderContext without importing dispatch or builtin composition.
+/**
+ * One vendor HTTP request, plus any values `buildRequest` computed that
+ * `parseResponse` also needs (e.g. a resolved `wireModel`/`voiceId` for
+ * building `providerNote`). Kept out of `RenderContext` because these are
+ * per-adapter derived values, not universal fields every vendor shares.
+ */
+export interface VendorRequest<Meta = undefined> {
+  readonly url: string;
+  readonly init: RequestInit;
+  readonly meta: Meta;
+}
+
+export type VendorRequestBuilder<Meta = undefined> = (required: { ctx: RenderContext; credentials: ProviderCredentials }) => VendorRequest<Meta>;
+
+/**
+ * Turns a `fetch` `Response` into a `RenderResult`, or throws a
+ * vendor-tagged `Error` — the "response-parsing + error-mapping" half of a
+ * vendor adapter. Receives `ctx`/`request` too since some vendors need a
+ * second request (an SSRF-guarded asset download, a Gemini-native
+ * redirect) to finish parsing — see vendor-adapter.ts's module comment.
+ */
+export type VendorResponseParser<Meta = undefined> = (required: { resp: Response; ctx: RenderContext; request: VendorRequest<Meta> }
+) => Promise<RenderResult>;
+
+/** Validates `credentials` before any network call, throwing a vendor-tagged `Error` when they're unusable (e.g. no API key configured). */
+export type VendorCredentialGuard = (required: { credentials: ProviderCredentials }) => void;
+
+/**
+ * A fully-configured vendor: the "auth-scheme" (`requireCredential`),
+ * "request-shape" (`buildRequest`), and "response-parsing + error-mapping"
+ * (`parseResponse`) a new vendor registers instead of writing a bespoke
+ * `render*` function.
+ */
+export interface VendorAdapter<Meta = undefined> {
+  readonly requireCredential?: VendorCredentialGuard;
+  readonly buildRequest: VendorRequestBuilder<Meta>;
+  readonly parseResponse: VendorResponseParser<Meta>;
 }

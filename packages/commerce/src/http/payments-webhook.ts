@@ -97,7 +97,7 @@ export function registerPaymentsWebhookRoute({ app, deps }: { app: Express; deps
           return;
         }
         res.status(200).json({ processed: ack.processed, duplicates: ack.duplicates });
-      } catch (err) {
+      } catch {
         // A provider that never gets a response just retries the same delivery forever (this file's
         // own header: a missing/failed response must never look like undelivered-but-silently-lost).
         // 500 tells the provider to retry, which is the correct instruction for a failure on THIS

@@ -1,4 +1,4 @@
-import { KIT_CONTRACT, implementedComponents, kitSpec, type ImplementedComponentName } from '../kit.spec.js';
+import { KIT_CONTRACT, implementedComponents, kitSpec, type ImplementedComponentName } from '../kit-contract.js';
 import { assertKitContract, KitConfigError } from '../needs.js';
 import { nativeKit } from './native/index.js';
 import type { GuardMode, ReactKit, ResolvedKit } from './types.js';

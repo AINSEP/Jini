@@ -10,6 +10,7 @@ function safeHref(value: string): string {
   const href = value.trim();
   if (href.startsWith('#') || /^https?:\/\//i.test(href) || /^mailto:/i.test(href)) return href;
   if (href.startsWith('/')) {
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- Reserved .invalid sentinel used only for local URL resolution/origin comparison; never fetched.
     try { if (new URL(href, 'http://export-safehref.invalid/').origin === 'http://export-safehref.invalid') return href; } catch { return '#'; }
   }
   return '#';
@@ -120,7 +121,9 @@ export function extractCssUrls(required: { css: string; cssUrl: string; prefixes
     const ref = match[2]!.trim();
     if (!ref || ref.startsWith('data:')) continue;
     let resolved: URL;
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- Reserved .invalid sentinel used only for local URL resolution/origin comparison; never fetched.
     try { resolved = new URL(ref, 'http://export-local.invalid' + required.cssUrl); } catch { continue; }
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- Reserved .invalid sentinel used only for local URL resolution/origin comparison; never fetched.
     if (resolved.origin !== 'http://export-local.invalid') continue;
     if (required.prefixes.some(prefix => resolved.pathname.startsWith(prefix))) found.add(resolved.pathname);
   }

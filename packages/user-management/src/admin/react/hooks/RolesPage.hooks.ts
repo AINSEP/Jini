@@ -1,5 +1,5 @@
 import { createContext, createElement, useContext, useState } from 'react';
-import type { RolesPageProps } from './RolesBinding.hooks.js';
+import type { RolesPageProps } from './RolesScope.hooks.js';
 import { useRolesController } from './RolesController.hooks.js';
 import { canManageRoles, destructiveCopy } from '../../rules.js';
 import type { RolesController } from '../../controllers/roles.controller.js';

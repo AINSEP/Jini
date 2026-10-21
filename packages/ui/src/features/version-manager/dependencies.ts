@@ -11,9 +11,11 @@ import type { VersionManagerClipboardPort, VersionManagerDependencies, VersionMa
  */
 export function createFakeVersionManagerPort<TVersion extends VersionRecord = VersionRecord>(
   seed?: ReadonlyMap<string, TVersion[]>,
+  { content: seedContent }: { content?: ReadonlyMap<string, string> } = {},
 ): VersionManagerPort<TVersion> {
   const store = new Map<string, TVersion[]>(seed ? [...seed.entries()].map(([k, v]) => [k, [...v]]) : []);
-  const content = new Map<string, string>();
+  // Content uses the same scope/name key as metadata, followed by the version id.
+  const content = new Map(seedContent);
 
   const key = (fileRef: VersionManagerFileRef) => `${fileRef.scopeId}:${fileRef.name}`;
 

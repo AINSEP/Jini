@@ -40,7 +40,7 @@ import { createHexEnvelopeAudioParser } from '../response-parsers.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import type { VendorAdapterRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 
 const MINIMAX_DEFAULT_BASE_URL = 'https://api.minimaxi.chat/v1';
 const MINIMAX_DEFAULT_VOICE_ID = 'male-qn-qingse';

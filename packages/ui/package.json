@@ -218,6 +218,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/integrations": "workspace:^",
     "@tanstack/react-query": "^5.0.0",
     "@excalidraw/excalidraw": "0.18.1",

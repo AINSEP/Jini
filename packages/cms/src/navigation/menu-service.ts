@@ -151,6 +151,7 @@ const RESERVED_TARGET_KINDS = new Set<string>(["dynamicQuery", "content"]);
  * the relationship between the resolved URL's origin and this one is ever inspected, never the
  * placeholder value itself).
  */ 
+// eslint-disable-next-line sonarjs/no-clear-text-protocols -- Reserved .invalid sentinel used only for URL parsing and origin comparison; no request is made.
 const SAFE_HREF_RESOLUTION_BASE = "http://safehref.invalid/";
 const SAFE_HREF_RESOLUTION_ORIGIN = new URL(SAFE_HREF_RESOLUTION_BASE).origin;
 

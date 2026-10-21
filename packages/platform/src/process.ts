@@ -297,6 +297,7 @@ function parsePsOutput(stdout: string): ProcessSnapshot[] {
 /** @internal Enumerate process snapshots on POSIX via `ps`. */
 async function listPosixProcessSnapshots(): Promise<ProcessSnapshot[]> {
   const stdout = await new Promise<string>((resolveList, rejectList) => {
+    // eslint-disable-next-line sonarjs/no-os-command-from-path -- Fixed process-enumeration utility intentionally uses the trusted host PATH; command and argv are code-owned.
     execFile("ps", ["-axo", "pid=,ppid=,command="], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }, (error, out) => {
       if (error) rejectList(error);
       else resolveList(out);
@@ -312,6 +313,7 @@ async function listWindowsProcessSnapshots(): Promise<ProcessSnapshot[]> {
     "Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, CommandLine | ConvertTo-Json -Compress",
   ].join("; ");
   const stdout = await new Promise<string>((resolveList, rejectList) => {
+    // eslint-disable-next-line sonarjs/no-os-command-from-path -- Fixed process-enumeration utility intentionally uses the trusted host PATH; command and argv are code-owned.
     execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }, (error, out) => {
       if (error) rejectList(error);
       else resolveList(out);

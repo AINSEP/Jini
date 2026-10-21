@@ -18,6 +18,7 @@ function darwinBootIdentity(): BootIdentity | null {
   return timestampIdentity(Number(/sec\s*=\s*(\d+)/.exec(text)?.[1]) * 1000);
 }
 function windowsBootIdentity(): BootIdentity | null {
+  // eslint-disable-next-line sonarjs/no-os-command-from-path -- Fixed OS utility with fixed argv, resolved through the desktop operator's trusted PATH; no request controls the executable.
   const text = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')"], { encoding: "utf8", timeout: NATIVE_TIMEOUT_MS, windowsHide: true });
   return timestampIdentity(Date.parse(text.trim()));
 }

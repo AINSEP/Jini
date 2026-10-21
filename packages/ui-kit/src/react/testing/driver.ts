@@ -8,7 +8,7 @@ import { describeKit } from '../kit.js';
 import type { AgentAttrsPort } from '../../attrs.js';
 import type { KitScenario, ConformanceExpectation } from '../../testing/scenarios.js';
 import { kitConformanceScenarios } from '../../testing/scenarios.js';
-import type { ImplementedComponentName } from '../../kit.spec.js';
+import type { ImplementedComponentName } from '../../kit-contract.js';
 import type { ResolvedKit } from '../types.js';
 export interface KitConformanceResult { readonly id: string; readonly status: 'passed' | 'failed' | 'skipped'; readonly errors: readonly string[] }
 export interface KitConformanceDriver {

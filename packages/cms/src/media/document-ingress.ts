@@ -152,6 +152,7 @@ async function validateDocumentArchive(required: { bytes: Uint8Array; extension:
 
 const CONTENT_TYPES_NAMESPACE = 'http://schemas.openxmlformats.org/package/2006/content-types';
 const RELATIONSHIPS_NAMESPACE = 'http://schemas.openxmlformats.org/package/2006/relationships';
+// eslint-disable-next-line sonarjs/no-clear-text-protocols -- These are OOXML namespace/relationship identifiers, never network request URLs; changing their schemes breaks format validation.
 const OFFICE_DOCUMENT_RELATIONSHIPS = ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument', 'http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument'];
 type OfficeSpec = (typeof OFFICE_PACKAGES)[OfficeExtension];
 

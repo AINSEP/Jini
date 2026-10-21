@@ -211,8 +211,10 @@ export function tryReadImagePayload(
       payload: { type: 'image', data: buf.toString('base64'), mimeType: piImageMimeType(ext) },
       size: stat.size,
     };
-  } catch (_err: unknown) {
+  } catch {
     // Skip unreadable images rather than failing the entire run.
+    // Filesystem errors can contain private paths; report only the fixed diagnostic.
+    console.warn('[pi-rpc] Image attachment could not be read; skipping it.');
     return null;
   }
 }

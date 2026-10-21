@@ -1,4 +1,4 @@
-import type { ImplementedComponentName } from '../kit.spec.js';
+import type { ImplementedComponentName } from '../kit-contract.js';
 export type ConformanceAction = { readonly type: 'click' | 'cancel' | 'focus' | 'key'; readonly selector: string; readonly key?: string };
 export type ConformanceExpectation =
   | { readonly type: 'attribute'; readonly selector: string; readonly name: string; readonly value: string }

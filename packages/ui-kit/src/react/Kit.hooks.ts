@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { useKitContext } from './context.js';
 import { createKit } from './kit.js';
 import { assertKitContract, KitConfigError } from '../needs.js';
-import { kitSpec, type ImplementedComponentName } from '../kit.spec.js';
+import { kitSpec, type ImplementedComponentName } from '../kit-contract.js';
 import type { KitContextValue, KitProviderProps, ReactKitProps, ToastProps } from './types.js';
 import { createToastService } from '../toast.js';
 let defaultValue: KitContextValue | undefined;

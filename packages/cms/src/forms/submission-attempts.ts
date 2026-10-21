@@ -19,7 +19,7 @@
  * a restart or a second machine only forgets recent claims, which stores a duplicate rather than
  * dropping a submission. Same one-process-lifetime shape as the forms rate limiter.
  */
-import type { SubmitFormInput } from "./index.js";
+import type { SubmitFormInput } from "./types.js";
 
 /** The hidden field carrying a form's per-response attempt token. Never stored, never validated. */
 export const FORM_ATTEMPT_FIELD = "_attempt";

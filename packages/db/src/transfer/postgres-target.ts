@@ -95,6 +95,7 @@ function failureFrom(stderr: string): { ok: false; error: string; copyTable?: st
 
 function runPsql(env: Record<string, string>, args: readonly string[], chunks: Iterable<string> | null): Promise<TargetResult<string>> {
   return new Promise((resolve) => {
+    // eslint-disable-next-line sonarjs/no-os-command-from-path -- Operator-installed psql intentionally resolves through the trusted host PATH; connection input supplies PG fields, never the executable or PATH.
     const child = spawn("psql", ["-X", "-q", "-v", "ON_ERROR_STOP=1", ...args], { env, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";

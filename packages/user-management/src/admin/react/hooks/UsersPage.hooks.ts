@@ -3,8 +3,8 @@ import { createUsersController } from '../../controllers/users.controller.js';
 import type { UsersController } from '../../controllers/users.controller.js';
 import type { UsersState } from '../../models.js';
 import { hasAdminGrant } from '../../people.rules.js';
-import { useUsersScope } from './UsersBinding.hooks.js';
-import type { UsersPageProps } from './UsersBinding.hooks.js';
+import { useUsersScope } from './UsersScope.hooks.js';
+import type { UsersPageProps } from './UsersScope.hooks.js';
 import { usePeopleController } from './PeopleController.hooks.js';
 export interface UsersView { controller: UsersController; state: UsersState; permissions: readonly string[] }
 export const UsersViewContext = createContext<UsersView | null>(null);

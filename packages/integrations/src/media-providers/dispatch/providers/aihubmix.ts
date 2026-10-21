@@ -59,7 +59,7 @@ import { assertAndFetchExternalAsset } from '../ssrf-guard.js';
 import type { MediaSpeechFormat, ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import type { VendorAdapterRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 import { aihubmixAppCodeHeader, aihubmixGeminiImageUrl, aihubmixHeaders, AIHUBMIX_DEFAULT_BASE_URL, aihubmixWireModel, classifyAIHubMixModel } from './aihubmix-shared.js';
 
 const DEFAULT_IMAGE_PROMPT = 'A high-quality reference image.';

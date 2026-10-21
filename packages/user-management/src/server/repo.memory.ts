@@ -1,3 +1,4 @@
+import { matchesRecordFields, upsertRecord } from "@jini-ai/core/records";
 import type {
   PolicyPermissionRecord,
   PolicyRecord,
@@ -63,24 +64,15 @@ export class InMemoryPrincipalRepo extends InMemoryIdentityRows<PrincipalRecord>
   }
 
   async findById(required: { workspaceId: string; id: string }): Promise<PrincipalRecord | null> {
-    return (
-      this.rows.find((row) => row.workspaceId === required.workspaceId && row.id === required.id) ?? null
-    );
+    return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } })) ?? null;
   }
 
   async list(required: { workspaceId: string }): Promise<PrincipalRecord[]> {
-    return this.rows.filter((row) => row.workspaceId === required.workspaceId);
+    return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId } }));
   }
 
   async save(record: PrincipalRecord): Promise<void> {
-    const index = this.rows.findIndex(
-      (row) => row.workspaceId === record.workspaceId && row.id === record.id
-    );
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
 }
 
@@ -94,37 +86,22 @@ export class InMemoryUserRepo extends InMemoryIdentityRows<UserRecord> implement
     workspaceId: string;
     principalId: string;
   }): Promise<UserRecord | null> {
-    return (
-      this.rows.find(
-        (row) => row.workspaceId === required.workspaceId && row.principalId === required.principalId
-      ) ?? null
-    );
+    return this.rows.find(record => matchesRecordFields({ record, fields: required })) ?? null;
   }
 
   async findByUsername(required: {
     workspaceId: string;
     username: string;
   }): Promise<UserRecord | null> {
-    return (
-      this.rows.find(
-        (row) => row.workspaceId === required.workspaceId && row.username === required.username
-      ) ?? null
-    );
+    return this.rows.find(record => matchesRecordFields({ record, fields: required })) ?? null;
   }
 
   async list(required: { workspaceId: string }): Promise<UserRecord[]> {
-    return this.rows.filter((row) => row.workspaceId === required.workspaceId);
+    return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId } }));
   }
 
   async save(record: UserRecord): Promise<void> {
-    const index = this.rows.findIndex(
-      (row) => row.workspaceId === record.workspaceId && row.principalId === record.principalId
-    );
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, principalId: record.principalId } });
   }
 }
 
@@ -135,31 +112,18 @@ export class InMemorySessionRepo extends InMemoryIdentityRows<SessionRecord> imp
   }
 
   async findById(required: { workspaceId: string; id: string }): Promise<SessionRecord | null> {
-    return (
-      this.rows.find((row) => row.workspaceId === required.workspaceId && row.id === required.id) ?? null
-    );
+    return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } })) ?? null;
   }
 
   async findByTokenHash(required: {
     workspaceId: string;
     tokenHash: string;
   }): Promise<SessionRecord | null> {
-    return (
-      this.rows.find(
-        (row) => row.workspaceId === required.workspaceId && row.tokenHash === required.tokenHash
-      ) ?? null
-    );
+    return this.rows.find(record => matchesRecordFields({ record, fields: required })) ?? null;
   }
 
   async save(record: SessionRecord): Promise<void> {
-    const index = this.rows.findIndex(
-      (row) => row.workspaceId === record.workspaceId && row.id === record.id
-    );
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
 
   async revoke(required: { workspaceId: string; id: string; revokedAt: string }): Promise<void> {
@@ -173,9 +137,7 @@ export class InMemorySessionRepo extends InMemoryIdentityRows<SessionRecord> imp
     workspaceId: string;
     principalId: string;
   }): Promise<SessionRecord[]> {
-    return this.rows.filter(
-      (row) => row.workspaceId === required.workspaceId && row.principalId === required.principalId
-    );
+    return this.rows.filter(record => matchesRecordFields({ record, fields: required }));
   }
 }
 
@@ -186,37 +148,23 @@ export class InMemoryRoleRepo extends InMemoryIdentityRows<RoleRecord> implement
   }
 
   async findById(required: { workspaceId: string; id: string }): Promise<RoleRecord | null> {
-    return (
-      this.rows.find((row) => row.workspaceId === required.workspaceId && row.id === required.id) ?? null
-    );
+    return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } })) ?? null;
   }
 
   async findByName(required: { workspaceId: string; name: string }): Promise<RoleRecord | null> {
-    return (
-      this.rows.find((row) => row.workspaceId === required.workspaceId && row.name === required.name) ??
-      null
-    );
+    return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, name: required.name } })) ?? null;
   }
 
   async list(required: { workspaceId: string }): Promise<RoleRecord[]> {
-    return this.rows.filter((row) => row.workspaceId === required.workspaceId);
+    return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId } }));
   }
 
   async save(record: RoleRecord): Promise<void> {
-    const index = this.rows.findIndex(
-      (row) => row.workspaceId === record.workspaceId && row.id === record.id
-    );
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
 
   async delete(required: { workspaceId: string; id: string }): Promise<void> {
-    this.rows = this.rows.filter(
-      (row) => !(row.workspaceId === required.workspaceId && row.id === required.id)
-    );
+    this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } }));
   }
 }
 
@@ -227,37 +175,23 @@ export class InMemoryPolicyRepo extends InMemoryIdentityRows<PolicyRecord> imple
   }
 
   async findById(required: { workspaceId: string; id: string }): Promise<PolicyRecord | null> {
-    return (
-      this.rows.find((row) => row.workspaceId === required.workspaceId && row.id === required.id) ?? null
-    );
+    return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } })) ?? null;
   }
 
   async findByName(required: { workspaceId: string; name: string }): Promise<PolicyRecord | null> {
-    return (
-      this.rows.find((row) => row.workspaceId === required.workspaceId && row.name === required.name) ??
-      null
-    );
+    return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, name: required.name } })) ?? null;
   }
 
   async list(required: { workspaceId: string }): Promise<PolicyRecord[]> {
-    return this.rows.filter((row) => row.workspaceId === required.workspaceId);
+    return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId } }));
   }
 
   async save(record: PolicyRecord): Promise<void> {
-    const index = this.rows.findIndex(
-      (row) => row.workspaceId === record.workspaceId && row.id === record.id
-    );
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
 
   async delete(required: { workspaceId: string; id: string }): Promise<void> {
-    this.rows = this.rows.filter(
-      (row) => !(row.workspaceId === required.workspaceId && row.id === required.id)
-    );
+    this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } }));
   }
 }
 
@@ -271,32 +205,19 @@ export class InMemoryPolicyPermissionRepo extends InMemoryIdentityRows<PolicyPer
     workspaceId: string;
     policyId: string;
   }): Promise<PolicyPermissionRecord[]> {
-    return this.rows.filter(
-      (row) => row.workspaceId === required.workspaceId && row.policyId === required.policyId
-    );
+    return this.rows.filter(record => matchesRecordFields({ record, fields: required }));
   }
 
   async save(record: PolicyPermissionRecord): Promise<void> {
-    const index = this.rows.findIndex(
-      (row) => row.workspaceId === record.workspaceId && row.id === record.id
-    );
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
 
   async deleteByPolicyId(required: { workspaceId: string; policyId: string }): Promise<void> {
-    this.rows = this.rows.filter(
-      (row) => !(row.workspaceId === required.workspaceId && row.policyId === required.policyId)
-    );
+    this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, policyId: required.policyId } }));
   }
 
   async delete(required: { workspaceId: string; id: string }): Promise<void> {
-    this.rows = this.rows.filter(
-      (row) => !(row.workspaceId === required.workspaceId && row.id === required.id)
-    );
+    this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } }));
   }
 }
 
@@ -307,26 +228,15 @@ export class InMemoryRolePolicyRepo extends InMemoryIdentityRows<RolePolicyRecor
   }
 
   async listByRoleId(required: { workspaceId: string; roleId: string }): Promise<RolePolicyRecord[]> {
-    return this.rows.filter(
-      (row) => row.workspaceId === required.workspaceId && row.roleId === required.roleId
-    );
+    return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, roleId: required.roleId } }));
   }
 
   async listByPolicyId(required: { workspaceId: string; policyId: string }): Promise<RolePolicyRecord[]> {
-    return this.rows.filter(
-      (row) => row.workspaceId === required.workspaceId && row.policyId === required.policyId
-    );
+    return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, policyId: required.policyId } }));
   }
 
   async save(record: RolePolicyRecord): Promise<void> {
-    const index = this.rows.findIndex(
-      (row) => row.workspaceId === record.workspaceId && row.id === record.id
-    );
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
 }
 
@@ -340,26 +250,15 @@ export class InMemoryPrincipalRoleRepo extends InMemoryIdentityRows<PrincipalRol
     workspaceId: string;
     principalId: string;
   }): Promise<PrincipalRoleRecord[]> {
-    return this.rows.filter(
-      (row) => row.workspaceId === required.workspaceId && row.principalId === required.principalId
-    );
+    return this.rows.filter(record => matchesRecordFields({ record, fields: required }));
   }
 
   async listByRoleId(required: { workspaceId: string; roleId: string }): Promise<PrincipalRoleRecord[]> {
-    return this.rows.filter(
-      (row) => row.workspaceId === required.workspaceId && row.roleId === required.roleId
-    );
+    return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, roleId: required.roleId } }));
   }
 
   async save(record: PrincipalRoleRecord): Promise<void> {
-    const index = this.rows.findIndex(
-      (row) => row.workspaceId === record.workspaceId && row.id === record.id
-    );
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
 }
 
@@ -373,28 +272,17 @@ export class InMemoryPrincipalPolicyRepo extends InMemoryIdentityRows<PrincipalP
     workspaceId: string;
     principalId: string;
   }): Promise<PrincipalPolicyRecord[]> {
-    return this.rows.filter(
-      (row) => row.workspaceId === required.workspaceId && row.principalId === required.principalId
-    );
+    return this.rows.filter(record => matchesRecordFields({ record, fields: required }));
   }
 
   async listByPolicyId(required: {
     workspaceId: string;
     policyId: string;
   }): Promise<PrincipalPolicyRecord[]> {
-    return this.rows.filter(
-      (row) => row.workspaceId === required.workspaceId && row.policyId === required.policyId
-    );
+    return this.rows.filter(record => matchesRecordFields({ record, fields: required }));
   }
 
   async save(record: PrincipalPolicyRecord): Promise<void> {
-    const index = this.rows.findIndex(
-      (row) => row.workspaceId === record.workspaceId && row.id === record.id
-    );
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
 }

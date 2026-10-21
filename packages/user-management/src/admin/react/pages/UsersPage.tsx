@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Button, Notice, Spinner } from '@jini-ai/ui-kit/react';
-import type { UsersPageProps } from '../hooks/UsersBinding.hooks.js';
+import type { UsersPageProps } from '../hooks/UsersScope.hooks.js';
 import { useUsersPage, UsersViewContext } from '../hooks/UsersPage.hooks.js';
 import type { UsersView } from '../hooks/UsersPage.hooks.js';
 import { usersMessagesEn as m } from '../../messages.en.js';

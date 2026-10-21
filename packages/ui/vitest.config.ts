@@ -1,6 +1,11 @@
+import { fileURLToPath } from 'node:url';
 import { coverageConfigDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    // Parity checks exercise the public entry against current source, never stale dist.
+    alias: [{ find: /^@jini-ai\/agent-runtime$/, replacement: fileURLToPath(new URL('../agent-runtime/src/index.ts', import.meta.url)) }],
+  },
   test: {
     // Package-wide default is jsdom (most tests in this package touch the
     // DOM). The few tests that assert real SSR/no-DOM behavior (e.g.

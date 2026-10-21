@@ -11,7 +11,6 @@
  * Ported from OD's `apps/daemon/src/runtimes/types.ts`. Product-neutral
  * as found — see `archived provenance ledger` for the full provenance table.
  */
-import type { AcpModelProbe } from './acp-model-probe.js';
 import type { AgentModelDiscoveryPort, ModelCatalogSnapshot, DefaultModelResolution, ModelIdentityKind } from './model-discovery-types.js';
 import type { ExecFileOptions } from 'node:child_process';
 import type { AgentDiagnostic } from '@jini-ai/protocol';
@@ -757,3 +756,23 @@ export type {
   AgentDiagnosticSeverity,
   AgentFixIntent,
 } from '@jini-ai/protocol';
+
+export interface AcpModelProbeRequest {
+  bin: string;
+  args: string[];
+  cwd?: string;
+  env?: RuntimeEnv;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  clientName?: string;
+  clientVersion?: string;
+  defaultModelOption?: RuntimeModelOption;
+}
+
+export interface AcpModelProbe {
+  detectModels(requiredArgs: Pick<AcpModelProbeRequest, 'bin' | 'args'>,
+    optionalArgs?: Omit<AcpModelProbeRequest, 'bin' | 'args'>): Promise<RuntimeModelOption[]>;
+  /** Optional metadata capability preserves a native current selection without guessing from order. */
+  detectMetadata?(requiredArgs: Pick<AcpModelProbeRequest, 'bin' | 'args'>,
+    optionalArgs?: Omit<AcpModelProbeRequest, 'bin' | 'args'>): Promise<{ models: RuntimeModelOption[]; currentModelId: string | null }>;
+}

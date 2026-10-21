@@ -79,7 +79,7 @@ export type StdoutTailSummary = StreamTailSummary;
 const STDERR_TAIL_MAX_LINES = 20;
 const STDERR_TAIL_MAX_BYTES = 4 * 1024;
 
-function readStderrChunk(data: unknown): string | null {
+function readStreamChunk(data: unknown): string | null {
   if (typeof data === 'string') return data;
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
   const obj = data as Record<string, unknown>;
@@ -88,14 +88,6 @@ function readStderrChunk(data: unknown): string | null {
   return null;
 }
 
-function readStdoutChunk(data: unknown): string | null {
-  if (typeof data === 'string') return data;
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-  const obj = data as Record<string, unknown>;
-  if (typeof obj.chunk === 'string') return obj.chunk;
-  if (typeof obj.text === 'string') return obj.text;
-  return null;
-}
 
 function countLines(text: string): number {
   if (!text) return 0;
@@ -165,7 +157,7 @@ function collectStreamTailSummary(
  */
 export function collectStderrTailSummary(_requiredArgs: Record<string, never>, { events = [], redact = identityRedactor }: { readonly events?: RunEventForDiagnostics[]; readonly redact?: TailRedactor } = {}
 ): StderrTailSummary | undefined {
-  return collectStreamTailSummary(events, 'stderr', readStderrChunk, redact);
+  return collectStreamTailSummary(events, 'stderr', readStreamChunk, redact);
 }
 
 /**
@@ -177,7 +169,7 @@ export function collectStderrTailSummary(_requiredArgs: Record<string, never>, {
  */
 export function collectStdoutTailSummary(_requiredArgs: Record<string, never>, { events = [], redact = identityRedactor }: { readonly events?: RunEventForDiagnostics[]; readonly redact?: TailRedactor } = {}
 ): StdoutTailSummary | undefined {
-  return collectStreamTailSummary(events, 'stdout', readStdoutChunk, redact);
+  return collectStreamTailSummary(events, 'stdout', readStreamChunk, redact);
 }
 
 /** The set of `rpc_close_reason` strings a `runtime_close` diagnostic may legitimately carry. */
@@ -233,12 +225,12 @@ interface RunEventObservations {
 /** Accumulates the raw stderr/stdout text carried by this event, if it is a stream chunk. */
 function accumulateStreamChunk(observed: RunEventObservations, event: RunEventForDiagnostics): void {
   if (event.event === 'stderr') {
-    const chunk = readStderrChunk(event.data);
+    const chunk = readStreamChunk(event.data);
     if (chunk) observed.stderr += chunk;
     return;
   }
   if (event.event === 'stdout') {
-    const chunk = readStdoutChunk(event.data);
+    const chunk = readStreamChunk(event.data);
     if (chunk) {
       observed.stdout += chunk;
       observed.userVisibleOutputSeen = true;

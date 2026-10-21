@@ -260,6 +260,9 @@ describe('createLocalNodeDaemon', () => {
     expect(port).toBeGreaterThan(0);
     const address = daemon.server.address();
     expect(address && typeof address === 'object' ? address.port : null).toBe(port);
+    const response = await fetch(`${daemon.url}/api/ping`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-powered-by')).toBeNull();
   });
 
   describe('toolRegistrations', () => {

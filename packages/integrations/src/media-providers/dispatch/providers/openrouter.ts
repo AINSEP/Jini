@@ -35,7 +35,7 @@ import { sniffImageExt, truncate, withRequestInit } from '../openai-compatible.j
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import type { VendorAdapterRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 
 // Chat-completions image generation can take a while for some routed
 // models; matches the same 10-minute ceiling `openai.ts`'s image dispatcher

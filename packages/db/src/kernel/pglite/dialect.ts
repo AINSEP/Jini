@@ -37,7 +37,7 @@ class PgliteConnection implements DatabaseConnection {
     };
   }
 
-  // eslint-disable-next-line require-yield -- the interface requires a generator; PGlite has no cursor API here
+  // eslint-disable-next-line require-yield, sonarjs/generator-without-yield -- the interface requires a generator; PGlite has no cursor API here
   async *streamQuery<R>(): AsyncIterableIterator<QueryResult<R>> {
     throw new Error("streaming queries are not supported on PGlite");
   }

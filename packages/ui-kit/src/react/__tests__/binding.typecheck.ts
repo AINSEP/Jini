@@ -1,7 +1,7 @@
 import type { ReactKit, ReactKitProps, ConfirmDialogProps } from '../types.js';
 import { createStrictKit, createKit } from '../kit.js';
 import { nativeKit } from '../native/index.js';
-import { kitSpec, type ImplementedComponentName } from '../../kit.spec.js';
+import { kitSpec, type ImplementedComponentName } from '../../kit-contract.js';
 createStrictKit({ components: nativeKit });
 createKit({ components: { Button: nativeKit.Button } });
 // @ts-expect-error A strict kit must supply every implemented component.

@@ -1,3 +1,4 @@
+import { matchesRecordFields } from "@jini-ai/core/records";
 /**
  * @file In-memory adapters for the `media` library's three record types:
  * the bespoke `MediaRecord` table (see `types.ts` file header
@@ -59,9 +60,7 @@ export class InMemoryMediaRepo implements MediaRepoPort {
   }
 
   async remove(required: { workspaceId: UUID; id: UUID }): Promise<void> {
-    this.rows = this.rows.filter(
-      (row) => !(row.workspaceId === required.workspaceId && row.id === required.id)
-    );
+    this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } }));
   }
 }
 
@@ -181,9 +180,7 @@ export class InMemoryBlobGcJournalRepo implements BlobGcJournalRepoPort {
   }
 
   async remove(required: { workspaceId: UUID; id: UUID }): Promise<void> {
-    this.rows = this.rows.filter(
-      (row) => !(row.workspaceId === required.workspaceId && row.id === required.id)
-    );
+    this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } }));
   }
 }
 
