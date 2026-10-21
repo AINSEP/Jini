@@ -134,7 +134,7 @@
   },
   "peerDependencies": {
     "yauzl": "^3.4.0",
-    "@jini-ai/core": "^0.4.3",
+    "@jini-ai/core": "^0.4.9",
     "@jini-ai/platform": "^0.5.3",
     "@cfworker/json-schema": "^4.1.1"
   },

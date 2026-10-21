@@ -35,7 +35,7 @@ function setup(descriptors: readonly ProviderContributionDescriptor[], overrides
 test('definition is executable, named for the contract, and keeps the host filename', () => {
   const { definition } = setup([]);
   expect([definition.kind, definition.contribution, definition.filename]).toEqual(['executable', 'mail providers', 'host-mail-providers.json']);
-  expect(definition.onReadError).toBeUndefined();
+  expect(definition.onReadError).toBeTypeOf('function');
 });
 
 test('loads valid providers as definitions with contract, pluginId and optional label', async () => {
@@ -77,8 +77,39 @@ test('optional recovery policies pass through to the executable loader', async (
   expect((await throwing.load()).refusals).toEqual(["mail provider 'acme' from 'acme_mail' was not loaded: its module failed to load"]);
   const refused = setup([{ id: 'acme', module: '../escape.mjs' }], { importModule: async () => 'path escapes the plugin root' }, { importRefusalReason: 'its module is outside the plugin' });
   expect((await refused.load()).refusals).toEqual(["mail provider 'acme' from 'acme_mail' was not loaded: its module is outside the plugin"]);
-  const unrecovered = setup([{ id: 'acme', module: 'acme.mjs' }], { importModule: async () => { throw new Error('boom'); } });
-  await expect(unrecovered.load()).rejects.toThrow('boom');
+});
+
+test('without recovery policies every failure is a refusal and later contributions still load', async () => {
+  const unreadable = { pluginId: 'unreadable', packageRoot: '/plugins/unreadable' };
+  const later = { pluginId: 'later', packageRoot: '/plugins/later' };
+  const { load } = setup([{ id: 'boom', module: 'boom.mjs' }, { id: 'acme', module: 'acme.mjs' }], {
+    findPackages: async () => [{ trusted: unreadable }, { trusted: plugin }, { trusted: later }],
+    readFile: async ({ plugin: p }) => { if (p.pluginId === 'unreadable') throw new Error('EIO'); return 'valid'; },
+    importModule: async ({ modulePath }) => { if (modulePath === 'boom.mjs') throw new Error('boom'); return { exported: { send: () => modulePath } }; },
+  });
+  const result = await load();
+  expect(result.items.map(item => `${item.pluginId}:${item.definition.id}`)).toEqual(['acme_mail:acme', 'later:acme']);
+  expect(result.refusals).toEqual([
+    "mail providers from 'unreadable' were not loaded: host-mail-providers.json could not be read",
+    "mail provider 'boom' from 'acme_mail' was not loaded: its module failed to load",
+    "mail provider 'boom' from 'later' was not loaded: its module failed to load",
+  ]);
+});
+
+test('a throwing parser, validator or descriptor is refused, never thrown', async () => {
+  const throwingParse = defineProviderContribution<ProviderContributionDescriptor, Mailer>({
+    contract: 'mail', filename: 'f.json', parse: () => { throw new Error('parser bug'); }, validate,
+  });
+  expect(throwingParse.parse({ raw: '{}' })).toEqual({ ok: false, reason: 'its parser failed' });
+  const throwingValidate = defineProviderContribution<ProviderContributionDescriptor, Mailer>({
+    contract: 'mail', filename: 'f.json', parse: ({ raw }) => ({ ok: true, descriptors: JSON.parse(raw) }), validate: () => { throw new Error('validator bug'); },
+  });
+  const importModule = async () => ({ exported: {} });
+  await expect(throwingValidate.load({ plugin, descriptor: { id: 'acme', module: 'a.mjs' }, importModule }))
+    .resolves.toBe("mail provider 'acme' from 'acme_mail' was not loaded: its module failed to load");
+  const hostile = Object.defineProperty({ module: 'a.mjs' }, 'id', { get: () => { throw new Error('getter'); } }) as ProviderContributionDescriptor;
+  await expect(throwingValidate.load({ plugin, descriptor: hostile, importModule }))
+    .resolves.toBe("mail provider from 'acme_mail' was not loaded: its declaration could not be read");
 });
 
 test('contributeProviders registers accepted providers and merges loader + registry refusals without throwing', () => {
