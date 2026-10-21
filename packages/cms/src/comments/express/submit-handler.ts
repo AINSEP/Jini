@@ -14,9 +14,11 @@ import type { CommentSubmission } from "../types.js";
  * itself is never passed into `ingressContext` or stored (mirrors `analytics/ingest.ts`'s
  * discard-raw-IP-at-the-boundary discipline). The host provides the salt at construction.
  */
+/** The handler needs only the accepted id/status, so a host may dispatch to any stored provider. */
+export type CommentSubmitResult = { ok: true; comment: { id: string; status: string } } | { ok: false; reason: string };
+
 export interface CommentSubmitRequired {
-  ingressPolicy: { submit: (submission: CommentSubmission) => Promise<
-    { ok: true; comment: { id: string; status: string } } | { ok: false; reason: string }> };
+  ingressPolicy: { submit: (submission: CommentSubmission) => Promise<CommentSubmitResult> };
   workspaceId: string;
   ipHashSalt: string;
   /** Host-owned HTTP request budget, separate from the ingress policy's submission budget. */
@@ -79,6 +81,13 @@ function assertSubmitDeps(deps: CommentSubmitRequired): void {
   }
 }
 
+/** The no-JS landing fragment. A tripped honeypot lands exactly like an accepted (held) comment, so a bot
+ * filling the hidden field learns nothing; a real visitor never fills it, so no human is misled.
+ * @complexity O(1). */
+function formOutcome(result: CommentSubmitResult): "comment-pending" | "comment-error" {
+  return result.ok || result.reason === "honeypot-tripped" ? "comment-pending" : "comment-error";
+}
+
 /** Builds the anonymous submission handler; the host owns route mounting and salt policy.
  * @throws {TypeError} When ingressPolicy, workspaceId, ipHashSalt, rateLimiter or clientIp is missing or invalid.
  * @returns An Express handler preserving the source route's normalization and HTTP responses.
@@ -91,13 +100,13 @@ export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional
       const body = req.body as Record<string, unknown>;
       const submission = buildCommentSubmission(req, body, deps);
       const rateLimit = await deps.rateLimiter.check({ key: String(submission.ingressContext.authorIpHash) });
-      const result = rateLimit.allowed
+      const result: CommentSubmitResult = rateLimit.allowed
         ? await deps.ingressPolicy.submit(submission)
         : { ok: false, reason: "rate-limited" };
 
       const redirect = optional.formRedirect?.({ request: req });
       if (redirect !== undefined) {
-        res.redirect(303, `${redirect}#${result.ok ? 'comment-pending' : 'comment-error'}`);
+        res.redirect(303, `${redirect}#${formOutcome(result)}`);
         return;
       }
       if (!result.ok) {

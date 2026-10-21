@@ -670,7 +670,7 @@ describe("post embed resolution", () => {
   });
 });
 
-test('comments markers belong to the host renderer rather than the CMS content resolver', () => {
-  assert.equal(THEME_OWNED_MARKER_TYPES.has('comments'), true);
-  assert.equal(HTML_EMBED_RESOLVERS['comments'], undefined);
+it('comments markers belong to the host renderer rather than the CMS content resolver', () => {
+  expect(THEME_OWNED_MARKER_TYPES.has('comments')).toBe(true);
+  expect(HTML_EMBED_RESOLVERS['comments']).toBeUndefined();
 });

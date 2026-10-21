@@ -39,15 +39,15 @@ describe('comments provider contract', () => {
     registry.register({ definition, resolve: async ({ siteId }) => siteId === 'a' ? adapter : undefined });
     registry.register({ definition: { ...definition, id: 'planned', implementation: 'metadata-only' }, resolve: async () => { throw new Error('must never execute'); } });
     expect(registry.has({ providerId: 'local' })).toBe(true);
-    expect(registry.has({ providerId: 'missing' })).toBe(false);
-    expect(registry.get({ providerId: 'local' })).toEqual(definition);
+    expect(registry.has({ providerId: 'missing' }, {})).toBe(false);
+    expect(registry.get({ providerId: 'local' }, {})).toEqual(definition);
     expect(registry.get({ providerId: 'missing' })).toBeUndefined();
-    expect(Object.isFrozen(registry.list())).toBe(true);
-    expect(registry.list()).toHaveLength(2);
-    expect(() => registry.register({ definition, resolve: async () => adapter })).toThrow(/Duplicate/);
+    expect(Object.isFrozen(registry.list({}))).toBe(true);
+    expect(registry.list({}, {})).toHaveLength(2);
+    expect(() => registry.register({ definition, resolve: async () => adapter }, {})).toThrow(/Duplicate/);
     expect(await registry.resolve({ siteId: 'a', providerId: 'local' })).toBe(adapter);
     expect(await registry.resolve({ siteId: 'b', providerId: 'local' })).toBeUndefined();
-    expect(await registry.resolve({ siteId: 'a', providerId: 'missing' })).toBeUndefined();
+    expect(await registry.resolve({ siteId: 'a', providerId: 'missing' }, {})).toBeUndefined();
     expect(await registry.resolve({ siteId: 'a', providerId: 'planned' })).toBeUndefined();
   });
   it('refuses kind mismatch, missing readiness and stale concurrent selections', async () => {
@@ -61,11 +61,11 @@ describe('comments provider contract', () => {
     expect(outcomes.filter(outcome => outcome.status === 'fulfilled')).toHaveLength(1);
     expect(outcomes.filter(outcome => outcome.status === 'rejected')).toHaveLength(1);
     expect(await registry.active({ siteId: 'a' })).toEqual({ providerId: 'local', revision: 1, adapter });
-    expect(await registry.active({ siteId: 'b' })).toEqual({ providerId: null, revision: 0, adapter: undefined });
-    await registry.select({ siteId: 'a', providerId: null, expectedRevision: 1, actorPrincipalId: 'owner' });
+    expect(await registry.active({ siteId: 'b' }, {})).toEqual({ providerId: null, revision: 0, adapter: undefined });
+    await registry.select({ siteId: 'a', providerId: null, expectedRevision: 1, actorPrincipalId: 'owner' }, {});
     expect((await registry.active({ siteId: 'a' })).adapter).toBeUndefined();
     const empty = createCommentsProviderRegistry({ selections: harness().selections }, {});
-    expect(empty.list()).toEqual([]);
+    expect(empty.list({})).toEqual([]);
   });
   it('exports independent typed DI tokens that bind through core', () => {
     const { registry, selections } = harness();

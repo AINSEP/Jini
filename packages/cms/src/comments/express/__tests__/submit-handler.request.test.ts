@@ -122,13 +122,18 @@ test('host-selected form redirects use 303 and keep pending/rejected records pri
   for (const accepted of [true, false]) {
     const { deps } = harness({ submit: async () => accepted
       ? { ok: true, comment: ACCEPTED, autoClassified: 'pending' }
-      : { ok: false, reason: 'honeypot-tripped' } });
+      : { ok: false, reason: 'entry-not-found' } });
     let redirect: unknown;
     const response = { redirect: (status: number, location: string) => { redirect = { status, location }; } };
     await createCommentSubmitHandler(deps, { formRedirect: () => '/entry' })(
       { body: {} } as Request, response as unknown as Response, () => undefined);
     assert.deepEqual(redirect, { status: 303, location: `/entry#${accepted ? 'comment-pending' : 'comment-error'}` });
   }
+  const { deps: trapped } = harness({ submit: async () => ({ ok: false, reason: 'honeypot-tripped' }) });
+  let trappedRedirect: unknown;
+  await createCommentSubmitHandler(trapped, { formRedirect: () => '/entry' })({ body: {} } as Request,
+    { redirect: (status: number, location: string) => { trappedRedirect = { status, location }; } } as unknown as Response, () => undefined);
+  assert.deepEqual(trappedRedirect, { status: 303, location: '/entry#comment-pending' }, 'a bot cannot tell it was trapped');
   const { deps } = harness();
   let payload: unknown;
   const response = { status() { return response; }, json(value: unknown) { payload = value; } };
@@ -140,7 +145,7 @@ test('trusted-proxy client resolution produces independent salted visitor rate-l
   const keys: string[] = [];
   const { deps } = harness({ overrides: { clientIp: ({ request }) => request.ip!, rateLimiter: { check: async ({ key }) => { keys.push(key); return { allowed: true }; } } } });
   const response = { status() { return response; }, json() { return response; } };
-  for (const ip of ['203.0.113.1', '203.0.113.2']) await createCommentSubmitHandler(deps)({ body: {}, ip } as Request, response as Response, () => undefined);
+  for (const ip of ['203.0.113.1', '203.0.113.2']) await createCommentSubmitHandler(deps)({ body: {}, ip } as Request, response as unknown as Response, () => undefined);
   assert.equal(new Set(keys).size, 2);
   assert.ok(keys.every(key => /^[a-f0-9]{64}$/.test(key)));
 });
