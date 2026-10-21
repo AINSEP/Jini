@@ -33,7 +33,7 @@ import type { RunIdPolicy } from "../../core/durable-runs/ports.js";
 const TERMINAL_STATUSES = ["succeeded", "failed", "canceled"] as const;
 
 export type * from "../../core/durable-runs/ledger-contracts.js";
-import type { RunRef, ChatRunLedger } from "../../core/durable-runs/ledger-contracts.js";
+import type { RunRef, RunProgress, ChatRunLedger } from "../../core/durable-runs/ledger-contracts.js";
 import { runLockKey } from "../../core/durable-runs/run-lock.js";
 export { runLockKey } from "../../core/durable-runs/run-lock.js";
 
@@ -84,6 +84,34 @@ function retainSavedEvents(saved: readonly AgentEvent[], incoming: readonly Agen
   const keys = new Set(saved.map((event) => JSON.stringify(event)));
   const additions = incoming.filter((event) => event.kind !== "text" && !keys.has(JSON.stringify(event)));
   return dedupeToolUsesById({ events: [...saved, ...additions] });
+}
+
+/** The saved columns a checkpoint compares against. */
+interface SavedProgress { readonly content: string; readonly events_json: string | null; readonly run_status: string | null }
+
+/**
+ * The row a checkpoint writes, whether it is progress, and whether it changes anything.
+ *
+ * The saved `events_json` is parsed ONCE and reused by both the merge and the progress check:
+ * a long turn's column is many MB, and a host checkpoints every second (memory cause 3).
+ * Appending only new events instead of rewriting the column is NOT equivalent: storage coalesces
+ * text deltas (the last text event grows in place) and the merge puts saved-only tool barriers
+ * after the replay's events, so an existing element or the tail changes on most checkpoints.
+ * @complexity O(b + n) time and space for b serialized bytes across n events; one parse, one stringify.
+ */
+function planCheckpoint({ current, progress }: { current: SavedProgress; progress: RunProgress }, _optional = {}) {
+  const saved = readEvents(current.events_json);
+  const events = keepToolCheckpoints(saved, progress.events);
+  const eventsJson = JSON.stringify(events);
+  // A checkpoint is the run producing output, so an accepted (`queued`) row is now `running`;
+  // nothing else moves it there, and a streaming answer must not read as still waiting.
+  const runStatus = current.run_status === "queued" ? "running" : current.run_status;
+  return {
+    eventsJson,
+    runStatus,
+    grown: progress.content.length > current.content.length || hasNewToolProgress(saved, events),
+    unchanged: runStatus === current.run_status && progress.content === current.content && eventsJson === current.events_json,
+  };
 }
 
 /** Preserve tool barriers absent from a replay, with one persisted use per tool ID.
@@ -172,15 +200,16 @@ export function createChatRunLedger<DB extends ChatDatabase>(
       const current = await kernel.run((db) => db.selectFrom("ai_chat_messages").select(["content", "events_json", "run_status"])
         .where((eb) => eb.and([isRunRow(eb, progress), notTerminal(eb)])).executeTakeFirst());
       if (!current || progress.content.length < current.content.length) return false;
-      const events = keepToolCheckpoints(readEvents(current.events_json), progress.events);
-      const grown = progress.content.length > current.content.length || hasNewToolProgress(readEvents(current.events_json), events);
-      // A checkpoint is the run producing output, so an accepted (`queued`) row is now `running`;
-      // nothing else moves it there, and a streaming answer must not read as still waiting.
-      const runStatus = current.run_status === "queued" ? "running" : current.run_status;
+      const { eventsJson, runStatus, grown, unchanged } = planCheckpoint({ current, progress });
+      // An identical checkpoint would rewrite the same multi-MB column for nothing. Under this lock
+      // the row was just matched by the update's own predicate, so the update would match (true),
+      // and identical content and events are never progress (`grown` is false), so skipping it
+      // leaves the row and the recovery budget exactly as the write would have.
+      if (unchanged) return true;
       const result = await kernel.run((db) =>
         db
           .updateTable("ai_chat_messages")
-          .set({ content: progress.content, events_json: JSON.stringify(events), run_status: runStatus })
+          .set({ content: progress.content, events_json: eventsJson, run_status: runStatus })
           .where((eb) => eb.and([isRunRow(eb, progress), notTerminal(eb)]))
           .executeTakeFirst()
       );

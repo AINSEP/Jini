@@ -2,20 +2,27 @@ import type { RunIdPolicy } from "../../core/durable-runs/ports.js";
 import { recoveredRunEvents, type AgentEvent, type ChatMessage } from "../../core/index.js";
 import type { ChatKernel, ChatDatabase } from "./kernel.js";
 import { chatKernelTables } from "../sql/boundary.js";
-import type { Selectable } from "kysely";
+import { sql, type Selectable } from "kysely";
 import { hasUnknownToolCall, CONTINUATION_DIVIDER } from "../../core/durable-runs/continuation.js";
 import { RECOVERY_WINDOW_MS } from "../../core/durable-runs/policies.js";
-import type { DurableRun, DurableRunStore } from "../../core/durable-runs/ports.js";
+import type { DurableRun, DurableRunHead, DurableRunStore } from "../../core/durable-runs/ports.js";
 import type { RunRef } from "../../core/durable-runs/ledger-contracts.js";
 import type { ChatStore } from "../ports.js";
 import { createChatHistoryStore } from "./chat-history-store.js";
 import { runLockKey } from "../../core/durable-runs/run-lock.js";
 import { runContentFromEvents } from "../../core/run-events/entry.js";
+import { toMessage } from "../sql/store.js";
 
 export const RUN_SLOT_BUSY = "Another answer in this chat is still running. This turn is queued in your browser.";
 export class RunSlotBusyError extends Error { constructor() { super(RUN_SLOT_BUSY); } }
 
 type RunRow = Selectable<ChatDatabase["ai_chat_messages"]> & { owner_id: string; owner_kind: string; scope_id: string };
+/** Where a run read finds its message row: by its id, or by the attempt id it currently holds. */
+type RunMatch = { column: "ai_chat_messages.id" | "ai_chat_messages.run_id"; value: string };
+/** `events`: parse the run's own saved events. `transcript`: also read every message of its conversation. */
+type ReadOptions = { events?: boolean; transcript?: boolean };
+/** A run read: its head, and the transcript only when that read loaded one. */
+type RunRead = { head: DurableRunHead; transcript: readonly ChatMessage[] };
 type Metadata = ChatDatabase["assistant_run_attempts"] | undefined;
 
 function isAcceptedUserShape({ message }: { message: ChatMessage }, _optional = {}): boolean {
@@ -63,7 +70,21 @@ function acceptedRequest({ row, metadata, transcript }: { row: RunRow; metadata:
     prompt: transcript.map((item) => `${item.role}: ${item.content}`).join("\n\n") }) };
 }
 
-function metadataForRun({ run }: { run: DurableRun }, _optional = {}) {
+function runHead(
+  { row, runId, metadata, message, transcript }: { row: RunRow; runId: string; metadata: Metadata; message: ChatMessage; transcript: readonly ChatMessage[] },
+  { isDaemonRunId }: { isDaemonRunId: RunIdPolicy },
+): DurableRunHead {
+  return {
+    messageId: row.id, conversationId: row.conversation_id, runId,
+    workspaceId: row.scope_id,
+    principalId: row.owner_kind === "user" ? row.owner_id : null,
+    engine: metadata?.engine ?? (isDaemonRunId({ runId }) ? "daemon" : "request"), message,
+    request: acceptedRequest({ row, metadata, transcript }, {}),
+    ...recoveryFields({ row, metadata }, {}), ...sessionFields({ metadata }, {}),
+  };
+}
+
+function metadataForRun({ run }: { run: DurableRunHead }, _optional = {}) {
   return { message_id: run.messageId, engine: run.engine, accepted_json: JSON.stringify(run.request),
     recovery_count: run.recoveryCount, recovery_deadline: run.recoveryDeadline, recovery_elapsed_ms: 0,
     attempt_started_at: run.attemptStartedAt, last_progress_at: run.lastProgressAt,
@@ -71,7 +92,7 @@ function metadataForRun({ run }: { run: DurableRun }, _optional = {}) {
     child_pid: null, child_started_at: null, attempt_base_json: JSON.stringify(run.attemptBase) };
 }
 
-export function attemptCanExecute({ run }: { run: DurableRun | null }, _optional = {}): boolean {
+export function attemptCanExecute({ run }: { run: DurableRunHead | null }, _optional = {}): boolean {
   return Boolean(run && !run.cancelReason && ["queued", "running"].includes(run.message.runStatus ?? ""));
 }
 
@@ -90,14 +111,14 @@ function lastIndexOf(
 }
 
 /** Saved projection, with legacy content restored as text when no text event carries it. */
-function savedProjection({ current }: { current: DurableRun }, _optional = {}): AgentEvent[] {
+function savedProjection({ current }: { current: DurableRunHead }, _optional = {}): AgentEvent[] {
   const saved = [...(current.message.events ?? [])];
   if (!saved.some((event) => event.kind === "text") && current.message.content) saved.unshift({ kind: "text", text: current.message.content });
   return saved;
 }
 
 function continuationEvents(
-  { current, incoming }: { current: DurableRun; incoming: readonly AgentEvent[] }, _optional = {},
+  { current, incoming }: { current: DurableRunHead; incoming: readonly AgentEvent[] }, _optional = {},
 ): readonly AgentEvent[] {
   const separator = lastIndexOf({ events: incoming, matches: (event) => event.kind === "text" && event.text === CONTINUATION_DIVIDER });
   const saved = savedProjection({ current });
@@ -115,8 +136,18 @@ function continuationEvents(
   return runContentFromEvents({ events: incoming }).length >= current.message.content.length ? incoming : saved;
 }
 
+/** `events_json` with one more event, built in SQL: no dialect parses or re-serializes the saved
+ * array in JS. Writers store `JSON.stringify` output (no whitespace), so a non-empty array is
+ * `[...]` and gains `,event`; `[]`, NULL and anything not array-shaped (a truncated legacy value,
+ * which the old JS read also treated as no events) become `[event]`. Plain `substr`/`length`/`||`
+ * run unchanged on SQLite and PostgreSQL. */
+function appendedEventsJson({ event }: { event: AgentEvent }, _optional = {}) {
+  const item = sql<string>`cast(${JSON.stringify(event)} as text)`;
+  return sql<string>`case when events_json like '[_%]' then substr(events_json, 1, length(events_json) - 1) || ',' || ${item} || ']' else '[' || ${item} || ']' end`;
+}
+
 function sameOwner(
-  { run, required }: { run: DurableRun; required: { principalId: string; conversationId: string } }, _optional = {},
+  { run, required }: { run: DurableRunHead; required: { principalId: string; conversationId: string } }, _optional = {},
 ): boolean {
   return run.principalId === required.principalId && run.conversationId === required.conversationId;
 }
@@ -125,43 +156,67 @@ function sameOwner(
  * old attempts cannot write projections or dispatch tools after that transaction commits. */
 export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKernel, isDaemonRunId }: { kernel: ChatKernel<DB>; isDaemonRunId: RunIdPolicy }, _optional = {}): DurableRunStore {
   const kernel = chatKernelTables<DB, ChatDatabase>({ kernel: hostKernel }, {});
-  async function loadSnapshot({ messageId }: { messageId: string }, _options = {}): Promise<DurableRun | null> {
-    const row = await kernel.run((db) => db.selectFrom("ai_chat_messages")
+  /** The run's own message row, with its events only when asked: never another message's. */
+  async function runRow({ match }: { match: RunMatch }, { events = false }: ReadOptions = {}): Promise<RunRow | undefined> {
+    const eventsColumn = events ? sql<string | null>`${sql.ref("ai_chat_messages.events_json")}` : sql<string | null>`null`;
+    return kernel.run((db) => db.selectFrom("ai_chat_messages")
       .innerJoin("ai_chats", "ai_chats.id", "ai_chat_messages.conversation_id")
-      .selectAll("ai_chat_messages").select(["owner_kind", "owner_id", "scope_id"])
-      .where("ai_chat_messages.id", "=", messageId).where("role", "=", "assistant").executeTakeFirst());
-    if (!row || !row.run_id) return null;
-    const metadata = await kernel.run((db) => db.selectFrom("assistant_run_attempts").selectAll().where("message_id", "=", messageId).executeTakeFirst());
+      .select(["ai_chat_messages.id", "conversation_id", "role", "content", "agent_id", "agent_name", "attachments_json",
+        "run_id", "run_status", "position", "ai_chat_messages.created_at", "started_at", "ended_at", "owner_kind", "owner_id", "scope_id"])
+      .select(eventsColumn.as("events_json"))
+      .where(match.column, "=", match.value).where("role", "=", "assistant").executeTakeFirst());
+  }
+
+  /** Every message of the run's conversation; only `load` and legacy rows without attempt metadata pay this. */
+  async function conversationTranscript({ row }: { row: RunRow }, _options = {}): Promise<ChatMessage[]> {
     const history = createChatHistoryStore({ kernel, isDaemonRunId, scope: { scopeId: row.scope_id, ownerKind: row.owner_kind as "user" | "guest", ownerId: row.owner_id } }, {});
-    const transcript = await history.messages({ conversationId: row.conversation_id });
-    const message = transcript.find((item) => item.id === messageId);
+    return history.messages({ conversationId: row.conversation_id });
+  }
+
+  /** One run's head, plus its transcript when that was read (`[]` otherwise). */
+  async function readRun({ match }: { match: RunMatch }, options: ReadOptions = {}): Promise<RunRead | null> {
+    const row = await runRow({ match }, options);
+    if (!row || !row.run_id) return null;
+    const messageId = row.id;
+    const metadata = await kernel.run((db) => db.selectFrom("assistant_run_attempts").selectAll().where("message_id", "=", messageId).executeTakeFirst());
+    // A legacy row's accepted request is derived from its transcript, so only it reads one here.
+    const transcript = options.transcript || !metadata ? await conversationTranscript({ row }) : [];
+    const message = options.transcript ? transcript.find((item) => item.id === messageId) : toMessage(row);
     if (!message) return null; // Deletion may have cascaded between the two reads.
-    const request = acceptedRequest({ row, metadata, transcript }, {});
-    return {
-      messageId, conversationId: row.conversation_id, runId: row.run_id,
-      workspaceId: row.scope_id,
-      principalId: row.owner_kind === "user" ? row.owner_id : null,
-      engine: metadata?.engine ?? (isDaemonRunId({ runId: row.run_id }) ? "daemon" : "request"), message, transcript, request,
-      ...recoveryFields({ row, metadata }, {}), ...sessionFields({ metadata }, {}),
-    };
+    return { head: runHead({ row, runId: row.run_id, metadata, message, transcript }, { isDaemonRunId }), transcript };
+  }
+
+  /** Locked read of one message; `transcript` decides whether it is a whole run or only its head. */
+  async function lockedRead(
+    { messageId, conversationId }: { messageId: string; conversationId: string }, options: ReadOptions = {},
+  ): Promise<RunRead | null> {
+    return kernel.transaction(async () => {
+      // Message, attempt metadata and transcript must describe the same generation. A CAS in
+      // the gap between independent reads must never pair a new projection with an old session.
+      await kernel.lockKey(runLockKey({ messageId, conversationId, runId: "" }));
+      return readRun({ match: { column: "ai_chat_messages.id", value: messageId } }, options);
+    });
   }
 
   async function load({ messageId }: { messageId: string }, _options = {}): Promise<DurableRun | null> {
     const binding = await kernel.run((db) => db.selectFrom("ai_chat_messages").select("conversation_id")
       .where("id", "=", messageId).executeTakeFirst());
     if (!binding) return null;
-    return kernel.transaction(async () => {
-      // Message, attempt metadata and transcript must describe the same generation. A CAS in
-      // the gap between independent reads must never pair a new projection with an old session.
-      await kernel.lockKey(runLockKey({ messageId, conversationId: binding.conversation_id, runId: "" }));
-      return loadSnapshot({ messageId }, {});
-    });
+    // The message comes from the transcript, so its row's events are not selected twice.
+    const read = await lockedRead({ messageId, conversationId: binding.conversation_id }, { transcript: true });
+    return read && { ...read.head, transcript: read.transcript };
   }
 
-  async function find({ runId, principalId }: { runId: string; principalId?: string }, _options = {}): Promise<DurableRun | null> {
-    const row = await kernel.run((db) => db.selectFrom("ai_chat_messages").select("id").where("run_id", "=", runId).where("role", "=", "assistant").executeTakeFirst());
+  /** Unlocked probe: the message and conversation an attempt id currently names. */
+  async function probeRun({ runId }: { runId: string }, _options = {}) {
+    return kernel.run((db) => db.selectFrom("ai_chat_messages").select(["id", "conversation_id"])
+      .where("run_id", "=", runId).where("role", "=", "assistant").executeTakeFirst());
+  }
+
+  async function find({ runId, principalId }: { runId: string; principalId?: string }, _options = {}): Promise<DurableRunHead | null> {
+    const row = await probeRun({ runId });
     if (!row) return null;
-    const run = await load({ messageId: row.id }, {});
+    const run = (await lockedRead({ messageId: row.id, conversationId: row.conversation_id }, { events: true }))?.head ?? null;
     return principalId !== undefined && run?.principalId !== principalId ? null : run;
   }
 
@@ -230,7 +285,8 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
   async function advance({ run, nextRunId, now, events }: Parameters<DurableRunStore["advance"]>[0], _options = {}): Promise<boolean> {
     return kernel.transaction(async () => {
       await kernel.lockKey(runLockKey(run));
-      const current = await load({ messageId: run.messageId }, {});
+      // The projection rebase needs this run's events, never the rest of its conversation.
+      const current = (await lockedRead(run, { events: true }))?.head;
       if (!current || current.cancelReason || current.runId !== run.runId) return false;
       const projection = continuationEvents({ current, incoming: events }, {});
       const result = await kernel.run((db) => db.updateTable("ai_chat_messages")
@@ -253,21 +309,20 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     });
   }
 
-  /** Probe without the run lock, take it, then re-read: a run deleted in the gap reads as gone.
-   * @returns The probe and the locked re-read, or null when the run is unknown or vanished. */
-  async function lockedRun({ runId }: { runId: string }, _options = {}): Promise<{ before: DurableRun; run: DurableRun } | null> {
-    const before = await find({ runId }, {});
-    if (!before) return null;
-    await kernel.lockKey(runLockKey(before));
-    const run = await find({ runId }, {});
-    return run ? { before, run } : null;
+  /** Probe without the run lock, take it, then read: a run deleted or advanced in the gap reads as gone.
+   * One read under the lock serves the whole operation; the unlocked probe only names the lock.
+   * @returns The run as of the lock, or null when the attempt id is unknown or no longer current. */
+  async function lockedRun({ runId }: { runId: string }, options: ReadOptions = {}): Promise<DurableRunHead | null> {
+    const probe = await probeRun({ runId });
+    if (!probe) return null;
+    await kernel.lockKey(runLockKey({ messageId: probe.id, conversationId: probe.conversation_id, runId }));
+    return (await readRun({ match: { column: "ai_chat_messages.run_id", value: runId } }, options))?.head ?? null;
   }
 
   async function cancel({ runId, reason }: Parameters<DurableRunStore["cancel"]>[0], _options = {}): Promise<void> {
     await kernel.transaction(async () => {
-      const locked = await lockedRun({ runId });
-      if (!locked) return;
-      const run = locked.before;
+      const run = await lockedRun({ runId });
+      if (!run) return;
       await kernel.run((db) => db.insertInto("assistant_run_attempts").values({ ...metadataForRun({ run }, {}), cancel_reason: reason })
         .onConflict((oc) => oc.column("message_id").doUpdateSet({ cancel_reason: reason })).execute());
     });
@@ -292,11 +347,10 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
 
   async function captureSession({ runId, sessionId, child, confirmed = true }: Parameters<DurableRunStore["captureSession"]>[0], _options = {}): Promise<boolean> {
     return kernel.transaction(async () => {
-      const locked = await lockedRun({ runId });
-      if (!locked || !attemptCanExecute({ run: locked.run }, {})) return false;
-      const { before: run, run: current } = locked;
+      const run = await lockedRun({ runId });
+      if (!run || !attemptCanExecute({ run }, {})) return false;
       const fields = { session_id: sessionId, session_confirmed: confirmed ? 1 : 0, ...(child ? { child_pid: child.pid, child_started_at: child.startedAt } : {}) };
-      await kernel.run((db) => db.insertInto("assistant_run_attempts").values({ ...metadataForRun({ run: current }, {}), ...fields })
+      await kernel.run((db) => db.insertInto("assistant_run_attempts").values({ ...metadataForRun({ run }, {}), ...fields })
         .onConflict((oc) => oc.column("message_id").doUpdateSet(fields)).execute());
       // Session and generation share the same lock/transaction; an old callback cannot write
       // the conversation's locator in the gap between a successful guard and a later CAS.
@@ -309,7 +363,7 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
 
   async function clearSession({ runId, sessionId }: Parameters<DurableRunStore["clearSession"]>[0], _options = {}): Promise<void> {
     await kernel.transaction(async () => {
-      const run = (await lockedRun({ runId }))?.run;
+      const run = await lockedRun({ runId });
       if (!run) return;
       await kernel.run((db) => db.deleteFrom("assistant_agent_sessions").where("conversation_id", "=", run.conversationId)
         .where("agent_id", "=", run.request.agentId ?? "claude").where("session_id", "=", sessionId).execute());
@@ -320,7 +374,8 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
 
   async function guardTool(required: Parameters<DurableRunStore["guardTool"]>[0], _options = {}): Promise<"allowed" | "unknown" | "stale"> {
     return kernel.transaction(async () => {
-      const run = (await lockedRun({ runId: required.runId }))?.run;
+      // The unknown-call check needs this run's saved events (one row), never other messages'.
+      const run = await lockedRun({ runId: required.runId }, { events: true });
       if (!run || !attemptCanExecute({ run }, {})) return "stale";
       const events = run.message.events ?? [];
       const canonical = events.filter((event) => event.kind !== "tool_use" || event.name === required.toolId);
@@ -330,8 +385,8 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     });
   }
 
-  async function writeToolEvent(run: DurableRun, event: AgentEvent): Promise<void> {
-    await kernel.run((db) => db.updateTable("ai_chat_messages").set({ events_json: JSON.stringify([...(run.message.events ?? []), event]) })
+  async function writeToolEvent(run: DurableRunHead, event: AgentEvent): Promise<void> {
+    await kernel.run((db) => db.updateTable("ai_chat_messages").set({ events_json: appendedEventsJson({ event }) })
       .where("id", "=", run.messageId).where("run_id", "=", run.runId).where("run_status", "in", ["queued", "running"]).execute());
     await kernel.run((db) => db.updateTable("assistant_run_attempts")
       .set({ recovery_count: 0, recovery_deadline: null, recovery_elapsed_ms: 0, last_progress_at: Date.now() })
@@ -340,14 +395,14 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
 
   async function completeTool({ runId, toolUseId, content }: Parameters<DurableRunStore["completeTool"]>[0], _options = {}): Promise<void> {
     await kernel.transaction(async () => {
-      const run = (await lockedRun({ runId }))?.run;
+      const run = await lockedRun({ runId });
       if (run) await writeToolEvent(run, { kind: "tool_result", toolUseId, content, isError: false });
     });
   }
 
   async function recoveryClock({ runId, now, active }: Parameters<DurableRunStore["recoveryClock"]>[0], _options = {}): Promise<void> {
     await kernel.transaction(async () => {
-      const run = (await lockedRun({ runId }))?.before;
+      const run = await lockedRun({ runId });
       if (!run) return;
       const row = await kernel.run((db) => db.selectFrom("assistant_run_attempts").selectAll().where("message_id", "=", run.messageId).executeTakeFirst())
         ?? metadataForRun({ run }, {});

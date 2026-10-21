@@ -24,9 +24,14 @@ export interface DurableRun extends RunRef {
   readonly attemptBase: readonly AgentEvent[];
 }
 
+/** A run without its conversation transcript: what a fence, lock or tool guard reads. `message`
+ * still carries the run's own saved events; only `load`/`accept`/`cancelPending` read every message. */
+export type DurableRunHead = Omit<DurableRun, "transcript">;
+
 export interface DurableRunStore {
   load(required: { messageId: string }, optional: {}): Promise<DurableRun | null>;
-  find(required: { runId: string; principalId?: string }, optional: {}): Promise<DurableRun | null>;
+  /** Reads only this run's message and attempt rows; `load` when the transcript is needed. */
+  find(required: { runId: string; principalId?: string }, optional: {}): Promise<DurableRunHead | null>;
   accept(required: RunRef & { principalId: string; workspaceId: string; request: AcceptedRunRequest; now: number }, optional: {}): Promise<DurableRun | null>;
   advance(required: { run: DurableRun; nextRunId: string; now: number; events: readonly AgentEvent[] }, optional: {}): Promise<boolean>;
   cancel(required: { runId: string; reason: string }, optional: {}): Promise<void>;

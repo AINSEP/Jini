@@ -37,7 +37,8 @@ export interface ChatRunLedger {
   /**
    * Saves what a still-running run has produced so far (content and events; the status stays), so
    * a process that dies mid-run leaves its partial answer for {@link reconcileInterrupted} to keep.
-   * A no-op once the row is terminal or belongs to another run. Resolves `true` when it wrote.
+   * A no-op once the row is terminal or belongs to another run. Resolves `true` when it wrote, or
+   * when the row already held exactly this checkpoint (accepted without rewriting the row).
    */
   checkpoint(progress: RunProgress, optional?: {}): Promise<boolean>;
   /** Serving-only discovery of unfinished rows. The injected recovery coordinator owns adopted

@@ -92,7 +92,7 @@ function parseJsonColumn(value: string | null): any {
 // The legacy messages store does retain last_run_event_id; that is a separate trust model, not
 // evidence that this projection preserves it. A schema extension also needs host-owned follow-up
 // migrations, because changing the DDL constant cannot update databases already migrated.
-function toMessage(row: MessageRow): ChatMessage {
+export function toMessage(row: MessageRow): ChatMessage {
   return {
     id: row.id, role: row.role as ChatMessage['role'], content: row.content,
     ...agentFields(row),
