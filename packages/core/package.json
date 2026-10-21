@@ -34,7 +34,9 @@
         "./primitives": "core",
         "./fetch": "fetch",
         "./settings": "settings",
-        "./settings/express": "settings"
+        "./settings/express": "settings",
+        "./provider-registry": "providers",
+        "./object-store": "providers"
       },
       "domains": {
         "fetch": [
@@ -42,6 +44,10 @@
         ],
         "settings": [
           "src/settings"
+        ],
+        "providers": [
+          "src/provider-registry.ts",
+          "src/object-store.ts"
         ]
       },
       "shared": [
