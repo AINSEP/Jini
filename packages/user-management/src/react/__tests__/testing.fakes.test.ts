@@ -124,5 +124,7 @@ describe('createFakeMembersPort', () => {
     const port = createFakeMembersPort({}, { members: [member] });
     await expect(port.getMember({ id: 'm1' })).resolves.toEqual({ member });
     await expect(port.getMember({ id: 'nope' })).rejects.toThrow('fake member not found: nope');
+    await expect(port.disableMember({ id: 'nope' })).rejects.toThrow('fake member not found: nope');
+    expect(port.members).toEqual([member]);
   });
 });
