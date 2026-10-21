@@ -58,7 +58,9 @@ export function currentRoutePath(
   { base = DEFAULT_ADMIN_BASE }: { readonly base?: string } = {},
 ): string {
   if (pathname === base) return '/';
-  if (pathname.startsWith(`${base}/`)) return pathname.slice(base.length) || '/';
+  // The slice keeps the `/` the `startsWith` check just matched, so it is never empty and needs no
+  // `'/'` fallback.
+  if (pathname.startsWith(`${base}/`)) return pathname.slice(base.length);
   // Reached only if the app is mounted somewhere unexpected; treat the whole path as the route
   // rather than silently returning the dashboard, so the mismatch is visible in the URL.
   return pathname || '/';
@@ -75,7 +77,8 @@ export function currentRoutePath(
  */
 export function matchRoute<T>({ routePath, panels }: { readonly routePath: string; readonly panels: readonly AdminPanel<T>[] }): AdminRoute {
   const [rawPath, rawQuery] = routePath.split('?');
-  const segments = (rawPath ?? '').split('/').filter(Boolean);
+  // `split` with a string separator always returns at least one element, so the path part exists.
+  const segments = rawPath!.split('/').filter(Boolean);
   const query = new URLSearchParams(rawQuery ?? '');
 
   const miss = (panelId: string | null): AdminRoute => ({ panelId, view: null, params: {}, query });
@@ -114,8 +117,10 @@ function matchPattern(pattern: string, segments: readonly string[]): Record<stri
 
   const params: Record<string, string> = {};
   for (let i = 0; i < patternSegments.length; i += 1) {
-    const patternSegment = patternSegments[i] ?? '';
-    const segment = segments[i] ?? '';
+    // Both indexes exist: the loop is bounded by `patternSegments.length`, which the length check
+    // above made equal to `segments.length`.
+    const patternSegment = patternSegments[i]!;
+    const segment = segments[i]!;
     if (patternSegment.startsWith(':')) {
       params[patternSegment.slice(1)] = segment;
       continue;
