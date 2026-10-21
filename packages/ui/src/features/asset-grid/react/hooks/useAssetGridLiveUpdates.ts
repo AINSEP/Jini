@@ -25,6 +25,8 @@ export interface UseAssetGridLiveUpdatesParams<TAsset extends AssetGridItem> {
  * id all fall back to a single full reload for that window — see
  * `packages/ui/archived provenance ledger` for why (the original OD comment: "a filtered
  * view can't predict membership client-side").
+ * Disposed subscriptions discard in-flight incremental reads. Failed passes report a
+ * fixed diagnostic and request a full reconciliation on the next live event.
  */
 export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
   params: UseAssetGridLiveUpdatesParams<TAsset>,
@@ -51,12 +53,14 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
 
   useEffect(() => {
     if (!active || !liveUpdates) return;
+    let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const pendingIngest = new Set<string>();
     const pendingDelete = new Set<string>();
     let pendingFull = false;
 
     const runFlushPass = async () => {
+      if (disposed) return;
       // Deletes are free (no fetch); apply them first.
       if (pendingDelete.size) {
         const del = new Set(pendingDelete);
@@ -79,6 +83,8 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
           return;
         }
         const fetched = await Promise.all(ids.map((id) => fetchById(id)));
+        // The same state setter can outlive this subscription (for example after deactivation).
+        if (disposed) return;
         // A missing fetch is ambiguous (filtered out? race?) — reload instead.
         if (fetched.some((a) => a === null)) {
           await reloadRef.current();
@@ -125,15 +131,22 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
       try {
         do {
           rerun = false;
-          await runFlushPass();
-        } while (rerun);
+          try {
+            await runFlushPass();
+          } catch {
+            if (!disposed) {
+              pendingFull = true;
+              console.error('[asset-grid] Live update failed.');
+            }
+          }
+        } while (rerun && !disposed);
       } finally {
         flushing = false;
       }
     };
 
     const schedule = () => {
-      if (timer) return;
+      if (disposed || timer) return;
       timer = setTimeout(() => void flush(), coalesceMs);
     };
 
@@ -153,6 +166,7 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
     });
 
     return () => {
+      disposed = true;
       if (timer) clearTimeout(timer);
       unsubscribe();
     };

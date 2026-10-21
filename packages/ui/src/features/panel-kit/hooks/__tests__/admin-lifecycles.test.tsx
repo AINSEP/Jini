@@ -7,6 +7,27 @@ import { createStandingDraftLocalBackup } from '../../helpers/standing-draft-loc
 afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear(); });
 
 describe('injected admin lifecycles', () => {
+  it('reports a failed unmount save without exposing the settings or provider error', async () => {
+    vi.useFakeTimers();
+    const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const save = vi.fn(async () => { throw new Error('upstream echoed a secret'); });
+    const refreshPort: SettingsSliceRefreshPort = { publish: () => {}, subscribe: () => () => {} };
+    try {
+      const { result, unmount } = renderHook(() => useSettingsSlice({
+        defaultValue: 'original', refreshPort, load: async () => 'original', save,
+      }, {}));
+      await act(async () => {});
+      act(() => result.current.onChange('sensitive edited value'));
+      unmount();
+      await act(async () => {});
+
+      expect(save.mock.calls).toEqual([[{ next: 'sensitive edited value', previous: 'original' }, {}]]);
+      expect(diagnostic.mock.calls).toEqual([['[settings] Final save failed after unmount.']]);
+    } finally {
+      diagnostic.mockRestore();
+    }
+  });
+
   it('keeps pending edits across a background refresh and diffs an unmount flush against the committed base', async () => {
     vi.useFakeTimers();
     let finishFirst!: () => void;

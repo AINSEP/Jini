@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import type { Dispatch, SetStateAction } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useAssetGridLiveUpdates, useWiredAssetGridLiveUpdates } from '../../../react/hooks/useAssetGridLiveUpdates.js';
 import type { AssetGridDependencies, AssetGridLiveUpdateHandlers, AssetGridLiveUpdatesPort } from '../../../ports.js';
 
@@ -32,6 +33,69 @@ function fakeLiveUpdatesPort(): { port: AssetGridLiveUpdatesPort; fire: () => As
 }
 
 describe('useAssetGridLiveUpdates', () => {
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+
+  it.each([null, { id: 'old', kind: 'image' }])('discards an in-flight result after deactivation, including %j', async (row) => {
+    vi.useFakeTimers();
+    const { port, fire } = fakeLiveUpdatesPort();
+    let assets: TestAsset[] = [{ id: 'current', kind: 'image' }];
+    const setAssets: Dispatch<SetStateAction<TestAsset[]>> = update => {
+      assets = typeof update === 'function' ? update(assets) : update;
+    };
+    let resolveFetch!: (value: TestAsset | null) => void;
+    const fetchAssetById = () => new Promise<TestAsset | null>(resolve => { resolveFetch = resolve; });
+    const reload = vi.fn(async () => { assets = [{ id: 'stale-reload', kind: 'image' }]; });
+    const { rerender } = renderHook(({ active }) => useAssetGridLiveUpdates({
+      active, liveUpdates: port, filtersActive: false, fetchAssetById, setAssets, reload, coalesceMs: 50,
+    }), { initialProps: { active: true } });
+
+    act(() => fire().onIngest('old'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    act(() => { fire().onDelete('current'); fire().onFullReload(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    rerender({ active: false });
+    // A callback already queued by the host must not re-arm a disposed subscription either.
+    act(() => fire().onDelete('current'));
+    await act(async () => { resolveFetch(row); await vi.advanceTimersByTimeAsync(50); });
+
+    expect(assets).toEqual([{ id: 'current', kind: 'image' }]);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it.each(['during', 'after'] as const)('recovers a rejected ingest with a full reload when an event arrives %s the fetch', async (timing) => {
+    vi.useFakeTimers();
+    const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { port, fire } = fakeLiveUpdatesPort();
+    let assets: TestAsset[] = [{ id: 'retained', kind: 'image' }];
+    const setAssets: Dispatch<SetStateAction<TestAsset[]>> = update => {
+      assets = typeof update === 'function' ? update(assets) : update;
+    };
+    let rejectFetch!: (reason: Error) => void;
+    const fetchAssetById = () => new Promise<TestAsset | null>((_resolve, reject) => { rejectFetch = reject; });
+    const authoritative = [{ id: 'retained', kind: 'image' }, { id: 'new', kind: 'image' }];
+    const reload = async () => { assets = authoritative; };
+    renderHook(() => useAssetGridLiveUpdates({
+      active: true, liveUpdates: port, filtersActive: false, fetchAssetById, setAssets, reload, coalesceMs: 50,
+    }));
+
+    act(() => fire().onIngest('new'));
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(assets).toEqual([{ id: 'retained', kind: 'image' }]);
+    if (timing === 'during') {
+      act(() => fire().onFullReload());
+      await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    }
+    await act(async () => { rejectFetch(new Error('upstream echoed a secret')); });
+    if (timing === 'after') {
+      expect(assets).toEqual([{ id: 'retained', kind: 'image' }]);
+      act(() => fire().onIngest('another-event'));
+      await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    }
+
+    expect(assets).toEqual(authoritative);
+    expect(diagnostic.mock.calls).toEqual([['[asset-grid] Live update failed.']]);
+  });
+
   it('does nothing when inactive or no liveUpdates port is supplied', () => {
     const setAssets = vi.fn();
     const reload = vi.fn();

@@ -386,7 +386,8 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
       void writes.run({ task: () =>
         runSave().then(
           () => {},
-          () => {},
+          // No view remains to show the failure; settings and native errors may contain secrets.
+          () => { console.error('[settings] Final save failed after unmount.'); },
         ) },
       );
     },
