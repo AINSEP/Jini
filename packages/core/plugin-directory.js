@@ -8,6 +8,34 @@ const LEGACY_NAME_PATTERN = /^[a-z0-9.-]+$/;
 const CAPABILITY_PATTERN = new RegExp(`^${SEGMENT}(?::${SEGMENT})?$`);
 const object = value => typeof value === 'object' && value !== null && !Array.isArray(value);
 
+/** A declared id is malformed when it is not a bounded publisher/name string. */
+const malformedId = id => typeof id !== 'string' || id.length > 129 || !ID_PATTERN.test(id);
+const validCapability = p => typeof p === 'string' && p.length <= 129 && CAPABILITY_PATTERN.test(p);
+const legacyIdFor = localName => `unknown/${localName}`;
+
+/** The first shape error that stops identity validation before any field is interpreted. */
+function structuralError({ manifest, namespace }) {
+  if (!object(manifest)) return 'Plugin manifest must be an object.';
+  if (manifest.extensions !== undefined && !object(manifest.extensions)) return 'Plugin extensions must be an object.';
+  const extension = manifest.extensions?.[namespace];
+  if (extension !== undefined && !object(extension)) return 'Plugin identity extension must be an object.';
+  return undefined;
+}
+
+/** Errors for a declared id; an absent id is a legacy identity, not an error. */
+function idErrors({ id }) {
+  if (id === undefined) return [];
+  if (malformedId(id)) return ['Plugin id must have the form publisher/name (lowercase letters, digits, dots and hyphens).'];
+  // Only the host may infer a legacy identity; a publisher cannot claim its upgrade exemption.
+  return id.startsWith('unknown/') ? ["Plugin publisher 'unknown' is reserved for legacy identities."] : [];
+}
+
+/** Errors for a declared provides list; one malformed entry rejects the list rather than being dropped. */
+function providesErrors({ provides }) {
+  const valid = provides === undefined || (Array.isArray(provides) && provides.every(validCapability));
+  return valid ? [] : ['Plugin provides must be an array of capability names.'];
+}
+
 /** Collects identity errors without mutating the portable manifest. Absent metadata is legacy.
  * @param {{manifest: unknown, namespace: string}} required
  * @param {Record<string, never>} [optional]
@@ -15,22 +43,11 @@ const object = value => typeof value === 'object' && value !== null && !Array.is
  * @complexity O(k + p) in keyword and provides entries; no I/O.
  */
 export function validatePluginIdentity({ manifest, namespace }, optional = {}) {
-  const errors = [];
-  if (!object(manifest)) return { errors: ['Plugin manifest must be an object.'] };
-  if (manifest.extensions !== undefined && !object(manifest.extensions)) return { errors: [...errors, 'Plugin extensions must be an object.'] };
+  const structural = structuralError({ manifest, namespace });
+  if (structural !== undefined) return { errors: [structural] };
   const extension = manifest.extensions?.[namespace];
-  if (extension === undefined) return { errors };
-  if (!object(extension)) return { errors: [...errors, 'Plugin identity extension must be an object.'] };
-  if (extension.id !== undefined && (typeof extension.id !== 'string' || extension.id.length > 129 || !ID_PATTERN.test(extension.id))) {
-    errors.push('Plugin id must have the form publisher/name (lowercase letters, digits, dots and hyphens).');
-  } else if (typeof extension.id === 'string' && extension.id.startsWith('unknown/')) {
-    // Only the host may infer a legacy identity; a publisher cannot claim its upgrade exemption.
-    errors.push("Plugin publisher 'unknown' is reserved for legacy identities.");
-  }
-  if (extension.provides !== undefined && (!Array.isArray(extension.provides) || !extension.provides.every(p => typeof p === 'string' && p.length <= 129 && CAPABILITY_PATTERN.test(p)))) {
-    errors.push('Plugin provides must be an array of capability names.');
-  }
-  return { errors };
+  if (extension === undefined) return { errors: [] };
+  return { errors: [...idErrors({ id: extension.id }), ...providesErrors({ provides: extension.provides })] };
 }
 
 /** Resolves one identity; warns on missing ids and refuses malformed declarations.
@@ -45,20 +62,33 @@ export function readPluginIdentity({ manifest, namespace, name }, optional = {})
   const { errors } = validatePluginIdentity({ manifest, namespace });
   if (errors.length) throw new TypeError(errors.join(' '));
   const extension = manifest.extensions?.[namespace];
+  const declaredId = extension?.id;
   const localName = name ?? manifest.name;
-  if (extension?.id === undefined && (typeof localName !== 'string' || !LEGACY_NAME_PATTERN.test(localName))) {
+  const id = declaredId ?? legacyIdentity({ localName });
+  const keywords = normalizeKeywords({ raw: manifest.keywords });
+  const warnings = declaredId === undefined ? [`Plugin '${localName}' has no publisher-qualified id; using '${id}'.`] : [];
+  return { id, keywords, provides: [...(extension?.provides ?? [])], warnings: [...warnings, ...keywordWarnings({ raw: manifest.keywords, keywords })] };
+}
+
+/** The host-inferred `unknown/<name>` id, refusing a name the legacy grammar never accepted. */
+function legacyIdentity({ localName }) {
+  if (typeof localName !== 'string' || !LEGACY_NAME_PATTERN.test(localName)) {
     throw new TypeError('A valid plugin name is required for a legacy identity.');
   }
-  const id = extension?.id ?? `unknown/${localName}`;
-  // Keywords are advisory portable metadata: older manifests accepted mixed or non-array values.
-  // The portable parser's coercion (non-string entries dropped, non-arrays ignored) lives here
-  // so validation and lookup normalize advisory metadata through the same owner.
-  const keywords = Array.isArray(manifest.keywords) ? manifest.keywords.filter(k => typeof k === 'string' && k.trim().length > 0) : [];
-  const warnings = extension?.id === undefined ? [`Plugin '${localName}' has no publisher-qualified id; using '${id}'.`] : [];
-  if (manifest.keywords !== undefined && (!Array.isArray(manifest.keywords) || keywords.length !== manifest.keywords.length)) {
-    warnings.push('Plugin keywords must be an array of nonempty strings; invalid keywords were ignored.');
-  }
-  return { id, keywords, provides: [...(extension?.provides ?? [])], warnings };
+  return legacyIdFor(localName);
+}
+
+/** Keywords are advisory portable metadata: older manifests accepted mixed or non-array values.
+ * The portable parser's coercion (non-string entries dropped, non-arrays ignored) lives here
+ * so validation and lookup normalize advisory metadata through the same owner. */
+function normalizeKeywords({ raw }) {
+  return Array.isArray(raw) ? raw.filter(k => typeof k === 'string' && k.trim().length > 0) : [];
+}
+
+/** One warning when normalization ignored any declared keyword (or a non-array value). */
+function keywordWarnings({ raw, keywords }) {
+  const ignored = raw !== undefined && (!Array.isArray(raw) || keywords.length !== raw.length);
+  return ignored ? ['Plugin keywords must be an array of nonempty strings; invalid keywords were ignored.'] : [];
 }
 
 /** Rejects id reuse and publisher changes at an existing storage slot. Legacy metadata may
@@ -72,14 +102,23 @@ export function readPluginIdentity({ manifest, namespace, name }, optional = {})
 export function assertPluginIdentityAvailable({ candidate, installed }, optional = {}) {
   for (const plugin of installed) {
     const sameSlot = plugin.family === candidate.family && plugin.localId === candidate.localId;
-    if (sameSlot) {
-      if (plugin.id !== candidate.id && plugin.id !== `unknown/${candidate.localId}`) {
-        throw new Error(`Plugin '${candidate.localId}' belongs to a different publisher identity.`);
-      }
-    } else if (plugin.id === candidate.id && !(plugin.family !== candidate.family && candidate.id === `unknown/${candidate.localId}` && plugin.id === `unknown/${plugin.localId}`)) {
-      throw new Error(`Duplicate plugin id '${candidate.id}'.`);
-    }
+    const conflict = sameSlot ? sameSlotConflict({ plugin, candidate }) : otherSlotConflict({ plugin, candidate });
+    if (conflict !== undefined) throw new Error(conflict);
   }
+}
+
+/** A provider already in the candidate's slot may only be the same identity or its legacy fallback. */
+function sameSlotConflict({ plugin, candidate }) {
+  const compatible = plugin.id === candidate.id || plugin.id === legacyIdFor(candidate.localId);
+  return compatible ? undefined : `Plugin '${candidate.localId}' belongs to a different publisher identity.`;
+}
+
+/** A provider in another slot may not reuse the candidate's id, except equal legacy fallback ids,
+ * which are family-scoped and so name distinct plugins in different families. */
+function otherSlotConflict({ plugin, candidate }) {
+  if (plugin.id !== candidate.id) return undefined;
+  const crossFamilyLegacy = plugin.family !== candidate.family && candidate.id === legacyIdFor(candidate.localId) && plugin.id === legacyIdFor(plugin.localId);
+  return crossFamilyLegacy ? undefined : `Duplicate plugin id '${candidate.id}'.`;
 }
 
 /** Restricts an SDK handle at runtime, not just through a TypeScript interface. A host may carry
