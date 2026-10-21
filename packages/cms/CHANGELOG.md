@@ -1,3 +1,7 @@
+## Unreleased
+
+- `./consent/express`: new `readRequestConsentChoices({ ports, request }, { cookieName })` returns the categories a request's visitor allows (receipt, region and Sec-GPC, same rules as the page gate) for server-side decisions; disabled consent grants all, failures deny and never throw.
+
 ## 0.5.13 — 2026-10-16
 
 - SEO: the X card falls back to the Open Graph override before the page default (391560e8); resolved meta flags an entry's own share-image override (c79abea8) and says where the resolved share image came from (746457d9).

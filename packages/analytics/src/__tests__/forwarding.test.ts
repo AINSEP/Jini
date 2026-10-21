@@ -1,0 +1,308 @@
+import { describe, expect, it } from "vitest";
+import { providerOk, providerRejected, providerUnknown, type ProviderContext, type ProviderResult } from "@jini-ai/core/provider-registry";
+import {
+  ANALYTICS_FORWARDER_CONTRACT, asAnalyticsForwarderModule, asAnalyticsIngestHook, composeBeforeIngestHooks,
+  cacheAnalyticsProviderLoad, createAnalyticsForwarderRegistry, createAnalyticsForwardLimiter, DEFAULT_ANALYTICS_PROVIDERS_TTL_MS, createFanOutAnalyticsSink, DEFAULT_MAX_FORWARDS_IN_FLIGHT, LocalBufferSink, selectAnalyticsForwarder, toForwardedHit,
+  type AnalyticsForwarder, type AnalyticsForwarderModule, type ForwardedHit, type NormalizedHit,
+} from "../index.js";
+
+const hit = (path = "/a"): NormalizedHit => ({
+  workspaceId: "ws-1", occurredAt: "2026-10-21T10:00:00.000Z", kind: "pageview", path, referrerHost: "ref.example",
+  utm: { source: "news", medium: null, campaign: null, term: null, content: null }, country: "DE", region: "BE",
+  deviceClass: "desktop", browserFamily: "Firefox", osFamily: "Linux", visitorHash: "vh", sessionId: "sid",
+  eventName: null, eventProps: null,
+});
+
+const context: ProviderContext = { workspaceId: "ws-1", mode: "live" };
+
+function recordingForwarder(result: () => Promise<ProviderResult<void>> = async () => providerOk({ value: undefined })) {
+  const seen: ForwardedHit[] = [];
+  const forwarder: AnalyticsForwarder = { forward: async ({ hit: forwarded }) => { seen.push(forwarded); return result(); } };
+  return { seen, forwarder };
+}
+
+const module = (forwarder: AnalyticsForwarder): AnalyticsForwarderModule => ({ create: () => forwarder });
+
+describe("toForwardedHit", () => {
+  it("drops region and sessionId and copies utm", () => {
+    const source = hit();
+    const forwarded = toForwardedHit({ hit: source });
+    expect(forwarded).not.toHaveProperty("region");
+    expect(forwarded).not.toHaveProperty("sessionId");
+    expect(forwarded).toEqual({
+      workspaceId: "ws-1", occurredAt: source.occurredAt, kind: "pageview", path: "/a", referrerHost: "ref.example",
+      utm: source.utm, country: "DE", deviceClass: "desktop", browserFamily: "Firefox", osFamily: "Linux",
+      visitorHash: "vh", eventName: null, eventProps: null,
+    });
+    expect(forwarded.utm).not.toBe(source.utm);
+  });
+});
+
+describe("vendor projection privacy", () => {
+  it("redacts literal and percent-encoded email-shaped path segments before forwarding", () => {
+    expect(toForwardedHit({ hit: hit("/users/alice@example.com/orders") }).path).toBe("/users/:redacted/orders");
+    expect(toForwardedHit({ hit: hit("/u/alice%40example.com") }).path).toBe("/u/:redacted");
+    expect(toForwardedHit({ hit: hit("/bad/%E0%A4%A") }).path).toBe("/bad/%E0%A4%A");
+    expect(toForwardedHit({ hit: hit("/a/b") }).path).toBe("/a/b");
+  });
+
+  it("never passes credential or payload text from a throwing forwarder or hook into reports", async () => {
+    const reports: unknown[] = [];
+    const leaky: AnalyticsForwarder = { forward: async () => { throw new Error("token=SECRET-123 path=/users/alice@example.com"); } };
+    const leakyResult = recordingForwarder(async () => providerRejected({ code: "unauthorized", message: "key SECRET-123 rejected" }));
+    const tasks: Promise<void>[] = [];
+    const sink = createFanOutAnalyticsSink({ primary: new LocalBufferSink({}) }, {
+      forwarders: [{ id: "leaky", forwarder: leaky, context }, { id: "res", forwarder: leakyResult.forwarder, context }],
+      report: (r) => reports.push(r), schedule: (t) => tasks.push(t),
+    });
+    await sink.accept({ hit: hit() });
+    await Promise.all(tasks);
+    const hookReports: unknown[] = [];
+    const hooks = composeBeforeIngestHooks({ hooks: [{ beforeIngest: async () => { throw new Error("SECRET-123"); } }] }, { report: (r) => hookReports.push(r) });
+    await hooks!.beforeIngest({ hit: hit() });
+    expect(JSON.stringify([reports, hookReports])).not.toMatch(/SECRET|alice/);
+  });
+
+  it("gives each vendor its own deep copy so a mutating vendor cannot alter the primary record or another vendor's hit", async () => {
+    const primary = new LocalBufferSink({});
+    const mutator: AnalyticsForwarder = { forward: async ({ hit: h }) => { ((h.eventProps as { nested: { v: number } }).nested).v = 99; (h.utm as { source: string | null }).source = "x"; return providerOk({ value: undefined }); } };
+    const other = recordingForwarder();
+    const tasks: Promise<void>[] = [];
+    const sink = createFanOutAnalyticsSink({ primary }, { forwarders: [{ id: "m", forwarder: mutator, context }, { id: "o", forwarder: other.forwarder, context }], schedule: (t) => tasks.push(t) });
+    await sink.accept({ hit: { ...hit(), eventName: "e", eventProps: { nested: { v: 1 } } } });
+    await Promise.all(tasks);
+    expect(primary.all({})[0]?.eventProps).toEqual({ nested: { v: 1 } });
+    expect(primary.all({})[0]?.utm.source).toBe("news");
+    expect(other.seen[0]?.eventProps).toEqual({ nested: { v: 1 } });
+    expect(other.seen[0]?.utm.source).toBe("news");
+  });
+});
+
+describe("module validators", () => {
+  it("accepts a module with create() and refuses others", () => {
+    const valid = { create: () => recordingForwarder().forwarder };
+    expect(asAnalyticsForwarderModule({ exported: valid })).toBe(valid);
+    expect(asAnalyticsForwarderModule({ exported: null })).toBe("its module has no create() function");
+    expect(asAnalyticsForwarderModule({ exported: { create: 1 } })).toBe("its module has no create() function");
+    expect(asAnalyticsForwarderModule({ exported: "x" })).toBe("its module has no create() function");
+    const labelled = { create: () => recordingForwarder().forwarder, credentialLabel: "GA4" };
+    expect(asAnalyticsForwarderModule({ exported: labelled })).toBe(labelled);
+    expect(asAnalyticsForwarderModule({ exported: { create: () => null, credentialLabel: " " } })).toBe("its credentialLabel must be a non-empty string");
+    expect(asAnalyticsForwarderModule({ exported: { create: () => null, credentialLabel: 3 } })).toBe("its credentialLabel must be a non-empty string");
+  });
+
+  it("accepts a hook with beforeIngest() and refuses others", () => {
+    const valid = { beforeIngest: async () => null };
+    expect(asAnalyticsIngestHook({ exported: valid })).toBe(valid);
+    expect(asAnalyticsIngestHook({ exported: null })).toBe("its module has no beforeIngest() function");
+    expect(asAnalyticsIngestHook({ exported: {} })).toBe("its module has no beforeIngest() function");
+  });
+});
+
+describe("createAnalyticsForwarderRegistry + selectAnalyticsForwarder", () => {
+  it("registers seeds, validates shape, and selects by id", () => {
+    const vendor = module(recordingForwarder().forwarder);
+    const registry = createAnalyticsForwarderRegistry({}, { seed: [{ id: "plausible", provider: vendor }] });
+    expect(registry.contract).toBe(ANALYTICS_FORWARDER_CONTRACT);
+    expect(registry.get({ id: "plausible" })?.provider).toBe(vendor);
+    expect(registry.contribute({ definition: { id: "bad", provider: {} as AnalyticsForwarderModule }, pluginId: "p" })).toBe(false);
+    expect(registry.refusals()[0]?.message).toContain("its module has no create() function");
+    expect(() => registry.register({ definition: { id: "worse", provider: {} as AnalyticsForwarderModule } })).toThrow(/create\(\)/);
+
+    expect(selectAnalyticsForwarder({ registry, sinkId: "local" })).toEqual({});
+    expect(selectAnalyticsForwarder({ registry, sinkId: "" })).toEqual({});
+    expect(selectAnalyticsForwarder({ registry, sinkId: "plausible" }).entry?.id).toBe("plausible");
+    expect(selectAnalyticsForwarder({ registry, sinkId: "posthog" })).toEqual({
+      warning: "analytics sink 'posthog' is not installed; hits stay in the built-in sink only",
+    });
+  });
+
+  it("starts empty without a seed", () => {
+    expect(createAnalyticsForwarderRegistry().list()).toEqual([]);
+  });
+});
+
+describe("createFanOutAnalyticsSink", () => {
+  it("writes the primary, then forwards the minimised hit to every forwarder", async () => {
+    const primary = new LocalBufferSink({});
+    const a = recordingForwarder();
+    const b = recordingForwarder();
+    const tasks: Promise<void>[] = [];
+    const sink = createFanOutAnalyticsSink({ primary }, {
+      forwarders: [{ id: "a", forwarder: a.forwarder, context }, { id: "b", forwarder: b.forwarder, context }],
+      schedule: (task) => tasks.push(task),
+    });
+    await sink.accept({ hit: hit("/one") });
+    await sink.acceptBatch({ hits: [hit("/two"), hit("/three")] });
+    await Promise.all(tasks);
+    expect(primary.all({}).map((h) => h.path)).toEqual(["/one", "/two", "/three"]);
+    expect(a.seen.map((h) => h.path)).toEqual(["/one", "/two", "/three"]);
+    expect(b.seen).toHaveLength(3);
+    expect(a.seen[0]).not.toHaveProperty("sessionId");
+    expect(sink.capabilities({})).toEqual({ durable: false, batch: true });
+    expect((await sink.list({}, { limit: 1 })).map((h) => h.path)).toEqual(["/three"]);
+  });
+
+  it("reports rejected, unknown and thrown forwards without failing the primary or other forwarders", async () => {
+    const primary = new LocalBufferSink({});
+    const reports: unknown[] = [];
+    const tasks: Promise<void>[] = [];
+    const ok = recordingForwarder();
+    const rejected = recordingForwarder(async () => providerRejected({ code: "unauthorized", message: "bad key" }));
+    const unknown = recordingForwarder(async () => providerUnknown({ code: "timeout", message: "slow" }));
+    const threw: AnalyticsForwarder = { forward: async () => { throw new Error("boom"); } };
+    const threwValue: AnalyticsForwarder = { forward: async () => { throw "raw"; } };
+    const sink = createFanOutAnalyticsSink({ primary }, {
+      forwarders: [
+        { id: "rej", forwarder: rejected.forwarder, context }, { id: "unk", forwarder: unknown.forwarder, context },
+        { id: "thr", forwarder: threw, context }, { id: "raw", forwarder: threwValue, context },
+        { id: "ok", forwarder: ok.forwarder, context },
+      ],
+      report: (r) => reports.push(r),
+      schedule: (task) => tasks.push(task),
+    });
+    await sink.accept({ hit: hit() });
+    await Promise.all(tasks);
+    expect(primary.all({})).toHaveLength(1);
+    expect(ok.seen).toHaveLength(1);
+    // Forwards run concurrently, so report order is settle order, not declaration order.
+    expect(reports).toHaveLength(4);
+    expect(reports).toEqual(expect.arrayContaining([
+      { forwarderId: "rej", outcome: "rejected", message: "unauthorized" },
+      { forwarderId: "unk", outcome: "unknown", message: "timeout" },
+      { forwarderId: "thr", outcome: "threw", message: "forwarder threw" },
+      { forwarderId: "raw", outcome: "threw", message: "forwarder threw" },
+    ]));
+  });
+
+  it("propagates a primary failure and forwards nothing", async () => {
+    const forwarder = recordingForwarder();
+    const failing = new LocalBufferSink({});
+    failing.accept = async () => { throw new Error("disk"); };
+    const sink = createFanOutAnalyticsSink({ primary: failing }, { forwarders: [{ id: "a", forwarder: forwarder.forwarder, context }] });
+    await expect(sink.accept({ hit: hit() })).rejects.toThrow("disk");
+    expect(forwarder.seen).toEqual([]);
+  });
+
+  it("defaults: detached forwards and a silent report", async () => {
+    let resolveSeen: () => void = () => undefined;
+    const seen = new Promise<void>((resolve) => { resolveSeen = resolve; });
+    const forwarder: AnalyticsForwarder = { forward: async () => { resolveSeen(); return providerRejected({ code: "provider_error", message: "x" }); } };
+    const primary = new LocalBufferSink({});
+    const sink = createFanOutAnalyticsSink({ primary }, { forwarders: [{ id: "a", forwarder, context }] });
+    await sink.accept({ hit: hit() });
+    await seen;
+    expect(primary.all({})).toHaveLength(1);
+    const bare = createFanOutAnalyticsSink({ primary });
+    await bare.accept({ hit: hit() });
+    expect(primary.all({})).toHaveLength(2);
+  });
+});
+
+describe("composeBeforeIngestHooks", () => {
+  it("returns undefined for no handlers", () => {
+    expect(composeBeforeIngestHooks({ hooks: [] })).toBeUndefined();
+  });
+
+  it("chains handlers in order and stops at null", async () => {
+    const calls: string[] = [];
+    const chain = composeBeforeIngestHooks({ hooks: [
+      { beforeIngest: async ({ hit: h }) => { calls.push("a"); return { ...h, path: `${h.path}/a` }; } },
+      { beforeIngest: async ({ hit: h }) => { calls.push("b"); return h.path.startsWith("/drop") ? null : { ...h, path: `${h.path}/b` }; } },
+      { beforeIngest: async ({ hit: h }) => { calls.push("c"); return h; } },
+    ] });
+    expect((await chain!.beforeIngest({ hit: hit("/keep") }))?.path).toBe("/keep/a/b");
+    expect(calls).toEqual(["a", "b", "c"]);
+    calls.length = 0;
+    expect(await chain!.beforeIngest({ hit: hit("/drop") })).toBeNull();
+    expect(calls).toEqual(["a", "b"]);
+  });
+
+  it("skips and reports a throwing handler, passing the hit on unchanged", async () => {
+    const reports: unknown[] = [];
+    const chain = composeBeforeIngestHooks({ hooks: [
+      { beforeIngest: async () => { throw new Error("broken plugin"); } },
+      { beforeIngest: async () => { throw 7; } },
+      { beforeIngest: async ({ hit: h }) => ({ ...h, path: "/after" }) },
+    ] }, { report: (r) => reports.push(r) });
+    expect((await chain!.beforeIngest({ hit: hit() }))?.path).toBe("/after");
+    expect(reports).toEqual([{ index: 0, message: "beforeIngest handler threw" }, { index: 1, message: "beforeIngest handler threw" }]);
+  });
+
+  it("uses a silent default report", async () => {
+    const chain = composeBeforeIngestHooks({ hooks: [{ beforeIngest: async () => { throw new Error("x"); } }] });
+    expect((await chain!.beforeIngest({ hit: hit() }))?.path).toBe("/a");
+  });
+});
+
+describe("createAnalyticsForwardLimiter + fan-out", () => {
+  it("drops and reports forwards over the shared cap, releases on settle, and never touches the primary", async () => {
+    const primary = new LocalBufferSink({});
+    const limiter = createAnalyticsForwardLimiter({}, { maxInFlight: 1 });
+    const reports: unknown[] = [];
+    const tasks: Promise<void>[] = [];
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const slow: AnalyticsForwarder = { forward: async () => { await gate; return providerOk({ value: undefined }); } };
+    const options = { forwarders: [{ id: "slow", forwarder: slow, context }], limiter, report: (r: unknown) => reports.push(r), schedule: (t: Promise<void>) => tasks.push(t) };
+    // Two sinks sharing one limiter, as a host building a sink per request does.
+    await createFanOutAnalyticsSink({ primary }, options).accept({ hit: hit("/1") });
+    await createFanOutAnalyticsSink({ primary }, options).accept({ hit: hit("/2") });
+    expect(reports).toEqual([{ forwarderId: "slow", outcome: "dropped", message: "too many vendor calls in flight" }]);
+    release();
+    await Promise.all(tasks);
+    expect(limiter.tryAcquire()).toBe(true);
+    expect(primary.all({})).toHaveLength(2);
+  });
+
+  it("defaults to the documented cap and never goes below zero", () => {
+    const limiter = createAnalyticsForwardLimiter();
+    limiter.release();
+    for (let i = 0; i < DEFAULT_MAX_FORWARDS_IN_FLIGHT; i++) expect(limiter.tryAcquire()).toBe(true);
+    expect(limiter.tryAcquire()).toBe(false);
+  });
+});
+
+describe("cacheAnalyticsProviderLoad", () => {
+  it("memoises per TTL, calls onLoad once per successful load, and never caches a failure", async () => {
+    let now = 0;
+    let loads = 0;
+    let fail = true;
+    const seen: number[] = [];
+    const load = cacheAnalyticsProviderLoad({
+      load: async () => { loads++; if (fail) throw new Error("not yet"); return loads; },
+      clock: { nowMs: () => now },
+    }, { ttlMs: 100, onLoad: (value) => seen.push(value) });
+    await expect(load()).rejects.toThrow("not yet");
+    await Promise.resolve();
+    fail = false;
+    const first = await load();
+    expect(loads).toBe(2);
+    now = 99;
+    expect(await load()).toBe(first);
+    expect(loads).toBe(2);
+    now = 100;
+    await load();
+    expect(loads).toBe(3);
+    expect(seen).toEqual([2, 3]);
+  });
+
+  it("keeps a newer cache entry when an older load rejects; defaults to the documented TTL", async () => {
+    let now = 0;
+    let rejectFirst!: (e: Error) => void;
+    let calls = 0;
+    const load = cacheAnalyticsProviderLoad({
+      load: () => { calls++; return calls === 1 ? new Promise<string>((_, reject) => { rejectFirst = reject; }) : Promise.resolve("fresh"); },
+      clock: { nowMs: () => now },
+    });
+    const stale = load();
+    now = DEFAULT_ANALYTICS_PROVIDERS_TTL_MS;
+    expect(await load()).toBe("fresh");
+    rejectFirst(new Error("late"));
+    await expect(stale).rejects.toThrow("late");
+    now = DEFAULT_ANALYTICS_PROVIDERS_TTL_MS + 1;
+    expect(await load()).toBe("fresh");
+    expect(calls).toBe(2);
+    expect(DEFAULT_ANALYTICS_PROVIDERS_TTL_MS).toBe(60_000);
+  });
+});
