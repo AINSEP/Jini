@@ -139,15 +139,13 @@ describe("event → facts", () => {
     expect(await facts("payment_intent.processing", { status: "processing" })).toEqual([]);
   });
 
-  it.each(["refund.created", "refund.updated", "refund.failed", "charge.refund.updated"])("%s carries the refund inside evidence for the intent", async (type) => {
-    expect(await facts(type, refundSucceeded)).toEqual([{
-      ...base,
-      evidence: { providerRef: PI, status: "succeeded", refunds: [{ providerRefundRef: refundSucceeded.id, correlationId: "ref_1", amount: usd(500), status: "succeeded" }], disputes: [] },
-    }]);
+  it.each(["refund.created", "refund.updated", "refund.failed", "charge.refund.updated"])("%s is an id-only fact for the intent (ingest retrieves)", async (type) => {
+    expect(await facts(type, refundSucceeded)).toEqual([base]);
+    expect(await facts(type, refund({ status: "??" }))).toEqual([base]);
+    expect(await facts(type, refund({ payment_intent: { id: PI, object: "payment_intent" } }))).toEqual([base]);
   });
 
-  it("a refund event with an unreadable refund is a fact without evidence; without payment_intent, no fact", async () => {
-    expect(await facts("refund.updated", refund({ status: "??" }))).toEqual([base]);
+  it("a refund event without payment_intent yields no fact", async () => {
     expect(await facts("refund.updated", refund({ payment_intent: null }))).toEqual([]);
   });
 
@@ -173,15 +171,12 @@ describe("event → facts", () => {
     expect(await facts("charge.refunded", { ...chargeRefunded([]), payment_intent: null })).toEqual([]);
   });
 
-  it.each(["charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed", "charge.dispute.funds_withdrawn"])("%s carries the dispute", async (type) => {
-    expect(await facts(type, disputeNeedsResponse)).toEqual([{
-      ...base,
-      evidence: { providerRef: PI, status: "succeeded", refunds: [], disputes: [{ providerDisputeRef: disputeNeedsResponse.id, amount: usd(2000), status: "open", dueBy: 1693612799_000 }] },
-    }]);
+  it.each(["charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed", "charge.dispute.funds_withdrawn"])("%s is an id-only fact for the intent (ingest retrieves)", async (type) => {
+    expect(await facts(type, disputeNeedsResponse)).toEqual([base]);
+    expect(await facts(type, dispute({ status: "prevented" }))).toEqual([base]);
   });
 
-  it("a dispute event with an unreadable dispute is a fact without evidence; without payment_intent, no fact", async () => {
-    expect(await facts("charge.dispute.closed", dispute({ status: "prevented" }))).toEqual([base]);
+  it("a dispute event without payment_intent yields no fact", async () => {
     expect(await facts("charge.dispute.closed", dispute({ payment_intent: null }))).toEqual([]);
   });
 

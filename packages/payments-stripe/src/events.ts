@@ -2,19 +2,20 @@
  * @file Verified Stripe Event (https://docs.stripe.com/api/events/object) → `WebhookFact`s.
  *
  * Every fact is keyed by the PaymentIntent id, because that is the `providerRef` the kernel holds
- * for a payment. Refund and dispute events carry the refund/dispute object, so their evidence is a
- * `PaymentEvidence` for the intent with `status: "succeeded"` — a refund or a dispute exists only
- * on a captured charge — holding the one refund or dispute. Missing refunds are never deleted by
- * the writer, so a one-refund snapshot is safe.
+ * for a payment. `payment_intent.*` events carry the intent, and `charge.refunded` carries the
+ * charge with `amount_captured` and its refunds, so both become evidence. Refund and dispute
+ * events (`refund.*`, `charge.refund.updated`, `charge.dispute.*`) become facts WITHOUT evidence:
+ * their objects say nothing about how much was captured, so the ingest worker `retrieve`s the full
+ * snapshot instead (coordinator decision, L6a).
  *
- * An object we cannot read in full still yields a fact WITHOUT evidence when its intent id is
- * known: the ingest worker then calls `retrieve`. An event with no intent id (a charge made
- * without a PaymentIntent) yields no fact; an event type we do not handle yields none either.
+ * An object we cannot read in full still yields a fact without evidence when its intent id is
+ * known. An event with no intent id (a charge made without a PaymentIntent) yields no fact; an
+ * event type we do not handle yields none either.
  */
 import type { PaymentEvidence, WebhookFact } from "@jini-ai/commerce/payments/kernel";
 import { moneyFromStripe } from "./amounts.js";
 import { isRecord, optionalCount, optionalString, idOf, type JsonObject } from "./json.js";
-import { disputeEvidence, intentEvidence, readAll, refundEvidence } from "./objects.js";
+import { intentEvidence, readAll, refundEvidence } from "./objects.js";
 
 /** The envelope fields this module reads. */
 export interface StripeEvent {
@@ -36,14 +37,6 @@ export function parseStripeEvent({ body }: { body: unknown }, _optional: Record<
   return { id, type, created, livemode: body.livemode, object: body.data.object };
 }
 
-/** Evidence for the intent that holds a refund or dispute (see the file header for why `succeeded`). */
-function holderEvidence(
-  providerRef: string,
-  parts: Pick<PaymentEvidence, "refunds" | "disputes"> & Pick<Partial<PaymentEvidence>, "captured">
-): PaymentEvidence {
-  return { providerRef, status: "succeeded", ...parts };
-}
-
 type Translation = { readonly providerRef: string; readonly evidence?: PaymentEvidence } | undefined;
 
 function fromIntent(object: JsonObject): Translation {
@@ -52,11 +45,10 @@ function fromIntent(object: JsonObject): Translation {
   return providerRef === undefined ? undefined : { providerRef, ...(evidence === undefined ? {} : { evidence }) };
 }
 
-function fromRefund(object: JsonObject): Translation {
+// No `captured` on these objects: guessing it from "a refund exists" overstates a partial capture, so retrieve.
+function idsOnly(object: JsonObject): Translation {
   const providerRef = idOf(object.payment_intent);
-  const refund = refundEvidence({ refund: object });
-  if (providerRef === undefined) return undefined;
-  return { providerRef, ...(refund === undefined ? {} : { evidence: holderEvidence(providerRef, { refunds: [refund], disputes: [] }) }) };
+  return providerRef === undefined ? undefined : { providerRef };
 }
 
 /** `charge.refunded` carries a Charge; its `refunds` list is present only when Stripe includes it. */
@@ -67,22 +59,16 @@ function fromChargeRefunded(object: JsonObject): Translation {
   const refunds = list === undefined ? undefined : readAll({ items: list, read: (refund) => refundEvidence({ refund }) });
   const captured = moneyFromStripe({ amount: object.amount_captured, currency: object.currency });
   if (refunds === undefined || captured === undefined) return { providerRef };
-  return { providerRef, evidence: holderEvidence(providerRef, { captured, refunds, disputes: [] }) };
-}
-
-function fromDispute(object: JsonObject): Translation {
-  const providerRef = idOf(object.payment_intent);
-  const dispute = disputeEvidence({ dispute: object });
-  if (providerRef === undefined) return undefined;
-  return { providerRef, ...(dispute === undefined ? {} : { evidence: holderEvidence(providerRef, { refunds: [], disputes: [dispute] }) }) };
+  // A refund exists only on a captured charge, so the intent is `succeeded`.
+  return { providerRef, evidence: { providerRef, status: "succeeded", captured, refunds, disputes: [] } };
 }
 
 /** Ordered event-type routes; the first match translates the object. */
 const ROUTES: ReadonlyArray<readonly [(type: string) => boolean, (object: JsonObject) => Translation]> = [
   [(type) => type.startsWith("payment_intent."), fromIntent],
   [(type) => type === "charge.refunded", fromChargeRefunded],
-  [(type) => type.startsWith("refund.") || type === "charge.refund.updated", fromRefund],
-  [(type) => type.startsWith("charge.dispute."), fromDispute],
+  [(type) => type.startsWith("refund.") || type === "charge.refund.updated", idsOnly],
+  [(type) => type.startsWith("charge.dispute."), idsOnly],
 ];
 
 /**

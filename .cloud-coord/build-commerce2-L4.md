@@ -9,3 +9,7 @@ Started ~16:56Z. Baseline src/payments kernel vitest: 271 passed, 1 skipped (14 
 - DONE step 2 grants: ops/grants.ts + test; GRANT_INVALID code.
 - DONE ledger: listUnknownPayments, listUnsettledRefunds, appendOperatorAction, listOperatorActions (port+sql+memory+contract), migration 0002 + checksum pinned, rows.ts table. 100% cov.
 - NEXT: ops service (view/guards/intent/refund/capture-void/service), reconciler, operator, registry/alerts tests, kernel exports, legacy deletion.
+## 17:20Z
+- DONE ops modules written (deps, view, common, intent, refund, capture-void, service, reconciler, operator); tsc clean. NOT yet tested.
+- DONE outbox seq (coordinator request from L5): 0002 adds commerce_outbox.seq + index; sql/memory order created_at, seq, id; contract test added; checksum re-pinned.
+- NEXT: ops tests (harness in ops/__tests__/harness.ts), registry/alerts tests, kernel exports, legacy deletion.
