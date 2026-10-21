@@ -54,4 +54,24 @@ describe('toast service ports', () => {
     unsubscribe(); service.dispose({}); expect(service.snapshot({})).toEqual([]);
     expect(() => service.push({ message: 'Too late' })).toThrow('disposed');
   });
+  it('disposing cancels every pending auto-dismiss timer, so none fires into a disposed service', () => {
+    const cancelled: unknown[] = [];
+    const service = createToastService({}, { durationMs: 1000, scheduler: { schedule: ({ delayMs }) => `ticket-${delayMs}`, cancel: ({ ticket }) => { cancelled.push(ticket); } } });
+    service.push({ message: 'first' }); service.push({ message: 'second', durationMs: 250 });
+    service.dispose({});
+    expect(cancelled).toEqual(['ticket-1000', 'ticket-250']);
+  });
+  it('without an injected scheduler, a toast dismisses itself on a real timer and dismiss cancels the timer', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = createToastService({});
+      service.push({ message: 'auto', durationMs: 20 });
+      const kept = service.push({ message: 'manual', durationMs: 20 });
+      service.dismiss({ id: kept });
+      expect(vi.getTimerCount()).toBe(1);
+      vi.advanceTimersByTime(20);
+      expect(service.snapshot({})).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
 });
