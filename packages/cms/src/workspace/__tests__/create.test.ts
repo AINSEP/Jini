@@ -99,3 +99,16 @@ test("createWorkspace rejects duplicate slug", async () => {
     WorkspaceConflictError
   );
 });
+
+test("createWorkspace rejects a whitespace-only name before touching the repo", async () => {
+  const repo = new InMemoryWorkspaceRepo({});
+  const outbox = fakeOutbox();
+  const idGen = { newId: () => "id-1" };
+  const clock = { nowMs: () => Date.parse("2026-02-21T00:00:00.000Z")};
+
+  await assert.rejects(
+    () => createWorkspace({ deps: { repo, outbox, idGen, clock }, input: { name: "   ", slug: "fine" } }),
+    (error: unknown) => error instanceof WorkspaceValidationError && error.message === "name is required"
+  );
+  assert.deepEqual(await repo.list(), []);
+});
