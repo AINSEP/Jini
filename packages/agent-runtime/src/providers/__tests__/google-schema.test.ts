@@ -187,3 +187,68 @@ test('the wire schema repairs truncated recursive arrays and honors the per-call
   assert.deepEqual(children.items, { type: 'string', description: 'Contents simplified for Gemini compatibility.' });
   assert.deepEqual(descriptor, original);
 });
+
+test("googleParametersOf substitutes an empty closed object schema for a tool that declares no inputSchema", async () => {
+  const { googleParametersOf } = await import("../google-schema.js");
+  assert.deepEqual(googleParametersOf({ descriptor: { id: "ping" } }), { type: "object", required: [], properties: {} });
+});
+
+test("sanitizeGoogleSchema infers a const's type from the literal when no type is declared", () => {
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { const: true } }), { enum: [true], type: "boolean" });
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { const: 3 } }), { enum: [3], type: "integer" });
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { const: 1.5 } }), { enum: [1.5], type: "number" });
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { const: "x" } }), { enum: ["x"], type: "string" });
+});
+
+test("sanitizeGoogleSchema collapses a type array of only null to a nullable string", () => {
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { type: ["null"] } }), { type: "string", nullable: true });
+});
+
+test("sanitizeGoogleSchema drops null from an enum instead of forwarding a value Gemini rejects", () => {
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { type: "string", enum: ["a", null, "b"] } }), { type: "string", enum: ["a", "b"] });
+});
+
+test("sanitizeGoogleSchema resolves an external or dangling $ref to a generic object rather than failing", () => {
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { $ref: "https://example.test/schema.json" } }), { type: "object" });
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { $ref: "#/$defs/missing" } }), { type: "object" });
+});
+
+test("the terminal reference stub keeps the target's type and description, defaulting an untyped target to object", () => {
+  const defs = { typed: { type: "string", description: "A label." }, untyped: { minLength: 1 } };
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { $ref: "#/$defs/typed" } }, { defs, maxRefDepth: 0 }), {
+    type: "string",
+    description: "A label. (further nesting simplified for Gemini compatibility)",
+  });
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { $ref: "#/$defs/untyped" } }, { defs, maxRefDepth: 0 }), {
+    type: "object",
+    description: "(further nesting simplified for Gemini compatibility)",
+  });
+});
+
+test("nested schemas without a type become objects, while non-object members of items/anyOf pass through unchanged", () => {
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { type: "object", properties: { loose: { description: "anything" } } } }), {
+    type: "object",
+    properties: { loose: { type: "object", description: "anything" } },
+  });
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { anyOf: [true, { type: "string" }] } }), { anyOf: [true, { type: "string" }] });
+});
+
+test("findNumericEnumPaths reports numeric enums through nested properties and ignores non-schema values", async () => {
+  const { findNumericEnumPaths } = await import("../google-schema.js");
+  const schema = { type: "object", properties: { code: { type: "integer", enum: [301, 302] }, nested: { type: "object", properties: { level: { type: "number", enum: [1.5] } } }, name: { type: "string", enum: ["a"] } } };
+  assert.deepEqual(findNumericEnumPaths({ schema }), ["code", "nested.level"]);
+  assert.deepEqual(findNumericEnumPaths({ schema: { type: "integer", enum: [1] } }, { prefix: ["root"] }), ["root"]);
+  assert.deepEqual(findNumericEnumPaths({ schema: "not a schema" }), []);
+});
+
+test("coerceNumericEnumStringsToNumbers leaves the input untouched when a path hops through a non-object or is absent, and never mutates the argument", () => {
+  const input = { target: "flat", other: { statusCode: "7" } };
+  const frozen = structuredClone(input);
+  assert.equal(coerceNumericEnumStringsToNumbers({ input, paths: ["target.statusCode"] }), input);
+  assert.equal(coerceNumericEnumStringsToNumbers({ input, paths: ["missing.statusCode"] }), input);
+  assert.equal(coerceNumericEnumStringsToNumbers({ input: "scalar", paths: ["a"] }), "scalar");
+  assert.deepEqual(coerceNumericEnumStringsToNumbers({ input: { code: "   " }, paths: ["code"] }), { code: "   " });
+  const coerced = coerceNumericEnumStringsToNumbers({ input, paths: ["other.statusCode"] });
+  assert.deepEqual(coerced, { target: "flat", other: { statusCode: 7 } });
+  assert.deepEqual(input, frozen);
+});

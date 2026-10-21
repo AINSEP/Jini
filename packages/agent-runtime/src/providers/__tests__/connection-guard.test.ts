@@ -1,6 +1,7 @@
 import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
 import { redactSecrets } from '@jini-ai/core';
 import * as http from 'node:http';
+import * as net from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
 import { defaultDnsLookup, pinnedFetch, validateBaseUrl, validateBaseUrlResolved, type DnsLookupAddress } from '../connection-guard.js';
 
@@ -121,6 +122,13 @@ describe('validateBaseUrl', () => {
 });
 
 describe('validateBaseUrlResolved', () => {
+  it('refuses a hostname whose DNS lookup resolves to no addresses at all', async () => {
+    const lookup = vi.fn(async () => []);
+    const result = await validateBaseUrlResolved({ baseUrl: 'https://api.provider.test', lookup });
+    expect(result).toEqual({ error: 'DNS lookup returned no addresses', forbidden: true });
+    expect(lookup).toHaveBeenCalledWith({ hostname: 'api.provider.test' });
+  });
+
   it('short-circuits on a sync validation failure without calling lookup', async () => {
     const lookup = vi.fn();
     const result = await validateBaseUrlResolved({ baseUrl: 'not a url', lookup: lookup });
@@ -429,6 +437,95 @@ describe('pinnedFetch', () => {
       await expect(pending).rejects.toThrow();
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+});
+
+describe('pinnedFetch transport selection and late aborts', () => {
+  async function listen(server: http.Server | net.Server): Promise<number> {
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    return address.port;
+  }
+  function close(server: http.Server | net.Server): Promise<void> {
+    return new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+
+  // A raw TCP listener stands in for the provider so no certificate is needed: the first bytes an
+  // https dial sends are a TLS ClientHello (record type 0x16) carrying the ORIGINAL hostname as SNI,
+  // even though the socket itself was pinned to 127.0.0.1.
+  it('speaks TLS for an https URL and sends the original hostname as SNI while dialing the pinned address', async () => {
+    let firstBytes: Buffer | undefined;
+    const server = net.createServer((socket) => {
+      socket.once('data', (chunk: Buffer) => {
+        firstBytes = chunk;
+        socket.destroy();
+      });
+    });
+    const port = await listen(server);
+    try {
+      await expect(pinnedFetch({ url: `https://provider.test:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}' }, pinnedAddress: { address: '127.0.0.1', family: 4 } })).rejects.toThrow();
+      expect(firstBytes?.[0]).toBe(0x16);
+      expect(firstBytes?.includes(Buffer.from('provider.test'))).toBe(true);
+    } finally {
+      await close(server);
+    }
+  });
+
+  // The family the guard approved travels with the address: an IPv4 literal declared as family 6
+  // is handed to an IPv6 connect and fails (EINVAL), where a family-4 pin to the same address
+  // succeeds (proved by the rebinding test above). A transport that re-guessed the family would
+  // connect here instead.
+  it('dials with the pinned address family rather than re-deriving it', async () => {
+    const server = http.createServer((_req, res) => res.end('reached'));
+    const port = await listen(server);
+    try {
+      await expect(pinnedFetch({ url: `http://provider.test:${port}/v1`, init: { method: 'GET', headers: {} }, pinnedAddress: { address: '127.0.0.1', family: 6 } })).rejects.toThrow(/EINVAL/);
+    } finally {
+      await close(server);
+    }
+  });
+
+  it('rejects a redirect that carries no Location header without naming a target', async () => {
+    const server = http.createServer((_req, res) => {
+      res.statusCode = 302;
+      res.end();
+    });
+    const port = await listen(server);
+    try {
+      const failure = pinnedFetch({ url: `http://127.0.0.1:${port}/v1`, init: { method: 'GET', headers: {} }, pinnedAddress: undefined });
+      await expect(failure).rejects.toThrow(/^pinnedFetch: refused to follow a 302 redirect\. Matches fetch/);
+    } finally {
+      await close(server);
+    }
+  });
+
+  it('destroys a request whose connection goes silent for longer than the idle timeout', async () => {
+    const server = http.createServer(() => {
+      // Accepts the request and never speaks again.
+    });
+    const port = await listen(server);
+    try {
+      await expect(pinnedFetch({ url: `http://provider.test:${port}/v1`, init: { method: 'GET', headers: {} }, pinnedAddress: { address: '127.0.0.1', family: 4 } }, { idleTimeoutMs: 40 })).rejects.toThrow('pinnedFetch: no activity for 40ms');
+    } finally {
+      server.closeAllConnections();
+      await close(server);
+    }
+  });
+
+  it('destroys an in-flight request when the signal aborts after the request was sent', async () => {
+    const controller = new AbortController();
+    const server = http.createServer(() => {
+      // Never responds: the request is already on the wire when the caller aborts.
+      controller.abort();
+    });
+    const port = await listen(server);
+    try {
+      await expect(pinnedFetch({ url: `http://provider.test:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}', signal: controller.signal }, pinnedAddress: { address: '127.0.0.1', family: 4 } })).rejects.toThrow('The operation was aborted');
+    } finally {
+      server.closeAllConnections();
+      await close(server);
     }
   });
 });

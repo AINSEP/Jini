@@ -124,4 +124,29 @@ describe('listElevenLabsVoiceOptions', () => {
     await listElevenLabsVoiceOptions({ workspaceKey: 'ws-fp', resolveCredentials: resolver({ apiKey: 'key-b' }) });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('routes requests through a caller-supplied dispatcher and keeps one cached client per dispatcher', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ voices: [{ voice_id: 'v9', name: 'Proxy' }] }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const dispatcherA = { name: 'proxy-a' } as never; // opaque token: only its identity matters to the client cache
+    const dispatcherB = { name: 'proxy-b' } as never; // opaque token: only its identity matters to the client cache
+    const required = { workspaceKey: 'ws-dispatcher', resolveCredentials: resolver({ apiKey: 'k-d' }) };
+    const first = await listElevenLabsVoiceOptions(required, { requestInit: { dispatcher: dispatcherA } });
+    const second = await listElevenLabsVoiceOptions(required, { requestInit: { dispatcher: dispatcherA } });
+    await listElevenLabsVoiceOptions(required, { requestInit: { dispatcher: dispatcherB } });
+    expect(first).toEqual([{ voiceId: 'v9', name: 'Proxy' }]);
+    expect(second).toEqual(first);
+    // dispatcher A's second call is served from that client's own cache; B gets a fresh client.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ dispatcher: dispatcherA });
+    expect(fetchMock.mock.calls[1]![1]).toMatchObject({ dispatcher: dispatcherB });
+  });
+
+  it('uses the shared compatibility client when requestInit carries no dispatcher', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ voices: [] }) });
+    vi.stubGlobal('fetch', fetchMock);
+    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-no-dispatcher', resolveCredentials: resolver({ apiKey: 'k-n' }) }, { requestInit: {} });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]![1]).not.toHaveProperty('dispatcher');
+  });
 });
