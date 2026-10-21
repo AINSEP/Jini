@@ -401,6 +401,13 @@ describe('default process port (real node child processes)', () => {
     const error = await run({ context: node, args: ['-e', 'setTimeout(() => {}, 10_000)'], stdin: '', signal: controller.signal, timeoutMs: 10_000, terminateProcessTree: true }).catch((caught: unknown) => caught);
     expect(error).toMatchObject({ name: 'AbortError' });
   });
+  it('never leaves a CLI running when the probe was cancelled before it started', async () => {
+    const controller = new AbortController(); controller.abort();
+    const started = Date.now();
+    const error = await run({ context: node, args: ['-e', 'setTimeout(() => {}, 10_000)'], stdin: '', signal: controller.signal, timeoutMs: 10_000, terminateProcessTree: true }).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ message: 'Probe cancelled' });
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
 });
 
 describe('default RPC port over real child processes', () => {

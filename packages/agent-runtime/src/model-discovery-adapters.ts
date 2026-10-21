@@ -264,7 +264,8 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
     if (tree) {
       input.signal.addEventListener('abort', killTree, { once: true });
       treeTimer = setTimeout(killTree, input.timeoutMs);
-      if (input.signal.aborted) killTree();
+      // No already-aborted check here: the probe scheduler refuses a cancelled signal immediately
+      // before running this executor, and nothing between that check and this line yields.
     }
     if (input.complete) child.stdout?.on('data', (chunk) => {
       captured += String(chunk);
