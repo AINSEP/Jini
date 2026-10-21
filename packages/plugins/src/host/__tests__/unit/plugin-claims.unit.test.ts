@@ -5,6 +5,7 @@ import type { PluginActivationRecord } from "../../activation.js";
 import type { PluginDiscoveryRecord } from "../support/discovery.js";
 import type { PluginManifest } from "../support/manifest.js";
 import {
+  describeBootConflictQuarantine,
   describePluginConflicts,
   PluginConflictError,
   pluginClaimsFromManifest,
@@ -173,4 +174,52 @@ test('plugin-local route and tool names coexist with each other and raw core nam
     activations: [enabledAt(a.id, '2026-10-01')], coreClaims: [{ kind: 'tool', key: 'p_shop_a__search', mode: 'exclusive' }],
   });
   assert.equal(reserved.get(a.id)?.[0]?.key, 'p_shop_a__search');
+});
+
+test("pluginClaimsFromManifest: a manifest with no contributes block claims only its hooks and generated tools", () => {
+  const { contributes: _contributes, ...bare } = manifest("bare", {}, { hooks: ["content.entry.beforeSave"] });
+  assert.deepEqual(pluginClaimsFromManifest({ manifest: bare }), [{ kind: "hook", key: "content.entry.beforeSave", mode: "shared" }]);
+});
+
+test("resolvePluginConflicts: same-moment enables fall back to built-in before site, then to id order", () => {
+  const same = "2026-10-01T00:00:00.000Z";
+  const builtIn = manifest("zz-core-widget", { widgets: ["banner"] });
+  const siteA = manifest("a-site", { widgets: ["banner"] });
+  const siteB = manifest("b-site", { widgets: ["banner"] });
+  const conflicts = resolvePluginConflicts({
+    workspaceId: WORKSPACE,
+    discovery: [record(siteB), record(siteA), record(builtIn, "built-in")],
+    activations: [enabledAt("b-site", same), enabledAt("a-site", same), enabledAt("zz-core-widget", same)],
+    coreClaims: [],
+  });
+  assert.deepEqual([...conflicts.keys()].sort(), ["a-site", "b-site"]);
+  assert.equal(conflicts.get("a-site")?.[0]?.heldBy, "zz-core-widget", "the built-in wins the tie despite its later id");
+  assert.equal(conflicts.get("b-site")?.[0]?.heldBy, "zz-core-widget");
+});
+
+test("resolvePluginConflicts: an earlier enable wins over a later one regardless of source", () => {
+  const conflicts = resolvePluginConflicts({
+    workspaceId: WORKSPACE,
+    discovery: [record(manifest("first", { widgets: ["x"] })), record(manifest("second", { widgets: ["x"] })), record(manifest("third", { widgets: ["x"] }), "built-in")],
+    activations: [enabledAt("third", "2026-10-03T00:00:00.000Z"), enabledAt("first", "2026-10-01T00:00:00.000Z"), enabledAt("second", "2026-10-02T00:00:00.000Z")],
+    coreClaims: [],
+  });
+  assert.deepEqual([...conflicts.keys()].sort(), ["second", "third"]);
+  assert.equal(conflicts.get("third")?.[0]?.heldBy, "first");
+});
+
+test("resolvePluginConflicts: caller-supplied hook semantics override the SDK binding's", () => {
+  const a = manifest("a", {}, { hooks: ["content.entry.beforeSave"] });
+  const b = manifest("b", {}, { hooks: ["content.entry.beforeSave"] });
+  const input = { workspaceId: WORKSPACE, discovery: [record(a), record(b)], activations: [enabledAt("a", "2026-10-01T00:00:00.000Z"), enabledAt("b", "2026-10-02T00:00:00.000Z")], coreClaims: [] };
+  assert.equal(resolvePluginConflicts(input).size, 0, "beforeSave is shared by default");
+  const exclusive = resolvePluginConflicts(input, { hookSemantics: { "content.entry.beforeSave": "exclusive" } });
+  assert.deepEqual(exclusive.get("b"), [{ kind: "hook", key: "content.entry.beforeSave", heldBy: "a", heldByName: "Plugin a", heldKey: "content.entry.beforeSave" }]);
+});
+
+test("describeBootConflictQuarantine: the admin-row reason names the clash and the fix; a core claim on the same key is not repeated", () => {
+  assert.equal(
+    describeBootConflictQuarantine({ conflicts: [{ kind: "tool", key: "search", heldBy: "core", heldByName: "the host core", heldKey: "search" }] }),
+    "Turned off at startup because it claims things already in use: tool 'search' is reserved by the host core. Turn off the other plugin, then turn this one back on.",
+  );
 });

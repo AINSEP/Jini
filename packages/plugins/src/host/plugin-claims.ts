@@ -149,7 +149,9 @@ function toPluginConflicts(conflicts: readonly ClaimConflict[], names: ReadonlyM
     kind: conflict.kind,
     key: conflict.key,
     heldBy: conflict.heldBy,
-    heldByName: names.get(conflict.heldBy) ?? conflict.heldBy,
+    // Every owner the detector ran over is core or a valid discovered record, and `names` is built
+    // from exactly those ids (`resolvePluginConflicts`), so a holder always has a display name.
+    heldByName: names.get(conflict.heldBy)!,
     heldKey: conflict.heldKey,
   }));
 }

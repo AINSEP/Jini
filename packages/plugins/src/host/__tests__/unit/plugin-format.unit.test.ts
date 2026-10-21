@@ -78,3 +78,11 @@ it('integrity generation and runtime snapshots exclude both manifest filenames',
   expect(await readFile(entry, 'utf8')).toBe('export default 1;');
   expect((await readdir(path.dirname(path.dirname(entry)))).sort()).toEqual([PLUGIN_MANIFEST_FILENAME, LEGACY_PLUGIN_MANIFEST_FILENAME, 'server'].sort()); // legacy alias
 });
+
+it('canonicalizing a package with no manifest leaves it without one, so the validator reports the absence', async () => {
+  const { canonicalizePluginManifest } = await import('../../plugin-format.js');
+  const files = new Map([['server/index.mjs', 'export default {}']]);
+  const canonical = canonicalizePluginManifest({ files });
+  expect([...canonical.entries()]).toEqual([['server/index.mjs', 'export default {}']]);
+  expect(canonical).not.toBe(files);
+});

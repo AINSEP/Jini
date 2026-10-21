@@ -177,29 +177,27 @@ function parseManifestFile(files: Map<string, Buffer>): unknown {
   catch { return fail("PLUGIN_MANIFEST_INVALID", `A valid ${MANIFEST} is required.`); }
 }
 
-/** Integrity must list exactly every packaged file except plugin manifests, each hash matching. */
+/** Integrity must list exactly every packaged file except plugin manifests, each hash matching.
+ * Its shape needs no check here: `validatePackage` only calls this after `validateManifest` passed,
+ * which requires `integrity` and refuses anything but a plain object of sha256 strings. */
 function assertIntegrity(candidate: PluginManifest, files: Map<string, Buffer>): void {
-  if (!candidate.integrity || typeof candidate.integrity !== "object" || Array.isArray(candidate.integrity)) fail("PLUGIN_INTEGRITY_INVALID", "An integrity map is required.");
   const packaged = [...files.keys()].filter((key) => !PLUGIN_MANIFEST_FILENAMES.includes(key)).sort(); // legacy alias
   if (JSON.stringify(Object.keys(candidate.integrity).sort()) !== JSON.stringify(packaged)) fail("PLUGIN_INTEGRITY_INVALID", "Integrity must list exactly every file except plugin manifests.");
   for (const key of packaged) if (candidate.integrity[key] !== hash(files.get(key)!)) fail("PLUGIN_INTEGRITY_INVALID", `Integrity mismatch: ${key}`);
 }
 
-// validateManifest owns the id grammar; only the version needs extra path-safety checks.
-function assertPathSafeVersion(candidate: PluginManifest | null): asserts candidate is PluginManifest {
-  if (!candidate || typeof candidate.version !== "string" || !semver.valid(candidate.version) || !/^[0-9A-Za-z][0-9A-Za-z.+-]*$/.test(candidate.version)) fail("PLUGIN_MANIFEST_INVALID", "Package manifest, id or version is invalid.");
-}
-
 function validatePackage(files: Map<string, Buffer>, deps: PluginInstallDeps): PluginManifest {
   const { builtInIds } = deps;
-  const raw = parseManifestFile(files);
-  const candidate = raw as PluginManifest | null;
-  const id = typeof candidate?.id === "string" ? candidate.id : "";
+  const raw = parseManifestFile(files) as PluginManifest | null;
+  const id = typeof raw?.id === "string" ? raw.id : "";
   if (builtInIds.some((builtin) => builtin.toLowerCase() === id.toLowerCase())) fail("PLUGIN_SHADOWS_BUILT_IN", "Package id belongs to a built-in plugin.");
   const result = validateManifest({ ...deps, manifest: raw, folderName: id, builtInIds });
   // The manifest's own messages, so a refused declaration says what is wrong with it.
   if (result.errors.length) fail("PLUGIN_MANIFEST_INVALID", result.errors.map((error) => error.message).join("; "));
-  assertPathSafeVersion(candidate);
+  // validateManifest owns the id grammar and the version: it refuses a non-object manifest and
+  // accepts only a canonical SemVer version (`isExactSemver`), whose alphabet [0-9A-Za-z.+-] starting
+  // with a digit is already path-safe — so the version can name an install folder as-is.
+  const candidate = raw as PluginManifest;
   checkTierAndCode(candidate, files, deps.tierPolicy);
   if (typeof candidate.name !== "string" || !candidate.name.trim() || typeof candidate.sdkRange !== "string" || !semver.validRange(candidate.sdkRange)) fail("PLUGIN_MANIFEST_INVALID", "A name and valid SDK range are required.");
   assertIntegrity(candidate, files);

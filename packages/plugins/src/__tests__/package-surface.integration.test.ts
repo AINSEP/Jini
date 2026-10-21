@@ -34,3 +34,22 @@ test('host entries publish independent runtime surfaces with optional host peers
   assert.equal(Object.hasOwn(manifest.peerDependenciesMeta, '@jini-ai/core'), false);
   for (const peer of ['semver', 'kysely', '@jini-ai/db']) assert.equal(manifest.peerDependenciesMeta[peer].optional, true);
 });
+
+test('each host entry barrel re-exports the runtime APIs its package.json entry promises', async () => {
+  const host = await import('../host/index.js');
+  for (const name of ['validateManifest', 'createHookRegistry', 'resolvePluginConflicts', 'uninstallPlugin', 'previewUninstallPlugin', 'canonicalizePluginManifest', 'pluginCapabilitySet', 'InMemoryPluginActivationRepo', 'PluginHookFailedError']) {
+    assert.equal(typeof Reflect.get(host, name), 'function', `./host ${name}`);
+  }
+  assert.equal(host.PLUGIN_MANIFEST_FILENAME, 'jini.plugin.json');
+  const node = await import('../host/node/index.js');
+  for (const name of ['discoverPlugins', 'loadPlugin', 'installSitePlugin', 'snapshotSitePluginPackage', 'snapshotPluginModuleGraph', 'createPluginSourceService', 'admitBrowserProviderAssets', 'readPluginPackageFiles']) {
+    assert.equal(typeof Reflect.get(node, name), 'function', `./host/node ${name}`);
+  }
+  assert.equal(Reflect.has(node, 'readNoFollowFlags'), false, 'the open-flag helper stays internal to the node tier');
+  const worker = await import('../host/worker/index.js');
+  for (const name of ['createTier2ImportSeam', 'decodeTier2Reply', 'runTier2Call']) assert.equal(typeof Reflect.get(worker, name), 'function', `./host/worker ${name}`);
+  const sqlEntry = await import('../host/sql/index.js');
+  for (const name of ['SqlPluginActivationRepo', 'pluginActivationRepoFor', 'toActivationRecord', 'toActivationRow']) {
+    assert.equal(typeof Reflect.get(sqlEntry, name), 'function', `./host/sql ${name}`);
+  }
+});

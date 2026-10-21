@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import type { RemoveEntity } from "../../ports.js";
+import { PluginNotFoundError } from "../../activation.js";
 import { InMemoryPluginActivationRepo } from "../support/repo.memory.js";
 import type { PluginDiscoveryRecord } from "../support/discovery.js";
 import {
@@ -173,3 +174,19 @@ test("permanent purge forgets only the target across every workspace", async () 
   await forgetPluginActivations({ pluginId: SITE.id }, { repo });
   assert.deepEqual(await repo.listAll(), [other]);
 });
+
+test("a plugin id absent from discovery is PluginNotFoundError for both preview and uninstall, before remove", async () => {
+  const h = requestFor(SITE, new InMemoryPluginActivationRepo());
+  const required = { ...h.required, input: { ...h.required.input, pluginId: "ghost" } };
+  await assert.rejects(() => previewUninstallPlugin(required), (error: unknown) => error instanceof PluginNotFoundError && error.message === "plugin 'ghost' was not found in the current discovery snapshot");
+  await assert.rejects(() => uninstallPlugin(required), PluginNotFoundError);
+  assert.equal(h.removeCalls.length, 0);
+});
+
+for (const reason of ["not-found", "version-changed"] as const) {
+  test(`a remove that reports '${reason}' surfaces as PluginNotFoundError (the plugin vanished while being trashed)`, async () => {
+    const h = requestFor(SITE, new InMemoryPluginActivationRepo(), { ok: false, reason });
+    await assert.rejects(() => uninstallPlugin(h.required), (error: unknown) => error instanceof PluginNotFoundError && error.message === "plugin 'my-plugin' was not found while moving it to the Trash");
+    assert.equal(h.removeCalls.length, 1);
+  });
+}

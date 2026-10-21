@@ -380,3 +380,22 @@ test('chart browser providers declare open kinds and digest-covered relative cli
     assert.ok(codesOf(result).includes('BROWSER_PROVIDER_INVALID'));
   }
 });
+
+test("REQ-01: a manifest with no id reports only the missing field — no id format or folder diagnostics on a value that is not there", () => {
+  const { id: _id, ...missingId } = validManifest() as Record<string, unknown>;
+  const result = validateManifest(required({ ...missingId, fields: [] }));
+  assert.deepEqual(result.errors.map((error) => [error.code, error.message]), [["MANIFEST_MALFORMED", "missing required manifest field 'id'"]]);
+});
+
+test("REQ-01: an engine that is not a positive integer is MANIFEST_MALFORMED, not ENGINE_UNSUPPORTED", () => {
+  for (const engine of [0, 1.5, "1"]) {
+    const result = validateManifest(required({ ...validManifest(), engine }));
+    assert.deepEqual(result.errors.map((error) => [error.code, error.message]), [["MANIFEST_MALFORMED", "'engine' must be a positive integer"]], String(engine));
+  }
+});
+
+test("contributes: with no id to namespace by, a table is checked against the empty plugin prefix and refused", () => {
+  const { id: _id, ...missingId } = validManifest({ fields: [], contributes: { tables: ["p_word_count__totals"] } }) as Record<string, unknown>;
+  const result = validateManifest(required(missingId));
+  assert.ok(result.errors.some((error) => error.code === "CONTRIBUTES_INVALID" && error.message.includes("must be namespaced to this plugin ('p___*')")));
+});
