@@ -71,6 +71,29 @@ describe("helpers", () => {
     const htmlOnly: OutboundEmail = { workspaceId: "ws-1", to: MESSAGE.to, from: MESSAGE.from, subject: "Hi", html: "<p>x</p>" };
     assert.notEqual(mailPayloadHash({ message: htmlOnly }), mailPayloadHash({ message: { ...htmlOnly, text: "x" } }));
   });
+  test("payload hash covers the whole delivery: attachment bytes and types, reply-to, display names", () => {
+    const attachment = { filename: "invoice.pdf", contentType: "application/pdf", contentBase64: "AAAA" };
+    const base: OutboundEmail = { ...MESSAGE, from: { email: "news@example.com", name: "News" }, replyTo: { email: "help@example.com", name: "Help" }, attachments: [attachment] };
+    const hash = mailPayloadHash({ message: base });
+    const variants: OutboundEmail[] = [
+      { ...base, attachments: [{ ...attachment, contentBase64: "BBBB" }] },
+      { ...base, attachments: [{ ...attachment, contentType: "text/plain" }] },
+      { ...base, replyTo: { email: "other@example.com", name: "Help" } },
+      { ...base, replyTo: { email: "help@example.com", name: "Support" } },
+      { ...base, replyTo: undefined },
+      { ...base, from: { email: "news@example.com", name: "Newsroom" } },
+      { ...base, to: { email: MESSAGE.to.email, name: "Reader" } },
+    ];
+    for (const variant of variants) assert.notEqual(mailPayloadHash({ message: variant }), hash);
+  });
+  test("a reused key whose attachment contents changed is a conflict, not the earlier message's success", async () => {
+    const { policy, sent, send } = build();
+    const attachment = { filename: "a.txt", contentType: "text/plain", contentBase64: "b25l" };
+    await policy.deliver({ message: { ...MESSAGE, attachments: [attachment] }, options: OPTIONS, send });
+    const changed = await policy.deliver({ message: { ...MESSAGE, attachments: [{ ...attachment, contentBase64: "dHdv" }] }, options: OPTIONS, send });
+    assert.equal(!changed.ok && changed.errorCode, "MAIL_IDEMPOTENCY_CONFLICT");
+    assert.equal(sent.length, 1, "the changed message is never sent under the old key");
+  });
 });
 
 describe("createMailDeliveryPolicy refusals (no ledger row)", () => {

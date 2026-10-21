@@ -65,11 +65,25 @@ export function hasOneClickUnsubscribe({ headers }: { headers: OutboundEmail["he
   return names.has("list-unsubscribe") && names.has("list-unsubscribe-post");
 }
 
-/** Stable per-recipient payload hash: a reused key with different content is a caller bug. */
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function canonicalAddress(address: EmailAddress | undefined): readonly [string, string | null] | null {
+  return address === undefined ? null : [address.email, address.name ?? null];
+}
+
+/**
+ * Stable per-recipient payload hash: a reused key with different content is a caller bug. It covers
+ * everything the provider delivers (addresses with display names, reply-to, subject, bodies, headers,
+ * attachment names, types and bytes), so a changed message under a sent key is a conflict rather than
+ * the earlier message's success. Attachment bytes enter as their own sha256 to keep the input small.
+ * @complexity O(message size).
+ */
 export function mailPayloadHash({ message }: { message: OutboundEmail }): string {
-  const { subject, html, text, headers, from, attachments } = message;
-  const canonical = JSON.stringify([from.email, subject, html ?? null, text ?? null, Object.entries(headers ?? {}).sort(), attachments?.map((a) => a.filename) ?? []]);
-  return createHash("sha256").update(canonical).digest("hex");
+  const { subject, html, text, headers, from, to, replyTo, attachments } = message;
+  const files = (attachments ?? []).map((a) => [a.filename, a.contentType, sha256(a.contentBase64)]);
+  return sha256(JSON.stringify([canonicalAddress(from), canonicalAddress(to), canonicalAddress(replyTo), subject, html ?? null, text ?? null, Object.entries(headers ?? {}).sort(), files]));
 }
 
 function refuse(errorCode: string, message: string, extra: { retryable?: boolean; retryAfterMs?: number; unknown?: boolean } = {}): MailerSendResult {
