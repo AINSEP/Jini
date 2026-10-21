@@ -24,11 +24,11 @@ export const USD = (minorUnits: number) => ({ minorUnits, currency: "USD" });
 export const LIPAY: PaymentScope = { workspaceId: "ws", siteId: "site", providerId: "lipay", providerAccountId: "acct_fake", mode: "test" };
 export const SCRIPTED: PaymentScope = { ...LIPAY, providerId: "scripted" };
 
-type Answer<T> = Outcome<T> | "throw" | "garbage";
+type Answer<T> = Outcome<T> | "throw" | "throw-value" | "garbage";
 type Op = "createIntent" | "refund" | "capture" | "void" | "retrieve";
 
 /** A provider whose every answer the test queues. Defaults: createIntent authorizes (manual) or succeeds (auto). */
-export function scriptedProvider(capabilities: Partial<ProviderCapabilities> = {}) {
+export function scriptedProvider(capabilities: Partial<ProviderCapabilities> = {}, omit: readonly Op[] = []) {
   const queues: Record<Op, Answer<unknown>[]> = { createIntent: [], refund: [], capture: [], void: [], retrieve: [] };
   const calls: { op: Op; req: unknown; optional?: unknown }[] = [];
   const caps: ProviderCapabilities = {
@@ -39,23 +39,25 @@ export function scriptedProvider(capabilities: Partial<ProviderCapabilities> = {
     calls.push({ op, req, ...(optional === undefined ? {} : { optional }) });
     const next = queues[op].shift() ?? fallback();
     if (next === "throw") throw new Error(`scripted ${op} exploded`);
+    if (next === "throw-value") throw `scripted ${op} threw a string`;
     if (next === "garbage") return { nope: true } as unknown as Outcome<T>;
     return next as Outcome<T>;
   };
-  const evidence = (over: Partial<PaymentEvidence>): PaymentEvidence => ({ providerRef: "sp_1", status: "authorized", refunds: [], disputes: [], ...over });
+  const evidence = (over: Partial<PaymentEvidence> & { providerRef: string }): PaymentEvidence => ({ status: "authorized", refunds: [], disputes: [], ...over });
   const provider: PaymentProvider = {
     id: "scripted", displayName: "Scripted", credentialKeys: [], capabilities: caps,
     createIntent: ({ req }) => answer("createIntent", req, () => ({
-      kind: "ok", value: { evidence: evidence({ correlationId: req.correlationId, status: req.captureMode === "manual" ? "authorized" : "succeeded" }), next: { kind: "none" } },
+      kind: "ok", value: { evidence: evidence({ providerRef: `sp_${req.correlationId}`, correlationId: req.correlationId, status: req.captureMode === "manual" ? "authorized" : "succeeded" }), next: { kind: "none" } },
     })),
     refund: ({ req }, optional) => answer<RefundEvidence>("refund", req, () => ({
       kind: "ok", value: { providerRefundRef: `sre_${req.correlationId}`, correlationId: req.correlationId, amount: req.amount, status: "succeeded" },
     }), optional),
-    capture: ({ req }) => answer("capture", req, () => ({ kind: "ok", value: evidence({ status: "succeeded", captured: req.amount }) })),
-    void: ({ req }) => answer("void", req, () => ({ kind: "ok", value: evidence({ status: "canceled" }) })),
+    capture: ({ req }) => answer("capture", req, () => ({ kind: "ok", value: evidence({ providerRef: req.providerRef, status: "succeeded", captured: req.amount }) })),
+    void: ({ req }) => answer("void", req, () => ({ kind: "ok", value: evidence({ providerRef: req.providerRef, status: "canceled" }) })),
     retrieve: ({ providerRef }) => answer("retrieve", providerRef, () => ({ kind: "ok", value: evidence({ providerRef }) })),
     verifyWebhook: async () => ({ kind: "rejected", error: paymentError({ code: "SIGNATURE_INVALID", message: "no" }) }),
   };
+  for (const op of omit) delete (provider as unknown as Record<string, unknown>)[op];
   return {
     provider, calls,
     queue: (op: Op, ...answers: Answer<unknown>[]) => { queues[op].push(...answers); },
@@ -97,6 +99,8 @@ export interface WorldOptions {
   readonly ledgerKind?: LedgerKind;
   readonly echoesCorrelation?: boolean;
   readonly scripted?: Partial<ProviderCapabilities>;
+  /** Methods to remove from the scripted provider (a plugin that promises more than it implements). */
+  readonly scriptedOmit?: readonly Op[];
   readonly risk?: { port: PreChargeRiskPort; failPolicy?: RiskFailPolicy };
   readonly alerts?: PaymentsAlertPort;
   /** Wrap the ledger (to inject races or faults). */
@@ -111,7 +115,7 @@ export async function world(optional: WorldOptions = {}) {
   const base = await openLedger(optional.ledgerKind ?? "memory");
   const ledger = optional.wrapLedger ? optional.wrapLedger(base) : base;
   const lipay = createLipayFake({ now }, optional.echoesCorrelation === undefined ? {} : { echoesCorrelation: optional.echoesCorrelation });
-  const scripted = scriptedProvider(optional.scripted);
+  const scripted = scriptedProvider(optional.scripted, optional.scriptedOmit);
   const providers = createKernelProviderRegistry({
     items: [{ pluginId: "lipay-plugin", module: lipay.provider }, { pluginId: "scripted-plugin", module: scripted.provider }],
   });
