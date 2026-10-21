@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 import { setAcpModelProbe, type AcpModelProbe } from '../../acp-model-probe.js';
 import type { RuntimeAgentDef } from '../../types.js';
 import { traeCliAgentDef } from '../trae-cli.js';
@@ -50,5 +51,28 @@ describe('traeCliAgentDef shape', () => {
     expect(traeCliAgentDef.streamFormat).toBe('acp-json-rpc');
     expect(traeCliAgentDef.mcpDiscovery).toBe('mature-acp');
     expect(traeCliAgentDef.externalMcpInjection).toBe('acp-merge');
+  });
+});
+
+describe('traeCliAgentDef.discoverModels', () => {
+  it('offline discovery yields an empty catalog: the only static fallback is the \'default\' sentinel, which the catalog strips', async () => {
+    const catalog = await traeCliAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models).toEqual([]);
+  });
+});
+
+describe('traeCliAgentDef.fetchModels with an explicitly injected probe', () => {
+  it('uses the acpModelProbe passed in the options instead of the process-wide probe', async () => {
+    const seen: string[][] = [];
+    const injected: AcpModelProbe = {
+      detectModels: async (required) => {
+        seen.push(required.args);
+        return [{ id: 'injected', label: 'injected' }];
+      },
+    };
+    const models = await traeCliAgentDef.fetchModels!({ resolvedBin: '/bin/agent', env: {} }, { acpModelProbe: injected });
+    expect(models).toEqual([{ id: 'injected', label: 'injected' }]);
+    expect(seen).toEqual([['acp', 'serve']]);
   });
 });

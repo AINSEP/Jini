@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 import { qwenAgentDef } from '../qwen.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
@@ -42,5 +43,13 @@ describe('qwenAgentDef shape', () => {
     expect(qwenAgentDef.fallbackModels).toContainEqual(DEFAULT_MODEL_OPTION);
     expect(qwenAgentDef.promptViaStdin).toBe(true);
     expect(qwenAgentDef.streamFormat).toBe('plain');
+  });
+});
+
+describe('qwenAgentDef.discoverModels', () => {
+  it('falls back to the concrete static fallback models (minus the default sentinel) when every probe is offline', async () => {
+    const catalog = await qwenAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toEqual(['qwen3-coder-plus', 'qwen3-coder-flash']);
   });
 });

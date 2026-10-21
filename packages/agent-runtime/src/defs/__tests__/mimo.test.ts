@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 import { mimoAgentDef } from '../mimo.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
@@ -39,5 +40,13 @@ describe('mimoAgentDef shape', () => {
     expect(mimoAgentDef.streamFormat).toBe('json-event-stream');
     expect(mimoAgentDef.eventParser).toBe('opencode');
     expect(mimoAgentDef.externalMcpInjection).toBe('mimo-env-content');
+  });
+});
+
+describe('mimoAgentDef.discoverModels', () => {
+  it('offline discovery yields an empty catalog: the only static fallback is the \'default\' sentinel, which the catalog strips', async () => {
+    const catalog = await mimoAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models).toEqual([]);
   });
 });
