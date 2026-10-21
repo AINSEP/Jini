@@ -112,6 +112,14 @@ function emitStuck(runId: string): void {
   // time this callback runs, its entry is guaranteed to both exist and
   // have `emitted === false`. Unreachable code is refactored away rather than fake-tested — see
   // packages/ui/archived provenance ledger's 2026-07-22 dated entry for the full proof.
+  //
+  // Original rationale for the removed guard, kept verbatim (moved, not deleted) so the trade-off
+  // stays visible to whoever revisits it: "Left in place (not stripped) as a guard
+  // against a future refactor silently breaking that invariant — see
+  // packages/ui/archived provenance ledger's 2026-07-22 dated entry for the full proof,
+  // matching this task's own standard for documenting provable
+  // unreachability instead of forcing a test." A refactor that lets a cleared or re-flagged
+  // entry reach this callback must therefore restore that guard here.
   const entry = runs.get(runId)!;
   entry.emitted = true;
   entry.reporter('client_run_stuck', {
