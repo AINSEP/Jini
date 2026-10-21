@@ -85,6 +85,37 @@ test('broken or duplicate plugin contributions are refused, never thrown', () =>
   assert.equal(registry.get({ id: 'resend' })?.provider.send(), 'r1');
 });
 
+test('a throwing validator or provider getter is refused, and a later valid contribution still loads', () => {
+  const registry = createProviderRegistry<Mailer>({ contract: 'mail' }, { validate: ({ provider }) => { if (provider.send() === 'bug') throw new Error('validator bug'); return undefined; } });
+  assert.equal(registry.contribute({ definition: { id: 'buggy', provider: mailer('bug') }, pluginId: 'p1' }), false);
+  const hostileProvider = Object.defineProperty({ id: 'hostile' }, 'provider', { get: () => { throw new Error('getter'); } }) as unknown as { id: string; provider: Mailer };
+  assert.equal(registry.contribute({ definition: hostileProvider, pluginId: 'p2' }), false);
+  const hostileId = Object.defineProperty({ provider: mailer('x') }, 'id', { get: () => { throw new Error('id getter'); } }) as unknown as { id: string; provider: Mailer };
+  assert.equal(registry.contribute({ definition: hostileId, pluginId: 'p3' }), false);
+  assert.equal(registry.contribute({ definition: { id: 'good', provider: mailer('good') }, pluginId: 'p4' }), true);
+  assert.deepEqual(registry.list().map(entry => entry.id), ['good']);
+  assert.deepEqual(registry.refusals().map(r => [r.code, r.pluginId, r.providerId, r.message]), [
+    ['invalid_provider', 'p1', 'buggy', "mail provider from plugin 'p1' was not loaded: its definition could not be validated"],
+    ['invalid_provider', 'p2', 'hostile', "mail provider from plugin 'p2' was not loaded: its definition could not be validated"],
+    ['invalid_provider', 'p3', '', "mail provider from plugin 'p3' was not loaded: its definition could not be validated"],
+  ]);
+  assert.throws(() => registry.register({ definition: { id: 'core_bug', provider: mailer('bug') } }), /validator bug/);
+});
+
+test('public boundaries accept the reserved optional object', () => {
+  const registry = createProviderRegistry<Mailer>({ contract: 'mail' }, {});
+  registry.register({ definition: { id: 'smtp', provider: mailer('smtp') } }, {});
+  assert.equal(registry.contribute({ definition: { id: 'acme', provider: mailer('acme') }, pluginId: 'p' }, {}), true);
+  assert.equal(registry.get({ id: 'smtp' }, {})?.id, 'smtp');
+  assert.equal(registry.has({ id: 'acme' }, {}), true);
+  assert.equal(registry.list({}, {}).length, 2);
+  assert.equal(registry.getDefault({}, {}), undefined);
+  assert.equal(registry.refusals({}, {}).length, 0);
+  assert.deepEqual(providerOk({ value: 1 }, {}), { status: 'ok', value: 1 });
+  assert.equal(providerRejected({ code: 'conflict', message: 'm' }, {}).status, 'rejected');
+  assert.equal(providerUnknown({ code: 'network', message: 'm' }, {}).status, 'unknown');
+});
+
 test('core displaces an earlier plugin entry for the same id and records why', () => {
   const registry = createProviderRegistry<Mailer>({ contract: 'mail' });
   registry.contribute({ definition: { id: 'resend', provider: mailer('plugin') }, pluginId: 'resend_plugin' });
