@@ -138,10 +138,40 @@ describe('plugin contributions', () => {
     expect(registry.findProvider({ id: 'openai' })?.label).toBe('OpenAI');
   });
 
-  it('the same model id on a different route is allowed', () => {
+  // Why refused rather than allowed per route: `findModel` resolves by id alone, so a second vendor's
+  // `gpt-image-2` on video would dispatch to OpenAI (and a plugin `order: -1` would reverse that).
+  it.each([
+    ['without an order', {}],
+    ['sorted ahead of the builtins', { order: -1 }],
+  ])('refuses a model id another provider owns on a different route (%s), and dispatch still routes by owner', async (_name, extra) => {
     const registry = createMediaProviderRegistry();
-    const contribution = acme({ models: [{ id: 'gpt-image-2', label: 'v', hint: '', provider: 'acme-media', caps: ['t2v'], surface: 'video' }] });
+    const contribution = acme({ models: [{ id: 'gpt-image-2', label: 'v', hint: '', provider: 'acme-media', caps: ['t2v'], surface: 'video', ...extra }], adapters: { video: fakeAdapter() } });
+    expect(registry.providers.contribute({ definition: mediaProviderDefinition({ contribution }), pluginId: 'p' })).toBe(false);
+    expect(registry.providers.refusals()[0]?.message).toContain("'gpt-image-2' is already offered");
+    expect(registry.findModel({ id: 'gpt-image-2' })?.provider).toBe('openai');
+    const engine = createMediaDispatchEngine({ registry, httpClient: testHttpClient(async () => new Response('x')) }, { catalog: registry, allowStubFallback: true });
+    await expect(engine.generate({ surface: 'video', model: 'gpt-image-2' }, { prompt: 'p' })).rejects.toThrow('is not registered for surface "video"');
+  });
+
+  it('one provider may offer the same model id on several routes', () => {
+    const model = (surface: 'image' | 'video') => ({ id: 'acme-both', label: 'b', hint: '', provider: 'acme-media', caps: [], surface });
+    const registry = createMediaProviderRegistry();
+    const contribution = acme({ models: [model('image'), model('video')] });
     expect(registry.providers.contribute({ definition: mediaProviderDefinition({ contribution }), pluginId: 'p' })).toBe(true);
+    expect(registry.modelsForSurface({ surface: 'video' }).at(-1)?.id).toBe('acme-both');
+  });
+
+  it.each([
+    ['an undefined model', [undefined]],
+    ['a null model after a valid one', [{ id: 'acme-ok', label: 'o', hint: '', provider: 'acme-media', caps: [], surface: 'image' }, null]],
+  ])('refuses %s without throwing, and later valid contributions still load', (_name, models) => {
+    const registry = createMediaProviderRegistry();
+    const broken = acme({ models: models as never });
+    expect(() => registry.providers.contribute({ definition: mediaProviderDefinition({ contribution: broken }), pluginId: 'bad' })).not.toThrow();
+    expect(registry.providers.refusals()[0]?.message).toContain("must have an id and belong to provider 'acme-media'");
+    const valid = acme({ provider: { id: 'beta-media', label: 'Beta', hint: '', integrated: true }, models: [{ id: 'beta-1', label: 'b', hint: '', provider: 'beta-media', caps: [], surface: 'image' }] });
+    expect(registry.providers.contribute({ definition: mediaProviderDefinition({ contribution: valid }), pluginId: 'good' })).toBe(true);
+    expect(registry.findModel({ id: 'beta-1' })?.provider).toBe('beta-media');
   });
 
   it('a malformed core contribution throws at composition', () => {

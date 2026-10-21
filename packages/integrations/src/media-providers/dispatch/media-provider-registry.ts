@@ -56,10 +56,6 @@ export function mediaProviderDefinition(
   return { id: mediaProviderRegistryId({ id: contribution.provider.id }), provider: contribution, label: contribution.provider.label };
 }
 
-function routeKeyOf(model: MediaProviderModel): string {
-  return model.surface === 'audio' ? `audio:${model.audioKind ?? 'music'}` : model.surface;
-}
-
 function isAdapter(value: unknown): boolean {
   const candidate = value as Partial<VendorAdapter<never>> | null;
   return typeof candidate?.buildRequest === 'function' && typeof candidate.parseResponse === 'function';
@@ -72,8 +68,10 @@ function providerFault(provider: MediaProvider | undefined): string | undefined 
 
 function modelsFault(models: unknown, providerId: string): string | undefined {
   if (!Array.isArray(models)) return 'models must be an array';
-  const foreign = (models as Partial<MediaProviderModel>[]).find(model => model?.provider !== providerId || typeof model.id !== 'string' || !model.id);
-  return foreign === undefined ? undefined : `model '${String(foreign?.id)}' must have an id and belong to provider '${providerId}'`;
+  // findIndex, not find: a `find` hit on an `undefined` element is indistinguishable from no hit, which
+  // let `models: [undefined]` pass here and then throw in the collision check.
+  const at = (models as (Partial<MediaProviderModel> | undefined)[]).findIndex(model => model?.provider !== providerId || typeof model.id !== 'string' || !model.id);
+  return at === -1 ? undefined : `model '${String(models[at]?.id)}' must have an id and belong to provider '${providerId}'`;
 }
 
 function adaptersFault(adapters: unknown): string | undefined {
@@ -89,11 +87,15 @@ function ownFault(contribution: MediaProviderContribution): string | undefined {
   return providerFault(provider) ?? modelsFault(models, provider!.id) ?? adaptersFault(adapters);
 }
 
-/** A model id another provider already offers on the same route (so routing would be ambiguous). */
+/**
+ * A model id another provider already offers on ANY route. Why not per route: `findModel` (and so
+ * dispatch and credential selection) resolves a model by id alone, so a second vendor's `gpt-image-2`
+ * on video would be routed to OpenAI — or, with a lower `order`, take OpenAI's image traffic.
+ */
 function collisionFault(contribution: MediaProviderContribution, registered: readonly RegisteredProvider<MediaProviderContribution>[]): string | undefined {
   const ownKey = mediaProviderRegistryId({ id: contribution.provider.id });
-  const taken = new Set(registered.filter(entry => entry.id !== ownKey).flatMap(entry => entry.provider.models.map(model => `${routeKeyOf(model)} ${model.id}`)));
-  const clash = contribution.models.find(model => taken.has(`${routeKeyOf(model)} ${model.id}`));
+  const taken = new Set(registered.filter(entry => entry.id !== ownKey).flatMap(entry => entry.provider.models.map(model => model.id)));
+  const clash = contribution.models.find(model => taken.has(model.id));
   return clash === undefined ? undefined : `model '${clash.id}' is already offered by another provider`;
 }
 
