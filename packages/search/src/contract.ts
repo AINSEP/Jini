@@ -22,6 +22,7 @@
  */
 import type { HttpClientPort } from '@jini-ai/core/primitives';
 import type { ProviderContext, ProviderResult } from '@jini-ai/core/provider-registry';
+import { sha256Hex } from './digest.js';
 
 /** The contract name used by the provider registry and plugin contributions. */
 export const SEARCH_CONTRACT = 'search';
@@ -221,10 +222,16 @@ export function decodeSearchKey(required: { readonly encoded: string }): SearchD
  * The backend index name for one install, site, provider and generation. Derived from the install
  * id (never the site slug) so two installs sharing a vendor account cannot collide, and the
  * generation suffix is what makes a provider switch or full rebuild an atomic pointer flip.
+ * The identity is a SHA-256 digest (160 bits kept) of the COMPLETE, unambiguously encoded
+ * (installId, siteId, providerId) tuple: a lossy slug (`site-a` vs `site_a`, two long ids sharing a
+ * prefix) would give two sites one index, and dropping one site's generation would delete the
+ * other's. The generation stays a distinct, readable suffix, never truncated; the provider prefix is
+ * only a readable label.
  * Output grammar `[a-z0-9_]`, at most 120 chars (fits Meilisearch and Algolia index-name rules).
  * @complexity O(input length).
  */
 export function searchIndexName(required: { readonly installId: string; readonly siteId: string; readonly providerId: string; readonly generation: number }): string {
-  const clean = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 36) || 'x';
-  return `js_${clean(required.installId)}_${clean(required.siteId)}_${clean(required.providerId)}_g${required.generation}`.slice(0, 120);
+  const label = required.providerId.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24) || 'x';
+  const identity = sha256Hex({ text: JSON.stringify([required.installId, required.siteId, required.providerId]) }).slice(0, 40);
+  return `js_${label}_${identity}_g${required.generation}`;
 }

@@ -148,7 +148,7 @@ describe('createSearchIndexer — handleEvent', () => {
     await indexer.handleEvent({ event: event('a') });
     expect(vendor.calls.map(c => c.method)).toEqual(['upsert']);
     expect(builtin.calls.map(c => c.method)).toEqual(['upsert']);
-    expect(builtin.calls[0]!.ctx.indexName).toContain('_builtin_g2');
+    expect(builtin.calls[0]!.ctx.indexName).toMatch(/^js_builtin_[0-9a-f]{40}_g2$/);
     expect(state.row(BUILDING, key('a'))?.status).toBe('indexed');
   });
 
@@ -499,7 +499,7 @@ describe('createSearchIndexer — backfill', () => {
     await state.put({ row: row({ documentId: 'old' }) });
     expect(await indexer.backfill({ siteId: SITE, workspaceId: WS })).toEqual({ done: true, written: 0, promoted: true });
     expect(vendor.calls.map(c => c.method)).toEqual(['dropIndex']);
-    expect(vendor.calls[0]!.ctx.indexName).toContain('_vendor_g1');
+    expect(vendor.calls[0]!.ctx.indexName).toMatch(/^js_vendor_[0-9a-f]{40}_g1$/);
     expect(state.deleted).toEqual([ACTIVE]);
     expect(state.row(ACTIVE, key('old'))).toBeUndefined();
   });

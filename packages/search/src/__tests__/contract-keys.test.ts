@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
 import { decodeSearchKey, encodeSearchKey, searchIndexName } from '../contract.js';
 
@@ -14,8 +15,28 @@ test('decodeSearchKey refuses anything that is not four well-formed parts', () =
   expect(decodeSearchKey({ encoded: 'a/b/c/%E0%A4%A' })).toBeUndefined();
 });
 
-test('searchIndexName is derived from install, site, provider and generation', () => {
-  expect(searchIndexName({ installId: 'Inst-1', siteId: 'My Site', providerId: 'meilisearch', generation: 3 })).toBe('js_inst_1_my_site_meilisearch_g3');
-  expect(searchIndexName({ installId: '***', siteId: 's', providerId: 'p', generation: 0 })).toBe('js_x_s_p_g0');
-  expect(searchIndexName({ installId: 'i'.repeat(50), siteId: 's'.repeat(50), providerId: 'p'.repeat(50), generation: 1 }).length).toBeLessThanOrEqual(120);
+const identityOf = (parts: readonly string[]) => createHash('sha256').update(JSON.stringify(parts)).digest('hex').slice(0, 40);
+
+test('searchIndexName is a provider label, a digest of the full (install, site, provider) identity and the generation', () => {
+  expect(searchIndexName({ installId: 'Inst-1', siteId: 'My Site', providerId: 'meilisearch', generation: 3 }))
+    .toBe(`js_meilisearch_${identityOf(['Inst-1', 'My Site', 'meilisearch'])}_g3`);
+  expect(searchIndexName({ installId: '***', siteId: 's', providerId: '***', generation: 0 })).toBe(`js_x_${identityOf(['***', 's', '***'])}_g0`);
+  const long = searchIndexName({ installId: 'i'.repeat(500), siteId: 's'.repeat(500), providerId: 'p'.repeat(500), generation: Number.MAX_SAFE_INTEGER });
+  expect(long.length).toBeLessThanOrEqual(120);
+  expect(long).toMatch(/^[a-z0-9_]+_g9007199254740991$/);
+});
+
+test('searchIndexName never collides for identities a lossy slug would merge', () => {
+  const name = (installId: string, siteId: string, providerId = 'meilisearch', generation = 1) => searchIndexName({ installId, siteId, providerId, generation });
+  const pairs: [string, string][] = [
+    [name('inst', 'site-a'), name('inst', 'site_a')],
+    [name('inst', 'Site A'), name('inst', 'site a')],
+    [name('inst', `${'x'.repeat(40)}one`), name('inst', `${'x'.repeat(40)}two`)],
+    [name(`${'i'.repeat(40)}1`, 's'), name(`${'i'.repeat(40)}2`, 's')],
+    [name('a_b', 'c'), name('a', 'b_c')],
+    [name('inst', 's', 'meili-search'), name('inst', 's', 'meili_search')],
+    [name('inst', 's', 'p', 1), name('inst', 's', 'p', 11)],
+  ];
+  for (const [left, right] of pairs) expect(left).not.toBe(right);
+  for (const value of pairs.flat()) expect(value).toMatch(/^[a-z0-9_]{1,120}$/);
 });
