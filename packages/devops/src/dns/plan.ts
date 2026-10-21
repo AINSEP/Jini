@@ -144,7 +144,7 @@ function ownershipBlocker(name: string, foreign: readonly DnsRecord[], desired: 
   const target = desired.map(record => `${record.type} ${(record.values as readonly DnsRecordValue[]).map(value => dnsValueKey({ value })).join(', ')}`).join('; ');
   return {
     code: 'record_not_owned', name,
-    message: `The existing ${types} record at ${name} was not created for this site, so it is left untouched instead of being replaced or deleted.`,
+    message: `The existing ${types} record at ${name} was not created by this engine (it is not marked as managed), so it is left untouched instead of being replaced or deleted.`,
     suggestion: `If it is no longer needed, change it by hand at your DNS host to ${target}, then plan again.`,
   };
 }

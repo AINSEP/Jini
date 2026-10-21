@@ -48,24 +48,24 @@ function ipv6Groups(text: string): number[] | undefined {
   if (head === undefined || tail === undefined) return undefined;
   const missing = 8 - head.length - tail.length;
   if (halves.length === 1 ? missing !== 0 : missing < 1) return undefined;
-  return [...head, ...new Array<number>(Math.max(missing, 0)).fill(0), ...tail];
+  return [...head, ...Array.from({ length: missing }, () => 0), ...tail];
+}
+
+/** Each run of zero groups as [start, length], in order. */
+function zeroRuns(groups: readonly number[]): Array<[number, number]> {
+  const runs: Array<[number, number]> = [];
+  groups.forEach((group, index) => {
+    if (group !== 0) return;
+    const last = runs[runs.length - 1];
+    if (last !== undefined && last[0] + last[1] === index) last[1] += 1;
+    else runs.push([index, 1]);
+  });
+  return runs;
 }
 
 /** The first longest run of two or more zero groups, as [start, length]; length 0 when none. */
 function longestZeroRun(groups: readonly number[]): [number, number] {
-  let best: [number, number] = [0, 0];
-  let start = -1;
-  for (let index = 0; index <= groups.length; index += 1) {
-    if (groups[index] === 0) {
-      if (start < 0) start = index;
-    } else if (start >= 0) {
-      if (index - start > best[1] && index - start >= 2) best = [start, index - start];
-      start = -1;
-    } else {
-      // Not inside a zero run: nothing to close.
-    }
-  }
-  return best;
+  return zeroRuns(groups).reduce<[number, number]>((best, run) => (run[1] >= 2 && run[1] > best[1] ? run : best), [0, 0]);
 }
 
 /**
