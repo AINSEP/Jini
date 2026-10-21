@@ -16,7 +16,8 @@ Personas: vendored /home/user/Jini/AI-Dev-Shop/agents (tdd, programmer, software
 | 7 | 079-081 | MERGED — 4/4 files 100 (3 were already 100: NEVER-LOADED only because devops vitest.config narrows coverage.include to src/deploy/**) |
 | 8 | 073b-074b (remainder) | MERGED — 18/18 files 100 (db 82 files/640 tests; daemon 142 files/3480 tests; only daemon http/xai.ts:300 br remains). Owner judgement: daemon launch.ts turnIndex always 0 (`hasPriorAssistantTurn` never set) |
 | 9 | 082-089 | MERGED — 59/59 files 100 (devops 850, diagnostics 769, http-kit 531, integrations 1619, mcp 1280 tests). Out-of-scope bug noted: platform/src/asset-cache.ts:141 TypeError on null address entry |
-| 10 | 090-091 | MERGED — all 100 except oauth/oidc.ts:64 (fail-closed guard vs oauth4webapi, kept), platform/net/address.ts:27 (documented fail-closed guard, kept), platform/fs/directory-workspace.ts 100/79.33/81.81 (unfinished); 5 oauth tests/* helpers skipped |
-| 11 | 092-093 | running |
+| 10 | 090-091 | MERGED — all 100 except oauth/oidc.ts:64 (fail-closed guard vs oauth4webapi, kept), platform/net/address.ts:27 (documented fail-closed guard, kept), platform/fs/directory-workspace.ts finished by session 14 (091b) → 100; 5 oauth tests/* helpers skipped |
+| 11 | 092-093 | MERGED — all measured files 100 (plugins 692, registry 342, sandbox 123, server 410+1s, sidecar 204+2s, ui-kit 199, ui 8471). Skipped: server create-local-node-daemon.typecheck.ts, 2 build scripts. Review flag: plugins install.ts path-safety re-checks removed (validateManifest REQUIRED_KEYS + isExactSemver already guarantee them — coordinator verified) |
+| 14 | 091b directory-workspace | MERGED — 100/100/100, platform 2425+6s tests |
 | 12 | 094-095 | running |
 | 13 | 096-098 | running |
