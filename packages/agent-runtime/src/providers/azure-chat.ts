@@ -73,7 +73,8 @@
  * See docs/decisions/DR-001-provider-native-tool-lifecycle.md.
  */
 import { defaultDnsLookup, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
-import { runOpenAiCompatibleRequest, type OpenAiCompatibleRequestOutcome } from './openai-chat.js';
+import { runOpenAiCompatibleRequest, refreshOpenAiTools, createStrictToolRetry, type StrictToolRetryState, type OpenAiCompatibleRequestOutcome } from './openai-chat.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './tool-turn-types.js';
 import { buildLegacyMaxTokensParam, buildMaxCompletionTokensParam, isUnsupportedMaxTokensError } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 
@@ -83,6 +84,7 @@ export interface AzureFunctionToolDef {
     readonly name: string;
     readonly description?: string;
     readonly parameters: Record<string, unknown>;
+    readonly strict?: boolean;
   };
 }
 
@@ -153,6 +155,9 @@ export interface AzureTurnOptions {
   readonly apiVersion?: string;
   readonly messages: readonly AzureMessageParam[];
   readonly tools?: readonly AzureFunctionToolDef[];
+  /** Refresh the run's projection immediately before each HTTP request. */
+  readonly getTools?: (options?: ProviderToolSnapshotOptions) => readonly AzureFunctionToolDef[];
+  readonly onSchemaFallback?: (event: ProviderSchemaFallback) => void;
   readonly temperature?: number;
   /** Defaults to 8192 when omitted or not a positive number — a token limit is always sent, matching OD's real `azure` proxy handler (see module doc). */
   readonly maxTokens?: number;
@@ -219,6 +224,7 @@ async function runSingleAzureRequest(
   messages: readonly AzureMessageParam[],
   emitEnd: (reason: AzureTurnEndReason) => void,
   hasEnded: () => boolean,
+  retry: StrictToolRetryState,
 ): Promise<OpenAiCompatibleRequestOutcome> {
   const baseUrlCheck = await validateBaseUrlResolved({ baseUrl: options.baseUrl, lookup: options.dnsLookup ?? defaultDnsLookup });
   if (baseUrlCheck.error) {
@@ -228,14 +234,20 @@ async function runSingleAzureRequest(
   }
 
   const maxTokens = effectiveAzureMaxTokens(options);
+  const requestOptions = refreshOpenAiTools({ options, retry });
 
   return (({ url, headers, body, redactSecretsList, guardMessageId, providerLabel, onEvent, emitEnd, hasEnded, ...optionalArgs }: Parameters<typeof runOpenAiCompatibleRequest>[0] & NonNullable<Parameters<typeof runOpenAiCompatibleRequest>[1]>) => runOpenAiCompatibleRequest({ url, headers, body, redactSecretsList, guardMessageId, providerLabel, onEvent, emitEnd, hasEnded }, optionalArgs))({
     url: azureRequestUrl(options.baseUrl, options.model, options.apiVersion),
     headers: azureHeaders(options),
-    body: azureRequestBody(options, messages, buildLegacyMaxTokensParam({ maxTokens: maxTokens })),
+    body: azureRequestBody(requestOptions, messages, buildLegacyMaxTokensParam({ maxTokens: maxTokens })),
+    retryToolBody: ({ status, rawErrorText, body }) => {
+      const toolNames = (requestOptions.tools ?? []).filter(tool => tool.function.strict).map(tool => tool.function.name);
+      if (!retry.downgrade({ status, rawErrorText, toolNames })) return null;
+      return { ...body, tools: refreshOpenAiTools({ options, retry }).tools };
+    },
     retryableBody: (status, rawErrorText) =>
       status === 400 && isUnsupportedMaxTokensError({ detail: rawErrorText })
-        ? azureRequestBody(options, messages, buildMaxCompletionTokensParam({ maxTokens: maxTokens }))
+        ? azureRequestBody(refreshOpenAiTools({ options, retry }), messages, buildMaxCompletionTokensParam({ maxTokens: maxTokens }))
         : null,
     ...(baseUrlCheck.pinnedAddress ? { pinnedAddress: baseUrlCheck.pinnedAddress } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
@@ -362,6 +374,7 @@ export function buildAzureToolExchangeMessages({ toolResultMessages, followUpPar
  */
 export async function runAzureToolTurn(requiredArgs: Pick<AzureTurnOptions, "apiKey" | "baseUrl" | "model" | "messages" | "onEvent">, optionalArgs: Omit<AzureTurnOptions, "apiKey" | "baseUrl" | "model" | "messages" | "onEvent"> = {}): Promise<AzureTurnResult> {
   const options: AzureTurnOptions = { ...optionalArgs, ...requiredArgs };
+  const retry = createStrictToolRetry({ protocol: 'azure', onSchemaFallback: options.onSchemaFallback });
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
   const executeTool = options.executeTool;
 
@@ -373,7 +386,7 @@ export async function runAzureToolTurn(requiredArgs: Pick<AzureTurnOptions, "api
   let lastFinishReason: string | null = null;
 
   while (true) {
-    const outcome = await runSingleAzureRequest(options, messages, emitEnd, endGuard.hasEnded);
+    const outcome = await runSingleAzureRequest(options, messages, emitEnd, endGuard.hasEnded, retry);
     lastFinishReason = outcome.finishReason;
 
     if (endGuard.hasEnded()) break;

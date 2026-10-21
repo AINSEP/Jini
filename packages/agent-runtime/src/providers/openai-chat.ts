@@ -72,6 +72,7 @@ import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupA
 import { decodeSseStream, type DecodedSseEvent } from './sse-decode.js';
 import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './tool-turn-types.js';
 
 export interface OpenAiFunctionToolDef {
   readonly type: 'function';
@@ -79,6 +80,7 @@ export interface OpenAiFunctionToolDef {
     readonly name: string;
     readonly description?: string;
     readonly parameters: Record<string, unknown>;
+    readonly strict?: boolean;
   };
 }
 
@@ -146,6 +148,9 @@ export interface OpenAiTurnOptions {
   readonly model: string;
   readonly messages: readonly OpenAiMessageParam[];
   readonly tools?: readonly OpenAiFunctionToolDef[];
+  /** Refresh the run's projection immediately before each HTTP request. */
+  readonly getTools?: (options?: ProviderToolSnapshotOptions) => readonly OpenAiFunctionToolDef[];
+  readonly onSchemaFallback?: (event: ProviderSchemaFallback) => void;
   readonly temperature?: number;
   /** Defaults to {@link DEFAULT_OPENAI_MAX_TOKENS} (8192) when omitted or not a positive number — a token limit is always sent, matching OD's real behavior (see module doc). */
   readonly maxTokens?: number;
@@ -257,6 +262,8 @@ export interface OpenAiCompatibleRequestInit {
    * cannot retry again.
    */
   readonly retryableBody?: (status: number, rawErrorText: string) => Record<string, unknown> | null | undefined;
+  /** Independent of the legacy token-parameter retry; consumed only on a recognized tool rejection. */
+  readonly retryToolBody?: (input: { status: number; rawErrorText: string; body: Record<string, unknown> }) => Record<string, unknown> | null;
   /** Injectable HTTP transport, defaulting to {@link pinnedFetch} (SSRF-guarded, DNS-pinned) — forwarded verbatim from the calling provider's own `OpenAiTurnOptions.fetchImpl`/`AzureTurnOptions.fetchImpl`/`OllamaTurnOptions.fetchImpl`. See `anthropic-messages.ts#AnthropicTurnOptions.fetchImpl`'s doc for the seam this exists for. */
   readonly fetchImpl?: PinnedFetch;
 }
@@ -268,6 +275,66 @@ export interface OpenAiStreamState {
   fullText: string;
   finishReason: string | null;
   usage: Record<string, unknown> | null;
+}
+
+/** Per-turn state shared by the wire adapters; never retries streams or executes tools. */
+export interface StrictToolRetryState {
+  readonly enabled: boolean;
+  readonly downgrade: (input: { status: number; rawErrorText: string; toolNames: readonly string[] }) => boolean;
+}
+
+/** Only explicit HTTP schema/capability rejections qualify, never auth, rate limits or transport failures.
+ * @complexity O(e) time and O(e) space for at most 16 KiB of error text; no I/O.
+ */
+function isStrictToolRejection({ status, rawErrorText }: { status: number; rawErrorText: string }): boolean {
+  if (status !== 400 && status !== 422) return false;
+  const detail = rawErrorText.slice(0, 16384);
+  const namesFeature = /\bstrict\b|\bVALIDATED\b|function[_ .]?calling[_ .]?config|(?:input[_ ]|json[_ ])?schema|structured.outputs/i.test(detail);
+  const rejectsFeature = /unsupported|not support|unknown (?:field|parameter|name)|unrecognized|not (?:allowed|permitted)|invalid (?:json )?schema|schema[^\n]*invalid|invalid (?:enum )?value[^\n]*(?:VALIDATED|function[_ .]?calling[_ .]?config)|requires?[^\n]*beta/i.test(detail);
+  return namesFeature && rejectsFeature;
+}
+
+/**
+ * Allow one recognized pre-generation downgrade for this turn. Diagnostic callbacks receive
+ * names and a closed reason code, never the provider's error text or tool arguments.
+ * @param input - Protocol and optional host diagnostic sink.
+ * @returns Turn-local strict preference and a rejection decision; callback errors propagate.
+ * @example const retry = createStrictToolRetry({ protocol: 'openai' });
+ * @complexity O(e + t) per rejection for bounded error text e and t tool names; O(t) diagnostic space.
+ */
+export function createStrictToolRetry(
+  { protocol, onSchemaFallback }: { protocol: ProviderProtocol; onSchemaFallback?: ((event: ProviderSchemaFallback) => void) | undefined },
+  _options = {},
+): StrictToolRetryState {
+  let enabled = true;
+  return {
+    get enabled() { return enabled; },
+    downgrade({ status, rawErrorText, toolNames }) {
+      if (!enabled || toolNames.length === 0) return false;
+      if (!isStrictToolRejection({ status, rawErrorText })) return false;
+      enabled = false;
+      for (const toolId of new Set(toolNames)) onSchemaFallback?.({ toolId, protocol, reason: 'endpoint-rejected' });
+      return true;
+    },
+  };
+}
+
+/** Refresh OpenAI-compatible tools through the projection owner; legacy callers retain their schemas.
+ * @param input - Existing adapter options and the turn's downgrade state.
+ * @returns A request-local copy; projection callback failures propagate.
+ * @example refreshOpenAiTools({ options, retry });
+ * @complexity O(t) local time/space for t tools; projection cost belongs to getTools.
+ */
+export function refreshOpenAiTools<T extends OpenAiTurnOptions>(
+  { options, retry }: { options: T; retry: StrictToolRetryState },
+  _optional = {},
+): T {
+  let tools = options.getTools?.({ strict: retry.enabled }) ?? options.tools;
+  if (!retry.enabled) tools = tools?.map(tool => {
+    const { strict: _strict, ...definition } = tool.function;
+    return { ...tool, function: definition };
+  });
+  return { ...options, ...(tools !== undefined ? { tools } : {}) };
 }
 
 /** Parses one SSE frame's data as a JSON object, or `null` for a malformed/empty keep-alive frame or a non-object payload — both are tolerated by the caller as "nothing to do this frame". */
@@ -416,6 +483,11 @@ async function requestOpenAiCompatibleStream(init: OpenAiCompatibleRequestInit):
 
   if (!response.ok) {
     const rawText = await response.text();
+    const toolRetryBody = init.retryToolBody?.({ status: response.status, rawErrorText: rawText, body: init.body });
+    if (toolRetryBody) {
+      const { retryToolBody: _retryToolBody, ...retryInit } = init;
+      return { type: 'retry', retryInit: { ...retryInit, body: toolRetryBody } };
+    }
     const retryBody = init.retryableBody?.(response.status, rawText);
     if (retryBody) {
       const { retryableBody: _retryableBody, ...retryInit } = init;
@@ -528,6 +600,7 @@ async function runSingleOpenAiRequest(
   messages: readonly OpenAiMessageParam[],
   emitEnd: (reason: OpenAiTurnEndReason) => void,
   hasEnded: () => boolean,
+  retry: StrictToolRetryState,
 ): Promise<OpenAiCompatibleRequestOutcome> {
   // DNS-resolving, not merely textual: the synchronous check only inspects the literal hostname,
   // so `https://internal.example.com -> 10.0.0.5` passed it and this runner connected to private
@@ -540,10 +613,16 @@ async function runSingleOpenAiRequest(
     return { finishReason: null, toolCalls: [], text: '' };
   }
 
+  const requestOptions = refreshOpenAiTools({ options, retry });
   return (({ url, headers, body, redactSecretsList, guardMessageId, providerLabel, onEvent, emitEnd, hasEnded, ...optionalArgs }: Parameters<typeof runOpenAiCompatibleRequest>[0] & NonNullable<Parameters<typeof runOpenAiCompatibleRequest>[1]>) => runOpenAiCompatibleRequest({ url, headers, body, redactSecretsList, guardMessageId, providerLabel, onEvent, emitEnd, hasEnded }, optionalArgs))({
     url: openAiRequestUrl({ baseUrl: options.baseUrl }),
     headers: (({ apiKey, model, messages, onEvent, ...optionalArgs }: Parameters<typeof openAiHeaders>[0] & NonNullable<Parameters<typeof openAiHeaders>[1]>) => openAiHeaders({ apiKey, model, messages, onEvent }, optionalArgs))(options),
-    body: openAiRequestBody({ options: options, messages: messages }),
+    body: openAiRequestBody({ options: requestOptions, messages: messages }),
+    retryToolBody: ({ status, rawErrorText, body }) => {
+      const toolNames = (requestOptions.tools ?? []).filter(tool => tool.function.strict).map(tool => tool.function.name);
+      if (!retry.downgrade({ status, rawErrorText, toolNames })) return null;
+      return { ...body, tools: refreshOpenAiTools({ options, retry }).tools };
+    },
     ...(baseUrlCheck.pinnedAddress ? { pinnedAddress: baseUrlCheck.pinnedAddress } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
@@ -720,6 +799,7 @@ export function buildOpenAiToolExchangeMessages({ toolResultMessages, followUpPa
  */
 export async function runOpenAiToolTurn(requiredArgs: Pick<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent">, optionalArgs: Omit<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent"> = {}): Promise<OpenAiTurnResult> {
   const options: OpenAiTurnOptions = { ...optionalArgs, ...requiredArgs };
+  const retry = createStrictToolRetry({ protocol: 'openai', onSchemaFallback: options.onSchemaFallback });
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
   const executeTool = options.executeTool;
 
@@ -731,7 +811,7 @@ export async function runOpenAiToolTurn(requiredArgs: Pick<OpenAiTurnOptions, "a
   let lastFinishReason: string | null = null;
 
   while (true) {
-    const outcome = await runSingleOpenAiRequest(options, messages, emitEnd, endGuard.hasEnded);
+    const outcome = await runSingleOpenAiRequest(options, messages, emitEnd, endGuard.hasEnded, retry);
     lastFinishReason = outcome.finishReason;
     if (endGuard.hasEnded()) break;
 

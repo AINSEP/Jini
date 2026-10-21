@@ -78,6 +78,8 @@ import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
+import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './tool-turn-types.js';
 
 export interface AnthropicTextBlockParam {
   readonly type: 'text';
@@ -134,6 +136,7 @@ export interface AnthropicToolDef {
   readonly name: string;
   readonly description?: string;
   readonly input_schema: Record<string, unknown>;
+  readonly strict?: boolean;
 }
 
 export interface AnthropicToolCall {
@@ -173,6 +176,9 @@ export interface AnthropicTurnOptions {
   readonly system?: string;
   readonly messages: readonly AnthropicMessageParam[];
   readonly tools?: readonly AnthropicToolDef[];
+  /** Refresh the run's projection immediately before each HTTP request. */
+  readonly getTools?: (options?: ProviderToolSnapshotOptions) => readonly AnthropicToolDef[];
+  readonly onSchemaFallback?: (event: ProviderSchemaFallback) => void;
   readonly maxTokens: number;
   readonly temperature?: number;
   /** Tool-loop iteration ceiling (a single request counts as one iteration once it returns `stop_reason: 'tool_use'`). Defaults to 8 — generous for a real agentic turn, bounded so a misbehaving tool/model pair cannot loop forever. */
@@ -187,6 +193,8 @@ export interface AnthropicTurnOptions {
    * own routing header). Never hardcode a caller/product identity string
    * here — this is the generalized fix for the confirmed OD product-identity
    * leak documented in this module's header comment.
+   * Endpoints requiring the structured-output beta may supply
+   * `anthropic-beta: structured-outputs-2025-11-13` here; native GA needs no header.
    */
   readonly extraHeaders?: Record<string, string>;
   /**
@@ -493,6 +501,18 @@ const ANTHROPIC_FRAME_HANDLERS: Record<string, AnthropicFrameHandler> = {
   },
 };
 
+/** Refresh the projection before sending; a downgrade strips only wire strict flags for legacy callers.
+ * @complexity O(t) local time/space for t tools; projection work belongs to getTools.
+ */
+function refreshAnthropicTools(options: AnthropicTurnOptions, retry: StrictToolRetryState): AnthropicTurnOptions {
+  let tools = options.getTools?.({ strict: retry.enabled }) ?? options.tools;
+  if (!retry.enabled) tools = tools?.map(tool => {
+    const { strict: _strict, ...definition } = tool;
+    return definition;
+  });
+  return { ...options, ...(tools !== undefined ? { tools } : {}) };
+}
+
 /**
  * Validates `options.baseUrl` and opens the streaming POST, returning the response's readable
  * body once every pre-stream failure mode (SSRF-guard rejection, network error, non-2xx status,
@@ -504,6 +524,7 @@ async function openAnthropicResponseStream(
   options: AnthropicTurnOptions,
   messages: readonly AnthropicMessageParam[],
   emitEnd: (reason: AnthropicTurnEndReason) => void,
+  retry: StrictToolRetryState,
 ): Promise<AsyncIterable<Uint8Array | string> | null> {
   const { onEvent } = options;
 
@@ -516,12 +537,13 @@ async function openAnthropicResponseStream(
     return null;
   }
 
+  const requestOptions = refreshAnthropicTools(options, retry);
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
     response = await (options.fetchImpl ?? pinnedFetch)({ url: anthropicRequestUrl({ baseUrl: options.baseUrl }), init: {
         method: 'POST',
         headers: (({ apiKey, model, messages, maxTokens, onEvent, ...optionalArgs }: Parameters<typeof anthropicHeaders>[0] & NonNullable<Parameters<typeof anthropicHeaders>[1]>) => anthropicHeaders({ apiKey, model, messages, maxTokens, onEvent }, optionalArgs))(options),
-        body: JSON.stringify(anthropicRequestBody({ options: options, messages: messages })),
+        body: JSON.stringify(anthropicRequestBody({ options: requestOptions, messages: messages })),
         redirect: 'error',
         ...(options.signal ? { signal: options.signal } : {}),
       }, pinnedAddress: baseUrlCheck.pinnedAddress }
@@ -535,6 +557,10 @@ async function openAnthropicResponseStream(
 
   if (!response.ok) {
     const rawText = await response.text();
+    const toolNames = (requestOptions.tools ?? []).filter(tool => tool.strict).map(tool => tool.name);
+    if (retry.downgrade({ status: response.status, rawErrorText: rawText, toolNames })) {
+      return openAnthropicResponseStream(options, messages, emitEnd, retry);
+    }
     onEvent({
       type: 'error',
       message: redactSecrets({ input: extractAnthropicErrorDetail({ rawText: rawText }) }, { exactSecrets: [options.apiKey] }),
@@ -557,10 +583,11 @@ async function runSingleAnthropicRequest(
   options: AnthropicTurnOptions,
   messages: readonly AnthropicMessageParam[],
   emitEnd: (reason: AnthropicTurnEndReason) => void,
+  retry: StrictToolRetryState,
 ): Promise<SingleRequestOutcome> {
   const { onEvent } = options;
 
-  const body = await openAnthropicResponseStream(options, messages, emitEnd);
+  const body = await openAnthropicResponseStream(options, messages, emitEnd, retry);
   if (!body) {
     return { stopReason: null, toolCalls: [], text: '' };
   }
@@ -650,6 +677,7 @@ export async function executeAnthropicToolCalls({ executeTool, calls, onEvent }:
 
 export async function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent">, optionalArgs: Omit<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent"> = {}): Promise<AnthropicTurnResult> {
   const options: AnthropicTurnOptions = { ...optionalArgs, ...requiredArgs };
+  const retry = createStrictToolRetry({ protocol: 'anthropic', onSchemaFallback: options.onSchemaFallback });
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
   const executeTool = options.executeTool;
 
@@ -661,7 +689,7 @@ export async function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptio
   let lastStopReason: string | null = null;
 
   while (true) {
-    const outcome = await runSingleAnthropicRequest(options, messages, emitEnd);
+    const outcome = await runSingleAnthropicRequest(options, messages, emitEnd, retry);
     lastStopReason = outcome.stopReason;
     if (endGuard.hasEnded()) break;
 

@@ -66,6 +66,24 @@ const TOOL_WITH_NESTED_ADDITIONAL_PROPERTIES: ToolDescriptor = {
         required: [],
     },
 };
+const STRICT_NESTED_PARAMETERS = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+        filter: {
+            anyOf: [
+                {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: { slug: { anyOf: [{ type: "string" }, { type: "null" }] } },
+                    required: ["slug"],
+                },
+                { type: "null" },
+            ],
+        },
+    },
+    required: ["filter"],
+};
 async function captureOutboundRequest(t: unknown): Promise<{
     baseUrl: string;
     body(): Record<string, unknown>;
@@ -110,17 +128,28 @@ test("runByokProviderTurn(google): the outbound Gemini request has additionalPro
     assert.ok(tools[0]);
     assert.ok(tools[0].functionDeclarations[0]);
     const parameters = tools[0].functionDeclarations[0].parameters;
+    // Prefer policy now projects this supported closed schema: optional fields become required
+    // and nullable before Google's sanitizer removes unsupported keywords at every depth.
     assert.deepEqual(parameters, {
         type: "object",
         properties: {
-            filter: { type: "object", properties: { slug: { type: "string" } } },
+            filter: {
+                anyOf: [
+                    {
+                        type: "object",
+                        properties: { slug: { anyOf: [{ type: "string" }, { type: "null" }] } },
+                        required: ["slug"],
+                    },
+                    { type: "null" },
+                ],
+            },
         },
-        required: [],
+        required: ["filter"],
     });
     assert.ok(!JSON.stringify(parameters).includes("additionalProperties"));
     assert.ok(!JSON.stringify(parameters).includes("$schema"));
 });
-test("runByokProviderTurn(anthropic): the SAME tool schema reaches the outbound request untouched — additionalProperties/$schema preserved", async (t) => {
+test("runByokProviderTurn(anthropic): strict projection preserves top-level and nested additionalProperties — the Google-only sanitizer must not leak into this protocol", async (t) => {
     const capture = await captureOutboundRequest(t);
     await runByokProviderTurn(baseInput("anthropic", capture.baseUrl));
     const body = capture.body();
@@ -128,7 +157,9 @@ test("runByokProviderTurn(anthropic): the SAME tool schema reaches the outbound 
         input_schema: Record<string, unknown>;
     }>;
     assert.ok(tools[0]);
-    assert.deepEqual(tools[0].input_schema, TOOL_WITH_NESTED_ADDITIONAL_PROPERTIES.inputSchema);
+    // Prefer policy projects this supported schema, removing $schema and encoding omission as null;
+    // closed objects must retain additionalProperties, which the Google sanitizer would strip.
+    assert.deepEqual(tools[0].input_schema, STRICT_NESTED_PARAMETERS);
     assert.ok(JSON.stringify(tools[0].input_schema).includes("additionalProperties"));
 });
 function googleChunk(payload: Record<string, unknown>): string {
@@ -215,7 +246,7 @@ test("runByokProviderTurn(azure): refuses with stopReason 'error' when no baseUr
         { type: "end", reason: "error" },
     ]);
 });
-test("runByokProviderTurn(openai): the outbound request carries the tool schema untouched, same as anthropic — the Google-only sanitizer must not leak into this protocol", async (t) => {
+test("runByokProviderTurn(openai): strict projection preserves top-level and nested additionalProperties, same as anthropic — the Google-only sanitizer must not leak into this protocol", async (t) => {
     const capture = await captureOutboundRequest(t);
     await runByokProviderTurn(baseInput("openai", capture.baseUrl));
     const body = capture.body();
@@ -225,7 +256,9 @@ test("runByokProviderTurn(openai): the outbound request carries the tool schema 
         };
     }>;
     assert.ok(tools[0]);
-    assert.deepEqual(tools[0].function.parameters, TOOL_WITH_NESTED_ADDITIONAL_PROPERTIES.inputSchema);
+    // Prefer policy projects this supported schema, removing $schema and encoding omission as null;
+    // closed objects must retain additionalProperties, which the Google sanitizer would strip.
+    assert.deepEqual(tools[0].function.parameters, STRICT_NESTED_PARAMETERS);
     assert.ok(JSON.stringify(tools[0].function.parameters).includes("additionalProperties"));
 });
 test("runByokProviderTurn(openai): a failed tool result is folded into the outbound message with the [tool error] prefix, a successful one passes through unprefixed, and isError on the reported tool_result event is derived from that fold marker — not the adapter's own (nonexistent) isError field", async (t) => {

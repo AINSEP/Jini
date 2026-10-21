@@ -99,6 +99,8 @@ import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupF
 import { googleStreamGenerateContentUrl } from './google.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
+import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './tool-turn-types.js';
 
 export interface GoogleTextPart {
   readonly text: string;
@@ -212,6 +214,9 @@ export interface GoogleTurnOptions {
   readonly system?: string;
   readonly contents: readonly GoogleContent[];
   readonly tools?: readonly GoogleToolDef[];
+  /** Refresh the run's projection immediately before each HTTP request. */
+  readonly getTools?: (options?: ProviderToolSnapshotOptions) => readonly GoogleToolDef[];
+  readonly onSchemaFallback?: (event: ProviderSchemaFallback) => void;
   readonly temperature?: number;
   readonly maxOutputTokens?: number;
   /** Same bound and rationale as `AnthropicTurnOptions.maxToolTurns`. Defaults to 8. */
@@ -264,7 +269,10 @@ function googleHeaders(options: GoogleTurnOptions): Record<string, string> {
   };
 }
 
-function googleRequestBody(options: GoogleTurnOptions, contents: readonly GoogleContent[]): Record<string, unknown> {
+/** Build a request-local body; VALIDATED permits both calls and ordinary language responses.
+ * @complexity O(1) local time/space; JSON serialization later traverses the history and schemas.
+ */
+function googleRequestBody(options: GoogleTurnOptions, contents: readonly GoogleContent[], { validated = false } = {}): Record<string, unknown> {
   const generationConfig: Record<string, unknown> = {
     ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
     ...(options.maxOutputTokens !== undefined ? { maxOutputTokens: options.maxOutputTokens } : {}),
@@ -273,6 +281,7 @@ function googleRequestBody(options: GoogleTurnOptions, contents: readonly Google
     contents,
     ...(options.system !== undefined ? { systemInstruction: { parts: [{ text: options.system }] } } : {}),
     ...(options.tools && options.tools.length > 0 ? { tools: options.tools } : {}),
+    ...(validated ? { toolConfig: { functionCallingConfig: { mode: 'VALIDATED' } } } : {}),
     ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),
   };
 }
@@ -426,6 +435,7 @@ async function openGoogleResponseStream(
   options: GoogleTurnOptions,
   contents: readonly GoogleContent[],
   emitEnd: (reason: GoogleTurnEndReason) => void,
+  retry: StrictToolRetryState,
 ): Promise<AsyncIterable<Uint8Array | string> | null> {
   const { onEvent } = options;
 
@@ -436,12 +446,15 @@ async function openGoogleResponseStream(
     return null;
   }
 
+  const tools = options.getTools?.({ strict: retry.enabled }) ?? options.tools;
+  const toolNames = (tools ?? []).flatMap(tool => tool.functionDeclarations.map(declaration => declaration.name));
+  const validated = Boolean(options.getTools && retry.enabled && toolNames.length > 0);
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
     response = await (options.fetchImpl ?? pinnedFetch)({ url: googleRequestUrl(options.baseUrl, options.model), init: {
         method: 'POST',
         headers: googleHeaders(options),
-        body: JSON.stringify(googleRequestBody(options, contents)),
+        body: JSON.stringify(googleRequestBody({ ...options, ...(tools !== undefined ? { tools } : {}) }, contents, { validated })),
         redirect: 'error',
         ...(options.signal ? { signal: options.signal } : {}),
       }, pinnedAddress: baseUrlCheck.pinnedAddress }
@@ -455,6 +468,9 @@ async function openGoogleResponseStream(
 
   if (!response.ok) {
     const rawText = await response.text();
+    if (validated && retry.downgrade({ status: response.status, rawErrorText: rawText, toolNames })) {
+      return openGoogleResponseStream(options, contents, emitEnd, retry);
+    }
     onEvent({
       type: 'error',
       message: redactSecrets({ input: extractGoogleErrorDetail(rawText) }, { exactSecrets: [options.apiKey] }),
@@ -477,10 +493,11 @@ async function runSingleGoogleRequest(
   options: GoogleTurnOptions,
   contents: readonly GoogleContent[],
   emitEnd: (reason: GoogleTurnEndReason) => void,
+  retry: StrictToolRetryState,
 ): Promise<SingleRequestOutcome> {
   const { onEvent } = options;
 
-  const body = await openGoogleResponseStream(options, contents, emitEnd);
+  const body = await openGoogleResponseStream(options, contents, emitEnd, retry);
   if (!body) {
     return { finishReason: null, toolCalls: [], text: '' };
   }
@@ -691,6 +708,7 @@ function isEmptyInitialGoogleTurn(
  */
 export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "apiKey" | "model" | "contents" | "onEvent">, optionalArgs: Omit<GoogleTurnOptions, "apiKey" | "model" | "contents" | "onEvent"> = {}): Promise<GoogleTurnResult> {
   const options: GoogleTurnOptions = { ...optionalArgs, ...requiredArgs };
+  const retry = createStrictToolRetry({ protocol: 'google', onSchemaFallback: options.onSchemaFallback });
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
   const executeTool = options.executeTool;
 
@@ -702,7 +720,7 @@ export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "a
   let lastFinishReason: string | null = null;
 
   while (true) {
-    const outcome = await runSingleGoogleRequest(options, contents, emitEnd);
+    const outcome = await runSingleGoogleRequest(options, contents, emitEnd, retry);
     lastFinishReason = outcome.finishReason;
 
     if (endGuard.hasEnded()) break;
