@@ -63,12 +63,20 @@ export function widgetSlugRedirectPath({ requestedId, widget }: { requestedId: s
 }
 export type WidgetInstanceGuard = { kind: 'fetch-error'; message: string } | { kind: 'loading' } | { kind: 'no-type' } | { kind: 'unknown-type'; widgetType: string };
 /** Catch a garbage ?type= before a live create editor can save it; existing types are server-validated. */
-export function widgetInstanceGuard({ error, isNew, widget, loading, widgetType, types }: { error: string | null; isNew: boolean; widget: AdminWidget | null; loading: boolean; widgetType: string | null | undefined; types: readonly WidgetTypeOption[] }, _optional: Record<string, never> = {}): WidgetInstanceGuard | null {
-  if (error && !isNew && !widget) return { kind: 'fetch-error', message: error };
-  if (loading) return { kind: 'loading' };
-  if (!widgetType) return { kind: 'no-type' };
-  if (isNew && !isKnownWidgetType({ widgetType, types })) return { kind: 'unknown-type', widgetType };
-  return null;
+export function widgetInstanceGuard(required: WidgetInstanceGuardInput, _optional: Record<string, never> = {}): WidgetInstanceGuard | null {
+  return widgetEditorGate(required).guard;
+}
+export interface WidgetInstanceGuardInput { error: string | null; isNew: boolean; widget: AdminWidget | null; loading: boolean; widgetType: string | null | undefined; types: readonly WidgetTypeOption[] }
+/** The editor's gate: either the guard to render, or the widget type the live editor needs. Once no
+ *  guard applies the "no-type" case has already ruled out a missing type, and returning it here
+ *  carries that narrowing to the page, which otherwise needed its own never-taken null check. */
+export type WidgetEditorGate = { guard: WidgetInstanceGuard; widgetType?: undefined } | { guard: null; widgetType: string };
+export function widgetEditorGate({ error, isNew, widget, loading, widgetType, types }: WidgetInstanceGuardInput, _optional: Record<string, never> = {}): WidgetEditorGate {
+  if (error && !isNew && !widget) return { guard: { kind: 'fetch-error', message: error } };
+  if (loading) return { guard: { kind: 'loading' } };
+  if (!widgetType) return { guard: { kind: 'no-type' } };
+  if (isNew && !isKnownWidgetType({ widgetType, types })) return { guard: { kind: 'unknown-type', widgetType } };
+  return { guard: null, widgetType };
 }
 
 /** Match the original save identity, including the query type on /new. */
