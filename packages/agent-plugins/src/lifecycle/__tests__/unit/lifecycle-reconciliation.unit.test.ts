@@ -182,7 +182,7 @@ async function crashHarness(prefix: string, { failCandidateMcp = false } = {}) {
   const previous = await api.installAgentPlugin(input('1.0.0'));
   await api.setAgentPluginActivation({ workspaceRoot: workspace.root, pluginId, enabled: true, actor: 'owner' });
   const update = () => api.updateAgentPlugin({ ...input('2.0.0'), pluginId, expectedOldDigest: previous.archiveDigest, actor: 'owner', snapshotSettings: async () => ({ values: [] }) });
-  return { temp, api, snapshots, control, update };
+  return { temp, api, snapshots, control, update, previous, workspace };
 }
 
 /** The durable stage a snapshot reached: the active journal's state, or `filed` once the
@@ -230,6 +230,9 @@ async function replayEverySnapshot({ temp, snapshots, expectedVersion }: { temp:
 test('every durable update switch boundary recovers to one enabled revision after process death', async () => {
   const h = await crashHarness('update-crash-boundaries-');
   try {
+    // Removing a retained stale copy of the old digest is the only effect before intent is recorded
+    // (it runs only when such a copy exists), so plant one to capture that boundary too.
+    await filesystem.cp(h.previous.packageRoot, path.join(h.workspace.pluginRootDir({ pluginId }), 'rollback', h.previous.archiveDigest), { recursive: true });
     h.control.capture = true;
     await h.update();
     h.control.capture = false;

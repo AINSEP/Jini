@@ -34,7 +34,10 @@ async function harness(options: Partial<AgentPluginLifecyclePorts> = {}) {
   const layout = createAgentPluginLayout({ root: path.join(temp, 'plugins') });
   const events: string[] = [];
   const warnings: string[] = [];
-  const context: AgentPluginLifecyclePorts = { ...ports, layout, onEvent: ({ event }) => { if (event.startsWith('agent-plugin-update')) warnings.push(event); }, mcpProvisioning: { ...ports.mcpProvisioning,
+  const messages: string[] = [];
+  const context: AgentPluginLifecyclePorts = { ...ports, layout, onEvent: ({ event, message }) => {
+    if (event.startsWith('agent-plugin-update')) { warnings.push(event); messages.push(message); }
+  }, mcpProvisioning: { ...ports.mcpProvisioning,
     provision: async ({ installed }) => { events.push(`provision:${installed.version}`); },
     notifyRosterChanged: async () => { events.push('notify'); },
   }, ...options };
@@ -46,7 +49,7 @@ async function harness(options: Partial<AgentPluginLifecyclePorts> = {}) {
     snapshotSettings: async () => settingsSnapshot };
   const store = createAgentPluginUpdateStore({ ports: context, workspaceId, pluginId });
   const workspace = layout.forWorkspace({ workspaceId });
-  return { api, context, input, previous, settingsSnapshot, store, layout, temp, events, warnings, workspace, workspaceRoot: workspace.root,
+  return { api, context, input, previous, settingsSnapshot, store, layout, temp, events, warnings, messages, workspace, workspaceRoot: workspace.root,
     pluginRoot: workspace.pluginRootDir({ pluginId }) };
 }
 /** A lifecycle over the same layout whose filesystem fails the operations `faults` selects. */
@@ -261,7 +264,8 @@ test('failure re-activating the candidate, and failure committing, both roll bac
     const activation = faulty(h, { rename: nth(to => to.endsWith('activations.json'), 2) });
     await expect(activation.updateAgentPlugin(h.input)).rejects.toThrow('rename refused');
     await expectRestored(h, 'active');
-    expect(h.events).toEqual(['provision:1.0.0', 'notify']);
+    // The candidate's MCP roster is provisioned before it is re-enabled (B2), so it ran first.
+    expect(h.events).toEqual(['provision:2.0.0', 'notify', 'provision:1.0.0', 'notify']);
   });
   await fixture(async h => {
     const commit = faulty(h, { rename: nth(to => to.endsWith('update-journal.json'), 3) });
@@ -400,6 +404,9 @@ test('boot refuses a journal whose previous bytes are gone and keeps it for repa
     await expect(h.api.reconcileAgentPluginUpdates({ workspaceId })).rejects.toMatchObject({ code: 'PLUGIN_ROLLBACK_MISSING' });
     expect(await h.store.read({})).toEqual(journal);
     expect(await liveDigests(h)).toEqual([h.previous.archiveDigest]);
+    // Unrecovered = off (S4), and the event names the code.
+    expect(await verdict(h)).toBe('inactive');
+    expect(h.messages).toEqual([expect.stringContaining('(PLUGIN_ROLLBACK_MISSING)')]);
   });
 });
 
@@ -439,6 +446,157 @@ test('the journal store validates every field it later trusts', async () => {
     expect((parseFailure as Error).cause).toBeInstanceOf(SyntaxError);
     await fs.rm(journalPath); await fs.mkdir(journalPath);
     await expect(h.store.read({})).rejects.toMatchObject({ code: 'EISDIR' });
+  });
+});
+
+/** A recovery record for the installed old revision, as an interrupted update leaves it. */
+function journalFor(h: Harness, fields: Partial<AgentPluginUpdateJournal> = {}): AgentPluginUpdateJournal {
+  return { schemaVersion: 1, state: 'pending', transactionId: 'tx-test', pluginId, actor: 'owner', enabled: true,
+    fromDigest: h.previous.archiveDigest, toDigest: 'd'.repeat(64), settingsSnapshot: null, startedAt: 'now', ...fields };
+}
+const failingMcp = (message: string) => ({ ...ports.mcpProvisioning, provision: async (): Promise<never> => { throw new Error(message); } });
+
+// REGRESSION (B1): a published journal re-provisioned MCP at boot, whose binding has no MCP port, so
+// recovery failed every boot and the plugin stayed PLUGIN_UPDATE_PENDING forever.
+test('boot recovery of a published update degrades to "restored but off" when MCP cannot be re-provisioned', async () => {
+  let failRestore = false;
+  await fixture(async h => {
+    const instrumented = faulty(h, { rename: to => failRestore && to.includes(path.join(h.workspace.pluginPackagesDir({ pluginId }), h.previous.archiveDigest)) },
+      { mcpProvisioning: { ...ports.mcpProvisioning, provision: async () => { failRestore = true; throw new Error('activate failed'); } } });
+    await expect(instrumented.updateAgentPlugin(h.input)).rejects.toMatchObject({ code: 'PLUGIN_ROLLBACK_INCOMPLETE' });
+    expect((await h.store.read({}))?.state).toBe('published');
+    failRestore = false;
+    const unbound = async (): Promise<never> => { throw new Error('no MCP provisioning at boot'); };
+    const boot = createAgentPluginLifecycle({ ...h.context, mcpProvisioning: { provision: unbound, setEnabled: unbound, remove: unbound, notifyRosterChanged: unbound } });
+    await boot.reconcileAgentPluginUpdates({ workspaceId });
+    await expectRestored(h, 'inactive');
+    expect(h.warnings).toEqual(['agent-plugin-update-recovered-disabled']);
+    // Not wedged: the journal is finished, so the next update runs.
+    expect((await h.api.updateAgentPlugin(h.input)).plugin.version).toBe('2.0.0');
+  });
+});
+
+// REGRESSION (B2): restore re-enabled the old revision before re-provisioning its MCP roster.
+test('an MCP failure while restoring leaves the old revision off, and reports the original failure', async () => {
+  await fixture(async h => {
+    await expect(h.api.updateAgentPlugin(h.input)).rejects.toThrow('MCP down');
+    await expectRestored(h, 'inactive');
+    expect(h.warnings).toEqual(['agent-plugin-update-recovered-disabled']);
+  }, { mcpProvisioning: failingMcp('MCP down') });
+});
+
+// REGRESSION (B2): the switch re-enabled the candidate before provisioning MCP, so an MCP failure whose
+// rollback could not switch it off again left v2 live and enabled.
+test('an MCP failure during the switch whose rollback cannot switch off still leaves the candidate off', async () => {
+  await fixture(async h => {
+    const api = faulty(h, { rename: nth(to => to.endsWith('activations.json'), 2) }, { mcpProvisioning: failingMcp('MCP down') });
+    await expect(api.updateAgentPlugin(h.input)).rejects.toMatchObject({ code: 'PLUGIN_ROLLBACK_INCOMPLETE' });
+    expect(await liveDigests(h)).toEqual([h.input.expectedSha256]);
+    expect(await verdict(h)).toBe('inactive');
+    await h.api.reconcileAgentPluginUpdates({ workspaceId });
+    await expectRestored(h, 'active');
+  });
+});
+
+// REGRESSION (N2): a failed first switch-off left a pending journal and PLUGIN_ROLLBACK_INCOMPLETE.
+test('a failure switching the plugin off before any byte moves drops the intent instead of leaving it pending', async () => {
+  await fixture(async h => {
+    // Every activation write fails, so a rollback could not switch it off either.
+    const api = faulty(h, { rename: to => to.endsWith('activations.json') });
+    const failure = await api.updateAgentPlugin(h.input).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ message: expect.stringContaining('rename refused') });
+    expect(failure).not.toMatchObject({ code: 'PLUGIN_ROLLBACK_INCOMPLETE' });
+    expect(await h.store.read({})).toBeUndefined();
+    expect(await verdict(h)).toBe('active');
+    expect(await liveDigests(h)).toEqual([h.previous.archiveDigest]);
+    expect((await h.api.updateAgentPlugin(h.input)).plugin.version).toBe('2.0.0');
+  });
+});
+
+// REGRESSION (S2): only the reinstate branch refroze, so a crash between its rename and refreeze left
+// the live old revision writable forever.
+test('boot refreezes an old revision that a crash left writable', async () => {
+  await fixture(async h => {
+    await h.store.write({ journal: journalFor(h) });
+    await fs.chmod(h.previous.packageRoot, 0o700);
+    await h.api.reconcileAgentPluginUpdates({ workspaceId });
+    expect((await fs.stat(h.previous.packageRoot)).mode & 0o777).toBe(0o555);
+    expect(await h.store.read({})).toBeUndefined();
+    expect(await verdict(h)).toBe('active');
+  });
+});
+
+// REGRESSION (S3): rollback roots were chmodded, renamed and removed through whatever was at the path.
+test('a symlink planted at a rollback root is refused in process and at boot, never followed', async () => {
+  await fixture(async h => {
+    const outside = path.join(h.temp, 'outside');
+    await fs.mkdir(outside); await fs.chmod(outside, 0o755);
+    await h.store.prepare({});
+    await fs.symlink(outside, h.store.rollbackRoot({ digest: h.previous.archiveDigest }));
+    await expect(h.api.updateAgentPlugin(h.input)).rejects.toMatchObject({ code: 'PLUGIN_UPDATE_PATH_UNSAFE' });
+    expect(await h.store.read({})).toBeUndefined();
+    expect(await liveDigests(h)).toEqual([h.previous.archiveDigest]);
+    // As if the old revision had been moved aside and replaced by the planted link.
+    await forceRemove(h.previous.packageRoot);
+    await h.store.write({ journal: journalFor(h) });
+    await expect(h.api.reconcileAgentPluginUpdates({ workspaceId })).rejects.toMatchObject({ code: 'PLUGIN_UPDATE_PATH_UNSAFE' });
+    expect((await fs.stat(outside)).mode & 0o777).toBe(0o755);
+    expect(await verdict(h)).toBe('inactive');
+    expect(h.messages).toEqual([expect.stringContaining('(PLUGIN_UPDATE_PATH_UNSAFE)')]);
+  });
+});
+
+test('a rollback area reached through a symlinked ancestor fails containment; an uncoded failure is still reported', async () => {
+  await fixture(async h => {
+    const outside = path.join(h.temp, 'outside-rollback');
+    await fs.mkdir(path.join(outside, h.previous.archiveDigest), { recursive: true });
+    await fs.chmod(path.join(outside, h.previous.archiveDigest), 0o755);
+    await fs.symlink(outside, path.join(h.pluginRoot, 'rollback'));
+    await forceRemove(h.previous.packageRoot);
+    await h.store.write({ journal: journalFor(h) });
+    await expect(h.api.reconcileAgentPluginUpdates({ workspaceId })).rejects.toThrow('via a symlink');
+    expect((await fs.stat(path.join(outside, h.previous.archiveDigest))).mode & 0o777).toBe(0o755);
+    expect(h.messages).toEqual([expect.stringContaining('(unknown error)')]);
+  });
+});
+
+// REGRESSION (S4): an unrecoverable journal left the plugin in whatever activation state the crash left.
+test('boot switches off a plugin whose journal is unreadable, never a bundled one, and tolerates a failed switch-off', async () => {
+  await fixture(async h => {
+    const activationsFile = path.join(h.workspaceRoot, 'activations.json');
+    await fs.writeFile(path.join(h.pluginRoot, 'update-journal.json'), '{');
+    await expect(h.api.reconcileAgentPluginUpdates({ workspaceId })).rejects.toMatchObject({ code: 'UPDATE_JOURNAL_INVALID' });
+    expect(await verdict(h)).toBe('inactive');
+    expect(h.messages).toEqual([expect.stringContaining('(UPDATE_JOURNAL_INVALID)')]);
+    await h.api.setAgentPluginActivation({ workspaceRoot: h.workspaceRoot, pluginId, enabled: true, actor: 'system:seed' }, { origin: 'bundled' });
+    const bundled = await fs.readFile(activationsFile, 'utf8');
+    await expect(h.api.reconcileAgentPluginUpdates({ workspaceId })).rejects.toMatchObject({ code: 'UPDATE_JOURNAL_INVALID' });
+    expect(await fs.readFile(activationsFile, 'utf8')).toBe(bundled);
+    // An unreadable activation record makes the switch-off impossible; the journal failure still surfaces.
+    await fs.writeFile(activationsFile, '{');
+    await expect(h.api.reconcileAgentPluginUpdates({ workspaceId })).rejects.toMatchObject({ code: 'UPDATE_JOURNAL_INVALID' });
+  });
+});
+
+// REGRESSION (B3/S1): uninstall and enable/disable ignored an unfinished journal, so boot recovery
+// resurrected the old revision over an uninstall or overwrote the operator's newer decision.
+test('uninstall and enable/disable refuse while an update is unfinished, and file a committed one first', async () => {
+  await fixture(async h => {
+    await h.store.write({ journal: journalFor(h) });
+    await expect(h.api.uninstallAgentPlugin({ layout: h.layout, workspaceId, pluginId })).rejects.toMatchObject({ code: 'PLUGIN_UPDATE_PENDING' });
+    await expect(h.api.setAgentPluginEnabled({ workspaceId, pluginId, enabled: false, actor: 'owner' })).rejects.toMatchObject({ code: 'PLUGIN_UPDATE_PENDING' });
+    expect(await liveDigests(h)).toEqual([h.previous.archiveDigest]);
+    expect(await verdict(h)).toBe('active');
+    const committed = journalFor(h, { state: 'committed', result: 'updated', transactionId: 'tx-committed' });
+    await h.store.write({ journal: committed });
+    expect(await h.api.setAgentPluginEnabled({ workspaceId, pluginId, enabled: false, actor: 'owner' })).toMatchObject({ enabled: false });
+    expect(await h.store.read({})).toBeUndefined();
+    expect(await history(h)).toEqual([committed]);
+    await h.store.write({ journal: { ...committed, transactionId: 'tx-committed-2' } });
+    await h.api.uninstallAgentPlugin({ layout: h.layout, workspaceId, pluginId });
+    expect(await h.api.listInstalledPlugins({ workspaceRoot: h.workspaceRoot })).toEqual([]);
+    expect(await h.store.read({})).toBeUndefined();
+    expect((await history(h)).map(entry => entry.transactionId).sort()).toEqual(['tx-committed', 'tx-committed-2']);
   });
 });
 

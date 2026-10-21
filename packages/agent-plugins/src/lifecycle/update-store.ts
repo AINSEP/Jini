@@ -110,6 +110,18 @@ export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
     await contain({ entryPath: rollbackDir });
     await ports.filesystem.mkdir(rollbackDir, { recursive: true, mode: 0o700 });
   }
+  /** Recovery chmods, renames and removes rollback and live roots, so each one must be a real
+   * directory inside this workspace's plugin state, never a symlink planted to redirect those calls
+   * (a symlink leaf fails `isDirectory()` under lstat; `contain` rejects symlinked ancestors).
+   * @returns false when the root is absent. */
+  async function realDirectoryExists({ root: target }: { root: string }, _optional = {}): Promise<boolean> {
+    let stats;
+    try { stats = await ports.filesystem.lstat(target); }
+    catch (error) { if (!isMissing({ error })) throw error; return false; }
+    if (!stats.isDirectory()) throw new AgentPluginUpdateError({ code: 'PLUGIN_UPDATE_PATH_UNSAFE', message: 'An update recovery path is not a real directory; repair it by hand.' });
+    await contain({ entryPath: target });
+    return true;
+  }
   /** Retained rollback copies (digest-named directories only); other entries are never touched. */
   async function listRollbackRoots(_required: Record<string, never>, _optional = {}): Promise<string[]> {
     await contain({ entryPath: rollbackDir });
@@ -118,9 +130,21 @@ export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
     catch (error) { if (!isMissing({ error })) throw error; return []; }
     return entries.filter(entry => entry.isDirectory() && DIGEST_PATTERN.test(entry.name)).map(entry => path.join(rollbackDir, entry.name));
   }
-  return { read, write, clear, finish, prepare, listRollbackRoots, rollbackDir,
+  return { read, write, clear, finish, prepare, listRollbackRoots, realDirectoryExists, rollbackDir,
     rollbackRoot: ({ digest }: { digest: string }, _optional = {}) => path.join(rollbackDir, digest),
     liveRoot: ({ digest }: { digest: string }, _optional = {}) => path.join(workspace.pluginPackagesDir({ pluginId }), digest) };
+}
+
+/** Every mutation of a plugin (update, enable/disable, uninstall) runs this under the plugin lock
+ * first. An unfinished journal refuses it: boot recovery would otherwise resurrect the old revision
+ * over an uninstall or overwrite an operator's newer decision. A committed journal whose audit filing
+ * was interrupted is filed now.
+ * @throws AgentPluginUpdateError PLUGIN_UPDATE_PENDING, UPDATE_JOURNAL_INVALID. */
+export async function settleAgentPluginUpdateJournal({ store }: { store: Pick<ReturnType<typeof createAgentPluginUpdateStore>, 'read' | 'finish'> }, _optional = {}): Promise<void> {
+  const outstanding = await store.read({});
+  if (!outstanding) return;
+  if (outstanding.state !== 'committed') throw new AgentPluginUpdateError({ code: 'PLUGIN_UPDATE_PENDING', message: 'Restart the host to recover the interrupted update.' });
+  await store.finish({ journal: outstanding });
 }
 
 export function isMissing({ error }: { error: unknown }, _optional = {}): boolean {

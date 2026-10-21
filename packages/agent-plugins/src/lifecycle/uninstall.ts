@@ -116,6 +116,7 @@ import { createActivationModule } from "./activation.js";
 import type { InstalledAgentPlugin } from "./types.js";
 import type { AgentPluginLayout } from "./layout.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
+import { createAgentPluginUpdateStore, settleAgentPluginUpdateJournal } from "./update-store.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 
 /** The plugin id has no installed package on disk for this workspace. */
@@ -254,6 +255,11 @@ interface UninstallTargets {
     const { workspaceRoot, packagesDir, matches } = await resolveUninstallTargets(required, optional.retiredBundled === true);
     assertUnchangedSincePreview(required.pluginId, optional.confirmedPreview, matches);
     assertMemoryDeletionConfirmed(required, optional);
+    // An unfinished update journal would make boot recovery resurrect the old revision over this
+    // uninstall, so it refuses (PLUGIN_UPDATE_PENDING) until a boot recovers it. The store resolves
+    // paths from this call's own layout, like every other path here.
+    const updates = createAgentPluginUpdateStore({ ports: { ...ports, layout: required.layout }, workspaceId: required.workspaceId, pluginId: required.pluginId });
+    await settleAgentPluginUpdateJournal({ store: updates });
 
     const staged = await stageAndDeleteActivation({ workspaceRoot, packagesDir, pluginId: required.pluginId, matches });
 

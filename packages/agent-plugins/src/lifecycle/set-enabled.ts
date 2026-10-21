@@ -3,6 +3,7 @@ import { createPersistentStateModule } from './persistent-state.js';
 import { AgentPluginHostIncompatibleError, describeAgentPluginCompatibility, agentPluginDependentWarnings } from './compatibility.js';
 import { createActivationModule } from "./activation.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
+import { createAgentPluginUpdateStore, settleAgentPluginUpdateJournal } from "./update-store.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 import type { InstalledAgentPlugin } from "./types.js";
 
@@ -69,6 +70,9 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   async function setEnabledLocked({ input, workspaceRoot }: { readonly input: SetAgentPluginEnabledInput; readonly workspaceRoot: string }): Promise<SetAgentPluginEnabledResult> {
     // Re-read under the lock: an uninstall or update may have finished while this call waited.
     const { installed, plugin } = await findInstalled({ workspaceRoot, pluginId: input.pluginId });
+    // Boot recovery of an unfinished update would overwrite this decision, so it refuses
+    // (PLUGIN_UPDATE_PENDING) until a boot recovers it.
+    await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports, workspaceId: input.workspaceId, pluginId: input.pluginId }) });
     const warnings = await enablementWarnings({ input, workspaceRoot, installed, plugin });
     const written = await setAgentPluginActivation({
       workspaceRoot,
