@@ -137,6 +137,26 @@ async function normalizeBatchItem({ registration, defaults, shared, item }: {
   return { input: normalized.input, notes: [...layers.flatMap(layer => layer.notes), ...normalized.notes] };
 }
 
+/** Classify one returned output without dropping error payloads or normalization notes.
+ * @complexity O(n) for a nested batch's n results, plus formatting its notes; no effects.
+ */
+function batchItemResult({ index, output, notes }: { index: number; output: unknown; notes: readonly string[] }, _options = {}): BatchItemResult {
+  const outcome = batchOutcomeFor({ output });
+  if (isPlainObject(output) && (output.isError === true || outcome === 'error' || outcome === 'partial_failure')) {
+    return { index, ok: false, error: typeof output.error === 'string' ? output.error : 'item returned an error', result: output };
+  }
+  return { index, ok: true, result: withNormalizationNotes({ output, notes }) };
+}
+
+/** Summarize all item outcomes, retaining their order and evidence.
+ * @complexity O(n) time and space for n results; no effects.
+ */
+function summarizeBatchResults({ results }: { results: BatchItemResult[] }, _options = {}): BatchResult {
+  const succeeded = results.filter((result) => result.ok).length;
+  const outcome = succeeded === results.length ? 'completed' : succeeded === 0 ? 'error' : 'partial_failure';
+  return { batch: true, outcome, ...(succeeded === 0 ? { isError: true as const } : {}), total: results.length, succeeded, failed: results.length - succeeded, results };
+}
+
 /**
  * Wraps one registration so it also accepts `items`. Single calls retain their handler.
  * Ordinary merged items re-enter the executor; plan batches normalize all items at the outer
@@ -196,17 +216,12 @@ export function withBatchInput(
         tool.validateItem?.({ input: normalized.input });
         if (!options?.invokeTool) throw new Error(`${toolId}: batch items require the gated ToolExecutor invocation port`);
         const output = await options.invokeTool({ toolId, input: normalized.input }, { registry: itemRegistry });
-        const outcome = batchOutcomeFor({ output });
-        if (isPlainObject(output) && (output.isError === true || outcome === 'error' || outcome === 'partial_failure')) {
-          results.push({ index, ok: false, error: typeof output.error === 'string' ? output.error : 'item returned an error', result: output });
-        } else results.push({ index, ok: true, result: withNormalizationNotes({ output, notes: normalized.notes }) });
+        results.push(batchItemResult({ index, output, notes: normalized.notes }));
       } catch (error) {
         results.push({ index, ok: false, error: withNormalizationNotes({ output: itemErrorMessage({ error, toolId }), notes }) as string });
       }
     }
-    const succeeded = results.filter((result) => result.ok).length;
-    const outcome = succeeded === results.length ? 'completed' : succeeded === 0 ? 'error' : 'partial_failure';
-    return { batch: true, outcome, ...(succeeded === 0 ? { isError: true as const } : {}), total: results.length, succeeded, failed: results.length - succeeded, results } satisfies BatchResult;
+    return summarizeBatchResults({ results });
   };
   return { ...registration, descriptor, handler,
     // Domain normalization belongs to each merged item, not the incomplete shared layer.

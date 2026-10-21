@@ -26,10 +26,15 @@ function sameLengthNearMiss({ left, right, index }: { left: string; right: strin
     || (left[index] === right[index + 1] && left[index + 1] === right[index] && left.slice(index + 2) === right.slice(index + 2));
 }
 
+/** Whether either key is the generic id shorthand for the other's id suffix; hints only. */
+function isIdShorthand({ left, right }: { left: string; right: string }, _options: Record<string, never> = {}): boolean {
+  return (left === 'id' && right.endsWith('id')) || (right === 'id' && left.endsWith('id'));
+}
+
 /** Detect id shorthand or one insertion, deletion, substitution or transposition, for hints only. */
 function nearMiss({ left, right }: { left: string; right: string }, _options: Record<string, never> = {}): boolean {
   if (left.length > 128 || right.length > 128) return false;
-  if ((left === 'id' && right.endsWith('id')) || (right === 'id' && left.endsWith('id'))) return true;
+  if (isIdShorthand({ left, right })) return true;
   if (Math.abs(left.length - right.length) > 1) return false;
   const index = commonPrefixLength({ left, right });
   if (left.length === right.length) return sameLengthNearMiss({ left, right, index });

@@ -322,6 +322,11 @@ export type ToolInvocationAuthorization =
   | { readonly descriptor: ToolDescriptor; readonly decision: 'allow'; readonly handler: ToolHandler; readonly input: unknown; readonly normalizationNotes: readonly string[] }
   | { readonly descriptor: ToolDescriptor; readonly decision: 'deny' };
 
+/** Whether a registration has no schema or domain input-normalization hook. O(1), no effects. */
+function isSchemaFreeRegistration({ descriptor, registration }: { descriptor: ToolDescriptor; registration: ToolRegistration }, _options: Record<string, never> = {}): boolean {
+  return descriptor.inputSchema === undefined && registration.invocationSchema === undefined && registration.normalizeInput === undefined;
+}
+
 /**
  * Package-internal escape hatch: resolves `toolId` in `registry` and runs
  * its authorization gate — the tool's own {@link ToolPolicy}, then an
@@ -355,7 +360,7 @@ export async function authorizeToolInvocation(
   }
   const { descriptor, handler, policy } = registration;
   // Schema-free tools have nothing to normalize; preserve their authorization/confirmation timing.
-  const normalized = descriptor.inputSchema === undefined && registration.invocationSchema === undefined && registration.normalizeInput === undefined
+  const normalized = isSchemaFreeRegistration({ descriptor, registration })
     ? { input, notes: [] }
     : await normalizeToolInput({ input, registration });
   input = normalized.input;
