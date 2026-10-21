@@ -119,6 +119,16 @@ function readSpecVersion(value: unknown, file: "plugin" | "mcp"): SpecVersion {
 const NAME_PATTERN = /^[a-z0-9]+(?:[-.][a-z0-9]+)*$/;
 const MAX_NAME_LENGTH = 64;
 
+/**
+ * True when `value` is a valid Agent Plugin id: `plugin.json`'s `name` grammar (§5.5, see
+ * `NAME_PATTERN`), 1-64 characters. The one owner of that grammar: a host checks an id taken from a
+ * URL or a tool input here before it names anything on disk, instead of restating the pattern.
+ * @complexity O(n) in the value's length.
+ */
+export function isAgentPluginName({ value }: { readonly value: unknown }, _optional: Record<string, never> = {}): boolean {
+  return typeof value === "string" && value.length <= MAX_NAME_LENGTH && NAME_PATTERN.test(value);
+}
+
 export interface AgentPluginManifest {
   readonly name: string;
   readonly version?: (string) | undefined;
@@ -187,7 +197,7 @@ function parseManifestAuthor(value: unknown): string | PluginManifestAuthor | un
 function resolveManifestName(raw: Readonly<Record<string, unknown>>): { name: string; error?: undefined } | { name?: undefined; error: string } {
   const name = coerceOptionalString(raw.name);
   if (name === undefined) return { error: "plugin.json 'name' is required and must be a string" };
-  if (name.length === 0 || name.length > MAX_NAME_LENGTH || !NAME_PATTERN.test(name)) {
+  if (!isAgentPluginName({ value: name })) {
     return {
       error: `plugin.json 'name' ('${name}') must be 1-${MAX_NAME_LENGTH} lowercase alphanumeric/hyphen/period characters, start and end alphanumeric, with no consecutive delimiters`,
     };

@@ -300,6 +300,45 @@ test('an incomplete rollback keeps the journal, blocks updates until boot, and b
   });
 });
 
+test('an ordinary install after an incomplete rollback is refused until boot recovers, so recovery never restores beside it', async () => {
+  let failRestore = false;
+  await fixture(async h => {
+    const instrumented = faulty(h, { rename: to => failRestore && to.includes(path.join(h.workspace.pluginPackagesDir({ pluginId }), h.previous.archiveDigest)) },
+      { mcpProvisioning: { ...ports.mcpProvisioning, provision: async () => { failRestore = true; throw new Error('activate failed'); } } });
+    await expect(instrumented.updateAgentPlugin(h.input)).rejects.toMatchObject({ code: 'PLUGIN_ROLLBACK_INCOMPLETE' });
+    expect(await liveDigests(h)).toEqual([]);
+    const other = archiveInput(h.layout, '3.0.0');
+    await expect(h.api.installAgentPlugin(other)).rejects.toMatchObject({ code: 'PLUGIN_UPDATE_PENDING' });
+    expect(await liveDigests(h)).toEqual([]);
+    failRestore = false;
+    await h.api.reconcileAgentPluginUpdates({ workspaceId });
+    await expectRestored(h, 'active');
+  });
+});
+
+test('A to B to A to C same-version replacements without a restart never collide with a retained rollback copy', async () => {
+  await fixture(async h => {
+    const a = archiveInput(h.layout, '2.0.0', {}, { salt: ' a' });
+    const b = archiveInput(h.layout, '2.0.0', {}, { salt: ' b' });
+    const c = archiveInput(h.layout, '2.0.0', {}, { salt: ' c' });
+    await h.api.updateAgentPlugin({ ...h.input, ...a });
+    await h.api.updateAgentPlugin({ ...h.input, ...b, expectedOldDigest: a.expectedSha256 });
+    await h.api.updateAgentPlugin({ ...h.input, ...a, expectedOldDigest: b.expectedSha256 });
+    // rollback/<a> from the first A->B is still retained; a failing A->C must still restore A.
+    const failing = createAgentPluginLifecycle({ ...h.context, mcpProvisioning: { ...h.context.mcpProvisioning!, provision: async ({ installed }) => {
+      if (installed.archiveDigest === c.expectedSha256) throw new Error('activate failed');
+    } } });
+    await expect(failing.updateAgentPlugin({ ...h.input, ...c, expectedOldDigest: a.expectedSha256 })).rejects.toThrow('activate failed');
+    expect(await liveDigests(h)).toEqual([a.expectedSha256]);
+    expect(await verdict(h)).toBe('active');
+    const result = await h.api.updateAgentPlugin({ ...h.input, ...c, expectedOldDigest: a.expectedSha256 });
+    expect(result.plugin.archiveDigest).toBe(c.expectedSha256);
+    expect(await liveDigests(h)).toEqual([c.expectedSha256]);
+    await h.api.reconcileAgentPluginUpdates({ workspaceId });
+    expect(await fs.readdir(path.join(h.pluginRoot, 'rollback'))).toEqual([]);
+  });
+});
+
 test('a stale rollback copy of the same digest is replaced, not collided with', async () => {
   await fixture(async h => {
     const stale = h.store.rollbackRoot({ digest: h.previous.archiveDigest });
