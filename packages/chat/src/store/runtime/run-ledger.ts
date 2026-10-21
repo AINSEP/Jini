@@ -1,4 +1,4 @@
-import type { AgentEvent, ChatMessage, ChatRunStatus } from "../../core/index.js";
+import type { AgentEvent } from "../../core/index.js";
 import { dedupeToolUsesById } from "../../core/tool-events.js";
 import type { ExpressionBuilder } from "kysely";
 
@@ -66,10 +66,16 @@ function readEvents(eventsJson: string | null): AgentEvent[] {
   return Array.isArray(events) ? (events as AgentEvent[]) : [];
 }
 
+/** Tool identity shared by progress detection and checkpoint merging; "" for non-tool events. */
+function toolKey(event: AgentEvent): string {
+  if (event.kind === "tool_use") return `use:${event.id}`;
+  if (event.kind === "tool_result") return `result:${event.toolUseId}`;
+  return "";
+}
+
 function hasNewToolProgress(current: readonly AgentEvent[], next: readonly AgentEvent[]): boolean {
-  const key = (event: AgentEvent) => event.kind === "tool_use" ? `use:${event.id}` : event.kind === "tool_result" ? `result:${event.toolUseId}` : "";
-  const saved = new Set(current.map(key));
-  return next.some((event) => { const id = key(event); return id !== "" && !saved.has(id); });
+  const saved = new Set(current.map(toolKey));
+  return next.some((event) => { const id = toolKey(event); return id !== "" && !saved.has(id); });
 }
 
 /** Retain a longer checkpoint's text and merge non-text replay events under the shared ID rule.
@@ -83,19 +89,22 @@ function retainSavedEvents(saved: readonly AgentEvent[], incoming: readonly Agen
 /** Preserve tool barriers absent from a replay, with one persisted use per tool ID.
  * @complexity O(n) time and space in the combined saved and incoming event count. */
 function keepToolCheckpoints(saved: readonly AgentEvent[], incoming: readonly AgentEvent[]): AgentEvent[] {
-  const key = (event: AgentEvent) => event.kind === "tool_use" ? `use:${event.id}` : event.kind === "tool_result" ? `result:${event.toolUseId}` : "";
-  const seen = new Set(incoming.map(key));
+  const seen = new Set(incoming.map(toolKey));
   // Deduplicate after merging: a legacy checkpoint or replay can repeat an ID with different
   // serialized input. The shared ID rule owns identity; JSON equality does not.
-  return dedupeToolUsesById({ events: [...incoming, ...saved.filter((event) => { const id = key(event); return id !== "" && !seen.has(id); })] });
+  return dedupeToolUsesById({ events: [...incoming, ...saved.filter((event) => { const id = toolKey(event); return id !== "" && !seen.has(id); })] });
 }
 
 /**
  * @param store the chat kernel, or the open `chat.db` handle `createChatStoreFactory` also wraps.
+ * @param now Injectable epoch-millisecond clock for progress stamps and the default cancel time.
  * @complexity each method is one or two indexed statements, except `reconcileInterrupted`, which
  *   is O(stuck rows).
  */
-export function createChatRunLedger<DB extends ChatDatabase>({ kernel: hostKernel, isDaemonRunId }: { kernel: ChatKernel<DB>; isDaemonRunId: RunIdPolicy }, _optional = {}): ChatRunLedger {
+export function createChatRunLedger<DB extends ChatDatabase>(
+  { kernel: hostKernel, isDaemonRunId }: { kernel: ChatKernel<DB>; isDaemonRunId: RunIdPolicy },
+  { now = Date.now }: { now?: () => number } = {},
+): ChatRunLedger {
   const kernel = chatKernelTables<DB, ChatDatabase>({ kernel: hostKernel }, {});
 
   async function isSettled(run: RunRef): Promise<boolean> {
@@ -179,7 +188,7 @@ export function createChatRunLedger<DB extends ChatDatabase>({ kernel: hostKerne
         // Progress earns a fresh recovery budget. Replayed prefixes and the coordinator's
         // divider are not progress and cannot keep a repeatedly failing attempt alive forever.
         await kernel.run((db) => db.updateTable("assistant_run_attempts")
-          .set({ recovery_count: 0, recovery_deadline: null, recovery_elapsed_ms: 0, last_progress_at: Date.now() })
+          .set({ recovery_count: 0, recovery_deadline: null, recovery_elapsed_ms: 0, last_progress_at: now() })
           .where("message_id", "=", progress.messageId).execute());
       }
       return Number(result.numUpdatedRows) > 0;
@@ -222,7 +231,7 @@ export function createChatRunLedger<DB extends ChatDatabase>({ kernel: hostKerne
           const current = await kernel.run((db) => db.selectFrom("ai_chat_messages").select("events_json")
             .where(matches).executeTakeFirst());
           if (!current) return false;
-          const endedAt = required.now ?? Date.now();
+          const endedAt = required.now ?? now();
           const events = [...readEvents(current.events_json), { kind: "status", label: "Stopped. Saved work is above." }];
           const result = await kernel.run((db) => db.updateTable("ai_chat_messages")
             .set({ run_status: "canceled", ended_at: endedAt, events_json: JSON.stringify(events) })
