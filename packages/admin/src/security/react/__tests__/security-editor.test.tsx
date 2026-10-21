@@ -10,7 +10,7 @@ import type { CredentialProvider } from '../../models.js';
 afterEach(cleanup);
 
 const gitProvider: CredentialProvider = { kind: 'source-control', id: 'git', label: 'Git host', vendorLabel: 'Git vendor', category: 'source-control', tokenField: 'token', fields: [] };
-const deployProvider: CredentialProvider = { kind: 'publish', id: 'deployer', label: 'Deployer', vendorLabel: 'Deploy vendor', category: 'hosting', tokenField: 'apiKey',
+const deployProvider: CredentialProvider = { kind: 'publish', id: 'deployer', label: 'Deployer', vendorLabel: 'Deploy vendor', category: 'hosting', tokenField: 'apiKey', tokenPageUrl: 'https://deploy.test/tokens',
   fields: [{ name: 'apiKey', label: 'Deploy API key', secret: true }, { name: 'team', label: 'Team slug', required: true }, { name: 'signing', label: 'Webhook signing value', secret: true }] };
 
 function mount({ permissions, rootKeyScopeNotice, onTabChange }: { permissions: readonly string[]; rootKeyScopeNotice?: string; onTabChange?: (required: { tab: string }) => void }) {
@@ -91,5 +91,30 @@ describe('security page binding', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'Root key' }));
     expect(onTabChange).toHaveBeenCalledWith({ tab: 'root-key' });
     expect(await screen.findByText('Keys are per workspace.')).toBeVisible();
+  });
+});
+
+describe('access tokens tab', () => {
+  it('links to the provider token page and promotes a saved token to default', async () => {
+    const { api } = mount({ permissions: ['security.read', 'system.publish'] });
+    expect(await screen.findByRole('link', { name: 'Manage tokens at Deploy vendor' })).toHaveAttribute('href', 'https://deploy.test/tokens');
+    const connection = { providerId: 'deployer', apiKey: 'k', team: 't', signing: 's' };
+    await api.publish.create({ label: 'First', connection }, {});
+    const second = await api.publish.create({ label: 'Second', connection }, {});
+    fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
+    await screen.findByRole('heading', { name: 'Second' });
+    // Only the non-default saved token offers promotion.
+    expect(screen.getAllByRole('button', { name: 'Make default' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Make default' }));
+    await waitFor(async () => expect((await api.publish.list({}, {})).find(row => row.id === second.id)?.isDefault).toBe(true));
+  });
+
+  it('denies the tab itself to a viewer without the read grant', async () => {
+    const feature = security({});
+    const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({ providers: [gitProvider] }) } }, { permissions: ['security.read'] });
+    const AccessTokens = feature.react.pages.secrets.tabs['access-tokens'];
+    render(<KitProvider><feature.react.Provider admin={admin}><Suspense fallback="Loading"><AccessTokens params={{}} permissions={[]} /></Suspense></feature.react.Provider></KitProvider>);
+    expect(await screen.findByText('Permission denied')).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Access tokens' })).toBeNull();
   });
 });

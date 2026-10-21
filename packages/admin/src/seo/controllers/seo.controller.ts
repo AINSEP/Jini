@@ -28,14 +28,16 @@ export function createSeoController(
   }
   async function regenerateSitemap(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): Promise<boolean> {
     store.set({ patch: { saving: true, error: null, notice: null } });
+    // One exit after `finally`: returning from both try and catch left a fall-through nothing took.
+    let accepted = false;
     try {
       await api.regenerateSeoSitemap({});
       store.set({ patch: { notice: t('Sitemap regeneration accepted.') } });
-      return true;
+      accepted = true;
     } catch (error) {
       store.set({ patch: { error: describeSeoError({ error, fallback: t('failed to regenerate sitemap') }) } });
-      return false;
     } finally { store.set({ patch: { saving: false } }); }
+    return accepted;
   }
   return {
     ...store, load, save, regenerateSitemap,
