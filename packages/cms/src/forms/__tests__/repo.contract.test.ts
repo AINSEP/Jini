@@ -249,6 +249,26 @@ function runSubmissionContractSuite(
     assert.deepEqual(page.items.map((i) => i.id), ["sub-2"]);
   });
 
+  test(`[${adapterName}] a failed transaction drops its own writes but keeps every row committed before it`, async () => {
+    const repo = await makeSeededRepo();
+    await repo.create(makeSubmission({ id: "sub-1" }));
+    await assert.rejects(
+      repo.transaction(async () => {
+        await repo.create(makeSubmission({ id: "sub-2", submittedAt: "2026-07-13T00:05:00.000Z" }));
+        throw new Error("abort");
+      }),
+      /abort/,
+    );
+    const page = await repo.listByDefinition({ workspaceId: WORKSPACE_ID, formDefinitionId: "def-1", limit: 10 });
+    assert.deepEqual(page.items.map((i) => i.id), ["sub-1"]);
+  });
+
+  test(`[${adapterName}] a zero limit returns an empty page and never a dangling cursor`, async () => {
+    const repo = await makeSeededRepo();
+    await repo.create(makeSubmission({ id: "sub-1" }));
+    assert.deepEqual(await repo.listByDefinition({ workspaceId: WORKSPACE_ID, formDefinitionId: "def-1", limit: 0 }), { items: [], nextCursor: null });
+  });
+
   test(`[${adapterName}] a submission from another workspace is isolated`, async () => {
     const repo = await makeSeededRepo();
     await repo.create(makeSubmission());

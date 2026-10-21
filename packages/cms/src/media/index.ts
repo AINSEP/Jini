@@ -160,7 +160,7 @@ export {
 export type { UploadMediaRequired, UploadMediaOptional, ListMediaRequired, GetMediaByIdRequired, UpdateMediaMetadataRequired, TrashMediaRequired, PurgeMediaRequired, RollbackUploadedMediaRequired } from "./media-service.js";
 export type { ResolveMediaRenditionRequired } from "./rendition-service.js";
 export type { RegisterTransformRequired, GetLatestTransformDefinitionRequired, IsLatestTransformVersionRequired } from "./transform-registry.js";
-export type { IsBlobUnreferencedRequired, TombstoneBlobRequired, RunBlobGcDeletePassRequired, RunBlobGcUnlinkPassRequired, RunBlobGcCycleRequired } from "./blob-gc.js";
+export type { BlobReferenceProbes, IsBlobUnreferencedRequired, TombstoneBlobRequired, RunBlobGcDeletePassRequired, RunBlobGcUnlinkPassRequired, RunBlobGcCycleRequired } from "./blob-gc.js";
 
 export { rollbackUploadedMedia } from "./media-service.js";
 export type { MediaRowCleanupDeps } from "./media-service.js";

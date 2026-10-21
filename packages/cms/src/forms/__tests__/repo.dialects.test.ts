@@ -5,6 +5,8 @@ import { describeEachDialect } from "./support/dialect-matrix.fixture.js";
 import type { ContentKernel } from "./support/dialect-matrix.fixture.js";
 import { FormSlugConflictError } from "../index.js";
 import { formDefinitionRepoFor, formSubmissionRepoFor } from "./support/repo-ports.fixture.js";
+import { formSubmissionRepoFor as packageSubmissionRepoFor } from "../sql/index.js";
+import { tables } from "./support/forms-tables.fixture.js";
 import type { FormDefinitionRecord, FormSubmissionRecord } from "../index.js";
 
 /**
@@ -168,6 +170,29 @@ describeEachDialect(
       const crossWs = await subs.listByDefinition({ workspaceId: WS, formDefinitionId: "def-1", limit: 10, cursor: "w" });
       assert.deepEqual(crossWs.items.map((s) => s.id), ["a"]);
       assert.deepEqual(await subs.listByDefinition({ workspaceId: WS, formDefinitionId: "empty", limit: 5 }), { items: [], nextCursor: null });
+    });
+
+    test("the package's submission repo factory binds the host table names and pages by its options cursor", async () => {
+      const { kernel, defs } = makeRepos();
+      const subs = packageSubmissionRepoFor({ kernel, tables }, {});
+      await defs.create(definition("def-1", "contact"));
+      await subs.create(submission("a", "2026-09-28T00:00:01.000Z"));
+      await subs.create(submission("b", "2026-09-28T00:00:02.000Z"));
+      const first = await subs.listByDefinition({ workspaceId: WS, formDefinitionId: "def-1", limit: 1 });
+      assert.deepEqual(first.items.map((s) => s.id), ["b"]);
+      assert.equal(first.nextCursor, "b");
+      const second = await subs.listByDefinition({ workspaceId: WS, formDefinitionId: "def-1", limit: 1 }, { cursor: first.nextCursor });
+      assert.deepEqual(second, { items: [{ ...submission("a", "2026-09-28T00:00:01.000Z") }], nextCursor: null });
+    });
+
+    test("a submission whose IP the retention sweep cleared reads back with an empty source IP", async () => {
+      const { kernel, defs, subs } = makeRepos();
+      await defs.create(definition("def-1", "contact"));
+      await subs.create(submission("a", T0));
+      await kernel.run((db) => db.updateTable("form_submissions").set({ source_ip: null }).where("id", "=", "a").execute());
+      const read = await subs.findById({ workspaceId: WS, id: "a" });
+      assert.equal(read?.sourceIp, "");
+      assert.deepEqual(read?.data, { name: "n-a", agree: true });
     });
 
     test("a transaction's definition + submission writes roll back together", async () => {

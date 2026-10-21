@@ -13,6 +13,7 @@ import {
   listMedia,
   purgeMedia,
   resolveWriteOnceSource,
+  rollbackUploadedMedia,
   trashMedia,
   updateMediaMetadata,
   uploadMedia,
@@ -942,4 +943,58 @@ test("updateMediaMetadata validates document titles and applies dimension, class
   assert.deepEqual([cleared.width, cleared.height, cleared.cssClass], [null, null, null]);
   assert.equal((await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, cssClass: "  " } })).media.cssClass, null);
   await assert.rejects(updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, width: 0 } }), MediaValidationError);
+});
+
+test("uploadMedia's size-cap message keeps one decimal for a cap that is not a whole number of MB", async () => {
+  const { deps } = makeDeps();
+  await assert.rejects(
+    uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: new Uint8Array(2 * 1024 * 1024), filename: "big.png", contentType: "image/png", createdByPrincipal: "user-1" } },
+      { maxUploadBytes: 1.5 * 1024 * 1024 }),
+    (error: unknown) => {
+      assert.ok(error instanceof MediaValidationError);
+      assert.equal(error.message, "uploaded file exceeds the 1.5 MB size cap");
+      return true;
+    },
+  );
+});
+
+test("uploadMedia titles an extension-only filename 'Untitled' rather than storing an empty title", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadWithTitle(deps, ".png");
+  assert.equal(media.title, "Untitled");
+  assert.equal(media.slug, "untitled");
+});
+
+test("listMedia treats a legacy row with no kind as ordinary media, never as a document", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadWithTitle(deps, "legacy.png");
+  const { kind: _kind, ...legacy } = media;
+  await deps.mediaRepo.save({ ...legacy, id: "legacy-1", slug: "legacy-1" });
+  const all = await listMedia({ deps, input: { workspaceId: WORKSPACE_ID } });
+  assert.deepEqual(all.media.map(row => row.id).sort(), [media.id, "legacy-1"].sort());
+  const documents = await listMedia({ deps, input: { workspaceId: WORKSPACE_ID, kind: "document" } });
+  assert.deepEqual(documents.media, []);
+});
+
+test("trashMedia throws MediaNotFoundError for a missing id", async () => {
+  const { deps } = makeDeps();
+  await assert.rejects(trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: "missing" } }), (error: unknown) => {
+    assert.ok(error instanceof MediaNotFoundError);
+    assert.equal(error.message, "media 'missing' was not found");
+    return true;
+  });
+});
+
+test("rollbackUploadedMedia without an injected clock still tombstones the blob, stamped from the system clock", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadWithTitle(deps, "rolled-back.png");
+  const { clock: _clock, ...withoutClock } = deps;
+  const before = Date.now();
+  await rollbackUploadedMedia({ deps: withoutClock, input: { workspaceId: WORKSPACE_ID, media } }, {});
+  const after = Date.now();
+  assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: media.id }), null);
+  const blob = await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 });
+  assert.equal(blob?.status, "tombstoned");
+  const stamped = Date.parse(blob!.tombstonedAt!);
+  assert.ok(stamped >= before && stamped <= after, `tombstonedAt ${blob!.tombstonedAt} within the call`);
 });

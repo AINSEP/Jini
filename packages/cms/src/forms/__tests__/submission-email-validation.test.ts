@@ -5,6 +5,7 @@ import { InMemoryEventBus, InMemoryOutbox } from "./eventing.fixture.js";
 import { FormDefinitionNotFoundError, FormSubmissionValidationError, type FormDefinitionRecord } from "../index.js";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "./support/repo-ports.fixture.js";
 import { submitForm } from "./support/host-ports.fixture.js";
+import { assertSubmissionEmails } from "../submission-email-validation.js";
 
 async function fixture(overrides: Partial<FormDefinitionRecord> = {}) {
   const definitionRepo = new InMemoryFormDefinitionRepo();
@@ -88,3 +89,26 @@ test("15b preserves honeypot silent acceptance and disabled-as-not-found", async
   await assert.rejects(() => disabled.submit({ email: "not-an-email" }), FormDefinitionNotFoundError);
 });
 
+
+test("15b the guard also format-checks an email answer visible only through the body's prototype, in declared field order", () => {
+  const definition: FormDefinitionRecord = {
+    id: "f1", workspaceId: "w1", name: "Contact", slug: "contact", version: 1, status: "active",
+    fields: [
+      { id: "email", label: "Email", type: "email", required: false },
+      { id: "name", label: "Name", type: "text", required: true },
+    ],
+    notify: { enabled: false, recipients: [] }, createdAt: "2026-10-07T00:00:00Z", updatedAt: "2026-10-07T00:00:00Z",
+  };
+  // The payload validator reads own keys only, so an inherited answer is "absent" to it; the guard
+  // reads the property the way the old host compatibility check did and still refuses bad syntax.
+  const body = Object.assign(Object.create({ email: "not-an-email" }) as Record<string, unknown>, { extra: "x" });
+  assert.throws(() => assertSubmissionEmails({ definition, body }, {}), (error: unknown) => {
+    assert.ok(error instanceof FormSubmissionValidationError);
+    assert.equal(error.message, "submission failed field validation");
+    assert.deepEqual(error.fieldErrors.map(({ field, reason }) => [field, reason]), [
+      ["extra", "unregistered_key"], ["email", "invalid_email"], ["name", "required"],
+    ]);
+    return true;
+  });
+  assert.doesNotThrow(() => assertSubmissionEmails({ definition, body: Object.create({ email: "ada@example.com" }) as Record<string, unknown> }));
+});

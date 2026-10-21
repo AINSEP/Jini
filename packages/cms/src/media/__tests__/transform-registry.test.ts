@@ -179,3 +179,26 @@ test.each([['width', 0], ['height', 8001], ['height', 1.5]] as const)('registerT
   const deps = makeDeps();
   await assert.rejects(() => registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: 'og', owner: 'core', params: { format: 'jpeg', [key]: value } } }), { message: `transform params.${key} must be an integer between 1 and 8000` });
 });
+
+test("registerTransform refuses a blank owner before writing any version", async () => {
+  const deps = makeDeps();
+  await assert.rejects(
+    registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: "thumb", params: { format: "webp" }, owner: "   " } }),
+    (error: unknown) => error instanceof TransformValidationError && error.message === "owner is required",
+  );
+  assert.deepEqual(await deps.transformRepo.listByName({ workspaceId: WORKSPACE_ID, name: "thumb" }), []);
+});
+
+test("getLatestTransformDefinition picks the highest version whatever order the adapter lists them in", async () => {
+  const deps = makeDeps();
+  for (let i = 0; i < 3; i++) await registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: "thumb", params: { format: "webp" }, owner: "core" } });
+  const rows = await deps.transformRepo.listByName({ workspaceId: WORKSPACE_ID, name: "thumb" });
+  const repo = deps.transformRepo;
+  const shuffled = {
+    listByName: async () => [rows[1]!, rows[2]!, rows[0]!],
+    findByNameVersion: repo.findByNameVersion.bind(repo),
+    insert: repo.insert.bind(repo),
+  };
+  const latest = await getLatestTransformDefinition({ deps: { transformRepo: shuffled }, input: { workspaceId: WORKSPACE_ID, name: "thumb" } });
+  assert.equal(latest?.version, 3);
+});

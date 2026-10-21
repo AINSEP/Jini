@@ -254,3 +254,67 @@ test("invocation batches remain unsupported because items is the menu's tree, no
   await assert.rejects(() => normalizedUpdate({ deps, input: { items: [{ menuId: id, expectedVersion: 1, items: [] }] } }), /'id'.*required/i);
   assert.equal((await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id }))?.version, 1);
 });
+
+function handler(deps: MenusToolDeps, id: string): ToolRegistration["handler"] {
+  const found = buildMenusRegistrations(deps).find((r) => r.descriptor.id === id);
+  assert.ok(found, `${id} must be wired`);
+  return found.handler;
+}
+
+test("menus_list_menus returns every menu of the workspace as a tool view", async () => {
+  const deps = fakeDeps();
+  await handler(deps, "menus_create_menu")(executionContext({ title: "Main", slug: "main" }));
+  await handler(deps, "menus_create_menu")(executionContext({ title: "Footer", slug: "footer" }));
+  const result = await handler(deps, "menus_list_menus")(executionContext({})) as { menus: Array<{ slug: string; title: string; items: unknown[]; locations: string[] }> };
+  assert.deepEqual(result.menus.map(({ slug, title, items, locations }) => ({ slug, title, items, locations })).sort((a, b) => a.slug.localeCompare(b.slug)), [
+    { slug: "footer", title: "Footer", items: [], locations: [] },
+    { slug: "main", title: "Main", items: [], locations: [] },
+  ]);
+});
+
+test("menus_get_menu names an unknown menu id instead of returning nothing", async () => {
+  await assert.rejects(handler(fakeDeps(), "menus_get_menu")(executionContext({ menuId: "nope" })), /menu 'nope' was not found/);
+});
+
+test("menus_create_menu returns a domain validation failure with the tool's schema attached", async () => {
+  const deps = fakeDeps();
+  await assert.rejects(handler(deps, "menus_create_menu")(executionContext({ title: "Main", slug: "Not A Slug" })), /Schema for 'menus_create_menu'/);
+  assert.deepEqual(await deps.menuRepo.list({ workspaceId: WORKSPACE_ID }), []);
+});
+
+test("menus_create_menu checks the host's raw-HTML permission, without an entity id, before creating an HTML menu", async () => {
+  const checks: unknown[] = [];
+  const deps: MenusToolDeps = {
+    ...fakeDeps(), rawHtmlPermission: "pages.edit_html", normalizeMenuHtml: ({ html }) => html,
+    authorize: async (request) => { checks.push(request); return { allowed: true, reason: "matched" }; },
+  };
+  const result = await handler(deps, "menus_create_menu")(executionContext({ title: "Main", slug: "main", mode: "html", html: "<nav></nav>" })) as { menu: { mode?: string; html?: string } };
+  assert.deepEqual([result.menu.mode, result.menu.html], ["html", "<nav></nav>"]);
+  const htmlCheck = checks.find((c) => (c as { permission?: string }).permission === "pages.edit_html") as Record<string, unknown> | undefined;
+  assert.ok(htmlCheck, "the raw-HTML permission must be checked");
+  assert.equal(htmlCheck.entityId, undefined);
+});
+
+test("menus_update_menu_tree rejects non-array items and applies a new slug", async () => {
+  const deps = fakeDeps();
+  const { menu } = await handler(deps, "menus_create_menu")(executionContext({ title: "Main", slug: "main" })) as { menu: { id: string; version: number } };
+  const update = handler(deps, "menus_update_menu_tree");
+  await assert.rejects(update(executionContext({ id: menu.id, expectedVersion: menu.version, items: "[]" })), /'items' must be an array of nav items/);
+  const renamed = await update(executionContext({ id: menu.id, expectedVersion: menu.version, slug: "primary", items: [] })) as { menu: { slug: string } };
+  assert.equal(renamed.menu.slug, "primary");
+  assert.equal((await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id: menu.id }))?.slug, "primary");
+});
+
+test("menus_assign_location reports the menu it displaced from the location", async () => {
+  const deps = fakeDeps();
+  const create = handler(deps, "menus_create_menu");
+  const first = await create(executionContext({ title: "Main", slug: "main" })) as { menu: { id: string } };
+  const second = await create(executionContext({ title: "Alt", slug: "alt" })) as { menu: { id: string } };
+  const assign = handler(deps, "menus_assign_location");
+  const initial = await assign(executionContext({ menuId: first.menu.id, locationKey: "primary" })) as { displacedMenu: unknown };
+  assert.equal(initial.displacedMenu, null);
+  const swapped = await assign(executionContext({ menuId: second.menu.id, locationKey: "primary" })) as { binding: unknown; displacedMenu: { id: string; locations: string[] } | null };
+  assert.deepEqual(swapped.binding, { locationKey: "primary", menuId: second.menu.id });
+  assert.equal(swapped.displacedMenu?.id, first.menu.id);
+  assert.deepEqual(swapped.displacedMenu?.locations, []);
+});

@@ -31,7 +31,7 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
  * the generic entries model, which is accepted design only, not
  * running code yet (see `types.ts`'s file header on `MediaRecord` being a
  * bespoke table for the same reason). Stubbed to always return `false`
- * ("no live refs found").
+ * ("no live refs found") unless a host supplies {@link BlobReferenceProbes}.
  * - **Retained-snapshot conjunct** ({@link getOldestRetainedSnapshotAgeMs}) —
  * owned by a pending Storage/Backups snapshot primitive, which doesn't
  * exist yet either. Stubbed to always
@@ -119,8 +119,19 @@ export function resolveGcGraceMs(input: { workspaceId: UUID; sha256: string }): 
 // "Unreferenced" predicate (normative)
 // ---------------------------------------------------------------------------
 
+/**
+ * Host-supplied evaluators for the two conjuncts this library cannot evaluate itself
+ * (`entry_refs`, retained snapshots). Each omitted probe falls back to its disclosed stub above
+ * ({@link hasLiveEntryRefs} / {@link hasRetainedSnapshot}: "not referenced"), so a host that tracks
+ * neither keeps today's behavior and one that tracks either plugs it in without touching callers.
+ */
+export interface BlobReferenceProbes {
+  hasLiveEntryRefs?: (input: { workspaceId: UUID; sha256: string }) => boolean | Promise<boolean>;
+  hasRetainedSnapshot?: (input: { workspaceId: UUID; sha256: string }) => boolean | Promise<boolean>;
+}
+
 export interface IsBlobUnreferencedRequired {
-  deps: { mediaRepo: MediaRepoPort };
+  deps: { mediaRepo: MediaRepoPort; referenceProbes?: BlobReferenceProbes | undefined };
   input: { workspaceId: UUID; sha256: string };
 }
 
@@ -131,8 +142,8 @@ export interface IsBlobUnreferencedRequired {
  * (active or trashed — purged rows are physically removed by `purgeMedia`,
  * so `mediaRepo.list` already excludes them by construction) references this
  * sha256, AND no live `entry_refs` targets it, AND no retained snapshot
- * references it. The last two conjuncts are evaluated by the disclosed stubs
- * above.
+ * references it. The last two conjuncts are evaluated by `deps.referenceProbes`
+ * when a host supplies them, otherwise by the disclosed stubs above.
  *
  * Callers MUST invoke this from inside {@link withSha256Lock} for the same
  * sha256 — this function only reads, it does not lock itself, so its result
@@ -152,8 +163,9 @@ export async function isBlobUnreferenced(required: IsBlobUnreferencedRequired): 
   const rows = await deps.mediaRepo.list({ workspaceId: input.workspaceId });
   const hasMediaReference = rows.some((row) => row.source.sha256 === input.sha256);
   if (hasMediaReference) return false;
-  if (hasLiveEntryRefs(input)) return false;
-  if (hasRetainedSnapshot(input)) return false;
+  const probes = deps.referenceProbes ?? {};
+  if (await (probes.hasLiveEntryRefs ?? hasLiveEntryRefs)(input)) return false;
+  if (await (probes.hasRetainedSnapshot ?? hasRetainedSnapshot)(input)) return false;
   return true;
 }
 
@@ -165,6 +177,7 @@ export interface TombstoneBlobDeps {
   mediaRepo: MediaRepoPort;
   blobRepo: AssetBlobRepoPort;
   clock: Clock;
+  referenceProbes?: BlobReferenceProbes | undefined;
 }
 
 export interface TombstoneBlobRequired {
@@ -210,6 +223,7 @@ export interface RunBlobGcDeletePassDeps {
   journalRepo: BlobGcJournalRepoPort;
   clock: Clock;
   idGen: IdGenerator;
+  referenceProbes?: BlobReferenceProbes | undefined;
 }
 
 export interface RunBlobGcDeletePassRequired {

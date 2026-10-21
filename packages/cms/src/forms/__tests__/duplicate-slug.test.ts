@@ -3,6 +3,7 @@ import { test } from "vitest";
 
 import { deriveAvailableFormSlug, slugifyFormName, FORM_SLUG_MAX_LENGTH } from "./support/host-ports.fixture.js";
 import { SLUG_PATTERN } from "../index.js";
+import { deriveAvailableFormSlug as deriveFormSlug } from "../duplicate-slug.js";
 
 /**
  * @file Certifies the slug derivation `content_duplicate`'s `"form"` resource needs and Forms did
@@ -81,4 +82,16 @@ test("the search gives up rather than looping forever when every candidate is ta
     deriveAvailableFormSlug({ name: "Contact Us" }, { isTaken: async () => true }),
     /no free slug/i,
   );
+});
+
+test("a host slugify that emits characters outside SLUG_PATTERN never reaches isTaken or the caller", async () => {
+  const probed: string[] = [];
+  await assert.rejects(
+    deriveFormSlug({
+      name: "Contact Us", slugify: (name) => name.replace(/ /g, "_"), maxAttempts: 3, reservedSlugs: new Set(),
+      isTaken: async (slug) => { probed.push(slug); return false; },
+    }, {}),
+    /no free slug could be derived from 'Contact Us' after 3 attempts/,
+  );
+  assert.deepEqual(probed, []);
 });

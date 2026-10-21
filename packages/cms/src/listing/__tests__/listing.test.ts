@@ -132,4 +132,23 @@ describe('listing markup', () => {
     expect(injectListingScript({ html: once })).toBe(once);
     expect(injectListingScript({ html: '<body></body>' })).toBe('<body></body>');
   });
+
+  it('appends the script to a fragment that has no </body> to insert before', () => {
+    const more = renderListingMore({ key: 1, href: '/b/_more/1/1' });
+    const out = injectListingScript({ html: `<ul></ul>${more}` });
+    expect(out.startsWith(`<ul></ul>${more}<script data-jini-see-more-script>`)).toBe(true);
+    expect(out.endsWith('</script>')).toBe(true);
+  });
+
+  it('takes a batch\'s next href from its own button, skipping another listing\'s button that comes first', () => {
+    const page = `${wrapListingItems({ key: 2, items: '<li>b</li>' })}${renderListingMore({ key: 1, href: '/x/_more/1/9' })}${renderListingMore({ key: 2, href: '/x/_more/2/9' })}`;
+    expect(extractListingBatch({ html: page, key: 2 })).toEqual({ items: '<li>b</li>', moreHref: '/x/_more/2/9' });
+  });
+
+  it('reports a last batch, with no next button of its own, without a moreHref key', () => {
+    const page = `${wrapListingItems({ key: 3, items: '<li>c</li>' })}${renderListingMore({ key: 4, href: '/x/_more/4/9' })}`;
+    const batch = extractListingBatch({ html: page, key: 3 }, {});
+    expect(batch).toEqual({ items: '<li>c</li>' });
+    expect(batch && 'moreHref' in batch).toBe(false);
+  });
 });

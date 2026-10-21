@@ -3,6 +3,8 @@ import { test } from "vitest";
 import { uploadMedia, updateMediaMetadata, trashMedia } from "../media-service.js";
 import { InMemoryMediaRepo, InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo } from "../repo.memory.js";
 import { InMemoryBlobStore } from "../blob-store.memory.js";
+import { mediaRepoWithCreator, preserveMediaCreator } from "../created-by.js";
+import type { MediaRecord } from "../types.js";
 
 /** Owner dispatch 2026-10-04: asset attribution is independent of deduplicated blob ownership. */
 test("createdBy stamps each acting principal despite sharing a blob, and survives editorial/status edits", async () => {
@@ -31,4 +33,37 @@ test("createdBy stamps each acting principal despite sharing a blob, and survive
   assert.equal(trashed.media.createdBy, "user-2");
   await deps.mediaRepo.save({ ...trashed.media, createdBy: "spoofed-on-update" });
   assert.equal((await deps.mediaRepo.findById({ workspaceId: "ws", id: trashed.media.id }))?.createdBy, "user-2");
+});
+
+function legacyRecord(overrides: Partial<MediaRecord> = {}): MediaRecord {
+  return {
+    id: "m-1", workspaceId: "ws", title: "Photo", slug: "photo", alt: "", caption: "", credit: "",
+    source: { sha256: "a".repeat(64) },
+    status: "active", createdAt: "2026-10-04T00:00:00Z", updatedAt: "2026-10-04T00:00:00Z", version: 1,
+    width: null, height: null, cssClass: null, htmlAttributes: null,
+    ...overrides,
+  };
+}
+
+test("mediaRepoWithCreator stamps the bound principal on every save and forwards every read and remove unchanged", async () => {
+  const inner = new InMemoryMediaRepo({});
+  const repo = mediaRepoWithCreator({ mediaRepo: inner, principalId: "agent-7" }, {});
+  await repo.save(legacyRecord({ createdBy: "caller-claimed" }));
+  assert.equal((await inner.findById({ workspaceId: "ws", id: "m-1" }))?.createdBy, "agent-7");
+  assert.equal((await repo.findById({ workspaceId: "ws", id: "m-1" }))?.createdBy, "agent-7");
+  assert.equal((await repo.findBySlug({ workspaceId: "ws", slug: "photo" }))?.id, "m-1");
+  assert.deepEqual((await repo.list({ workspaceId: "ws" })).map(row => row.id), ["m-1"]);
+  await repo.remove({ workspaceId: "ws", id: "m-1" });
+  assert.equal(await inner.findById({ workspaceId: "ws", id: "m-1" }), null);
+});
+
+test("preserveMediaCreator keeps a legacy record's unknown attribution, kind and filename unknown instead of adopting the update's", () => {
+  const original = legacyRecord();
+  const merged = preserveMediaCreator({ original, record: legacyRecord({ title: "Renamed", createdBy: "spoof", kind: "document", originalFilename: "evil.pdf" }) }, {});
+  assert.equal(merged.title, "Renamed");
+  assert.equal("createdBy" in merged, false);
+  assert.equal("kind" in merged, false);
+  assert.equal("originalFilename" in merged, false);
+  const attributed = preserveMediaCreator({ original: legacyRecord({ createdBy: "owner", kind: "media", originalFilename: "photo.png" }), record: legacyRecord({ createdBy: "spoof", kind: "document", originalFilename: "evil.pdf" }) });
+  assert.deepEqual([attributed.createdBy, attributed.kind, attributed.originalFilename], ["owner", "media", "photo.png"]);
 });
