@@ -3,29 +3,32 @@ info:
   title: Jini connectors route pack
   version: 0.0.0
   description: |
-    Code-first fragment for `packages/http-kit/src/connectors.ts` — JSON transport over five
-    narrow, independently optional provider ports (`auth`, `storage`, `payments`, `db`,
-    `realtime`). The ports themselves have no HTTP opinion; concrete adapters (e.g.
+    Code-first fragment for `packages/http-kit/src/connectors.ts` — JSON transport over four
+    narrow, independently optional provider ports (`auth`, `storage`, `db`, `realtime`).
+    There is deliberately no payments slot: the former `/api/connectors/payments/*` routes
+    (charge, read, refund) moved money with no approval and no idempotency key and were
+    removed on 2026-10-21; money moves only through `@jini-ai/commerce`'s `PaymentsPort`.
+    The ports themselves have no HTTP opinion; concrete adapters (e.g.
     `@jini-ai/capability-providers`) satisfy them structurally at a host's composition
     root — this transport package deliberately does not depend on any implementation.
 
     **`NOT_CONFIGURED` (503) is the common case, not an edge case.** Every route's first
     check is whether its one required capability slot was supplied. `@jini-ai/server`
     mounts this pack zero-config (`registerConnectorsRoutes(app, {}, services.context.adapter)`
-    in `packages/server/src/builtin-features.ts`), which leaves all five slots unconfigured
+    in `packages/server/src/builtin-features.ts`), which leaves all four slots unconfigured
     by default. Concretely: on a stock daemon built from this repo, every route below is
     live on the wire and answers `503 NOT_CONFIGURED` until a host supplies real providers
     at its own composition root — there is no separate "connectors disabled" state, and no
     404 to signal that.
 
     **SEC-005 throughout.** Every provider call is wrapped (`guardedCall`) so a raw
-    Stripe/SQL/JWT/WebSocket error never reaches the caller verbatim — a correlation-id-
+    storage/SQL/JWT/WebSocket error never reaches the caller verbatim — a correlation-id-
     bearing generic `INTERNAL_ERROR` instead, with the real error reaching only a
     host-owned `onInternalError` sink.
 
     **Same-origin guard is asymmetric by read/write, not applied uniformly.** Every
     mutating route (`POST`/`PUT`/`PATCH`/`DELETE`) requires same-origin; every plain `GET`
-    (storage get/list, payments get, db get/query) does not. This is the opposite of
+    (storage get/list, db get/query) does not. This is the opposite of
     `component-catalog.ts`'s pair, which guards two `GET`s — see that fragment's own note.
 
     **Wire shapes are this route pack's own choice, not the ports'**:
@@ -148,43 +151,6 @@ paths:
         '200': { description: Object metadata list, content: { application/json: { schema: { $ref: '#/components/schemas/ConnectorsStorageListResponse' } } } }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/NotConfiguredStorage' }
-  /api/connectors/payments/charge:
-    post:
-      operationId: payments_charge
-      summary: Create a charge via the configured PaymentsProvider
-      x-jini-require-same-origin: true
-      description: '`amountCents` must be a positive `Number.isSafeInteger` — fractional or non-finite amounts are rejected before reaching the provider.'
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ChargeInput' } } } }
-      responses:
-        '201': { description: Charge created, content: { application/json: { schema: { $ref: '#/components/schemas/ConnectorsChargeResponse' } } } }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '500': { $ref: '#/components/responses/InternalError' }
-        '503': { $ref: '#/components/responses/NotConfiguredPayments' }
-  /api/connectors/payments/{id}:
-    get:
-      operationId: payments_get_charge
-      summary: Read a charge via the configured PaymentsProvider
-      description: No same-origin guard (read-only).
-      parameters: [ { $ref: '#/components/parameters/ChargeId' } ]
-      responses:
-        '200': { description: Charge, content: { application/json: { schema: { $ref: '#/components/schemas/ConnectorsChargeResponse' } } } }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '500': { $ref: '#/components/responses/InternalError' }
-        '503': { $ref: '#/components/responses/NotConfiguredPayments' }
-  /api/connectors/payments/{id}/refund:
-    post:
-      operationId: payments_refund
-      summary: Refund a charge via the configured PaymentsProvider
-      x-jini-require-same-origin: true
-      parameters: [ { $ref: '#/components/parameters/ChargeId' } ]
-      responses:
-        '200': { description: Refunded charge, content: { application/json: { schema: { $ref: '#/components/schemas/ConnectorsChargeResponse' } } } }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '500': { $ref: '#/components/responses/InternalError' }
-        '503': { $ref: '#/components/responses/NotConfiguredPayments' }
   /api/connectors/db/{collection}:
     post:
       operationId: db_insert
@@ -267,7 +233,6 @@ paths:
 components:
   parameters:
     StorageKey: { name: key, in: path, required: true, schema: { type: string, minLength: 1 } }
-    ChargeId: { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
     DbCollection: { name: collection, in: path, required: true, schema: { type: string, minLength: 1 } }
     DbRecordId: { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
   responses:
@@ -277,7 +242,6 @@ components:
     InternalError: { description: 'Internal error (SEC-005 redacted); adapter-generated errors include a correlation requestId in error.details.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
     NotConfiguredAuth: { description: No `AuthProvider` configured on this daemon., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
     NotConfiguredStorage: { description: No `StorageProvider` configured on this daemon., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-    NotConfiguredPayments: { description: No `PaymentsProvider` configured on this daemon., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
     NotConfiguredDb: { description: No `DbProvider` configured on this daemon., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
     NotConfiguredRealtime: { description: No `RealtimeProvider` configured on this daemon., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   schemas:
@@ -303,25 +267,6 @@ components:
     ConnectorsStorageMetaResponse: { type: object, required: [object], properties: { object: { $ref: '#/components/schemas/StorageObjectMeta' } } }
     ConnectorsStorageGetResponse: { type: object, required: [dataBase64], properties: { dataBase64: { type: string } } }
     ConnectorsStorageListResponse: { type: object, required: [objects], properties: { objects: { type: array, items: { $ref: '#/components/schemas/StorageObjectMeta' } } } }
-    ChargeInput:
-      type: object
-      required: [amountCents, currency, customerRef]
-      properties:
-        amountCents: { type: integer, minimum: 1, description: Whole positive cents; rejects fractional and non-safe-integer values before the provider sees them. }
-        currency: { type: string, minLength: 1 }
-        customerRef: { type: string, minLength: 1 }
-        description: { type: string }
-    Charge:
-      type: object
-      required: [id, status, amountCents, currency, customerRef, createdAt]
-      properties:
-        id: { type: string }
-        status: { type: string, enum: [pending, succeeded, failed, refunded] }
-        amountCents: { type: integer }
-        currency: { type: string }
-        customerRef: { type: string }
-        createdAt: { type: number }
-    ConnectorsChargeResponse: { type: object, required: [charge], properties: { charge: { $ref: '#/components/schemas/Charge' } } }
     DbRecord:
       type: object
       required: [id]

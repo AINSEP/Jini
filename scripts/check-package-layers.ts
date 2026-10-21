@@ -23,6 +23,8 @@ const layers: Readonly<Record<string, number>> = {
   server: 6, sqlite: 6, infra: 6, commerce: 6,
   // Private bundled provider workspace; published packages cannot depend on this L6 artifact.
   'charts-recharts': 6,
+  // A payment provider plugin sits above commerce: it imports only the commerce kernel entry.
+  'payments-stripe': 7,
 };
 const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui']);
 const privateArtifacts: ReadonlySet<string> = new Set(['charts-recharts']);

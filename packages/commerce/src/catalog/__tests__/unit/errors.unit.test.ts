@@ -5,6 +5,8 @@ import {
   CommercePriceNotFoundError,
   CommerceOrderNotFoundError,
   CommerceCheckoutValidationError,
+  CommerceCurrencyMismatchError,
+  CommerceProductSlugConflictError,
 } from "../../errors.js";
 
 describe("commerce errors", () => {
@@ -40,5 +42,22 @@ describe("commerce errors", () => {
     const customErr = new CommerceCheckoutValidationError({ message: "Invalid quantity", fieldErrors: fieldErrors });
     assert.equal(customErr.message, "Invalid quantity");
     assert.deepEqual(customErr.fieldErrors, fieldErrors);
+  });
+
+  it("instantiates CommerceProductSlugConflictError carrying the conflicting slug", () => {
+    const err = new CommerceProductSlugConflictError({ message: "slug taken", slug: "linen-notebook" });
+    assert.ok(err instanceof Error);
+    assert.ok(err instanceof CommerceProductSlugConflictError);
+    assert.equal(err.message, "slug taken");
+    assert.equal(err.slug, "linen-notebook");
+  });
+
+  it("instantiates CommerceCurrencyMismatchError carrying both currencies", () => {
+    const err = new CommerceCurrencyMismatchError({ expected: "USD", actual: "KES" });
+    assert.ok(err instanceof Error);
+    assert.ok(err instanceof CommerceCurrencyMismatchError);
+    assert.equal(err.message, "currency mismatch: expected USD, got KES");
+    assert.equal(err.expected, "USD");
+    assert.equal(err.actual, "KES");
   });
 });

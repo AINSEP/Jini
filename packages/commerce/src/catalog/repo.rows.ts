@@ -1,6 +1,8 @@
 import type { Insertable, Selectable } from "kysely";
 
+import { money, type Money } from "../money/money.js";
 import type { CommerceDatabase as ContentDatabase } from "./database.js";
+import { CommerceCurrencyMismatchError } from "./errors.js";
 import type { CommerceWebhookEventRepoPort } from "./ports.js";
 import type {
   CommerceBillingInterval,
@@ -20,7 +22,17 @@ import type {
  * @file Row mapping for the `commerce_*` tables, shared by every dialect: the columns are the
  * generated `ContentDatabase` types (snake_case, money as integer minor units, JSON as compact
  * text). Neutral on purpose — no repo, no driver.
+ *
+ * Money (commerce design §6): the physical `*_cents` column names are kept — the schema is
+ * host-owned (`database.ts`: this package never creates or migrates it), so renaming them would
+ * need a host migration for no behavioral gain. These mappers are the one boundary between those
+ * columns and `Money`: every amount is checked with `money()` on the way in AND out, which also
+ * normalizes currency, so a legacy lowercase row (`"usd"`) reads back `"USD"` and nothing
+ * lowercase is ever written again.
  */
+
+/** Catalog amounts may be zero (a free item); `money()` still rejects negatives and non-integers. */
+const ZERO_OK = { allowZero: true } as const;
 
 type Tables = ContentDatabase;
 export type CommerceProductRow = Selectable<Tables["commerce_products"]>;
@@ -92,9 +104,9 @@ export function toPriceRecord(row: CommercePriceRow, _optional: Record<string, n
     id: row.id,
     workspaceId: row.workspace_id,
     productId: row.product_id,
-    unitAmountCents: row.unit_amount_cents,
-    compareAtAmountCents: row.compare_at_amount_cents ?? undefined,
-    currency: row.currency,
+    unitAmount: money({ minorUnits: row.unit_amount_cents, currency: row.currency }, ZERO_OK),
+    // `== null`, not falsy: a zero compare-at price is a real value (F4.1).
+    compareAtAmount: row.compare_at_amount_cents == null ? undefined : money({ minorUnits: row.compare_at_amount_cents, currency: row.currency }, ZERO_OK),
     billingInterval: (row.billing_interval as CommerceBillingInterval | null) ?? undefined,
     status: row.status as CommercePriceStatus,
     createdAt: row.created_at,
@@ -102,14 +114,24 @@ export function toPriceRecord(row: CommercePriceRow, _optional: Record<string, n
   };
 }
 
+/** The compare-at column value; the row has one `currency`, so it must match `unit`'s. */
+function compareAtMinorUnits({ unit, compareAt }: { unit: Money; compareAt: Money | undefined }, _optional: Record<string, never> = {}): number | null {
+  if (compareAt === undefined) return null;
+  const value = money(compareAt, ZERO_OK);
+  if (value.currency !== unit.currency) throw new CommerceCurrencyMismatchError({ expected: unit.currency, actual: value.currency });
+  return value.minorUnits;
+}
+
+/** @throws {RangeError} an amount is not Money. @throws {CommerceCurrencyMismatchError} compare-at currency differs. */
 export function toPriceRow(record: CommercePriceRecord, _optional: Record<string, never> = {}): Insertable<Tables["commerce_prices"]> {
+  const unit = money(record.unitAmount, ZERO_OK);
   return {
     id: record.id,
     workspace_id: record.workspaceId,
     product_id: record.productId,
-    unit_amount_cents: record.unitAmountCents,
-    compare_at_amount_cents: record.compareAtAmountCents ?? null,
-    currency: record.currency,
+    unit_amount_cents: unit.minorUnits,
+    compare_at_amount_cents: compareAtMinorUnits({ unit, compareAt: record.compareAtAmount }),
+    currency: unit.currency,
     billing_interval: record.billingInterval ?? null,
     status: record.status,
     created_at: record.createdAt,
@@ -123,8 +145,7 @@ export function toOrderRecord(row: CommerceOrderRow, _optional: Record<string, n
     workspaceId: row.workspace_id,
     memberId: row.member_id,
     status: row.status as CommerceOrderStatus,
-    currency: row.currency,
-    totalAmountCents: row.total_amount_cents,
+    totalAmount: money({ minorUnits: row.total_amount_cents, currency: row.currency }, ZERO_OK),
     provider: row.provider,
     providerCustomerRef: row.provider_customer_ref ?? undefined,
     providerPaymentRef: row.provider_payment_ref ?? undefined,
@@ -137,13 +158,14 @@ export function toOrderRecord(row: CommerceOrderRow, _optional: Record<string, n
 }
 
 export function toOrderRow(record: CommerceOrderRecord, _optional: Record<string, never> = {}): Insertable<Tables["commerce_orders"]> {
+  const total = money(record.totalAmount, ZERO_OK);
   return {
     id: record.id,
     workspace_id: record.workspaceId,
     member_id: record.memberId,
     status: record.status,
-    currency: record.currency,
-    total_amount_cents: record.totalAmountCents,
+    currency: total.currency,
+    total_amount_cents: total.minorUnits,
     provider: record.provider,
     provider_customer_ref: record.providerCustomerRef ?? null,
     provider_payment_ref: record.providerPaymentRef ?? null,
@@ -163,14 +185,14 @@ export function toOrderItemRecord(row: CommerceOrderItemRow, _optional: Record<s
     priceId: row.price_id,
     productId: row.product_id,
     description: row.description,
-    unitAmountCents: row.unit_amount_cents,
+    unitAmount: money({ minorUnits: row.unit_amount_cents, currency: row.currency }, ZERO_OK),
     quantity: row.quantity,
-    currency: row.currency,
     createdAt: row.created_at,
   };
 }
 
 export function toOrderItemRow(record: CommerceOrderItemRecord, _optional: Record<string, never> = {}): Insertable<Tables["commerce_order_items"]> {
+  const unit = money(record.unitAmount, ZERO_OK);
   return {
     id: record.id,
     workspace_id: record.workspaceId,
@@ -178,9 +200,9 @@ export function toOrderItemRow(record: CommerceOrderItemRecord, _optional: Recor
     price_id: record.priceId,
     product_id: record.productId,
     description: record.description,
-    unit_amount_cents: record.unitAmountCents,
+    unit_amount_cents: unit.minorUnits,
     quantity: record.quantity,
-    currency: record.currency,
+    currency: unit.currency,
     created_at: record.createdAt,
   };
 }

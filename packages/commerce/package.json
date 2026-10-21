@@ -15,11 +15,13 @@
     "entries": {
       ".": "universal",
       "./repo": "node",
-      "./payments": "node",
-      "./store": "node",
+      "./payments/testkit": "node",
       "./http": "node",
       "./react": "browser",
-      "./tools": "universal"
+      "./tools": "universal",
+      "./payments/kernel": "node",
+      "./payments/ledger/sql": "node",
+      "./payments/tools": "universal"
     }
   },
   "type": "module",
@@ -35,15 +37,15 @@
       "import": "./dist/catalog/repo.js",
       "default": "./dist/catalog/repo.js"
     },
-    "./payments": {
-      "types": "./dist/payments/index.d.ts",
-      "import": "./dist/payments/index.js",
-      "default": "./dist/payments/index.js"
+    "./payments/testkit": {
+      "types": "./dist/payments/testkit/index.d.ts",
+      "import": "./dist/payments/testkit/index.js",
+      "default": "./dist/payments/testkit/index.js"
     },
-    "./store": {
-      "types": "./dist/store/index.d.ts",
-      "import": "./dist/store/index.js",
-      "default": "./dist/store/index.js"
+    "./payments/kernel": {
+      "types": "./dist/payments/kernel.d.ts",
+      "import": "./dist/payments/kernel.js",
+      "default": "./dist/payments/kernel.js"
     },
     "./http": {
       "types": "./dist/http/index.d.ts",
@@ -59,6 +61,16 @@
       "types": "./dist/tools.d.ts",
       "import": "./dist/tools.js",
       "default": "./dist/tools.js"
+    },
+    "./payments/ledger/sql": {
+      "types": "./dist/payments/ledger/sql.d.ts",
+      "import": "./dist/payments/ledger/sql.js",
+      "default": "./dist/payments/ledger/sql.js"
+    },
+    "./payments/tools": {
+      "types": "./dist/payments/tools/index.d.ts",
+      "import": "./dist/payments/tools/index.js",
+      "default": "./dist/payments/tools/index.js"
     }
   },
   "files": [
@@ -75,7 +87,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts src/payments/__tests__/*.test.ts src/http/__tests__/*.test.ts src/store/__tests__/*.test.ts && vitest run",
+    "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts && vitest run && vitest run -c vitest.kernel.config.ts --maxWorkers=2 --minWorkers=1",
     "test:react": "vitest run"
   },
   "dependencies": {
@@ -132,6 +144,8 @@
     "tsx": "^4.20.0",
     "vitest": "^2.1.9",
     "@jini-ai/cms": "workspace:*",
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@vitest/coverage-v8": "^2.1.9",
+    "@jini-ai/agent-plugins": "workspace:*"
   }
 }

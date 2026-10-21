@@ -4,6 +4,8 @@ import test from "node:test";
 import { pickDisplayPrice, toSiteProduct, toSiteProducts } from "../../storefront.js";
 import type { CommercePriceRecord, CommerceProductRecord } from "../../types.js";
 
+const usd = (minorUnits: number) => ({ minorUnits, currency: "USD" });
+
 const NOW = "2026-08-12T00:00:00.000Z";
 
 function product(overrides: Partial<CommerceProductRecord> = {}): CommerceProductRecord {
@@ -26,8 +28,7 @@ function price(overrides: Partial<CommercePriceRecord> = {}): CommercePriceRecor
     id: "price-1",
     workspaceId: "ws-1",
     productId: "product-1",
-    unitAmountCents: 3500,
-    currency: "usd",
+    unitAmount: usd(3500),
     status: "active",
     createdAt: NOW,
     version: 1,
@@ -41,27 +42,29 @@ test("pickDisplayPrice: returns null when no price is active", () => {
 });
 
 test("pickDisplayPrice: prefers a one-time price over a recurring one", () => {
-  const monthly = price({ id: "price-monthly", unitAmountCents: 1000, billingInterval: "month" });
-  const oneTime = price({ id: "price-one-time", unitAmountCents: 3500 });
+  const monthly = price({ id: "price-monthly", unitAmount: usd(1000), billingInterval: "month" });
+  const oneTime = price({ id: "price-one-time", unitAmount: usd(3500) });
   assert.equal(pickDisplayPrice({ prices: [monthly, oneTime] })?.id, "price-one-time");
 });
 
 test("pickDisplayPrice: among ties, picks the cheapest", () => {
-  const cheap = price({ id: "cheap", unitAmountCents: 1000 });
-  const expensive = price({ id: "expensive", unitAmountCents: 5000 });
+  const cheap = price({ id: "cheap", unitAmount: usd(1000) });
+  const expensive = price({ id: "expensive", unitAmount: usd(5000) });
   assert.equal(pickDisplayPrice({ prices: [expensive, cheap] })?.id, "cheap");
+  // Both orders: the reducer must keep the current cheapest as well as replace it.
+  assert.equal(pickDisplayPrice({ prices: [cheap, expensive] })?.id, "cheap");
 });
 
 test("pickDisplayPrice: an archived price is never picked even if it's cheaper", () => {
-  const archived = price({ id: "archived", unitAmountCents: 1, status: "archived" });
-  const active = price({ id: "active", unitAmountCents: 5000, status: "active" });
+  const archived = price({ id: "archived", unitAmount: usd(1), status: "archived" });
+  const active = price({ id: "active", unitAmount: usd(5000), status: "active" });
   assert.equal(pickDisplayPrice({ prices: [archived, active] })?.id, "active");
 });
 
-test("toSiteProduct: maps name -> title, unitAmountCents -> price, compareAtAmountCents -> compareAtPrice, currency -> currency", () => {
+test("toSiteProduct: maps name -> title, unitAmount.minorUnits -> price, compareAtAmount.minorUnits -> compareAtPrice, unitAmount.currency -> currency", () => {
   const result = toSiteProduct({
     product: product({ name: "Classic Boxy Tee" }),
-    price: price({ unitAmountCents: 3500, compareAtAmountCents: 4500, currency: "usd" }),
+    price: price({ unitAmount: usd(3500), compareAtAmount: usd(4500) }),
   });
   assert.deepEqual(result, {
     id: "product-1",
@@ -69,7 +72,7 @@ test("toSiteProduct: maps name -> title, unitAmountCents -> price, compareAtAmou
     title: "Classic Boxy Tee",
     price: 3500,
     compareAtPrice: 4500,
-    currency: "usd",
+    currency: "USD",
     specs: undefined,
   });
 });
@@ -86,7 +89,7 @@ test("toSiteProduct: specs is undefined, not an empty array, when the product ha
 });
 
 test("toSiteProduct: compareAtPrice is undefined, not present-but-null, when not on sale", () => {
-  const result = toSiteProduct({ product: product(), price: price({ compareAtAmountCents: undefined }) });
+  const result = toSiteProduct({ product: product(), price: price({ compareAtAmount: undefined }) });
   assert.equal(result.compareAtPrice, undefined);
 });
 
@@ -117,12 +120,12 @@ test("toSiteProducts: description is absent from the mapped shape even when the 
 });
 
 test("recurring-only products use the cheapest active price across billing intervals", () => {
-  const annual = price({ id: "annual", billingInterval: "year", unitAmountCents: 9000 });
-  const monthly = price({ id: "monthly", billingInterval: "month", unitAmountCents: 1200 });
-  const archived = price({ id: "archived-monthly", billingInterval: "month", unitAmountCents: 100, status: "archived" });
+  const annual = price({ id: "annual", billingInterval: "year", unitAmount: usd(9000) });
+  const monthly = price({ id: "monthly", billingInterval: "month", unitAmount: usd(1200) });
+  const archived = price({ id: "archived-monthly", billingInterval: "month", unitAmount: usd(100), status: "archived" });
   assert.deepEqual(pickDisplayPrice({ prices: [annual, archived, monthly] }), monthly);
   assert.deepEqual(toSiteProducts({ items: [{ product: product({ kind: "membership" }), prices: [annual, archived, monthly] }] }), [{
     id: "product-1", slug: "classic-boxy-tee", title: "Classic Boxy Tee", price: 1200,
-    currency: "usd", compareAtPrice: undefined, specs: undefined,
+    currency: "USD", compareAtPrice: undefined, specs: undefined,
   }]);
 });

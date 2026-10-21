@@ -1,20 +1,29 @@
 /**
  * @module connectors
  *
- * `POST/GET /api/connectors/{auth,storage,payments,db,realtime}/...` — JSON transport over five
+ * `POST/GET /api/connectors/{auth,storage,db,realtime}/...` — JSON transport over four
  * narrow provider ports. The ports live here because they are the exact behavior this transport
  * consumes; concrete adapters such as `@jini-ai/capability-providers` satisfy them structurally at a
  * product composition root. That dependency direction is deliberate: the daemon route pack must not
  * point down into an incubating implementation package.
  *
- * **SEC-005 throughout**: every provider call is wrapped so a raw Stripe/SQL/JWT/WebSocket error
+ * **No payments slot (removed 2026-10-21).** This pack used to mount `POST /payments/charge`,
+ * `GET /payments/:id` and `POST /payments/:id/refund` over a `PaymentsProvider` port. The two
+ * POSTs moved money with no approval and no idempotency key (a retried request could charge
+ * twice), which made them a second, ungated way to move money beside `@jini-ai/commerce`. Money
+ * now moves only through commerce's `PaymentsPort`, behind approval binding; payment reads belong
+ * to commerce's own read models. The GET was dropped with them rather than kept on its own: its
+ * port type still required `charge`/`refund`, so keeping it would have kept hosts wiring a
+ * money-moving object into these deps. Do not re-add a payments slot here.
+ *
+ * **SEC-005 throughout**: every provider call is wrapped so a raw storage/SQL/JWT/WebSocket error
  * never reaches the HTTP caller verbatim — matching `media.ts`/`delegated-tools.ts`'s
  * `reportInternalError` precedent exactly (a correlation-id-bearing generic `INTERNAL_ERROR`, the
  * real error only reaching a host-owned sink).
  *
  * **`NOT_CONFIGURED` (503)**: every route's very first check is whether its one required
- * capability slot (`deps.auth`/`deps.storage`/`deps.payments`/`deps.db`/`deps.realtime`) is even
- * supplied — all five are independently optional on {@link ConnectorsHttpDeps}, and
+ * capability slot (`deps.auth`/`deps.storage`/`deps.db`/`deps.realtime`) is even
+ * supplied — all four are independently optional on {@link ConnectorsHttpDeps}, and
  * `@jini-ai/server`'s zero-config default (see that package's `create-local-node-daemon.ts` wiring)
  * leaves every slot unconfigured. A request against an unconfigured capability gets a clean 503
  * before touching anything else, never a crash or a fabricated result — the same "capability exists
@@ -83,30 +92,6 @@ export interface StorageProvider {
   list(_required: Record<string, never>, optionalArgs?: { readonly prefix?: string | undefined }): Promise<StorageObjectMeta[]>;
 }
 
-export interface ChargeInput {
-  readonly amountCents: number;
-  readonly currency: string;
-  readonly customerRef: string;
-  readonly description?: string;
-}
-
-export type ChargeStatus = 'pending' | 'succeeded' | 'failed' | 'refunded';
-
-export interface Charge {
-  readonly id: string;
-  readonly status: ChargeStatus;
-  readonly amountCents: number;
-  readonly currency: string;
-  readonly customerRef: string;
-  readonly createdAt: number;
-}
-
-export interface PaymentsProvider {
-  charge(requiredArgs: Omit<ChargeInput, 'description'>, optionalArgs?: Pick<ChargeInput, 'description'>): Promise<Charge>;
-  getCharge({ id }: { readonly id: string }, _optional?: Record<string, never>): Promise<Charge | null>;
-  refund({ id }: { readonly id: string }, _optional?: Record<string, never>): Promise<Charge>;
-}
-
 export interface DbRecord {
   readonly id: string;
   readonly [field: string]: unknown;
@@ -130,7 +115,7 @@ export interface RealtimeProvider {
 }
 
 export interface ConnectorsInternalErrorContext {
-  readonly source: 'auth' | 'storage' | 'payments' | 'db' | 'realtime';
+  readonly source: 'auth' | 'storage' | 'db' | 'realtime';
   readonly operation: string;
   readonly correlationId: string;
   readonly error: unknown;
@@ -139,7 +124,6 @@ export interface ConnectorsInternalErrorContext {
 export interface ConnectorsHttpDeps {
   readonly auth?: AuthProvider;
   readonly storage?: StorageProvider;
-  readonly payments?: PaymentsProvider;
   readonly db?: DbProvider;
   readonly realtime?: RealtimeProvider;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
@@ -356,70 +340,6 @@ export const connectorsStorageListRoute = defineJsonRoute<string | undefined, Co
 });
 
 // ---------------------------------------------------------------------------
-// payments
-// ---------------------------------------------------------------------------
-
-function parseChargeInput(input: RouteInputContext): Result<ChargeInput> {
-  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-  const amountCents = input.body.amountCents;
-  // Cents are a whole, positive unit. `isFinite` alone let `-125.5` reach `payments.charge()`,
-  // where a negative amount is a refund nobody requested and a fractional one is rounded by the
-  // provider in a way the caller cannot predict — and neither is recoverable once the charge
-  // exists. `isSafeInteger` also rejects magnitudes past the point where JSON round-trips stop
-  // being exact, which at a money boundary is a value nobody should be allowed to guess at.
-  if (typeof amountCents !== 'number' || !Number.isSafeInteger(amountCents) || amountCents <= 0) {
-    return err({ error: validationError({ message: 'amountCents must be a positive whole number of cents' }, { issues: [{ path: 'amountCents', message: 'required positive integer' }] }) });
-  }
-  const currency = nonEmptyString(input.body.currency);
-  if (!currency) return err({ error: validationError({ message: 'currency must be a non-empty string' }, { issues: [{ path: 'currency', message: 'required non-empty string' }] }) });
-  const customerRef = nonEmptyString(input.body.customerRef);
-  if (!customerRef) {
-    return err({ error: validationError({ message: 'customerRef must be a non-empty string' }, { issues: [{ path: 'customerRef', message: 'required non-empty string' }] }) });
-  }
-  const description = input.body.description;
-  if (description !== undefined && typeof description !== 'string') {
-    return err({ error: validationError({ message: 'description must be a string when provided' }) });
-  }
-  return ok({ value: { amountCents, currency, customerRef, ...(description !== undefined ? { description: description as string } : {}) } });
-}
-
-function parseChargeId(input: RouteInputContext): Result<string> {
-  const id = input.params.id;
-  return typeof id === 'string' && id.length > 0 ? ok({ value: id }) : err({ error: validationError({ message: 'id must be a non-empty path parameter' }) });
-}
-
-export interface ConnectorsChargeResponse {
-  readonly charge: Charge;
-}
-
-export const connectorsPaymentsChargeRoute = defineJsonRoute<ChargeInput, ConnectorsChargeResponse, ConnectorsHttpDeps>({
-  method: 'post', path: '/api/connectors/payments/charge', parse: parseChargeInput, handle: async ({ input, deps }) => {
-    if (!deps.payments) return err({ error: notConfiguredError('payments') });
-    const { description, ...required } = input;
-    const result = await guardedCall(deps, 'payments', 'charge', () => deps.payments!.charge(required, description === undefined ? {} : { description }));
-    return result.ok ? ok({ value: { charge: result.value } }) : result;
-  }
-}, { requireSameOrigin: true, successStatus: 201 });
-
-export const connectorsPaymentsGetRoute = defineJsonRoute<string, ConnectorsChargeResponse, ConnectorsHttpDeps>({
-  method: 'get', path: '/api/connectors/payments/:id', parse: parseChargeId, handle: async ({ input: id, deps }) => {
-    if (!deps.payments) return err({ error: notConfiguredError('payments') });
-    const result = await guardedCall(deps, 'payments', 'getCharge', () => deps.payments!.getCharge({ id }));
-    if (!result.ok) return result;
-    if (result.value === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: 'charge not found' }) });
-    return ok({ value: { charge: result.value } });
-  }
-});
-
-export const connectorsPaymentsRefundRoute = defineJsonRoute<string, ConnectorsChargeResponse, ConnectorsHttpDeps>({
-  method: 'post', path: '/api/connectors/payments/:id/refund', parse: parseChargeId, handle: async ({ input: id, deps }) => {
-    if (!deps.payments) return err({ error: notConfiguredError('payments') });
-    const result = await guardedCall(deps, 'payments', 'refund', () => deps.payments!.refund({ id }));
-    return result.ok ? ok({ value: { charge: result.value } }) : result;
-  }
-}, { requireSameOrigin: true });
-
-// ---------------------------------------------------------------------------
 // db
 // ---------------------------------------------------------------------------
 
@@ -588,10 +508,6 @@ export function registerConnectorsRoutes({ app, deps, adapter }: { readonly app:
   mountJsonRoute({ app, spec: connectorsStorageGetRoute, deps, adapter });
   mountJsonRoute({ app, spec: connectorsStorageDeleteRoute, deps, adapter });
   mountJsonRoute({ app, spec: connectorsStorageListRoute, deps, adapter });
-
-  mountJsonRoute({ app, spec: connectorsPaymentsChargeRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsPaymentsGetRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsPaymentsRefundRoute, deps, adapter });
 
   mountJsonRoute({ app, spec: connectorsDbInsertRoute, deps, adapter });
   mountJsonRoute({ app, spec: connectorsDbGetRoute, deps, adapter });
