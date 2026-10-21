@@ -28,18 +28,21 @@ export interface ArtifactStubFilesystemPort {
   readdir(required: { path: string }): Promise<Dirent[]>;
   stat(required: { path: string }): Promise<{ size: number }>;
 }
-const nativeFilesystem: ArtifactStubFilesystemPort = {
-  readFile: readBoundedSidecar,
-  readdir: ({ path }) => readdir(path, { withFileTypes: true }),
-  stat: ({ path }) => stat(path),
-};
+/** The subset of `node:fs/promises`' `FileHandle` the bounded sidecar reader uses. */
+export interface ArtifactSidecarFileHandle {
+  stat(): Promise<{ isFile(): boolean; size: number }>;
+  read(buffer: Buffer, offset: number, length: number, position: null): Promise<{ bytesRead: number }>;
+  close(): Promise<void>;
+}
+/** Opens one sidecar for reading with the given `node:fs` open flags. */
+export type ArtifactSidecarOpenPort = (required: { path: string; flags: number }) => Promise<ArtifactSidecarFileHandle>;
 
 const MAX_SIDECAR_BYTES = 64 * 1024;
 
 /** Reads at most maxBytes+1 from one regular, nonlink sidecar; oversized input is refused.
  * Closes its descriptor on every exit. O(maxBytes) space/time. */
-async function readBoundedSidecar({ path, maxBytes }: { path: string; maxBytes: number }, _options = {}): Promise<string> {
-  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+async function readBoundedSidecar({ path, maxBytes, openFile }: { path: string; maxBytes: number; openFile: ArtifactSidecarOpenPort }, _options = {}): Promise<string> {
+  const file = await openFile({ path, flags: constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK });
   try {
     const info = await file.stat();
     if (!info.isFile() || info.size > maxBytes) throw new Error('Invalid artifact sidecar');
@@ -50,10 +53,25 @@ async function readBoundedSidecar({ path, maxBytes }: { path: string; maxBytes: 
       if (read.bytesRead === 0) break;
       length += read.bytesRead;
     }
+    // `stat` above is only a fast pre-check: a sidecar can grow between it and the reads, so the
+    // bytes actually read are what enforce the limit.
     if (length > maxBytes) throw new Error('Artifact sidecar exceeds the byte limit');
     return bytes.toString('utf8', 0, length);
   } finally { await file.close(); }
 }
+
+/** The disk-backed filesystem port; `openFile` defaults to `node:fs/promises`' `open`. */
+export function createNodeArtifactStubFilesystem(
+  _required: Record<string, never> = {},
+  { openFile = ({ path: filePath, flags }) => open(filePath, flags) }: { openFile?: ArtifactSidecarOpenPort } = {},
+): ArtifactStubFilesystemPort {
+  return {
+    readFile: ({ path: filePath, maxBytes }) => readBoundedSidecar({ path: filePath, maxBytes, openFile }),
+    readdir: ({ path: dirPath }) => readdir(dirPath, { withFileTypes: true }),
+    stat: ({ path: filePath }) => stat(filePath),
+  };
+}
+const nativeFilesystem: ArtifactStubFilesystemPort = createNodeArtifactStubFilesystem();
 
 export interface EvaluateArtifactStubGuardInput {
   readonly scanDir: string;
