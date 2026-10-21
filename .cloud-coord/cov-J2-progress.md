@@ -8,4 +8,4 @@ Subagent groups: react (chat react comps/hooks), pane (chat-pane), cmsct (cms co
 | pane | merged, 9/9 files 100% | 3b354d7b |
 | cmsct | merged, 8/8 files 100/100/100, 3612 tests green; fixed outbox widening bug in content-types/tool-registrations.ts | a0ec638c |
 | store | merged, 8/8 files 100% | 56e1b601 |
-| cmsmisc | running | |
+| cmsmisc | merged, 19/20 files 100% (gate.ts branches 99.32) | fc2bf60e |
