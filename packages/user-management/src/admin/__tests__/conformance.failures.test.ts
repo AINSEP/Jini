@@ -25,7 +25,7 @@ describe('roles conformance rejects broken adapters', () => {
     const real = createMemoryRolesApi({ workspaceId: 'w' }, { permissions: ['role.manage', 'content.read'] });
     const api: RolesApiPort = {
       ...real,
-      createRole: (r, o = {}) => real.createRole(r, { ...o, signal: undefined }),
+      createRole: (r, { signal: _ignoredSignal, ...rest } = {}) => real.createRole(r, rest),
       removePolicyPermission: async () => {},
       deletePolicy: async () => { throw new Error('delete refused'); },
     };
@@ -59,7 +59,7 @@ describe('users conformance rejects broken adapters', () => {
     const api: UsersApiPort = {
       ...real,
       listUsers: async (r, o) => { const { users } = await real.listUsers(r, o); return { users: users.map((u) => { const s = shared.get(u.principalId) ?? { ...u, roleIds: [...u.roleIds] }; shared.set(u.principalId, s); return s; }) }; },
-      updateUser: (r, o = {}) => real.updateUser(r, { ...o, signal: undefined }),
+      updateUser: (r, { signal: _ignoredSignal, ...rest } = {}) => real.updateUser(r, rest),
     };
     const result = await runUsersApiConformance({ api }, { prefix: 'leaky' });
     expect(names(result)).toEqual(['snapshot isolation', 'aborted write does not persist']);
