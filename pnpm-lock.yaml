@@ -251,9 +251,6 @@ importers:
 
   packages/agent-plugins:
     dependencies:
-      semver:
-        specifier: ^7.6.2
-        version: 7.8.5
       yauzl:
         specifier: ^3.4.0
         version: 3.4.0
@@ -276,6 +273,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
+      semver:
+        specifier: ^7.6.2
+        version: 7.8.5
       yazl:
         specifier: ^3.3.1
         version: 3.3.1

@@ -1,9 +1,10 @@
+/** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import { createPersistentStateModule } from './persistent-state.js';
 import { AgentPluginHostIncompatibleError, describeAgentPluginCompatibility, agentPluginDependentWarnings } from './compatibility.js';
-/** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import { createActivationModule } from "./activation.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
+import type { InstalledAgentPlugin } from "./types.js";
 
 /**
  * The id named is not installed in this workspace. A distinct class rather than a bare `Error` so
@@ -37,32 +38,59 @@ export interface SetAgentPluginEnabledResult {
 function buildModule(ports: AgentPluginLifecyclePorts) {
   const { setAgentPluginActivation, readAgentPluginActivations } = createActivationModule(ports);
   const { listInstalledPlugins } = createResolveAgentPluginRefsModule(ports);
-  async function setAgentPluginEnabled(input: SetAgentPluginEnabledInput, _optional: Record<string, never> = {}): Promise<SetAgentPluginEnabledResult> {
-    const workspaceRoot = ports.layout.forWorkspace({ workspaceId: input.workspaceId }).root;
-    return createPersistentStateModule(ports).withPluginLock({ workspaceRoot, pluginId: input.pluginId,
-      run: () => setEnabledUnlocked(input) });
-  }
-  async function setEnabledUnlocked(input: SetAgentPluginEnabledInput): Promise<SetAgentPluginEnabledResult> {
-    const workspaceLayout = ports.layout.forWorkspace({ workspaceId: input.workspaceId });
-    const installed = await listInstalledPlugins(workspaceLayout.root);
-    const plugin = installed.find(plugin => plugin.pluginId === input.pluginId);
-    if (!plugin) {
-      throw new AgentPluginNotInstalledError({ pluginId: input.pluginId });
-    }
+  const persistentState = createPersistentStateModule(ports);
 
-    const activations = await readAgentPluginActivations(workspaceLayout.root);
+  async function findInstalled({ workspaceRoot, pluginId }: { readonly workspaceRoot: string; readonly pluginId: string }) {
+    const installed = await listInstalledPlugins(workspaceRoot);
+    const plugin = installed.find(candidate => candidate.pluginId === pluginId);
+    if (!plugin) {
+      throw new AgentPluginNotInstalledError({ pluginId });
+    }
+    return { installed, plugin };
+  }
+
+  /** Refuses a host-incompatible enable; otherwise returns advisory warnings, never blocking. */
+  async function enablementWarnings({ input, workspaceRoot, installed, plugin }: {
+    readonly input: SetAgentPluginEnabledInput; readonly workspaceRoot: string;
+    readonly installed: readonly InstalledAgentPlugin[]; readonly plugin: InstalledAgentPlugin;
+  }): Promise<readonly string[]> {
+    const activations = await readAgentPluginActivations(workspaceRoot);
+    if (!input.enabled) return agentPluginDependentWarnings({ plugin, installed, activations, nextProvides: [] });
     const compatibility = describeAgentPluginCompatibility({ plugin, installed, activations });
-    if (input.enabled && !compatibility.hostOk) throw new AgentPluginHostIncompatibleError({ pluginId: input.pluginId });
-    const warnings = input.enabled ? compatibility.missingRequires.map(id => `Needs ${id}`)
-      : agentPluginDependentWarnings({ plugin, installed, activations, nextProvides: [] });
+    if (!compatibility.hostOk) throw new AgentPluginHostIncompatibleError({ pluginId: input.pluginId });
+    return compatibility.missingRequires.map(id => `Needs ${id}`);
+  }
+
+  async function setEnabledLocked({ input, workspaceRoot }: { readonly input: SetAgentPluginEnabledInput; readonly workspaceRoot: string }): Promise<SetAgentPluginEnabledResult> {
+    // Re-read under the lock: an uninstall or update may have finished while this call waited.
+    const { installed, plugin } = await findInstalled({ workspaceRoot, pluginId: input.pluginId });
+    const warnings = await enablementWarnings({ input, workspaceRoot, installed, plugin });
     const written = await setAgentPluginActivation({
-      workspaceRoot: workspaceLayout.root,
+      workspaceRoot,
       pluginId: input.pluginId,
       enabled: input.enabled,
       actor: input.actor,
     });
 
-    return { pluginId: input.pluginId, enabled: written.plugins[input.pluginId]?.enabled ?? input.enabled, ...(warnings.length ? { warnings } : {}) };
+    // Always present: setAgentPluginActivation asserts the same id grammar its normalizer keeps and
+    // writes a boolean `enabled`, so the record it returns holds this entry (the former
+    // `?? input.enabled` fallback was unreachable).
+    return { pluginId: input.pluginId, enabled: written.plugins[input.pluginId]!.enabled, ...(warnings.length ? { warnings } : {}) };
+  }
+
+  /**
+   * Serialized with install/update/uninstall of the same plugin by the per-plugin state lock, so a
+   * toggle never judges compatibility against a package that is mid-swap. The lock is a
+   * non-reentrant file lock: no caller holds it around this function (checked 2026-10-21 in this
+   * package and in Tovu's admin route / `plugins_set_enabled` tool).
+   */
+  async function setAgentPluginEnabled(input: SetAgentPluginEnabledInput, _optional: Record<string, never> = {}): Promise<SetAgentPluginEnabledResult> {
+    const workspaceRoot = ports.layout.forWorkspace({ workspaceId: input.workspaceId }).root;
+    // Checked once before locking so an unknown or ungrammatical id stays a not-installed refusal
+    // and never creates workspace or lock directories (the lock path re-asserts the id grammar).
+    await findInstalled({ workspaceRoot, pluginId: input.pluginId });
+    return persistentState.withPluginLock({ workspaceRoot, pluginId: input.pluginId,
+      run: () => setEnabledLocked({ input, workspaceRoot }) });
   }
 
   return { setAgentPluginEnabled };

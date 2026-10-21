@@ -1,9 +1,11 @@
-import { satisfies, validRange } from 'semver';
-import type { AgentPluginManifest } from './manifest.js';
+import * as semver from 'semver';
 import type { InstalledAgentPlugin } from './types.js';
-import type { AgentPluginActivations } from './activation.js';
+import type { AgentPluginActivations, AgentPluginOrigin } from './activation.js';
+import { isValidAgentPluginHostRange } from './compatibility-metadata.js';
+export { readAgentPluginCompatibilityMetadata, isValidAgentPluginHostRange, INVALID_AGENT_PLUGIN_HOST_RANGE } from './compatibility-metadata.js';
 
-/** Host extension contract, independent of product releases and the upstream manifest schema. */
+/** Host extension contract, independent of product releases and the upstream manifest schema.
+ * `hostRange` is checked against this, never against an app version. */
 export const AGENT_PLUGIN_CONTRACT_VERSION = '1.0.0';
 
 /** Named refusal shared by HTTP and tool adapters. */
@@ -15,6 +17,27 @@ export class AgentPluginHostIncompatibleError extends Error {
   }
 }
 
+export interface AgentPluginCompatibility {
+  readonly hostOk: boolean;
+  readonly missingRequires: readonly string[];
+}
+
+/** Same rule as activation.ts `isAgentPluginActive`: an absent activation record means active. */
+function isActive({ activations, pluginId }: { readonly activations: AgentPluginActivations; readonly pluginId: string }): boolean {
+  return !Object.hasOwn(activations.plugins, pluginId) || activations.plugins[pluginId]!.enabled;
+}
+
+/** Active plugins other than `excludeId`, so a plugin never satisfies its own requirements. */
+function activeOthers({ installed, activations, excludeId }: {
+  readonly installed: readonly InstalledAgentPlugin[]; readonly activations: AgentPluginActivations; readonly excludeId: string;
+}): InstalledAgentPlugin[] {
+  return installed.filter(other => other.pluginId !== excludeId && isActive({ activations, pluginId: other.pluginId }));
+}
+
+function providedBy({ plugins }: { readonly plugins: readonly InstalledAgentPlugin[] }): string[] {
+  return plugins.flatMap(plugin => plugin.provides ?? []);
+}
+
 /** Projects live metadata, excluding disabled providers and the plugin itself.
  * @returns Origin, host compatibility, and advisory requirements. @complexity O(p + r).
  */
@@ -23,15 +46,22 @@ export function describeAgentPluginCompatibility(
     plugin: InstalledAgentPlugin; installed: readonly InstalledAgentPlugin[]; activations: AgentPluginActivations;
   },
   { hostVersion = AGENT_PLUGIN_CONTRACT_VERSION }: { hostVersion?: string } = {},
-) {
-  const activeProvides = installed.filter(other => other.pluginId !== plugin.pluginId && activations.plugins[other.pluginId]?.enabled !== false)
-    .flatMap(other => other.provides ?? []);
-  return { origin: activations.plugins[plugin.pluginId]?.origin ?? 'operator-installed',
-    ...checkAgentPluginCompatibility({ manifest: plugin, hostVersion, activeProvides }) };
+): AgentPluginCompatibility & { readonly origin: AgentPluginOrigin } {
+  const activeProvides = providedBy({ plugins: activeOthers({ installed, activations, excludeId: plugin.pluginId }) });
+  const origin = Object.hasOwn(activations.plugins, plugin.pluginId) ? activations.plugins[plugin.pluginId]!.origin : 'operator-installed';
+  return { origin, ...checkAgentPluginCompatibility({ manifest: plugin, hostVersion, activeProvides }) };
+}
+
+/** Requirements of `dependent` that only the removed capabilities satisfied. */
+function lostRequirements({ dependent, providers, removed }: {
+  readonly dependent: InstalledAgentPlugin; readonly providers: readonly InstalledAgentPlugin[]; readonly removed: ReadonlySet<string>;
+}): string[] {
+  const available = new Set(providedBy({ plugins: providers.filter(provider => provider.pluginId !== dependent.pluginId) }));
+  return [...new Set(dependent.requires ?? [])].filter(id => removed.has(id) && !available.has(id));
 }
 
 /** Names active dependents that would lose a capability after disabling or updating a provider.
- * Other enabled providers can satisfy the same requirement. @complexity O(p * (p + r)).
+ * Other enabled providers can satisfy the same requirement. Advisory only. @complexity O(p * (p + r)).
  */
 export function agentPluginDependentWarnings(
   { plugin, installed, activations, nextProvides }: {
@@ -40,59 +70,26 @@ export function agentPluginDependentWarnings(
   }, _optional: Record<string, never> = {},
 ): string[] {
   const removed = new Set((plugin.provides ?? []).filter(id => !nextProvides.includes(id)));
-  return installed.filter(other => other.pluginId !== plugin.pluginId && activations.plugins[other.pluginId]?.enabled !== false)
-    .flatMap(other => {
-      const available = new Set(installed.filter(provider => provider.pluginId !== plugin.pluginId && provider.pluginId !== other.pluginId && activations.plugins[provider.pluginId]?.enabled !== false)
-        .flatMap(provider => provider.provides ?? []));
-      return (other.requires ?? []).filter(id => removed.has(id) && !available.has(id)).map(id => `${other.pluginId} needs ${id}`);
-    });
-}
-
-export interface AgentPluginCompatibility {
-  readonly hostOk: boolean;
-  readonly missingRequires: readonly string[];
+  const others = activeOthers({ installed, activations, excludeId: plugin.pluginId });
+  return others.flatMap(dependent => lostRequirements({ dependent, providers: others, removed })
+    .map(id => `${dependent.pluginId} needs ${id}`));
 }
 
 /** Checks the declared host contract and advisory capabilities; never throws for a bad range.
  * Callers supply capabilities from other enabled plugins only (no self-satisfaction).
+ * Uses `semver.satisfies` with default options, the same check site plugins apply to `sdkRange`.
  * @returns Compatibility plus unmet advisory requirements. @complexity O(r + p).
  */
 export function checkAgentPluginCompatibility(
   { manifest, hostVersion, activeProvides }: {
-    readonly manifest: Pick<AgentPluginManifest, 'hostRange' | 'requires'>;
+    readonly manifest: { readonly hostRange?: string | undefined; readonly requires?: readonly string[] | undefined };
     readonly hostVersion: string;
     readonly activeProvides: readonly string[];
   },
   _optional: Record<string, never> = {},
 ): AgentPluginCompatibility {
   const available = new Set(activeProvides);
-  const hostOk = manifest.hostRange === undefined ||
-    (manifest.hostRange.trim().length > 0 && validRange(manifest.hostRange) !== null && satisfies(hostVersion, manifest.hostRange));
+  const range = manifest.hostRange;
+  const hostOk = range === undefined || (isValidAgentPluginHostRange({ range }) && semver.satisfies(hostVersion, range));
   return { hostOk, missingRequires: [...new Set(manifest.requires ?? [])].filter(id => !available.has(id)) };
-}
-
-/** Reads metadata in the host-selected namespace. A present malformed range stays incompatible.
- * @returns Normalized advisory metadata and parse warnings. @complexity O(r).
- */
-export function readAgentPluginCompatibilityMetadata(
-  { extension }: { readonly extension: Readonly<Record<string, unknown>> },
-  _optional: Record<string, never> = {},
-): { requires?: readonly string[]; hostRange?: string; warnings: string[] } {
-  const warnings: string[] = [];
-  let requires: readonly string[] | undefined;
-  if (extension.requires !== undefined) {
-    if (Array.isArray(extension.requires) && extension.requires.every(id => typeof id === 'string' && id.trim().length > 0)) {
-      requires = [...new Set<string>(extension.requires)];
-    } else warnings.push('requires must be an array of non-empty capability ids');
-  }
-  let hostRange: string | undefined;
-  if (extension.hostRange !== undefined) {
-    // An empty string is a valid semver wildcard, so use an explicitly invalid sentinel.
-    hostRange = typeof extension.hostRange === 'string' ? extension.hostRange : '<invalid>';
-    if (!hostRange.trim() || validRange(hostRange) === null) {
-      warnings.push('hostRange is invalid; enabling this plugin is refused');
-      hostRange = '<invalid>';
-    }
-  }
-  return { ...(requires === undefined ? {} : { requires }), ...(hostRange === undefined ? {} : { hostRange }), warnings };
 }

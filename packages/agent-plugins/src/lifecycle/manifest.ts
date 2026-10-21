@@ -54,7 +54,7 @@
  * own "receives a JS value, never a file path or raw bytes" contract. `install.ts` is the only
  * caller that reads the file and hands the parsed value here.
  */
-import { readAgentPluginCompatibilityMetadata } from "./compatibility.js";
+import { readAgentPluginCompatibilityMetadata } from "./compatibility-metadata.js";
 import { readPluginIdentity, validatePluginIdentity } from "@jini-ai/core/plugin-directory";
 export { validatePluginManifest, validateMcpManifest } from '../manifest.js';
 export type { PluginManifest, McpManifest, McpServerEntry } from '../manifest.js';
@@ -130,7 +130,9 @@ export interface AgentPluginManifest {
   /** Normalized publisher identity, independent of name/storage key and version. */
   readonly id?: string | undefined;
   readonly provides?: readonly string[] | undefined;
+  /** `extensions.<ns>.requires`: advisory capability ids other active plugins should provide. */
   readonly requires?: readonly string[] | undefined;
+  /** `extensions.<ns>.hostRange`: semver range over AGENT_PLUGIN_CONTRACT_VERSION; a malformed value is stored as `<invalid>`. */
   readonly hostRange?: string | undefined;
 }
 

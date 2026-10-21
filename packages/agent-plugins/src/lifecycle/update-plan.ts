@@ -1,4 +1,4 @@
-import { compare, valid } from 'semver';
+import * as semver from 'semver';
 import type { InstalledAgentPlugin } from './types.js';
 
 type Revision = Pick<InstalledAgentPlugin, 'pluginId' | 'archiveDigest' | 'version'> & { readonly enabled?: boolean };
@@ -18,10 +18,13 @@ export function planAgentPluginUpdate(
   const enabled = installed.enabled === true;
   if (installed.pluginId !== candidate.pluginId) return { action: 'id-mismatch', enabled, warnings: [] };
   if (installed.archiveDigest === candidate.archiveDigest) return { action: 'none', enabled, warnings: [] };
-  if (!installed.version || !candidate.version || !valid(installed.version) || !valid(candidate.version)) {
+  // `semver.valid` returns null for an absent version as well as a malformed one.
+  const from = semver.valid(installed.version);
+  const to = semver.valid(candidate.version);
+  if (!from || !to) {
     return { action: 'update', enabled, warnings: ['Unknown release version; explicit replacement required.'] };
   }
-  const order = compare(candidate.version, installed.version);
+  const order = semver.compare(to, from);
   if (order < 0) return { action: 'downgrade-refused', enabled, warnings: [] };
   return { action: 'update', enabled, warnings: order === 0 ? ['Same version with different bytes; explicit replacement required.'] : [] };
 }
