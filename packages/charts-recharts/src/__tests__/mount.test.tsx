@@ -106,7 +106,7 @@ describe('standalone Recharts vanilla lifecycle', () => {
   it('settles a superseded render, refuses an unsupported update, and ignores updates after destroy', async () => {
     const element = document.createElement('div'); document.body.append(element);
     let instance!: ChartInstance;
-    let superseding!: Promise<void>;
+    let superseding: void | Promise<void> = undefined;
     act(() => {
       instance = mount({ element, spec, theme: { mode: 'light' } });
       superseding = instance.update({ spec: { ...spec, data: [{ month: 'Mar', revenue: 90 }] }, theme: { mode: 'light' } });
