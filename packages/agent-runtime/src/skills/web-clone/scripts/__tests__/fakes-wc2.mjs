@@ -151,7 +151,7 @@ export function withGlobals(globals, fn) {
  * A Playwright-shaped page. `env` (an object, or a function returning one)
  * supplies the browser globals `evaluate` runs its callback under. Every
  * call is recorded in `calls`; event handlers registered with `on` can be
- * fired with `emit`. `options.hooks` let a test react to goto/hover/click.
+ * fired with `emit` (nonblocking). `options.hooks` let a test react to goto/hover/click.
  */
 export function createFakePage({ env = browserEnv(), status = 200, gotoError, loadStateError, hooks = {} } = {}) {
   const handlers = {};
@@ -171,8 +171,10 @@ export function createFakePage({ env = browserEnv(), status = 200, gotoError, lo
     off(event, handler) {
       handlers[event] = (handlers[event] || []).filter((h) => h !== handler);
     },
-    async emit(event, payload) {
-      for (const handler of handlers[event] || []) await handler(payload);
+    // Like Playwright's event emitter: handlers are invoked but never awaited, so
+    // an async handler may still be running when the caller moves on.
+    emit(event, payload) {
+      for (const handler of handlers[event] || []) handler(payload);
     },
     async goto(url, options) {
       calls.push(["goto", url, options]);

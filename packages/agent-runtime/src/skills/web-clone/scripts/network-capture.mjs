@@ -102,17 +102,21 @@ async function capture(args, deps) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
   const requests = [];
-  const responses = [];
+  // Playwright does not await event handlers, so each response's entry is kept
+  // as a pending promise (in arrival order) and settled before the browser
+  // closes: a body still being read would otherwise fail or miss the manifest.
+  const pendingResponses = [];
   page.on("request", (request) => {
     requests.push(requestEntry(request));
   });
-  page.on("response", async (response) => {
-    responses.push(await responseEntry(response, args, dirs, deps));
+  page.on("response", (response) => {
+    pendingResponses.push(responseEntry(response, args, dirs, deps));
   });
 
   await page.goto(args.url, { waitUntil: "domcontentloaded", timeout: 45000 });
   await page.waitForLoadState("networkidle", { timeout: args.waitMs }).catch(() => {});
   if (args.waitMs > 0) await page.waitForTimeout(args.waitMs);
+  const responses = await Promise.all(pendingResponses);
   await browser.close();
 
   const manifest = {

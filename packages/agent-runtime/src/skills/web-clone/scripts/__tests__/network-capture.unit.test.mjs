@@ -94,6 +94,26 @@ describe("main", () => {
     expect(browser.closed).toBe(true);
   });
 
+  it("waits for a response body still being read before closing the browser and writing the manifest", async () => {
+    const outDir = tempDir();
+    const out = createOutput();
+    let browser;
+    const slow = fakeResponse({ url: "https://s.test/api/slow", resourceType: "xhr", headers: { "content-type": "application/json" } });
+    slow.body = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      if (browser.closed) throw new Error("Target page, context or browser has been closed");
+      return Buffer.from('{"late":true}');
+    };
+    const page = createFakePage({ hooks: { goto: async (url, p) => p.emit("response", slow) } });
+    browser = createFakeBrowser(() => page);
+    expect(await main(["--url", "https://s.test/", "--out", outDir, "--wait", "0"], { ...out, ...playwrightPorts(browser) })).toBe(0);
+    const manifest = JSON.parse(fs.readFileSync(path.join(outDir, "site-network.json"), "utf8"));
+    expect(manifest).toMatchObject({ responseCount: 1, fixtureCount: 1 });
+    expect(manifest.responses[0]).toMatchObject({ url: "https://s.test/api/slow", error: "", bytes: 13 });
+    expect(fs.readFileSync(path.join(outDir, manifest.responses[0].fixture), "utf8")).toBe('{"late":true}');
+    expect(browser.closed).toBe(true);
+  });
+
   it("skips the settle wait at --wait 0, stamps the real clock by default, and fails with exit 1 on navigation errors", async () => {
     const outDir = tempDir();
     const out = createOutput();
