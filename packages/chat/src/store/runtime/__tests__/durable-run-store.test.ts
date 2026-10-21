@@ -43,12 +43,12 @@ async function legacy(h: Harness, message: Partial<ChatMessage> = {}, { dropEven
   await h.history.appendMessage({ conversationId: 'c', message: row });
 }
 /** Simulate a concurrent deletion landing between the unlocked probe and the locked re-read:
- * the probe's own load takes the first run lock, the operation's lock is the second. */
+ * the probe is a lock-free id lookup, so the operation's own run lock is the first one taken. */
 function deleteOnLock(id = 'a1'): void {
   const lockKey = f.kernel.lockKey.bind(f.kernel);
   let runLocks = 0;
   vi.spyOn(f.kernel, 'lockKey').mockImplementation(async (key) => {
-    if (key.startsWith('chat-run:') && ++runLocks === 2) f.sql('DELETE FROM ai_chat_messages WHERE id = ?', id);
+    if (key.startsWith('chat-run:') && ++runLocks === 1) f.sql('DELETE FROM ai_chat_messages WHERE id = ?', id);
     return lockKey(key);
   });
 }
