@@ -24,7 +24,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * Architectural role:
  * `widgets` domain logic (implementation outline C-005).
  */
-import type { Clock as ClockPort, UUID } from "@jini-ai/core/primitives";
+import type { Clock as ClockPort, JsonObject, UUID } from "@jini-ai/core/primitives";
 import type { OutboxPort } from "../core/index.js";
 import type { EntryRefsRepoPort } from "./ports.js";
 
@@ -122,7 +122,9 @@ function widgetConfigValidationError(
 ): WidgetConfigValidationError {
   const { registration, fieldErrors } = required;
   const requiredKeys = new Set(registration.configSchema.required as readonly string[] | undefined);
-  const configKeys = new Set([...requiredKeys, ...Object.keys(registration.configSchema.properties ?? {})]);
+  // Every registration's configSchema declares `properties` (pinned by `registry.unit.test.ts`), so
+  // the former `?? {}` fallback was unreachable — the registry is a static table, not caller input.
+  const configKeys = new Set([...requiredKeys, ...Object.keys(registration.configSchema.properties as JsonObject)]);
   const expectedKeys = [...configKeys].map((key) => requiredKeys.has(key) ? `${key} (required)` : key).join(", ");
   return new WidgetConfigValidationError({
     message: `config for widget type '${registration.typeKey}' failed schema validation: ${fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ")}. Expected config keys: ${expectedKeys}`,

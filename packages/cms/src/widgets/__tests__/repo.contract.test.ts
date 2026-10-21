@@ -4,7 +4,7 @@ import test from "./support/test-runner.js";
 
 import { eachDialect } from "../../core/__tests__/support/dialect-matrix.js";
 import { InMemoryWidgetRegionBindingRepo } from "../repo.memory.js";
-import { widgetRegionBindingRepoFor } from "../sql/repo.js";
+import { widgetRegionBindingRepoFor } from "../sql/index.js";
 import type { WidgetRegionBindingRepoPort } from "../ports.js";
 
 /**
