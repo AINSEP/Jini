@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { HELP_OPTIONS, parseCliArgs } from "./lib/cli-args.mjs";
+import { runCli, runIfMain } from "./lib/main-guard.mjs";
 
-function usage() {
-  console.log(`Usage:
+// fs / cwd / output are ports with real defaults wired here at the CLI edge.
+// The rewrite functions take a `project` = { root, fs } so they can be
+// exercised against a temp directory (or any fs-shaped fake).
+const DEFAULT_DEPS = { fs, cwd: () => process.cwd(), log: console.log, error: console.error };
+
+export function usage(log = console.log) {
+  log(`Usage:
   node scripts/od-preview-rewrite.mjs [--project <clone-dir>]
 
 Rewrites project-root asset URLs in HTML/CSS/SVG files so the host platform's
@@ -11,15 +18,11 @@ file preview and exported zip can render the clone from nested entry files.
 `);
 }
 
-function parseArgs(argv) {
-  const out = { project: process.cwd(), help: false };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--help" || arg === "-h") out.help = true;
-    else if (arg === "--project") out.project = argv[++i] || process.cwd();
-    else throw new Error(`Unexpected argument: ${arg}`);
-  }
-  return out;
+export function parseArgs(argv, cwd) {
+  return parseCliArgs(argv, {
+    defaults: { project: cwd, help: false },
+    options: { ...HELP_OPTIONS, "--project": { key: "project", parse: (raw) => raw || cwd } },
+  });
 }
 
 const includeExt = new Set([".html", ".htm", ".css", ".svg"]);
@@ -67,10 +70,10 @@ const projectAssetPrefixes = new Set([
 
 const hostRootPrefixes = new Set(["api", "artifacts", "frames"]);
 
-function walk(dir, files = []) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+export function walk(fsPort, dir, files = []) {
+  for (const entry of fsPort.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (!skipDirs.has(entry.name)) walk(path.join(dir, entry.name), files);
+      if (!skipDirs.has(entry.name)) walk(fsPort, path.join(dir, entry.name), files);
       continue;
     }
     if (includeExt.has(path.extname(entry.name).toLowerCase())) {
@@ -80,35 +83,54 @@ function walk(dir, files = []) {
   return files;
 }
 
-function rootAssetPath(projectRoot, value) {
+// "/x/y?q#h" → "x/y" for a project-root reference; "" for anything else
+// (relative, protocol-relative "//cdn", or a bare "/"). The value starts
+// with "/", so split(…, 1) always yields exactly one string.
+function rootPathOnly(value) {
   const trimmed = value.trim();
-  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return null;
-  const pathOnly = trimmed.split(/[?#]/, 1)[0]?.replace(/^\/+/, "").replace(/\\/g, "/") ?? "";
-  if (!pathOnly) return null;
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return "";
+  return trimmed.split(/[?#]/, 1)[0].replace(/^\/+/, "").replace(/\\/g, "/");
+}
 
+function decodeOrKeep(pathOnly) {
   let decodedPath = pathOnly;
   try {
     decodedPath = decodeURIComponent(pathOnly);
   } catch {
     // Use the encoded path below.
   }
-
-  const parts = decodedPath.split("/");
-  if (parts.some((part) => part.trim() === "..")) return null;
-  const first = parts[0]?.toLowerCase();
-  if (!first || hostRootPrefixes.has(first)) return null;
-  const basename = parts.at(-1) ?? "";
-  const looksLikeAsset = projectAssetPrefixes.has(first) || /\.[a-z0-9][a-z0-9_-]{0,15}$/i.test(basename);
-  if (!looksLikeAsset) return null;
-  if (!fs.existsSync(path.join(projectRoot, decodedPath))) return null;
   return decodedPath;
 }
 
-function suffixFor(value) {
+// `parts` comes from String#split, so parts[0] and parts.at(-1) always exist.
+function looksLikeProjectAsset(parts) {
+  const first = parts[0].toLowerCase();
+  if (!first || hostRootPrefixes.has(first)) return false;
+  return projectAssetPrefixes.has(first) || /\.[a-z0-9][a-z0-9_-]{0,15}$/i.test(parts.at(-1));
+}
+
+/**
+ * The project-relative path a root reference ("/assets/a.png") points at,
+ * or null when it is not a root reference, escapes the project ("..") ,
+ * targets a host route (/api, /artifacts, /frames), does not look like an
+ * asset, or does not exist in the project.
+ */
+export function rootAssetPath(project, value) {
+  const pathOnly = rootPathOnly(value);
+  if (!pathOnly) return null;
+  const decodedPath = decodeOrKeep(pathOnly);
+  const parts = decodedPath.split("/");
+  if (parts.some((part) => part.trim() === "..")) return null;
+  if (!looksLikeProjectAsset(parts)) return null;
+  if (!project.fs.existsSync(path.join(project.root, decodedPath))) return null;
+  return decodedPath;
+}
+
+export function suffixFor(value) {
   return value.match(/^[^?#]*([?#][\s\S]*)$/)?.[1] ?? "";
 }
 
-function relativeRef(projectRoot, ownerFile, targetPath, suffix = "") {
+export function relativeRef(projectRoot, ownerFile, targetPath, suffix) {
   const fromDir = path.dirname(ownerFile);
   const target = path.join(projectRoot, targetPath);
   let rel = path.relative(fromDir, target).split(path.sep).join("/");
@@ -116,31 +138,33 @@ function relativeRef(projectRoot, ownerFile, targetPath, suffix = "") {
   return `${rel}${suffix}`;
 }
 
-function rewriteRootRef(projectRoot, ownerFile, value) {
-  const target = rootAssetPath(projectRoot, value);
+export function rewriteRootRef(project, ownerFile, value) {
+  const target = rootAssetPath(project, value);
   if (!target) return value;
-  return relativeRef(projectRoot, ownerFile, target, suffixFor(value));
+  return relativeRef(project.root, ownerFile, target, suffixFor(value));
 }
 
-function rewriteSrcset(projectRoot, ownerFile, srcset) {
+export function rewriteSrcset(project, ownerFile, srcset) {
   return srcset
     .split(",")
     .map((candidate) => {
-      const leading = candidate.match(/^\s*/)?.[0] ?? "";
-      const trailing = candidate.match(/\s*$/)?.[0] ?? "";
+      // /^\s*/ and /\s*$/ always match (possibly empty), and a non-empty
+      // trimmed body always splits into a non-empty first token.
+      const leading = candidate.match(/^\s*/)[0];
+      const trailing = candidate.match(/\s*$/)[0];
       const body = candidate.trim();
       if (!body) return candidate;
       const [url, ...descriptors] = body.split(/\s+/);
-      return `${leading}${[rewriteRootRef(projectRoot, ownerFile, url ?? ""), ...descriptors].join(" ")}${trailing}`;
+      return `${leading}${[rewriteRootRef(project, ownerFile, url), ...descriptors].join(" ")}${trailing}`;
     })
     .join(",");
 }
 
-function rewriteCssUrls(projectRoot, ownerFile, text) {
+export function rewriteCssUrls(project, ownerFile, text) {
   return text.replace(
     /url\(\s*(['"]?)(\/(?!\/)[^'")]+)\1\s*\)/gi,
     (match, quote, value) => {
-      const rewritten = rewriteRootRef(projectRoot, ownerFile, value);
+      const rewritten = rewriteRootRef(project, ownerFile, value);
       if (rewritten === value) return match;
       const q = quote || "";
       return `url(${q}${rewritten}${q})`;
@@ -148,11 +172,11 @@ function rewriteCssUrls(projectRoot, ownerFile, text) {
   );
 }
 
-function rewriteHtmlAttrs(projectRoot, ownerFile, text) {
+export function rewriteHtmlAttrs(project, ownerFile, text) {
   let next = text.replace(
     /(\s)(src|href|poster|data-src|data-tool-chip-src)\s*=\s*(['"])([\s\S]*?)\3/gi,
     (match, space, name, quote, value) => {
-      const rewritten = rewriteRootRef(projectRoot, ownerFile, value);
+      const rewritten = rewriteRootRef(project, ownerFile, value);
       if (rewritten === value) return match;
       return `${space}${name}=${quote}${rewritten}${quote}`;
     },
@@ -160,7 +184,7 @@ function rewriteHtmlAttrs(projectRoot, ownerFile, text) {
   next = next.replace(
     /(\s)srcset\s*=\s*(['"])([\s\S]*?)\2/gi,
     (match, space, quote, value) => {
-      const rewritten = rewriteSrcset(projectRoot, ownerFile, value);
+      const rewritten = rewriteSrcset(project, ownerFile, value);
       if (rewritten === value) return match;
       return `${space}srcset=${quote}${rewritten}${quote}`;
     },
@@ -168,33 +192,43 @@ function rewriteHtmlAttrs(projectRoot, ownerFile, text) {
   return next;
 }
 
-function rewriteFile(projectRoot, file) {
-  const before = fs.readFileSync(file, "utf8");
+export function rewriteFile(project, file) {
+  const before = project.fs.readFileSync(file, "utf8");
   const ext = path.extname(file).toLowerCase();
-  let after = rewriteCssUrls(projectRoot, file, before);
+  let after = rewriteCssUrls(project, file, before);
   if (ext === ".html" || ext === ".htm" || ext === ".svg") {
-    after = rewriteHtmlAttrs(projectRoot, file, after);
+    after = rewriteHtmlAttrs(project, file, after);
   }
   if (after === before) return false;
-  fs.writeFileSync(file, after);
+  project.fs.writeFileSync(file, after);
   return true;
 }
 
-try {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help) {
-    usage();
-    process.exit(0);
-  }
-
-  const projectRoot = path.resolve(args.project);
-  const files = walk(projectRoot);
-  const changed = files.filter((file) => rewriteFile(projectRoot, file));
+function rewriteProject(args, deps) {
+  const project = { root: path.resolve(args.project), fs: deps.fs };
+  const files = walk(deps.fs, project.root);
+  const changed = files.filter((file) => rewriteFile(project, file));
   for (const file of changed) {
-    console.log(path.relative(projectRoot, file).split(path.sep).join("/"));
+    deps.log(path.relative(project.root, file).split(path.sep).join("/"));
   }
-  console.log(`od-preview-rewrite: ${changed.length} file(s) updated`);
-} catch (error) {
-  console.error(`od-preview-rewrite failed: ${error.message}`);
-  process.exit(1);
+  deps.log(`od-preview-rewrite: ${changed.length} file(s) updated`);
+  return 0;
 }
+
+/**
+ * CLI entry: rewrite project-root asset URLs under --project (default cwd).
+ * @returns {Promise<number>} exit code (0 ok, 1 failure).
+ */
+export async function main(argv, deps = {}) {
+  const io = { ...DEFAULT_DEPS, ...deps };
+  return runCli("od-preview-rewrite", () => {
+    const args = parseArgs(argv, io.cwd());
+    if (args.help) {
+      usage(io.log);
+      return 0;
+    }
+    return rewriteProject(args, io);
+  }, io.error);
+}
+
+await runIfMain(import.meta.url, main);
