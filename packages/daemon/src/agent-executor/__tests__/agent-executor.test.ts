@@ -1508,6 +1508,10 @@ interface FakeAcpAttachCall {
   /** The `'acp-merge'` delivery mechanism's payload — `undefined` when `wireAcpLifecycle` passed none at all, which is distinct from passing `[]`. */
   readonly mcpServers: readonly unknown[] | undefined;
   readonly onPermissionRequest: unknown;
+  /** Every option key `attachAcpSession` received: an absent key is distinct from one passed as `undefined`. */
+  readonly optionKeys: readonly string[];
+  readonly cliParity: unknown;
+  readonly stageTimeoutMs: unknown;
   readonly send: (event: string, payload: unknown) => void;
 }
 
@@ -1563,6 +1567,8 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
     envFormat?: 'array' | 'map';
     mcpServers?: readonly unknown[];
     onPermissionRequest?: unknown;
+    cliParity?: boolean;
+    stageTimeoutMs?: number;
     send: (args: { event: string; payload: unknown }) => void;
   }, optionalAttachOptions: Record<string, unknown> = {}) => {
     const attachOptions = { ...requiredAttachOptions, ...optionalAttachOptions };
@@ -1575,6 +1581,9 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
       envFormat: attachOptions.envFormat,
       mcpServers: attachOptions.mcpServers,
       onPermissionRequest: attachOptions.onPermissionRequest,
+      optionKeys: Object.keys(attachOptions).sort(),
+      cliParity: attachOptions.cliParity,
+      stageTimeoutMs: attachOptions.stageTimeoutMs,
       send: (event, payload) => attachOptions.send({ event, payload }),
     });
     if (options.attachThrows) {
@@ -1707,6 +1716,21 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
     child.emit('close', null, 'SIGTERM');
     const finished = await lifecycle.waitForTerminal({ runId: run.id });
     expect(finished.state).toBe('cancelled');
+  });
+
+  it('a CLI-parity run attaches with cliParity and no stage timeout, and omits the model it never selected', async () => {
+    const { lifecycle, executor, child, attachCalls } = createAcpHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' }, { permissionMode: 'bypass', cliParity: true });
+    await flushAsync();
+    await runPromise;
+
+    expect(attachCalls[0]).toMatchObject({ permissionMode: 'bypass', cliParity: true, stageTimeoutMs: 0 });
+    expect(attachCalls[0]?.optionKeys).not.toContain('model');
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
   });
 
   it('includes envFormat in the attachAcpSession call only when def.acpMcpEnvFormat is set', async () => {
@@ -1921,6 +1945,8 @@ interface FakePiRpcAttachCall {
   readonly model: string | null | undefined;
   readonly imagePaths: readonly string[] | undefined;
   readonly uploadRoot: string | undefined;
+  /** Every option key `attachPiRpcSession` received: an absent key is distinct from one passed as `undefined`. */
+  readonly optionKeys: readonly string[];
   readonly send: (channel: string, payload: unknown) => void;
 }
 
@@ -1980,6 +2006,7 @@ function createPiRpcHarness(options: PiRpcHarnessOptions = {}): PiRpcHarness {
       model: attachOptions.model,
       imagePaths: attachOptions.imagePaths,
       uploadRoot: attachOptions.uploadRoot,
+      optionKeys: Object.keys(attachOptions).sort(),
       send: (_channel, payload) => attachOptions.send({ payload }),
     });
     if (options.attachThrows) {
@@ -2057,6 +2084,20 @@ describe('AgentExecutor — pi-rpc dispatch (fake attachPiRpcSession)', () => {
     expect(attachCalls[0]?.model).toBe('anthropic/claude-sonnet-4-5');
     expect(attachCalls[0]?.imagePaths).toEqual(['/uploads/reference.png']);
     expect(attachCalls[0]?.uploadRoot).toBe('/uploads');
+  });
+
+  it('omits the model from the pi-rpc session when a CLI-parity run selected none', async () => {
+    const { lifecycle, executor, child, attachCalls } = createPiRpcHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-pi-parity' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' }, { permissionMode: 'bypass', cliParity: true });
+    await flushAsync();
+    await runPromise;
+
+    expect(attachCalls[0]?.optionKeys).toEqual(['child', 'cwd', 'gracefulShutdownMs', 'prompt', 'send']);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
   });
 
   it('finishes failed (not cancelled) when the child closes and hasFatalError() reports true', async () => {
@@ -3834,6 +3875,30 @@ describe('AgentExecutor — gap 3 capability-routed continuation (stdin-tool-res
     const events = await collectEvents(lifecycle, run.id);
     const toolResultEvent = events.find((e) => e.kind === 'agent' && (e.payload as RunAgentPayload).type === 'tool_result');
     expect(toolResultEvent?.payload).toMatchObject({ type: 'tool_result', toolUseId: 'tu-1', content: 'file1.txt\nfile2.txt' });
+
+    child.emit('close', 0, null);
+    await runPromise;
+    await lifecycle.waitForTerminal({ runId: run.id });
+  });
+
+  it('carries image blocks from an auto-resolved tool\'s output onto the recorded tool_result as media', async () => {
+    const image = { type: 'image', mimeType: 'image/png', data: 'iVBORw==' };
+    const { toolExecutor } = createFakeToolExecutor(() => ({
+      executionId: 'exec-1', status: 'completed', output: { content: [{ type: 'text', text: 'shot taken' }, image] },
+    }));
+    const continuation: ContinuationOptions = { toolExecutor, principal: TEST_PRINCIPAL, autonomousToolNames: new Set(['Screenshot']) };
+    const { lifecycle, executor, child } = createHarness({ def: streamJsonDef(), continuation });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+    await flushAsync();
+    child.stdout.emit('data', toolUseTurnEnd('tu-1', 'Screenshot', {}, 'tool_use'));
+    await flushAsync();
+
+    const events = await collectEvents(lifecycle, run.id);
+    const toolResultEvent = events.find((e) => e.kind === 'agent' && (e.payload as RunAgentPayload).type === 'tool_result');
+    expect(toolResultEvent?.payload).toMatchObject({ type: 'tool_result', toolUseId: 'tu-1', media: [image] });
+    expect(toolResultEvent?.payload).not.toHaveProperty('isError');
 
     child.emit('close', 0, null);
     await runPromise;

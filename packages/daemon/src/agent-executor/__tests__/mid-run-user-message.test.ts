@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/agent-runtime';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../../event-log.js';
-import { createRunLifecycle } from '../../run-lifecycle.js';
+import { createRunLifecycle, type RunLifecycle } from '../../run-lifecycle.js';
+import type { RunByteJournal } from '../../continuation/journal.js';
 import { createAgentExecutor } from '../../index.js';
 import { INTERRUPT_ACK_TIMEOUT_MS } from '../events.js';
 import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
@@ -50,14 +51,33 @@ function createDef(overrides: Partial<RuntimeAgentDef>): RuntimeAgentDef {
   };
 }
 
-function createHarness(def: RuntimeAgentDef, { observerFailure }: { observerFailure?: Error } = {}) {
+interface HarnessOptions {
+  observerFailure?: Error;
+  /** The executor's view of `emit` rejects every event this returns an error for (the real lifecycle still records the rest). */
+  emitFailure?: (input: Parameters<RunLifecycle['emit']>[0]['input']) => Error | undefined;
+  journal?: RunByteJournal;
+}
+
+/** The executor's lifecycle port: the real one, with the failures a test asks for injected. */
+function executorLifecycle(lifecycle: RunLifecycle, { observerFailure, emitFailure }: HarnessOptions): RunLifecycle {
+  return {
+    ...lifecycle,
+    ...(observerFailure ? { stream: async () => { throw observerFailure; } } : {}),
+    ...(emitFailure ? { emit: async (args: Parameters<RunLifecycle['emit']>[0]) => {
+      const failure = emitFailure(args.input);
+      if (failure) throw failure;
+      return lifecycle.emit(args);
+    } } : {}),
+  };
+}
+
+function createHarness(def: RuntimeAgentDef, options: HarnessOptions = {}) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = createFakeChild();
   const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as unknown as typeof nodeSpawn;
   const onCleanupFailure = vi.fn();
-  const executor = createAgentExecutor({ lifecycle: observerFailure ? {
-    ...lifecycle, stream: async () => { throw observerFailure; },
-  } : lifecycle }, {
+  const executor = createAgentExecutor({ lifecycle: executorLifecycle(lifecycle, options) }, {
+    ...(options.journal ? { journal: options.journal } : {}),
     resolveModelForLaunch: fixtureLaunchModel,
     getAgentDef: ({ id }) => (id === def.id ? def : null),
     resolveAgentLaunch: () => ({ selectedPath: '/fake/bin', pathResolvedPath: '/fake/bin', configuredOverridePath: null, launchPath: '/fake/bin', launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
@@ -174,6 +194,71 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
       { type: 'tool_result', toolUseId: 'done', content: 'saved', isError: false },
       { type: 'tool_result', toolUseId: 'open', content: 'Tool execution cancelled.', isError: true },
     ]);
+  });
+
+  it('reports a cancellation record the lifecycle refuses, and still pairs the other open calls', async () => {
+    const refused = new Error('event log unavailable');
+    const h = createHarness(createDef({ promptInputFormat: 'text' }), {
+      emitFailure: (input) => {
+        const data = input.data as { type?: string; toolUseId?: string };
+        return input.event === 'agent' && data.type === 'tool_result' && data.toolUseId === 'lost' ? refused : undefined;
+      },
+    });
+    const runId = await startRun(h);
+    for (const id of ['lost', 'open']) await h.lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'tool_use', id, name: 'Read', input: {} } } });
+    await h.lifecycle.cancel({ runId });
+    h.child.emit('close', null, 'SIGTERM');
+    await h.lifecycle.waitForTerminal({ runId });
+    expect(h.onCleanupFailure).toHaveBeenCalledWith({ runId, phase: 'tool-cancellation', pid: 4242, error: refused });
+    expect((await agentPayloads(h, runId)).filter(p => (p as { type?: string }).type === 'tool_result')).toEqual([
+      { type: 'tool_result', toolUseId: 'open', content: 'Tool execution cancelled.', isError: true },
+    ]);
+  });
+
+  it('journals a mid-run message as trusted host stdin bytes, without the image data', async () => {
+    const recorded: unknown[] = [];
+    const journal: RunByteJournal = { record: async ({ entry }) => { recorded.push(entry); }, read: async () => [] };
+    const h = createHarness(createDef({}), { journal });
+    const runId = await startRun(h);
+    const delivery = h.executor.sendUserMessage({ runId, text: 'look again' }, { imageContents: [{ mimeType: 'image/png', data: 'iVBORw==' }] });
+    await flush();
+    h.child.stdout.emit('data', `${JSON.stringify(controlResponse(JSON.parse(h.child.stdin.writes[1]!).request_id))}\n`);
+    await expect(delivery).resolves.toBe('delivered');
+    await flush();
+    expect(recorded).toContainEqual({ content: 'look again', provenance: { source: 'host', channel: 'stdin' }, trust: 'trusted' });
+    expect(JSON.stringify(recorded)).not.toContain('iVBORw==');
+    h.child.emit('close', 0, null);
+    await h.lifecycle.waitForTerminal({ runId });
+  });
+
+  it('a call that completed between two interrupts keeps only its real result when the turn aborts', async () => {
+    const h = createHarness(createDef({}));
+    const runId = await startRun(h);
+    h.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm1', content: [
+      { type: 'tool_use', id: 'quick', name: 'Read', input: {} },
+      { type: 'tool_use', id: 'slow', name: 'Bash', input: {} },
+    ], stop_reason: 'tool_use' } })}\n`);
+    const ack = (index: number) => `${JSON.stringify(controlResponse(JSON.parse(h.child.stdin.writes[index]!).request_id))}\n`;
+    const first = h.executor.sendUserMessage({ runId, text: 'one' });
+    await flush();
+    h.child.stdout.emit('data', ack(1));
+    await expect(first).resolves.toBe('delivered');
+    // 'quick' finishes before the aborted turn ends; the next interrupt must drop it from the capture.
+    h.child.stdout.emit('data', `${JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'quick', content: 'read ok' }] } })}\n`);
+    await flush();
+    const second = h.executor.sendUserMessage({ runId, text: 'two' });
+    await flush();
+    h.child.stdout.emit('data', ack(3));
+    await expect(second).resolves.toBe('delivered');
+    h.child.stdout.emit('data', `${JSON.stringify({ type: 'result', terminal_reason: 'aborted_tool_use' })}\n`);
+    await flush();
+    const results = (await agentPayloads(h, runId)).filter((p) => (p as { type?: string }).type === 'tool_result');
+    expect(results).toEqual([
+      expect.objectContaining({ type: 'tool_result', toolUseId: 'quick', content: 'read ok' }),
+      { type: 'tool_result', toolUseId: 'slow', content: 'Tool execution cancelled.', isError: true },
+    ]);
+    h.child.emit('close', 0, null);
+    await h.lifecycle.waitForTerminal({ runId });
   });
 
   it('interrupts the running turn first and writes the message only once the CLI acknowledges the interrupt', async () => {
