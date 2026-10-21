@@ -481,7 +481,7 @@ describe('pinnedFetch transport selection and late aborts', () => {
     const server = http.createServer((_req, res) => res.end('reached'));
     const port = await listen(server);
     try {
-      await expect(pinnedFetch({ url: `http://provider.test:${port}/v1`, init: { method: 'GET', headers: {} }, pinnedAddress: { address: '127.0.0.1', family: 6 } })).rejects.toThrow(/EINVAL/);
+      await expect(pinnedFetch({ url: `http://provider.test:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}' }, pinnedAddress: { address: '127.0.0.1', family: 6 } })).rejects.toThrow(/EINVAL/);
     } finally {
       await close(server);
     }
@@ -494,7 +494,7 @@ describe('pinnedFetch transport selection and late aborts', () => {
     });
     const port = await listen(server);
     try {
-      const failure = pinnedFetch({ url: `http://127.0.0.1:${port}/v1`, init: { method: 'GET', headers: {} }, pinnedAddress: undefined });
+      const failure = pinnedFetch({ url: `http://127.0.0.1:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}' }, pinnedAddress: undefined });
       await expect(failure).rejects.toThrow(/^pinnedFetch: refused to follow a 302 redirect\. Matches fetch/);
     } finally {
       await close(server);
@@ -507,7 +507,7 @@ describe('pinnedFetch transport selection and late aborts', () => {
     });
     const port = await listen(server);
     try {
-      await expect(pinnedFetch({ url: `http://provider.test:${port}/v1`, init: { method: 'GET', headers: {} }, pinnedAddress: { address: '127.0.0.1', family: 4 } }, { idleTimeoutMs: 40 })).rejects.toThrow('pinnedFetch: no activity for 40ms');
+      await expect(pinnedFetch({ url: `http://provider.test:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}' }, pinnedAddress: { address: '127.0.0.1', family: 4 } }, { idleTimeoutMs: 40 })).rejects.toThrow('pinnedFetch: no activity for 40ms');
     } finally {
       server.closeAllConnections();
       await close(server);

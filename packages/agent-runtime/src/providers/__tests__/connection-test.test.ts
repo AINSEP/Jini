@@ -417,20 +417,15 @@ describe('testProviderConnection through injected transport', () => {
 
     it('forwards a later caller abort to the in-flight request and detaches its listener afterwards', async () => {
       const controller = new AbortController();
-      const removed: string[] = [];
       const signal = controller.signal;
-      const originalRemove = signal.removeEventListener.bind(signal);
-      signal.removeEventListener = ((type: string, listener: EventListenerOrEventListenerObject) => {
-        removed.push(type);
-        originalRemove(type, listener);
-      }) as typeof signal.removeEventListener;
+      const removeListener = vi.spyOn(signal, 'removeEventListener');
       const fetchFn: typeof fetch = (_url, init) => new Promise((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
         controller.abort();
       });
       const result = await probe({}, fetchFn, { signal });
       expect(result.kind).toBe('timeout');
-      expect(removed).toEqual(['abort']);
+      expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function));
     });
   });
 
