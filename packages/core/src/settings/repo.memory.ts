@@ -268,8 +268,11 @@ export class InMemorySettingsRepo implements SettingsRepoPort {
       nextSeq: this.nextSeq,
     };
     this.inTransaction = true;
+    // No `finally`: the flag is released on both exits explicitly (V8 coverage counts the
+    // unreachable continuation after a catch-block `throw` inside try/finally as a missed branch).
+    let result: T;
     try {
-      return await fn();
+      result = await fn();
     } catch (error) {
       this.definitions = snapshot.definitions;
       this.globalValues = snapshot.globalValues;
@@ -277,9 +280,10 @@ export class InMemorySettingsRepo implements SettingsRepoPort {
       this.userValues = snapshot.userValues;
       this.revisions = snapshot.revisions;
       this.nextSeq = snapshot.nextSeq;
-      throw error;
-    } finally {
       this.inTransaction = false;
+      throw error;
     }
+    this.inTransaction = false;
+    return result;
   }
 }

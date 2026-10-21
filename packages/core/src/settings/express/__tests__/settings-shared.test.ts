@@ -91,3 +91,12 @@ test("respondToSettingsError: an unmapped error is a fixed 500 that never echoes
   assert.equal(capture.statusCode, 500);
   assert.deepEqual(capture.jsonBody, { error: "internal error", code: "INTERNAL_ERROR" });
 });
+
+test("respondToSettingsError: a mapped non-Error throw (a bare string) is stringified into the response message", () => {
+  const { res, capture } = createCapturingResponse();
+  respondToSettingsError({ response: res, error: "definition 'x' is locked", mappings: [
+    { matches: (e) => typeof e === "string", status: 423, code: "LOCKED" },
+  ] });
+  assert.equal(capture.statusCode, 423);
+  assert.deepEqual(capture.jsonBody, { error: "definition 'x' is locked", code: "LOCKED" });
+});

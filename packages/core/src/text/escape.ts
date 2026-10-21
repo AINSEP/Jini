@@ -9,17 +9,19 @@
  * becomes the numeric `&#39;` in HTML, because `&apos;` is undefined in HTML4/XHTML1.
  */
 
-const HTML_ENTITIES: Readonly<Record<string, string>> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-const XML_ENTITIES: Readonly<Record<string, string>> = { ...HTML_ENTITIES, "'": "&apos;" };
+/** Exactly the characters {@link SPECIAL} can match, so every match has an entity in both tables. */
+type SpecialChar = "&" | "<" | ">" | '"' | "'";
+const HTML_ENTITIES: Readonly<Record<SpecialChar, string>> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const XML_ENTITIES: Readonly<Record<SpecialChar, string>> = { ...HTML_ENTITIES, "'": "&apos;" };
 const SPECIAL = /[&<>"']/g;
 
 /** Escapes `& < > " '` for HTML text or a quoted attribute value. @complexity O(text length). */
 export function escapeHtml({ text }: { text: string }, _optional = {}): string {
-  return text.replace(SPECIAL, (char) => HTML_ENTITIES[char] ?? char);
+  return text.replace(SPECIAL, (char) => HTML_ENTITIES[char as SpecialChar]);
 }
 
 /** {@link escapeHtml} with the XML named entity `&apos;` for the apostrophe (sitemap and feed XML).
  *  @complexity O(text length). */
 export function escapeXml({ text }: { text: string }, _optional = {}): string {
-  return text.replace(SPECIAL, (char) => XML_ENTITIES[char] ?? char);
+  return text.replace(SPECIAL, (char) => XML_ENTITIES[char as SpecialChar]);
 }
