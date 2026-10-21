@@ -176,6 +176,7 @@ export {
 } from './hooks/useComposer.js';
 export type {
   ComposerDraftPersistence,
+  ComposerPageLifecycle,
   MentionPopoverState,
   UseComposerOptions,
   UseComposerResult,

@@ -84,6 +84,54 @@ function errorFrom(body: unknown, status: number): Error {
 }
 
 /**
+ * The deadline's abort becomes a readable timeout; every other failure (a network error, a non-2xx
+ * rejection) passes through unchanged.
+ */
+function timeoutAware(error: unknown, timeoutMs: number): unknown {
+  return error instanceof Error && error.name === 'AbortError'
+    ? new Error(`Timed out after ${timeoutMs}ms waiting for the server.`)
+    : error;
+}
+
+/** One POST of a confirmed action and its parsed answer; a non-2xx response rejects via {@link errorFrom}. */
+async function postToolCall(
+  { call, endpoint, headers, signal, fetch }: {
+    call: McpUiToolCall; endpoint: string; headers: CreateMcpUiToolCallerOptions['headers'];
+    signal: AbortSignal; fetch: typeof globalThis.fetch;
+  },
+): Promise<unknown> {
+  // `{name, arguments}` on the MCP-UI side becomes `{toolName, params}` on the wire: `arguments`
+  // is a reserved word in a JS function scope and reads badly in a server handler, and the
+  // renamed pair matches what the reference implementation's redemption route already accepts.
+  const request: McpUiToolCallRequest = {
+    toolName: call.name,
+    params: { ...call.arguments },
+  };
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    // Same-origin cookie session is the usual authenticator for the human's second step.
+    credentials: 'same-origin',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(request),
+    signal,
+  });
+
+  const raw = await response.text();
+  let parsed: unknown = raw;
+  if (raw.length > 0) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // Left as text — a proxy's HTML error page is more useful surfaced verbatim than swapped
+      // for a generic "invalid JSON", which would hide what actually answered.
+    }
+  }
+
+  if (!response.ok) throw errorFrom(parsed, response.status);
+  return parsed;
+}
+
+/**
  * Builds an {@link McpUiToolCallHandler} that POSTs `{toolName, params}` and returns the parsed
  * response.
  *
@@ -105,43 +153,8 @@ export function createMcpUiToolCaller({ baseUrl, fetch }: { baseUrl: string; fet
   return async (call: McpUiToolCall): Promise<unknown> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      // `{name, arguments}` on the MCP-UI side becomes `{toolName, params}` on the wire: `arguments`
-      // is a reserved word in a JS function scope and reads badly in a server handler, and the
-      // renamed pair matches what the reference implementation's redemption route already accepts.
-      const request: McpUiToolCallRequest = {
-        toolName: call.name,
-        params: { ...call.arguments },
-      };
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        // Same-origin cookie session is the usual authenticator for the human's second step.
-        credentials: 'same-origin',
-        headers: { ...options.headers, 'content-type': 'application/json' },
-        body: JSON.stringify(request),
-        signal: controller.signal,
-      });
-
-      const raw = await response.text();
-      let parsed: unknown = raw;
-      if (raw.length > 0) {
-        try {
-          parsed = JSON.parse(raw);
-        } catch {
-          // Left as text — a proxy's HTML error page is more useful surfaced verbatim than swapped
-          // for a generic "invalid JSON", which would hide what actually answered.
-        }
-      }
-
-      if (!response.ok) throw errorFrom(parsed, response.status);
-      return parsed;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Timed out after ${timeoutMs}ms waiting for the server.`);
-      }
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
+    return postToolCall({ call, endpoint, headers: options.headers, signal: controller.signal, fetch })
+      .catch((error: unknown) => { throw timeoutAware(error, timeoutMs); })
+      .finally(() => clearTimeout(timer));
   };
 }

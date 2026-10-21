@@ -15,7 +15,9 @@ export default defineConfig({
       // The v8 text table silently drops rows once there are many files — json-summary/json are
       // what a coverage-driven pass should actually read.
       reporter: ['text', 'json-summary', 'json', 'lcov'],
-      include: ['src/**'],
+      // The packaging guard is a node script, not a module under src/, but it carries real
+      // logic; `.mjs` only so its own tests (scripts/__tests__/*.ts) are not measured.
+      include: ['src/**', 'scripts/**/*.mjs'],
       exclude: ['src/**/*.test.ts', 'src/**/__tests__/**'],
       // No thresholds yet, and that is a deliberate omission rather than an oversight: this package
       // is a placeholder whose only runtime statements are layer markers. Sibling packages set

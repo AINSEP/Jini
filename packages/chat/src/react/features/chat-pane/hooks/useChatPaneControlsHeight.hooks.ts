@@ -53,11 +53,13 @@ export function useChatPaneControlsHeight(): UseChatPaneControlsHeightResult {
     const controls = controlsRef.current;
     if (!root || !controls || typeof ResizeObserver !== 'function') return;
     const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      // Rounded up: a fractional px short would let one glyph's descender clip against the
-      // gradient's opaque end, which `Math.ceil` never risks understating.
-      root.style.setProperty(CHAT_PANE_CONTROLS_HEIGHT_CSS_VAR, `${Math.ceil(entry.contentRect.height)}px`);
+      // Only `controls` is observed, so a notification carries at most one entry: `slice(0, 1)`
+      // reads it without a branch for the empty list the ResizeObserver spec never delivers.
+      for (const entry of entries.slice(0, 1)) {
+        // Rounded up: a fractional px short would let one glyph's descender clip against the
+        // gradient's opaque end, which `Math.ceil` never risks understating.
+        root.style.setProperty(CHAT_PANE_CONTROLS_HEIGHT_CSS_VAR, `${Math.ceil(entry.contentRect.height)}px`);
+      }
     });
     observer.observe(controls);
     return () => observer.disconnect();

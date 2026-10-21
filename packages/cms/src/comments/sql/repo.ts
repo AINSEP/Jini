@@ -117,8 +117,9 @@ export class SqlCommentRepo implements CommentRepoPort {
       if (required.entryId !== undefined) query = query.where("entry_id", "=", required.entryId);
       return query.executeTakeFirst();
     });
-    // Postgres returns a COUNT as a bigint string.
-    return Number(row?.n ?? 0);
+    // Postgres returns a COUNT as a bigint string. An aggregate with no GROUP BY yields exactly
+    // one row even over zero matches, so the row is always present.
+    return Number(row!.n);
   }
 
   /** OQ-3 (SPEC-035): the comment and its `submit` log row land as ONE atomic transaction.

@@ -40,6 +40,7 @@ import { contentTypesAgentToolCatalog } from "./agent-tools.js";
 import { parseContentTypeFieldDefs } from "./field-defs.js";
 import { listContentTypes, type ContentTypeListPort } from "./list.js";
 import { deprecateContentType, reactivateContentType, tombstoneContentType, type TeardownIndexProvisionerPort } from "./lifecycle.js";
+import { toContentTypeOutbox } from "./repo.memory.js";
 import type { ContentTypeFieldDef, ContentTypeRecord } from "./types.js";
 import { registerContentType, updateContentTypeFields, type ContentTypeRepoPort, type IndexProvisionerPort } from "./write-service.js";
 
@@ -157,7 +158,11 @@ function contentTypesDeps(routeDeps: ContentTypesToolDeps) {
     clock: routeDeps.clock,
     ids: routeDeps.idGen,
     authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }),
-    outbox: routeDeps.outbox,
+    // Widened through `toContentTypeOutbox`, as `entries/tool-registrations.ts` does: the domain
+    // enqueues only `{name,payload}`, but `routeDeps.outbox` is the real `core/ports` port whose
+    // `DomainEvent` requires `id`/`workspaceId`/`occurredAt`. Passing it through raw typechecked (method
+    // bivariance) yet delivered events with none of the three.
+    outbox: toContentTypeOutbox(routeDeps),
     indexProvisioner: routeDeps.contentTypeIndexProvisioner,
     ...(routeDeps.reservedContentTypeKeys !== undefined ? { reservedKeys: routeDeps.reservedContentTypeKeys } : {}),
   };
