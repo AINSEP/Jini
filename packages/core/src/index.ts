@@ -30,6 +30,7 @@ export type {
 } from './tool-registry.js';
 export { createToolRegistrationScope, toolRegistryRevision, createToolRegistry, isReadOnlyTool, toolDiscoveryMetadata, ToolInputError } from './tool-registry.js';
 export * from './tool-tokens.js';
+export * from './tool-exposure.js';
 
 export * from './gated-mutations.js';
 export * from './model-facing-tool-errors.js';
