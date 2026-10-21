@@ -66,6 +66,15 @@ interface LegacyStoredFabPosition {
   bottomFraction: number;
 }
 
+/** Where a drag began: the pointer, its start coordinates, and the FAB's right/bottom offsets then. */
+interface DragStart {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startRight: number;
+  startBottom: number;
+}
+
 function isLegacyShape(value: Record<string, unknown>): value is Record<string, unknown> & LegacyStoredFabPosition {
   return (value.side === "left" || value.side === "right") && typeof value.bottomFraction === "number";
 }
@@ -218,7 +227,14 @@ export function useFabPosition(options: FabPositionInput, _optional: Record<stri
   const draggingRef = useRef(false);
   const didDragRef = useRef(false);
   const liveRef = useRef<{ right: number; bottom: number } | null>(null);
-  const dragStart = useRef<{ pointerId: number; startX: number; startY: number; startRight: number; startBottom: number } | null>(null);
+  /**
+   * Set by `onPointerDown` immediately BEFORE it attaches the document `pointermove`/`pointerup`/
+   * `pointercancel` listeners, and cleared by `handlePointerUp` in the same synchronous step that
+   * detaches them — so whenever either handler below can run, a drag start is recorded. That
+   * invariant is why the handlers read it with a cast rather than an `if (!start) return` guard: the
+   * guard that used to sit there could never be taken.
+   */
+  const dragStart = useRef<DragStart | null>(null);
 
   /** Bumped to force a re-render on every pointermove and on resize — `liveRef`/`window.innerWidth`
    *  are read directly in `style`'s `useMemo` below, neither of which React tracks as a reactive
@@ -245,8 +261,7 @@ export function useFabPosition(options: FabPositionInput, _optional: Record<stri
   // Stable identities (empty dep arrays) — see the `draggingRef` doc above for why these must
   // never depend on state that would force a re-subscribe mid-gesture.
   const handlePointerMove = useCallback((e: PointerEvent) => {
-    const start = dragStart.current;
-    if (!start) return;
+    const start = dragStart.current as DragStart;
     const dx = e.clientX - start.startX;
     const dy = e.clientY - start.startY;
     if (!draggingRef.current && Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
@@ -263,8 +278,7 @@ export function useFabPosition(options: FabPositionInput, _optional: Record<stri
   }, []);
 
   const handlePointerUp = useCallback((e: PointerEvent) => {
-    const start = dragStart.current;
-    if (!start) return;
+    const start = dragStart.current as DragStart;
     (e.target as Element).releasePointerCapture?.(start.pointerId);
     document.removeEventListener("pointermove", handlePointerMove);
     document.removeEventListener("pointerup", handlePointerUp);
