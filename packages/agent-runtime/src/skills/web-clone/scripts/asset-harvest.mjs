@@ -251,6 +251,19 @@ async function captureNetworkAssets(page, { pageUrl, args, io, candidates }) {
   await page.close();
 }
 
+// One downloaded webfont stylesheet as a self-hosted block. A stylesheet that
+// cannot be read back is skipped so the remaining CSS, the recon @font-face
+// rules and the asset manifest are still written.
+function webfontCssBlock(css, { outDir, urlToLocal, files }) {
+  let cssText;
+  try {
+    cssText = files.readFileSync(path.join(outDir, css.localPath), "utf8");
+  } catch {
+    return [];
+  }
+  return [`/* self-hosted from ${css.url} */\n${rewriteFontCss(cssText, css.url, urlToLocal)}`];
+}
+
 // 自托管 @font-face: 抓 webfont CSS(typekit/google fonts) + recon 里的 @font-face
 // 规则，把 url() 改写成本地字体路径，汇成一份 fonts.css。Returns whether it was written.
 export function writeFontsCss(results, recon, { pageUrl, outDir, fs: files }) {
@@ -258,7 +271,7 @@ export function writeFontsCss(results, recon, { pageUrl, outDir, fs: files }) {
   const urlToLocal = new Map(okResults.map((r) => [r.url, r.localPath]));
   const blocks = okResults
     .filter((r) => r.kind === "stylesheet" && WEBFONT_CSS.test(r.url))
-    .map((css) => `/* self-hosted from ${css.url} */\n${rewriteFontCss(files.readFileSync(path.join(outDir, css.localPath), "utf8"), css.url, urlToLocal)}`);
+    .flatMap((css) => webfontCssBlock(css, { outDir, urlToLocal, files }));
   for (const capture of arr(recon?.captures)) {
     for (const face of arr(capture.signals?.fontFaces)) {
       if (face.cssText) blocks.push(rewriteFontCss(face.cssText, face.sheetHref || pageUrl, urlToLocal));

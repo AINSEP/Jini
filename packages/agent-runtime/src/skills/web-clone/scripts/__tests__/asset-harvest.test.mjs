@@ -269,6 +269,36 @@ describe("main", () => {
     expect(out.logs[4]).toBe(path.join(dir, "assets", "asset-manifest.json"));
   });
 
+  it("skips a downloaded stylesheet that cannot be read back and still writes fonts.css and the manifest", async () => {
+    const dir = makeTempDir();
+    const unreadable = "https://fonts.googleapis.com/css?family=Gone";
+    const readable = "https://use.typekit.net/ok1.css";
+    const recon = {
+      url: "https://site.test/",
+      captures: [{ signals: {
+        stylesheets: [unreadable, readable],
+        fontFaces: [{ srcUrls: [], cssText: "@font-face{font-family:R}" }],
+      } }],
+    };
+    fs.writeFileSync(path.join(dir, "recon.json"), JSON.stringify(recon));
+    const fetch = fakeFetch({ [unreadable]: { body: "@font-face{font-family:G}" }, [readable]: { body: "@font-face{font-family:T}" } });
+    const goneFile = path.join(dir, "assets", localPathFor("stylesheet", unreadable));
+    const files = {
+      ...fs,
+      readFileSync: (file, ...rest) => {
+        if (file === goneFile) throw new Error("EACCES: permission denied");
+        return fs.readFileSync(file, ...rest);
+      },
+    };
+    const { io } = makeIo(dir);
+    const code = await main({ argv: ["--recon", "recon.json", "--recon-only", "--types", "stylesheet"] }, { ...io, fs: files, fetch: fetch.impl });
+    expect(code).toBe(0);
+    expect(readJson(path.join(dir, "assets", "asset-manifest.json"))).toMatchObject({ total: 2, ok: 2, error: 0, fontsCss: "fonts/fonts.css" });
+    expect(fs.readFileSync(path.join(dir, "assets", "fonts", "fonts.css"), "utf8")).toBe(
+      `/* self-hosted from ${readable} */\n@font-face{font-family:T}\n\n@font-face{font-family:R}\n`,
+    );
+  });
+
   it("captures network assets in a browser, downloads through its context and closes it", async () => {
     const dir = makeTempDir();
     const typekit = "https://use.typekit.net/abc123.css";
