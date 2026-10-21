@@ -92,8 +92,14 @@ export function wireCoreResolvers(deps: CoreResolverDeps, _optional: Record<stri
 /** Converts a resolver exception/hang into a typed failure — never propagates (REQ-27, INV-05). */
 class ResolverTimeoutError extends Error {}
 
+/**
+ * Bounds one resolver call by its registration's `timeoutMs`. There is no "no timeout" escape: only a
+ * registration with a `resolverId` ever reaches a resolver, and every such registration declares a
+ * positive `timeoutMs` (pinned by `registry.unit.test.ts`). The former `!timeoutMs || timeoutMs <= 0`
+ * pass-through could only fire for a static (resolver-less) type, which never gets here — removed as
+ * unreachable in the J3 coverage pass.
+ */
 async function withResolverTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  if (!timeoutMs || timeoutMs <= 0) return promise;
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new ResolverTimeoutError(`resolver exceeded ${timeoutMs}ms`)), timeoutMs);
     promise.then(

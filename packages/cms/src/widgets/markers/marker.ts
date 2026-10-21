@@ -204,17 +204,19 @@ export function maskNonRenderableRegions({ html }: { html: string }, _optional: 
 }
 
 /**
- * One capture group's `[start, end)` offsets from a `d`-flagged match's `indices` array. Throws
- * rather than returning `undefined` for a group `MARKER_PATTERN` never leaves unmatched — every
- * group here sits on a mandatory part of the pattern, never inside an optional alternation, so a
- * missing entry means the pattern changed underneath this function, not a normal runtime path.
+ * One capture group's `[start, end)` offsets from a `d`-flagged match's `indices` array, for a group
+ * `MARKER_PATTERN` never leaves unmatched — every group read here sits on a mandatory part of the
+ * pattern, never inside an optional alternation (group 3 is read only when the double-quoted
+ * alternative, group 4, did not participate, so the single-quoted one did). A missing entry would
+ * mean the pattern changed underneath this function, not a normal runtime path.
+ *
+ * That guarantee is stated to the type checker here rather than re-checked at runtime: the former
+ * `if (!range) throw` could not be reached by any input (removed in the J3 coverage pass). A pattern
+ * edit that broke the guarantee still fails loudly, not silently — the caller destructures/spreads
+ * the returned range, which throws a `TypeError` on `undefined`.
  */
-function requireGroupRange(indices: RegExpIndicesArray, group: number): readonly [number, number] {
-  const range = indices[group];
-  if (!range) {
-    throw new Error(`marker.ts: expected capture group ${group} of MARKER_PATTERN to participate in the match`);
-  }
-  return range;
+function requireGroupRange(indices: RegExpIndicesArray, group: 0 | 1 | 2 | 3): readonly [number, number] {
+  return indices[group] as readonly [number, number];
 }
 
 /**

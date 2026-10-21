@@ -165,3 +165,61 @@ test("authorized missing-domain purge remains adapter-unavailable with a deny po
   assert.equal(h.repo.all({}).length, 1);
   assert.ok(h.records.records.has("record-1"));
 });
+
+test("a refused hide returns the adapter's refusal and writes no index row and no notification", async () => {
+  const events: TrashChangeEvent[] = [];
+  const h = harness({ onChanged: (event) => { events.push(event); } });
+
+  assert.deepEqual(await h.trash.trash({ ...removal, expectedVersion: 7 }), { ok: false, reason: "version-changed" });
+  assert.equal(h.repo.all({}).length, 0);
+  assert.equal(h.records.records.get("record-1")!.version, 1);
+  assert.deepEqual(events, []);
+});
+
+test("restoring an entity that was never trashed is not-found and never consults the adapter", async () => {
+  const h = harness();
+  let unhides = 0;
+  h.adapters.set("record", { ...h.adapter, unhide: async (...args) => { unhides += 1; return h.adapter.unhide(...args); } });
+
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "not-found");
+  assert.equal(unhides, 0);
+});
+
+test("restore maps an adapter not-found to not-found and any other refusal to version-changed, keeping the index row", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+
+  h.adapters.set("record", { ...h.adapter, unhide: async () => ({ ok: false, reason: "not-found" }) });
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "not-found");
+
+  h.adapters.set("record", { ...h.adapter, unhide: async () => ({ ok: false, reason: "version-changed" }) });
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "version-changed");
+
+  assert.equal(h.repo.all({}).length, 1);
+});
+
+test("purgeSelected reports forbidden when the entity policy no longer allows the row's installed type", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+  const trash = createTrashService({ ...h.deps, entityPolicy: () => false });
+
+  assert.deepEqual(
+    await trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: ALLOW_ALL }),
+    { purged: 0, results: [{ id: "trash-1", outcome: "forbidden" }] }
+  );
+  assert.ok(h.records.records.get("record-1"));
+  assert.equal(h.repo.all({}).length, 1);
+});
+
+test("restore forwards the restoring actor to the adapter only when one is supplied", async () => {
+  const h = harness();
+  await h.trash.trash(removal, { priorMarker: "draft" });
+  const seen: unknown[] = [];
+  h.adapters.set("record", { ...h.adapter, unhide: async (required, optional) => { seen.push(optional); return h.adapter.unhide(required, optional); } });
+
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }, { actor: ACTOR }), "restored");
+  await h.trash.trash({ ...removal, expectedVersion: 3 });
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "restored");
+
+  assert.deepEqual(seen, [{ priorMarker: "draft", actor: ACTOR }, { priorMarker: null }]);
+});
