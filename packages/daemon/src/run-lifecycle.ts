@@ -523,6 +523,15 @@ export interface CreateRunLifecycleInput {
   /** Hard cap on concurrently-retained terminal run records. See {@link DEFAULT_MAX_TERMINAL_RUNS}. Defaults to that constant. */
   readonly maxTerminalRuns?: number;
   /**
+   * When `true`, evicting a terminal run record (retention timer or `maxTerminalRuns` cap) also calls
+   * `eventLog.drop()` for it, giving the run's events the same lifetime as its record. Off by default
+   * because a durable adapter's `drop()` deletes stored rows (`@jini-ai/daemon/store/event-log/sqlite`),
+   * which would turn a memory bound into data loss for a host that never asked for it; a host whose
+   * log is in-memory only can opt in. A failed drop is reported through `onInternalError`
+   * (`source: 'event-log-drop'`).
+   */
+  readonly dropEventsOnEviction?: boolean;
+  /**
    * How long a run may go with no agent-event `emit()` (excluding the notice itself) before a `'slow_running'` agent event tells the UI the
    * turn is taking longer than usual — never a terminating action; see
    * {@link armSlowRunWatchdogIfConfigured}'s doc. Applies kernel-wide to every `start()`ed run, unlike
@@ -535,7 +544,7 @@ export interface CreateRunLifecycleInput {
 }
 
 export interface RunLifecycleInternalErrorContext {
-  readonly source: 'inactivity-timeout' | 'slow-run-notice';
+  readonly source: 'inactivity-timeout' | 'slow-run-notice' | 'event-log-drop';
   readonly runId: string;
   readonly error: unknown;
 }
@@ -546,11 +555,12 @@ export interface RunLifecycleInternalErrorContext {
  * @param input.eventLog - The durable `EventLog` port this lifecycle appends to and replays from.
  * @param input.terminalRetentionMs - See {@link CreateRunLifecycleInput.terminalRetentionMs}.
  * @param input.maxTerminalRuns - See {@link CreateRunLifecycleInput.maxTerminalRuns}.
+ * @param input.dropEventsOnEviction - See {@link CreateRunLifecycleInput.dropEventsOnEviction}.
  * @returns A `RunLifecycle` backed by an in-memory run registry plus the injected `EventLog`.
  * @complexity Per-call complexities documented on each method; the registry itself is a `Map` keyed by `runId` (O(1) lookup). Memory is bounded: non-terminal runs are O(n) in concurrently-live runs, and terminal runs are capped at `maxTerminalRuns` (each additionally bounded in retention time by `terminalRetentionMs`) rather than growing for the life of the process.
  * @overallScore 100/100
  */
-export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "eventLog">, optionalArgs: Pick<CreateRunLifecycleInput, "onInternalError" | "terminalRetentionMs" | "maxTerminalRuns" | "slowRunThresholdMs"> = {}): RunLifecycle {
+export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "eventLog">, optionalArgs: Pick<CreateRunLifecycleInput, "onInternalError" | "terminalRetentionMs" | "maxTerminalRuns" | "slowRunThresholdMs" | "dropEventsOnEviction"> = {}): RunLifecycle {
   const input: CreateRunLifecycleInput = { ...requiredArgs, ...optionalArgs };
   const { eventLog } = input;
   const terminalRetentionMs = input.terminalRetentionMs ?? DEFAULT_TERMINAL_RETENTION_MS;
@@ -661,6 +671,28 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     record.retentionTimer = undefined;
     runs.delete(runId);
     clearIdempotencyIndexEntryIfMatching({ idempotencyIndex: idempotencyIndex, idempotencyKey: record.idempotencyKey, runId: runId });
+    if (input.dropEventsOnEviction === true) void dropEvictedRunEvents(runId);
+  }
+
+  /** `evictTerminalRun`'s opt-in event drop (see `CreateRunLifecycleInput.dropEventsOnEviction`). Runs from a timer, so a failure is reported, never thrown. */
+  async function dropEvictedRunEvents(runId: string): Promise<void> {
+    try {
+      await eventLog.drop({ runId });
+    } catch (error) {
+      reportInternalError({ source: 'event-log-drop', runId, error });
+    }
+  }
+
+  /** Hands `context` to `onInternalError` (or `console.error`), containing a throwing sink. */
+  function reportInternalError(context: RunLifecycleInternalErrorContext): void {
+    try {
+      if (input.onInternalError) input.onInternalError(context);
+      // eslint-disable-next-line no-console
+      else console.error(`[@jini-ai/daemon] internal error (${context.source}, runId=${context.runId})`, context.error);
+    } catch (sinkError) {
+      // eslint-disable-next-line no-console
+      console.error(`[@jini-ai/daemon] internal error sink failed (${context.source}, runId=${context.runId})`, sinkError);
+    }
   }
 
   /** Trims the oldest terminal records until `terminalRunOrder` is back at or under `maxTerminalRuns`. */
