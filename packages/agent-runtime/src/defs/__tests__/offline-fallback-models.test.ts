@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { normalizeDiscoveredModels } from '../../model-discovery.js';
+import { aiderAgentDef } from '../aider.js';
 import { ampAgentDef } from '../amp.js';
 import { auggieAgentDef } from '../auggie.js';
 import { clineAgentDef } from '../cline.js';
@@ -19,7 +20,7 @@ import { kiloAgentDef } from '../kilo.js';
 import { kimiAgentDef } from '../kimi.js';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
-const defs = [ampAgentDef, auggieAgentDef, clineAgentDef, copilotAgentDef, crushAgentDef, deepseekAgentDef, droidAgentDef,
+const defs = [aiderAgentDef, ampAgentDef, auggieAgentDef, clineAgentDef, copilotAgentDef, crushAgentDef, deepseekAgentDef, droidAgentDef,
   gooseAgentDef, grokBuildAgentDef, hermesAgentDef, kiloAgentDef, kimiAgentDef];
 
 describe('offline discovery falls back to each def\'s own static model list', () => {
