@@ -10,6 +10,7 @@ import {
   type ExecuteRestoreOperationLockPort,
   type ExecuteRestoreRequired,
   planRestore,
+  type PlanRestoreRequired,
 } from "../../recovery/recovery-orchestrator.js";
 import { createOperationLock } from "../../recovery/operation-lock.js";
 
@@ -22,15 +23,15 @@ import { createOperationLock } from "../../recovery/operation-lock.js";
 const clock: Clock = { nowMs: () => Date.parse("2026-10-21T08:00:00.000Z") };
 
 test("plan rechecks the cost class on every call and never reaches the gateway once it is unavailable", async () => {
-  const costClasses = ["expensive", "unavailable"] as const;
+  const costClasses: Array<"cheap" | "expensive" | "unavailable"> = ["expensive", "unavailable"];
   let reads = 0;
   const planned: unknown[] = [];
-  const required = {
+  const required: PlanRestoreRequired = {
     deps: {
       dbOps: { getCapabilities: async () => ({ costClass: costClasses[reads++] ?? "cheap", restorePointKind: "sqlite-file" }) },
       gateway: { plan: async (input: unknown) => (planned.push(input), { ok: true as const, value: { planId: "plan-1" } }) },
     },
-    input: { principalId: "user-1", principalKind: "user" as const, restorePointId: "rp1" },
+    input: { principalId: "user-1", principalKind: "user", restorePointId: "rp1" },
   };
 
   assert.deepEqual(await planRestore(required), { ok: true, value: { planId: "plan-1" } });
