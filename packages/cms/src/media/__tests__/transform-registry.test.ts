@@ -193,7 +193,12 @@ test("getLatestTransformDefinition picks the highest version whatever order the 
   const deps = makeDeps();
   for (let i = 0; i < 3; i++) await registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: "thumb", params: { format: "webp" }, owner: "core" } });
   const rows = await deps.transformRepo.listByName({ workspaceId: WORKSPACE_ID, name: "thumb" });
-  const shuffled = { ...deps.transformRepo, listByName: async () => [rows[1]!, rows[2]!, rows[0]!] };
+  const repo = deps.transformRepo;
+  const shuffled = {
+    listByName: async () => [rows[1]!, rows[2]!, rows[0]!],
+    findByNameVersion: repo.findByNameVersion.bind(repo),
+    insert: repo.insert.bind(repo),
+  };
   const latest = await getLatestTransformDefinition({ deps: { transformRepo: shuffled }, input: { workspaceId: WORKSPACE_ID, name: "thumb" } });
   assert.equal(latest?.version, 3);
 });

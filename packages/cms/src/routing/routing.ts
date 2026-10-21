@@ -192,7 +192,8 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
    * @complexity O(n) in path length.
    */
   function normalizePath(rawPath: string): string {
-    const withoutQueryOrHash = rawPath.split(/[?#]/)[0] ?? "";
+    // `split` always yields at least one element (an empty input gives [""]), so [0] is defined.
+    const withoutQueryOrHash = rawPath.split(/[?#]/, 1)[0]!;
     const withLeadingSlash = withoutQueryOrHash.startsWith("/")
       ? withoutQueryOrHash
       : `/${withoutQueryOrHash}`;

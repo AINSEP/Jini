@@ -87,14 +87,14 @@ interface CandidateMatch {
   specificity: number;
 }
 
+// Each matcher below is reached only from `matchOne`'s switch case for its own `matchType`, so none
+// re-checks the type (the switch is the single dispatch point).
 function matchExact(rule: RedirectRecord, path: string): CandidateMatch | null {
-  if (rule.matchType !== "exact") return null;
   if (rule.fromPattern !== path) return null;
   return { rule, location: rule.toTarget, specificity: rule.fromPattern.length };
 }
 
 function matchPrefix(rule: RedirectRecord, path: string): CandidateMatch | null {
-  if (rule.matchType !== "prefix") return null;
   const pattern = rule.fromPattern;
   const isExactPrefix = path === pattern;
   const isNestedPrefix = path.startsWith(pattern.endsWith("/") ? pattern : `${pattern}/`);
@@ -118,7 +118,6 @@ function interpolate(template: string, captures: string[]): string {
 }
 
 function matchWildcard(rule: RedirectRecord, path: string): CandidateMatch | null {
-  if (rule.matchType !== "wildcard") return null;
   const regex = compileWildcard(rule.fromPattern);
   const result = regex.exec(path);
   if (!result) return null;

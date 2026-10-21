@@ -233,3 +233,16 @@ test("an allowed absolute redirect fails closed when the canonical origin cannot
   assert.deepEqual(await resolver.resolve({ workspaceId: WORKSPACE_ID, path: "/a", phase: "post_content" }), { matched: false });
   assert.deepEqual(oracle.mock.calls.map(c => c.arguments), [[{ context: { workspaceId: WORKSPACE_ID }, url: "https://partner.example/new" }]]);
 });
+
+test("a dynamic rule the repo returns but whose pattern does not match the path resolves to matched:false with nothing refused", async () => {
+  const repo = new InMemoryRedirectRepo({ seed: [rule({ id: "wild", matchType: "wildcard", fromPattern: "/go/*", toTarget: "/to/$1" })] }, {});
+  const checked: string[] = [];
+  const originRegistry = makeOriginRegistry();
+  const oracle = {
+    canonicalOrigin: originRegistry.canonicalOrigin.bind(originRegistry),
+    isAllowedRedirectTarget: async (input: { url: string }) => { checked.push(input.url); return true; },
+  };
+  const resolver = new RedirectPhaseHandlerResolver({ reservedSegments: new Set(["admin", "api"]), repo, matcher: redirectMatcher, originRegistry: oracle });
+  assert.deepEqual(await resolver.resolveWithRefusals({ workspaceId: WORKSPACE_ID, path: "/elsewhere/x", phase: "post_content" }), { resolution: { matched: false }, refused: [] });
+  assert.deepEqual(checked, []);
+});
