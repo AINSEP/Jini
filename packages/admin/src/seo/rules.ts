@@ -457,7 +457,8 @@ export function entryPickerOptions({ posts, pages }: { posts: readonly AdminSeoE
     return entries.map((entry): SeoEntryPickerOption => ({
       value: entry.id, label: labelOf(entry), group,
       ...(entry.status && entry.status !== 'published' ? { badge: t(entry.status) } : {}),
-      ...((counts.get(labelOf(entry)) ?? 0) > 1 ? { detail: entry.slug || entry.id } : {}),
+      // Every label was counted above, so its count is at least 1 and "not exactly one" means a duplicate.
+      ...(counts.get(labelOf(entry)) !== 1 ? { detail: entry.slug || entry.id } : {}),
     }));
   };
   return [...rows(pages, t('Pages')), ...rows(posts, t('Posts'))];
