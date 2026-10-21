@@ -27,10 +27,14 @@ export type DerivedPaymentStatus = IntentStatus | "partially_refunded" | "refund
 const INTENT_NEXT: Readonly<Record<IntentStatus, readonly IntentStatus[]>> = {
   unknown: ["requires_action", "pending", "authorized", "succeeded", "failed", "canceled"],
   requires_action: ["pending", "authorized", "succeeded", "failed", "canceled"],
-  pending: ["authorized", "succeeded", "failed", "canceled"],
+  // `pending → requires_action`: a provider may report CREATED first and ask for 3-D Secure / payer action after.
+  pending: ["requires_action", "authorized", "succeeded", "failed", "canceled"],
   authorized: ["succeeded", "canceled"],
   succeeded: [],
-  failed: [],
+  // Evidence that money moved beats an earlier decline: a shopper can retry the same intent after a
+  // decline (Stripe `requires_payment_method` maps to `failed`), and dropping the later success would
+  // re-create bug B4 (charged but "failed"). L0/L1 review.
+  failed: ["authorized", "succeeded"],
   canceled: [],
 };
 

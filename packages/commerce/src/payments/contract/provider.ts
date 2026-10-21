@@ -126,8 +126,9 @@ export interface PaymentProvider {
     optional?: { signal?: AbortSignal }
   ): Promise<Outcome<PaymentEvidence>>;
   /**
-   * Verify the signature over the EXACT raw bytes and translate to facts. Several secrets may be
-   * active during rotation; the kernel passes them all in `ctx.credentials`. Never throws.
+   * Verify the signature over the EXACT raw bytes and translate to facts. Secret rotation: a provider
+   * declares an extra slot (e.g. `webhookSecretPrevious`) in `credentialKeys` and accepts either; one
+   * slot holds one value. Never throws; a bad signature is `rejected` with SIGNATURE_INVALID.
    */
   verifyWebhook(
     required: { rawBody: Uint8Array; headers: Readonly<Record<string, string>>; ctx: ProviderContext },

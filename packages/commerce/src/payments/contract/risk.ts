@@ -63,10 +63,12 @@ function fallback({ policy, reason }: { policy: RiskFailPolicy; reason: string }
 /** A port answer the gate can trust, or the fail policy's verdict. A third-party port is not trusted to be well-typed. */
 function fromAnswer({ answer, policy }: { answer: unknown; policy: RiskFailPolicy }): RiskDecision {
   const candidate = answer as { verdict?: unknown; reasons?: unknown } | null | undefined;
-  if (!KNOWN_VERDICTS.has(candidate?.verdict) || !Array.isArray(candidate?.reasons)) {
+  const reasons = candidate?.reasons;
+  // Reasons must be plain codes: an object could smuggle personal data into money paths (gap check item 4).
+  if (!KNOWN_VERDICTS.has(candidate?.verdict) || !Array.isArray(reasons) || !reasons.every((r) => typeof r === "string")) {
     return fallback({ policy, reason: "risk.malformed" });
   }
-  return { verdict: candidate.verdict as RiskVerdict, reasons: candidate.reasons as string[], fallback: false };
+  return { verdict: candidate?.verdict as RiskVerdict, reasons: Object.freeze([...(reasons as string[])]), fallback: false };
 }
 
 /**

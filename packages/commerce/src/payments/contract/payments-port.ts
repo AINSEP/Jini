@@ -60,6 +60,16 @@ export interface PaymentsPort {
     required: { scope: PaymentScope; paymentId: string; amount: Money; idempotencyKey: string; grant: string },
     optional?: { reason?: string }
   ): Promise<RefundResult>;
+  /** Completes a manual-capture authorization (e.g. one held for risk `review`). */
+  capture(
+    required: { scope: PaymentScope; paymentId: string; amount: Money; idempotencyKey: string; grant: string },
+    optional?: Record<string, never>
+  ): Promise<IntentResult>;
+  /** Releases an uncaptured authorization. */
+  void(
+    required: { scope: PaymentScope; paymentId: string; idempotencyKey: string; grant: string },
+    optional?: Record<string, never>
+  ): Promise<IntentResult>;
   getPayment(
     required: { scope: PaymentScope; paymentId: string },
     optional?: Record<string, never>

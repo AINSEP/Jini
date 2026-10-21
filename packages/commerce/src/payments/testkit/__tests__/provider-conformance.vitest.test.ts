@@ -35,7 +35,7 @@ describe("providerConformanceCases", () => {
     expect(cases(conforming()).list.map((entry) => entry.name)).toEqual([
       "identity and shape: passes isPaymentProviderModule",
       "capabilities consistency: every promised operation has its method",
-      "verifyWebhook: a garbage body yields a non-ok Outcome and never throws",
+      "verifyWebhook: a garbage body is rejected and never throws",
       "createIntent: returns an Outcome and never throws",
     ]);
   });
@@ -71,9 +71,13 @@ describe("providerConformanceCases", () => {
 });
 
 describe("a broken provider fails the case that names its fault", () => {
-  it("a shape fault fails every case with the guard's reason, before any provider call", async () => {
+  it("a shape fault fails every behaviour case with the guard's reason, before any provider call", async () => {
     const provider = conforming({ displayName: undefined });
-    for (const entry of cases(provider).list) await expect(entry.run()).rejects.toThrow("provider shape is invalid: displayName must be a string");
+    for (const entry of cases(provider).list.filter((c) => !c.name.startsWith("capabilities"))) {
+      await expect(entry.run()).rejects.toThrow("provider shape is invalid: displayName must be a string");
+    }
+    // The capabilities case checks only capability↔method consistency, which this provider satisfies.
+    await expect(cases(provider).byName("capabilities").run()).resolves.toBeUndefined();
     expect(provider.createIntent).not.toHaveBeenCalled();
     expect(provider.verifyWebhook).not.toHaveBeenCalled();
   });
@@ -86,7 +90,8 @@ describe("a broken provider fails the case that names its fault", () => {
   });
 
   it.each([
-    ["accepts a garbage body", async () => ({ kind: "ok", value: [] }), "verifyWebhook accepted a garbage body"],
+    ["accepts a garbage body", async () => ({ kind: "ok", value: [] }), "verifyWebhook must reject a garbage body"],
+    ["answers unknown for a garbage body", async () => ({ kind: "unknown", error: { code: "TRANSPORT_ERROR", message: "x", retryable: true } }), "verifyWebhook must reject a garbage body"],
     ["rejects with an error", async () => { throw new Error("hmac blew up"); }, "verifyWebhook threw instead of returning an Outcome: Error: hmac blew up"],
     ["throws synchronously", () => { throw new TypeError("sync"); }, "verifyWebhook threw instead of returning an Outcome: TypeError: sync"],
     ["resolves to nothing", async () => undefined, "verifyWebhook must resolve to an Outcome"],

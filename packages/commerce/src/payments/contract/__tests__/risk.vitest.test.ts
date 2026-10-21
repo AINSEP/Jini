@@ -53,6 +53,21 @@ describe("assessPreChargeRisk", () => {
     expect(signal?.aborted).toBe(true);
   });
 
+  test("an answer after the deadline is ignored and the reasons are a frozen copy", async () => {
+    let answer!: (v: { verdict: "allow"; reasons: string[] }) => void;
+    const { timer, run } = gate({ assess: () => new Promise((resolve) => { answer = resolve; }) });
+    const pending = run();
+    await Promise.resolve();
+    timer.state.fire();
+    answer({ verdict: "allow", reasons: [] });
+    expect(await pending).toEqual({ verdict: "deny", reasons: ["risk.deadline"], fallback: true });
+    expect(timer.state.cancelled).toBe(true);
+    const reasons = ["x"];
+    const decision = await gate({ assess: async () => ({ verdict: "allow", reasons }) }).run();
+    expect(Object.isFrozen(decision.reasons)).toBe(true);
+    expect(decision.reasons).not.toBe(reasons);
+  });
+
   test("a rejecting port resolves through the fail policy", async () => {
     const { run } = gate({ assess: async () => { throw new Error("down"); } }, "open");
     expect(await run()).toEqual({ verdict: "allow", reasons: ["risk.error"], fallback: true });
@@ -67,6 +82,7 @@ describe("assessPreChargeRisk", () => {
     ["an unknown verdict", { verdict: "maybe", reasons: [] }],
     ["missing reasons", { verdict: "allow" }],
     ["null", null],
+    ["non-string reasons", { verdict: "allow", reasons: [{ email: "a@b.c" }] }],
   ])("%s is malformed and uses the fail policy", async (_name, answer) => {
     const { run } = gate({ assess: async () => answer as never }, "review");
     expect(await run()).toEqual({ verdict: "review", reasons: ["risk.malformed"], fallback: true });

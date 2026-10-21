@@ -12,8 +12,8 @@
  * (recorded webhook fixtures, idempotency replay) are added with the real adapters (L6).
  */
 import assert from "node:assert/strict";
-import type { IntentRequest, PaymentProvider, ProviderCapabilities, ProviderContext } from "../contract/provider.js";
-import { paymentProviderModuleProblem } from "../provider-module-guard.js";
+import type { IntentRequest, PaymentProvider, ProviderContext } from "../contract/provider.js";
+import { CAPABILITY_METHOD_RULES, paymentProviderModuleProblem } from "../provider-module-guard.js";
 
 /** One conformance case; `run` rejects with an assertion error on failure. */
 export interface ProviderConformanceCase {
@@ -33,16 +33,6 @@ export interface ProviderConformanceOptional {
   /** Body + headers that are NOT a valid webhook for this provider; defaults to unsigned junk bytes. */
   readonly garbageWebhook?: { readonly rawBody: Uint8Array; readonly headers: Readonly<Record<string, string>> };
 }
-
-type MethodName = "refund" | "capture" | "void" | "retrieve";
-
-/** Each capability that promises a method, with the method it promises. */
-const CAPABILITY_RULES: ReadonlyArray<readonly [MethodName, string, (c: ProviderCapabilities) => boolean]> = [
-  ["refund", 'capabilities.refunds !== "none"', (c) => c.refunds !== "none"],
-  ["capture", 'capabilities.capture === "manual"', (c) => c.capture === "manual"],
-  ["void", "capabilities.void === true", (c) => c.void === true],
-  ["retrieve", 'capabilities.retrieve !== "none"', (c) => c.retrieve !== "none"],
-];
 
 const OUTCOME_KINDS: readonly unknown[] = ["ok", "rejected", "unknown"];
 
@@ -95,19 +85,21 @@ export function providerConformanceCases(
     {
       name: "capabilities consistency: every promised operation has its method",
       run: async () => {
-        assertShape(provider);
-        const missing = CAPABILITY_RULES.filter(([method, , promised]) => promised(provider.capabilities) && typeof provider[method] !== "function")
+        // No assertShape here: the load guard names only the FIRST problem; this case names every missing method.
+        const capabilities = provider.capabilities as unknown as Readonly<Record<string, unknown>>;
+        const missing = CAPABILITY_METHOD_RULES.filter(([method, , promised]) => promised(capabilities) && typeof provider[method] !== "function")
           .map(([method, rule]) => `${rule} but ${method}() is missing`);
         assert.deepEqual(missing, [], `capabilities promise operations the provider does not implement: ${missing.join("; ")}`);
       },
     },
     {
-      name: "verifyWebhook: a garbage body yields a non-ok Outcome and never throws",
+      name: "verifyWebhook: a garbage body is rejected and never throws",
       run: async () => {
         assertShape(provider);
         const webhook = optional.garbageWebhook ?? GARBAGE_WEBHOOK;
         const outcome = assertOutcome("verifyWebhook", await neverThrows("verifyWebhook", () => provider.verifyWebhook({ ...webhook, ctx: makeContext() })));
-        assert.notEqual(outcome.kind, "ok", "verifyWebhook accepted a garbage body");
+        // `rejected`, not merely non-ok: `unknown` would send ingest into retries for a forged delivery.
+        assert.equal(outcome.kind, "rejected", "verifyWebhook must reject a garbage body (not accept it, not answer unknown)");
       },
     },
     {

@@ -11,11 +11,19 @@ describe("intent status merge", () => {
     expect(mergeIntentStatus({ current: "authorized", incoming: "canceled" })).toBe("canceled");
   });
   test("stale or reordered evidence never regresses", () => {
-    expect(mergeIntentStatus({ current: "pending", incoming: "requires_action" })).toBe("pending");
+    expect(mergeIntentStatus({ current: "authorized", incoming: "requires_action" })).toBe("authorized");
     expect(mergeIntentStatus({ current: "succeeded", incoming: "pending" })).toBe("succeeded");
     expect(mergeIntentStatus({ current: "succeeded", incoming: "failed" })).toBe("succeeded");
-    expect(mergeIntentStatus({ current: "failed", incoming: "succeeded" })).toBe("failed");
+    expect(mergeIntentStatus({ current: "canceled", incoming: "succeeded" })).toBe("canceled");
+    expect(mergeIntentStatus({ current: "failed", incoming: "pending" })).toBe("failed");
     expect(mergeIntentStatus({ current: "pending", incoming: "unknown" })).toBe("pending");
+  });
+  test("a later success beats an earlier decline (retry on the same intent; no charged-but-failed)", () => {
+    expect(mergeIntentStatus({ current: "failed", incoming: "succeeded" })).toBe("succeeded");
+    expect(mergeIntentStatus({ current: "failed", incoming: "authorized" })).toBe("authorized");
+  });
+  test("pending may still ask for customer action", () => {
+    expect(mergeIntentStatus({ current: "pending", incoming: "requires_action" })).toBe("requires_action");
   });
   test("order-independence: any permutation of a real sequence ends at the same status", () => {
     const sequence: IntentStatus[] = ["requires_action", "pending", "succeeded"];
