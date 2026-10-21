@@ -39,7 +39,7 @@ describe('mountChart render errors', () => {
   it('ignores a render error reported by a mount that then throws, reporting the failure exactly once', async () => {
     const errors: string[] = [];
     const registry = createChartProviderRegistry({ providers: [{ id: 'flaky', kinds: ['bar'], enabled: true, load: async () => ({
-      mount: (_input, { onError }) => { onError(new Error('async render failure')); throw new Error('mount failed'); },
+      mount: (_input, options) => { options?.onError?.(new Error('async render failure')); throw new Error('mount failed'); },
     }) }] });
     const element = document.createElement('div');
     const chart = mountChart({ element, spec, registry }, { onProviderError: ({ provider, error }) => errors.push(`${provider}:${(error as Error).message}`) });
