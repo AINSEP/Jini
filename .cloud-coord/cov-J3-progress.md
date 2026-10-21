@@ -19,5 +19,8 @@ Personas: vendored /home/user/Jini/AI-Dev-Shop/agents (tdd, programmer, software
 | 10 | 090-091 | MERGED — all 100 except oauth/oidc.ts:64 (fail-closed guard vs oauth4webapi, kept), platform/net/address.ts:27 (documented fail-closed guard, kept), platform/fs/directory-workspace.ts finished by session 14 (091b) → 100; 5 oauth tests/* helpers skipped |
 | 11 | 092-093 | MERGED — all measured files 100 (plugins 692, registry 342, sandbox 123, server 410+1s, sidecar 204+2s, ui-kit 199, ui 8471). Skipped: server create-local-node-daemon.typecheck.ts, 2 build scripts. Review flag: plugins install.ts path-safety re-checks removed (validateManifest REQUIRED_KEYS + isExactSemver already guarantee them — coordinator verified) |
 | 14 | 091b directory-workspace | MERGED — 100/100/100, platform 2425+6s tests |
-| 12 | 094-095 | running |
-| 13 | 096-098 | running |
+
+| 12 | 094-095 | MERGED — 50/51 (adapter.tanstack.tsx br 97.7) |
+| 13 | 096-098 | MERGED — 55/58 (host-message-source merge artifact, smooth-scroll guard, agent-tool-registrations drift guards) |
+
+FINAL (20:45Z): all 32 lots merged + re-verified; ui 8664 tests; workspace build + typecheck green. See cov-J3-REPORT.md.
