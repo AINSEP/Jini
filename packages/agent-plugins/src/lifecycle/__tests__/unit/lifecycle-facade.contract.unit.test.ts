@@ -122,6 +122,7 @@ describe('positional adapters reach the installed package', () => {
     await api.recordBundledAgentPluginDigests({ workspaceRoot, seeded: [{ pluginId, archiveDigest: digest }] });
     const verdicts = await api.findTrustedPluginPackages({ workspaceId, filename: 'contrib.json', contribution: 'widgets', requireActive: true }, { orderByPluginId: true });
     expect(verdicts).toEqual([{ trusted: { pluginId, packageRoot: installed.packageRoot } }]);
+    expect(await api.findTrustedPluginPackages({ workspaceId, filename: 'not-shipped.json', contribution: 'widgets', requireActive: false })).toEqual([]);
     const plugin = { pluginId, packageRoot: installed.packageRoot };
     expect(await api.readTrustedPluginFile({ plugin, filename: 'contrib.json' })).toBe('["alpha"]');
     expect(await api.importContainedModule({ plugin, modulePath: 'module.mjs' })).toEqual({ exported: { greeting: 'hello from module' } });

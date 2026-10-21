@@ -136,3 +136,14 @@ test('discovery faults propagate without reading or importing a source fallback'
   expect(loader.reads).toEqual([]);
   expect(loader.imports).toEqual([]);
 });
+
+test('an executable definition carries its read-recovery policy into source loading', async () => {
+  const definition = defineExecutablePluginContribution<Descriptor, Module>({
+    filename: executable.filename, contribution: executable.contribution, parse: executable.parse,
+    modulePath: ({ descriptor }) => descriptor.module, validate: ({ exported }) => exported as Module,
+    refusal: ({ reason }) => reason,
+  }, { onReadError: ({ plugin }) => [`executables from '${plugin.pluginId}' could not be read`] });
+  const loader = fixture({ readFile: async () => { throw new Error('unreadable'); } });
+  expect(await loader.loadPluginContributionsFromSource({ plugin, definition })).toEqual({ items: [], refusals: ["executables from 'fixture' could not be read"] });
+  expect(loader.imports).toEqual([]);
+});

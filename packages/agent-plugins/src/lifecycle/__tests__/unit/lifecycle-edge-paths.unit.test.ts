@@ -7,6 +7,9 @@ import { createNodeAgentPluginEffects } from '../../node.js';
 import { createPersistentStateModule } from '../../persistent-state.js';
 import { createPackagePathsModule } from '../../package-paths.js';
 import { createCapabilityProjectionModule } from '../../capability-projection.js';
+import { createTrustedPluginFilesModule } from '../../trusted-plugin-files.js';
+import { createBundledDigestsModule, BUNDLED_DIGESTS_FILENAME } from '../../bundled-digests.js';
+import { createBundledSourceArchiveModule } from '../../bundled-source-archive.js';
 import type { FilesystemPort } from '../../ports.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
@@ -92,5 +95,75 @@ describe('createCapabilityProjectionModule', () => {
     const root = await tempDir();
     await fs.writeFile(path.join(root, 'mcp.json'), JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json', mcpServers: { main: { type: 'stdio', command: './server.js' } } }));
     expect(await capabilities.readInstalledMcpServerIds(root)).toEqual(['main']);
+  });
+});
+
+describe('createTrustedPluginFilesModule importContainedModule', () => {
+  test('returns a thrown Error message, or a thrown value as text, instead of rejecting', async () => {
+    const root = await tempDir();
+    await fs.writeFile(path.join(root, 'throws-error.mjs'), 'throw new Error("module refused to load");');
+    await fs.writeFile(path.join(root, 'throws-value.mjs'), 'throw "plain refusal";');
+    const { importContainedModule } = createTrustedPluginFilesModule(ports);
+    const plugin = { pluginId: 'acme', packageRoot: root };
+    expect(await importContainedModule(plugin, 'throws-error.mjs')).toBe('module refused to load');
+    expect(await importContainedModule(plugin, 'throws-value.mjs')).toBe('plain refusal');
+  });
+  test('a filesystem fault during containment propagates rather than reading as a refusal', async () => {
+    const filesystem = { ...fs, realpath: (async () => { throw Object.assign(new Error('EACCES: denied'), { code: 'EACCES' }); }) as FilesystemPort['realpath'] } as FilesystemPort;
+    const { importContainedModule } = createTrustedPluginFilesModule({ ...ports, filesystem });
+    await expect(importContainedModule({ pluginId: 'acme', packageRoot: '/pkg' }, 'module.mjs')).rejects.toMatchObject({ code: 'EACCES' });
+  });
+});
+
+describe('createBundledDigestsModule ledger hygiene', () => {
+  const digest = 'b'.repeat(64);
+  test('normalization skips unsafe ids and non-object entries but keeps valid siblings', () => {
+    const { normalizeBundledDigests } = createBundledDigestsModule(ports);
+    const ledger = normalizeBundledDigests({ schemaVersion: 1, plugins: { 'Bad Id': { archiveDigest: digest }, scalar: 'x', good: { archiveDigest: digest } } });
+    expect([...ledger]).toEqual([['good', digest]]);
+  });
+  test('recording ignores a seeded entry with a malformed digest', async () => {
+    const root = await tempDir();
+    const { recordBundledAgentPluginDigests, readBundledAgentPluginDigests } = createBundledDigestsModule(ports);
+    await recordBundledAgentPluginDigests({ workspaceRoot: root, seeded: [{ pluginId: 'good', archiveDigest: digest }, { pluginId: 'bad', archiveDigest: 'not-hex' }] });
+    expect([...await readBundledAgentPluginDigests(root)]).toEqual([['good', digest]]);
+  });
+  test('removing an id the ledger does not record reports false and leaves the file unchanged', async () => {
+    const root = await tempDir();
+    const { recordBundledAgentPluginDigests, removeBundledAgentPluginDigest } = createBundledDigestsModule(ports);
+    await recordBundledAgentPluginDigests({ workspaceRoot: root, seeded: [{ pluginId: 'good', archiveDigest: digest }] });
+    const before = await fs.readFile(path.join(root, BUNDLED_DIGESTS_FILENAME), 'utf8');
+    expect(await removeBundledAgentPluginDigest({ workspaceRoot: root, pluginId: 'absent' })).toBe(false);
+    expect(await fs.readFile(path.join(root, BUNDLED_DIGESTS_FILENAME), 'utf8')).toBe(before);
+  });
+  test('a failed atomic rename removes the temp file and keeps the previous ledger', async () => {
+    const root = await tempDir();
+    const writer = createBundledDigestsModule(ports);
+    await writer.recordBundledAgentPluginDigests({ workspaceRoot: root, seeded: [{ pluginId: 'good', archiveDigest: digest }] });
+    const filesystem = { ...fs, rename: (async () => { throw Object.assign(new Error('EXDEV: cross-device'), { code: 'EXDEV' }); }) as FilesystemPort['rename'] } as FilesystemPort;
+    const failing = createBundledDigestsModule({ ...ports, filesystem });
+    await expect(failing.removeBundledAgentPluginDigest({ workspaceRoot: root, pluginId: 'good' })).rejects.toMatchObject({ code: 'EXDEV' });
+    expect(await fs.readdir(root)).toEqual([BUNDLED_DIGESTS_FILENAME]);
+    expect([...await writer.readBundledAgentPluginDigests(root)]).toEqual([['good', digest]]);
+  });
+});
+
+describe('createBundledSourceArchiveModule refusals', () => {
+  const magic = ports.bundledArchiveMagic;
+  async function readAll(bytes: Uint8Array): Promise<string[]> {
+    const names: string[] = [];
+    for await (const entry of createBundledSourceArchiveModule(ports).createBundledSourceArchiveReader().entries({ archive: bytes })) names.push(entry.entryPath);
+    return names;
+  }
+  test('a directory with more files than the cap is refused before packing', async () => {
+    const root = await tempDir();
+    await Promise.all(Array.from({ length: 2049 }, (_, index) => fs.writeFile(path.join(root, `f${index}`), '')));
+    await expect(createBundledSourceArchiveModule(ports).packAgentPluginDirectory(root)).rejects.toThrow(`has 2049 files, over the 2048-file cap`);
+  });
+  test('an entry header without a newline is truncated', async () => {
+    await expect(readAll(Buffer.from(`${magic}F 1 1`))).rejects.toThrow('bundled agent plugin archive: truncated entry header');
+  });
+  test('an entry header in the wrong shape is malformed', async () => {
+    await expect(readAll(Buffer.from(`${magic}X 1 1\n`))).rejects.toThrow("bundled agent plugin archive: malformed entry header 'X 1 1'");
   });
 });
