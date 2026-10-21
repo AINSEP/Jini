@@ -66,7 +66,7 @@ const engine = createMediaDispatchEngine({ registry: media, httpClient }, { cata
 A `MediaProviderContribution` is `{ provider, models, adapters }` — one vendor, registered as one
 unit on `@jini-ai/core/provider-registry` (contract `media`; registry key = public id with `-`→`_`).
 Plugin input is validated: models must belong to the provider, a model id another provider serves on
-the same route is refused, adapters need `buildRequest`/`parseResponse`. Without `catalog` the engine
+any route is refused (`findModel` resolves by id alone), adapters need `buildRequest`/`parseResponse`. Without `catalog` the engine
 keeps validating against the static consts (unchanged behaviour).
 
 Registry ownership is per host. `createVendorAdapterRegistry()` starts empty;
