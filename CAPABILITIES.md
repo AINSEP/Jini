@@ -495,6 +495,17 @@ execution-adapter · [README](packages/sandbox/README.md)
 | `@jini-ai/sandbox/e2b` | Remote E2B microVM adapter, binary files, processes and a Vite starter; optional SDK. | `createE2bSandboxProvider`, `wrapE2bSandbox`, `DEFAULT_VITE_REACT_TEMPLATE` | node | none yet · **AVAILABLE, unused: keep (owner 10-07)** |
 | `@jini-ai/sandbox/node-worker` | Bounded per-call worker execution with entry paths, codecs, clocks and resource budgets. | `runInWorkerSandbox`, `renderInWorkerSandbox`, `createNodeWorkerFactory` | node | Tovu: website |
 
+## capability · `@jini-ai/search`
+
+search · [README](packages/search/README.md)
+
+| Entry point | What it does | Key exports / assets | Runtime | Used by |
+|---|---|---|---|---|
+| `@jini-ai/search` | Site-search provider contract, registry, single-writer indexer and fail-closed query service. | `SearchProvider`, `createSearchProviderRegistry`, `createSearchIndexer`, `createSearchService`, `searchIndexName` | universal | Tovu: website |
+| `@jini-ai/search/contribution` | Plugin-contributed search providers (vendors public-only). | `defineSearchProviderContribution` | node | Tovu: website |
+| `@jini-ai/search/tools` | `search_query`, `search_status`, `search_reindex`, `search_set_provider` agent tools. | `buildSearchToolRegistrations`, `catalog` | universal | Tovu: website |
+| `@jini-ai/search/testkit` | Provider conformance kit, in-memory reference provider and fakes. | `runSearchProviderConformance`, `createInMemorySearchProvider` | universal | Tovu: tests |
+
 ## capability · `@jini-ai/user-management`
 
 user-management · [README](packages/user-management/README.md)

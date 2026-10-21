@@ -993,6 +993,22 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0)
 
+  packages/search:
+    dependencies:
+      '@jini-ai/core':
+        specifier: workspace:^
+        version: link:../core
+    devDependencies:
+      '@jini-ai/agent-plugins':
+        specifier: workspace:*
+        version: link:../agent-plugins
+      '@vitest/coverage-v8':
+        specifier: ^2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0)
+
   packages/server:
     dependencies:
       '@jini-ai/core':

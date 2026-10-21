@@ -1,0 +1,78 @@
+{
+  "name": "@jini-ai/search",
+  "version": "0.1.0",
+  "description": "Generic site-search contract: provider interface, registry, single-writer indexer, query service with access revalidation, agent tools and a provider conformance test-kit.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/search"
+  },
+  "jini": {
+    "domain": "capability",
+    "kind": "search",
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./tools": "universal",
+      "./testkit": "universal",
+      "./contribution": "node"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js",
+      "default": "./dist/tools.js"
+    },
+    "./contribution": {
+      "types": "./dist/contribution.d.ts",
+      "import": "./dist/contribution.js",
+      "default": "./dist/contribution.js"
+    },
+    "./testkit": {
+      "types": "./dist/testkit/index.d.ts",
+      "import": "./dist/testkit/index.js",
+      "default": "./dist/testkit/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --maxWorkers=2 --minWorkers=1",
+    "test:coverage": "vitest run --maxWorkers=2 --minWorkers=1 --coverage"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@jini-ai/agent-plugins": "workspace:*",
+    "@vitest/coverage-v8": "^2.1.9",
+    "vitest": "^2.1.9"
+  },
+  "peerDependencies": {
+    "@jini-ai/agent-plugins": "^0.4.7"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/agent-plugins": {
+      "optional": true
+    }
+  }
+}
