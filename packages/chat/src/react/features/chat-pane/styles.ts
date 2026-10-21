@@ -942,7 +942,10 @@ export const CHAT_PANE_STYLES = `
   min-width: 0;
   margin-left: auto;
 }
+/* Basis 0: the hint takes only the room the runtime row leaves and wraps into it, instead of
+   claiming its one-line width and squeezing the picker under its icon/effort labels. */
 .jini-chat-pane .jini-composer-send-blocker {
+  flex: 1 1 0;
   align-self: center;
   margin-right: 8px;
   color: var(--jini-chat-muted);
@@ -1174,6 +1177,10 @@ export const CHAT_PANE_STYLES = `
   cursor: pointer;
 }
 .jini-runtime-trigger { gap: 6px; padding: 3px 4px; }
+/* Local mode's trigger is the icon alone, so it has nothing to give way: shrunk under the shared
+   \`min-width: 0\` on a narrow bar, the 22px icon spilled over the model/effort labels beside it
+   (owner report, 2026-10-21). API mode keeps shrinking -- its model label ellipsizes. */
+.jini-runtime-trigger--icon-only { flex: none; }
 .jini-runtime-trigger:hover,
 .jini-runtime-dropup-trigger:hover,
 .jini-runtime-dropup-trigger[aria-expanded="true"] { color: var(--jini-chat-text); background: var(--jini-chat-subtle); }
