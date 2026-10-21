@@ -140,7 +140,7 @@ test('trusted-proxy client resolution produces independent salted visitor rate-l
   const keys: string[] = [];
   const { deps } = harness({ overrides: { clientIp: ({ request }) => request.ip!, rateLimiter: { check: async ({ key }) => { keys.push(key); return { allowed: true }; } } } });
   const response = { status() { return response; }, json() { return response; } };
-  for (const ip of ['203.0.113.1', '203.0.113.2']) await createCommentSubmitHandler(deps)({ body: {}, ip } as Request, response as Response, () => undefined);
+  for (const ip of ['203.0.113.1', '203.0.113.2']) await createCommentSubmitHandler(deps)({ body: {}, ip } as Request, response as unknown as Response, () => undefined);
   assert.equal(new Set(keys).size, 2);
   assert.ok(keys.every(key => /^[a-f0-9]{64}$/.test(key)));
 });

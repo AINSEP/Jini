@@ -14,9 +14,11 @@ import type { CommentSubmission } from "../types.js";
  * itself is never passed into `ingressContext` or stored (mirrors `analytics/ingest.ts`'s
  * discard-raw-IP-at-the-boundary discipline). The host provides the salt at construction.
  */
+/** The handler needs only the accepted id/status, so a host may dispatch to any stored provider. */
+export type CommentSubmitResult = { ok: true; comment: { id: string; status: string } } | { ok: false; reason: string };
+
 export interface CommentSubmitRequired {
-  ingressPolicy: { submit: (submission: CommentSubmission) => Promise<
-    { ok: true; comment: { id: string; status: string } } | { ok: false; reason: string }> };
+  ingressPolicy: { submit: (submission: CommentSubmission) => Promise<CommentSubmitResult> };
   workspaceId: string;
   ipHashSalt: string;
   /** Host-owned HTTP request budget, separate from the ingress policy's submission budget. */
@@ -91,7 +93,7 @@ export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional
       const body = req.body as Record<string, unknown>;
       const submission = buildCommentSubmission(req, body, deps);
       const rateLimit = await deps.rateLimiter.check({ key: String(submission.ingressContext.authorIpHash) });
-      const result = rateLimit.allowed
+      const result: CommentSubmitResult = rateLimit.allowed
         ? await deps.ingressPolicy.submit(submission)
         : { ok: false, reason: "rate-limited" };
 
