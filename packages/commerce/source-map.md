@@ -35,6 +35,11 @@ The file-backed retention suite seeds all eleven historical tables and compares 
 SQLite schema definitions and commerce declaration bookkeeping across two real boot compositions
 and their data-related serve lifecycle. Fresh boot must not declare or seed store/payment storage.
 
+Divergence from the original (commerce design §6, lot L8): catalog records carry `Money`
+(`src/money/money.ts`: integer minor units + UPPERCASE ISO-4217) instead of `*Cents` + lowercase
+currency — `unitAmount`, `compareAtAmount`, `totalAmount`. The host-owned `*_cents` columns keep
+their names; `repo.rows.ts` maps them and normalizes legacy lowercase rows to UPPERCASE on read.
+
 Current behavior explanations stay with the implementation. Removed composition explanations are
 retained in `src/catalog/{host-adapter,module}-rationale.md`, `src/store/{bootstrap,capability}-rationale.md`
 and `src/react/panel-rationale.md`; these records are not executable registrations.

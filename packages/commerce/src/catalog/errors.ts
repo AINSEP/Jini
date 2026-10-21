@@ -30,3 +30,18 @@ export class CommerceCheckoutValidationError extends Error {
     this.fieldErrors = fieldErrors;
   }
 }
+
+/**
+ * Two amounts that must share one currency do not (an order's line items, or a price's
+ * compare-at vs unit amount). Typed rather than `addMoney`'s bare `RangeError` so a caller can
+ * tell "mixed currencies" apart from an out-of-range amount.
+ */
+export class CommerceCurrencyMismatchError extends Error {
+  readonly expected: string;
+  readonly actual: string;
+  constructor({ expected, actual }: { expected: string; actual: string }, _optional: Record<string, never> = {}) {
+    super(`currency mismatch: expected ${expected}, got ${actual}`);
+    this.expected = expected;
+    this.actual = actual;
+  }
+}

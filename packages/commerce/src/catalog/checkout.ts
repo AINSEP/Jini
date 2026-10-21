@@ -1,7 +1,13 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort, UUID } from "@jini-ai/core/primitives";
 
-import { CommerceCheckoutValidationError, CommercePriceNotFoundError, CommerceProductNotFoundError } from "./errors.js";
+import { addMoney, type Money } from "../money/money.js";
+import {
+  CommerceCheckoutValidationError,
+  CommerceCurrencyMismatchError,
+  CommercePriceNotFoundError,
+  CommerceProductNotFoundError,
+} from "./errors.js";
 import type { CommerceOrderRepoPort, CommercePriceRepoPort, CommerceProductRepoPort } from "./ports.js";
 import type { CommerceOrderItemRecord, CommerceOrderRecord } from "./types.js";
 
@@ -29,7 +35,7 @@ import type { CommerceOrderItemRecord, CommerceOrderRecord } from "./types.js";
 
 /** Resource-bounds pre-check (5a4): a caller-controlled quantity needs an explicit cap even
  * though a legitimate purchase is almost always 1-2 units — an unbounded value multiplies
- * straight into `totalAmountCents`, a financial figure. */
+ * straight into `totalAmount`, a financial figure. */
 export const MAX_CHECKOUT_QUANTITY = 100;
 
 export interface CheckoutDeps {
@@ -57,6 +63,50 @@ export interface CheckoutRequired {
   input: CheckoutInput;
 }
 
+/** One line of an order total: a unit amount and how many of it. */
+export interface OrderLine {
+  unitAmount: Money;
+  quantity: number;
+}
+
+/** `unitAmount × quantity`, refusing a product past the safe-integer range rather than rounding. */
+function lineTotal({ unitAmount, quantity }: OrderLine, _optional: Record<string, never> = {}): Money {
+  const minorUnits = unitAmount.minorUnits * quantity;
+  if (!Number.isSafeInteger(minorUnits)) {
+    throw new CommerceCheckoutValidationError({ message: "line total exceeds the safe integer range", fieldErrors: [{ field: "quantity", reason: "line total exceeds the safe integer range" }] });
+  }
+  return { minorUnits, currency: unitAmount.currency };
+}
+
+/**
+ * An order's total over its lines, with `addMoney`'s safe-integer check on every sum. Non-empty
+ * by type, so the total always has a currency.
+ *
+ * @throws {CommerceCurrencyMismatchError} the lines are not all in one currency — an order is
+ *   charged in exactly one currency, so mixing is refused, never converted.
+ * @throws {CommerceCheckoutValidationError} a line or the sum leaves the safe-integer range.
+ * @complexity Time: O(n) in `lines.length`. Space: O(1).
+ */
+export function orderTotal({ lines }: { lines: readonly [OrderLine, ...OrderLine[]] }, _optional: Record<string, never> = {}): Money {
+  const [first, ...rest] = lines;
+  let total = lineTotal(first);
+  for (const line of rest) {
+    const next = lineTotal(line);
+    if (next.currency !== total.currency) throw new CommerceCurrencyMismatchError({ expected: total.currency, actual: next.currency });
+    total = addMoneySafely({ a: total, b: next });
+  }
+  return total;
+}
+
+/** `addMoney`, with its out-of-range `RangeError` surfaced as the checkout's typed validation error. */
+function addMoneySafely({ a, b }: { a: Money; b: Money }, _optional: Record<string, never> = {}): Money {
+  try {
+    return addMoney({ a, b });
+  } catch {
+    throw new CommerceCheckoutValidationError({ message: "order total exceeds the safe integer range", fieldErrors: [{ field: "quantity", reason: "order total exceeds the safe integer range" }] });
+  }
+}
+
 export interface CheckoutResult {
   order: CommerceOrderRecord;
   items: CommerceOrderItemRecord[];
@@ -73,6 +123,7 @@ export interface CheckoutResult {
  *   nonexistent one here — the same "don't leak existence across a tenant boundary" shape
  *   `submitForm`'s own nonexistent/disabled-slug handling uses.
  * @throws {CommerceProductNotFoundError} the price's product does not exist or is not active.
+ * @throws {CommerceCheckoutValidationError} the order total leaves the safe-integer range.
  *
  * @complexity Time: O(1) — two point lookups (`findById`) plus one 2-row write. Space: O(1).
  */
@@ -95,6 +146,7 @@ export async function checkout(required: CheckoutRequired, _optional: Record<str
     throw new CommerceProductNotFoundError(`product '${price.productId}' was not found`);
   }
 
+  const totalAmount = orderTotal({ lines: [{ unitAmount: price.unitAmount, quantity }] });
   const now = clockNowIso({ clock: deps.clock });
   const orderId = deps.idGen.newId();
 
@@ -103,8 +155,7 @@ export async function checkout(required: CheckoutRequired, _optional: Record<str
     workspaceId: input.workspaceId,
     memberId: input.memberId,
     status: "pending",
-    currency: price.currency,
-    totalAmountCents: price.unitAmountCents * quantity,
+    totalAmount,
     provider: input.provider,
     providerCustomerRef: input.providerCustomerRef,
     placedAt: now,
@@ -120,9 +171,8 @@ export async function checkout(required: CheckoutRequired, _optional: Record<str
     priceId: price.id,
     productId: product.id,
     description: product.name,
-    unitAmountCents: price.unitAmountCents,
+    unitAmount: price.unitAmount,
     quantity,
-    currency: price.currency,
     createdAt: now,
   };
 

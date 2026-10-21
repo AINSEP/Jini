@@ -43,11 +43,14 @@ import type { CommercePriceRecord, CommerceProductRecord, CommerceProductSpec } 
  * hostile content in either is HTML-escaped, not executed):
  *  - `specs` — passed straight through from `CommerceProductRecord.specs`; already structured
  *    `{label, value}` display data, not a data-availability or safety gap.
- *  - `currency` — passed straight through from `CommercePriceRecord.currency`, lowercase ISO-4217
- *    (e.g. `"usd"`), matching Stripe's own convention (see `types.ts`'s doc on that field). The
- *    design's currency badge was mocked uppercase; `priceFormatted`'s own `$`-prefix is also
- *    hardcoded regardless of this value (see `render.ts`'s `formatCents` doc) — both are cosmetic
- *    mismatches for a future currency-formatting pass, not blockers for wiring the raw value.
+ *  - `currency` — the chosen price's `unitAmount.currency`, UPPERCASE ISO-4217 (e.g. `"USD"`;
+ *    commerce design §6 Money). `priceFormatted`'s `$`-prefix is still hardcoded regardless of
+ *    this value (see `render.ts`'s `formatCents` doc) — a cosmetic mismatch for a future
+ *    currency-formatting pass, not a blocker for wiring the raw value.
+ *
+ * `price`/`compareAtPrice` stay flat integers under their existing names on purpose: this is the
+ * template-facing render row (Liquid themes read `product.price`), so it carries Money flattened
+ * as minor units + `currency` rather than a nested `Money` object every theme would have to learn.
  */
 
 /** The public-render-facing shape this module produces — structurally compatible with
@@ -59,11 +62,11 @@ export interface StorefrontSiteProduct {
    *  already follow. */
   slug: string;
   title: string;
-  /** Cents. */
+  /** Integer minor units of `currency` (never assumed to be /100 — see `exponentOf`). */
   price: number;
-  /** Cents. `undefined` = not on sale. */
+  /** Integer minor units of `currency`. `undefined` = not on sale. */
   compareAtPrice?: (number) | undefined;
-  /** Lowercase ISO-4217 (e.g. `"usd"`), straight from the chosen price's own `currency`. */
+  /** UPPERCASE ISO-4217 (e.g. `"USD"`), from the chosen price's `unitAmount.currency`. */
   currency: string;
   /** Display-only spec pairs, in author-chosen order. `undefined` = none set. See file header for
    * why this is safe to pass through unescaped-template-side but `description` is not. */
@@ -85,7 +88,9 @@ export function pickDisplayPrice({ prices }: { prices: readonly CommercePriceRec
   if (active.length === 0) return null;
   const oneTime = active.filter((p) => p.billingInterval === undefined);
   const pool = oneTime.length > 0 ? oneTime : active;
-  return pool.reduce((cheapest, p) => (p.unitAmountCents < cheapest.unitAmountCents ? p : cheapest));
+  // Compares minor units as-is: a product's prices share one currency in practice; ranking across
+  // currencies would need FX, which the catalog does not do.
+  return pool.reduce((cheapest, p) => (p.unitAmount.minorUnits < cheapest.unitAmount.minorUnits ? p : cheapest));
 }
 
 /**
@@ -101,9 +106,9 @@ export function toSiteProduct(input: {
     id: input.product.id,
     slug: input.product.slug,
     title: input.product.name,
-    price: input.price.unitAmountCents,
-    compareAtPrice: input.price.compareAtAmountCents,
-    currency: input.price.currency,
+    price: input.price.unitAmount.minorUnits,
+    compareAtPrice: input.price.compareAtAmount?.minorUnits,
+    currency: input.price.unitAmount.currency,
     specs: input.product.specs,
   };
 }

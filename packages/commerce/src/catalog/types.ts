@@ -1,5 +1,7 @@
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 
+import type { Money } from "../money/money.js";
+
 /**
  * @file Domain record types for the Commerce first vertical slice (2026-08-12 swarm-consensus
  * debate, section 5). Mirrors `src/members/types.ts`'s convention: type-only definitions for the
@@ -67,12 +69,12 @@ export interface CommercePriceRecord {
   id: UUID;
   workspaceId: UUID;
   productId: UUID;
-  unitAmountCents: number;
-  /** The struck-through "was" price, when set. `undefined` = not on sale. Always strictly greater
-   * than `unitAmountCents` when present (DB-enforced). */
-  compareAtAmountCents?: (number) | undefined;
-  /** Lowercase ISO-4217 (e.g. `"usd"`), matching Stripe's own convention. */
-  currency: string;
+  /** Integer minor units + UPPERCASE ISO-4217 (commerce design §6: one Money representation for
+   * catalog and payments, so a catalog checkout passes the payments kernel's currency check). */
+  unitAmount: Money;
+  /** The struck-through "was" price, when set. `undefined` = not on sale. Same currency as
+   * `unitAmount` (one `currency` column per row) and strictly greater when present (DB-enforced). */
+  compareAtAmount?: (Money) | undefined;
   /** `undefined` = one-time. `"month"` | `"year"` = recurring. */
   billingInterval?: (CommerceBillingInterval) | undefined;
   status: CommercePriceStatus;
@@ -88,8 +90,8 @@ export interface CommerceOrderRecord {
   workspaceId: UUID;
   memberId: UUID;
   status: CommerceOrderStatus;
-  currency: string;
-  totalAmountCents: number;
+  /** Sum of the line totals, safe-integer Money arithmetic (`checkout.ts`'s `orderTotal`). */
+  totalAmount: Money;
   provider: string;
   providerCustomerRef?: (string) | undefined;
   providerPaymentRef?: (string) | undefined;
@@ -109,9 +111,9 @@ export interface CommerceOrderItemRecord {
   priceId: UUID;
   productId: UUID;
   description: string;
-  unitAmountCents: number;
+  /** Snapshot of the price's `unitAmount` at checkout time. */
+  unitAmount: Money;
   quantity: number;
-  currency: string;
   createdAt: ISODateTime;
 }
 
