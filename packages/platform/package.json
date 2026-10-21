@@ -26,6 +26,7 @@
       "./fs/guarded-reader": "node",
       "./fs/durable-json": "node",
       "./fs": "node",
+      "./object-store": "node",
       "./net": "node",
       "./net/endpoint-policy": "universal",
       "./fs/file-lock": "node",
@@ -124,6 +125,11 @@
       "types": "./dist/fs/index.d.ts",
       "import": "./dist/fs/index.js",
       "default": "./dist/fs/index.js"
+    },
+    "./object-store": {
+      "types": "./dist/object-store/index.d.ts",
+      "import": "./dist/object-store/index.js",
+      "default": "./dist/object-store/index.js"
     },
     "./net": {
       "types": "./dist/net/index.d.ts",

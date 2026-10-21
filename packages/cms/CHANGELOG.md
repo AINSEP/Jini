@@ -103,6 +103,7 @@
 
 ## Unreleased
 
+- `./media`: `blobStoreFromObjectStore({ store })` — `BlobStorePort` as a view over `@jini-ai/core/object-store`, keys unchanged (`computeBlobStorageKey`), `putIfAbsent` → atomic `ifAbsent`, absent `get` throws `blob '<key>' was not found`.
 ### Compile repairs
 
 - Align settings HTTP adapters and value-write tool errors with current named kernel/domain arguments; import the canonical taxonomy ID generator type.

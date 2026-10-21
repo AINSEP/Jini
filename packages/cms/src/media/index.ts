@@ -75,6 +75,7 @@ export {
 } from "./blob-gc.js";
 
 export { InMemoryBlobStore } from "./blob-store.memory.js";
+export { blobStoreFromObjectStore } from "./blob-store.object-store.js";
 
 export {
   DEFAULT_MAX_UPLOAD_BYTES,

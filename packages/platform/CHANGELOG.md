@@ -47,6 +47,7 @@
 
 ## Unreleased
 
+- New `./object-store` (node): `createLocalFsObjectStore({ rootDir })` and `createLocalFsObjectStoreProvider()` — the default `local` provider for `@jini-ai/core/object-store`. Path formula `join(rootDir, key)`, byte-identical to cms `LocalFsBlobStore`; atomic `ifAbsent` via `wx`; keys escaping the root are refused.
 ### Compilation fixes
 
 - Omit an absent guarded HTTP abort signal to satisfy the canonical request contract.

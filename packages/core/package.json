@@ -19,6 +19,7 @@
       "./model-facing-tool-errors": "universal",
       "./contribution-registry": "universal",
       "./provider-registry": "universal",
+      "./object-store": "universal",
       "./naming": "universal",
       "./records": "universal",
       "./primitives": "universal",
@@ -33,7 +34,9 @@
         "./primitives": "core",
         "./fetch": "fetch",
         "./settings": "settings",
-        "./settings/express": "settings"
+        "./settings/express": "settings",
+        "./provider-registry": "providers",
+        "./object-store": "providers"
       },
       "domains": {
         "fetch": [
@@ -41,6 +44,10 @@
         ],
         "settings": [
           "src/settings"
+        ],
+        "providers": [
+          "src/provider-registry.ts",
+          "src/object-store.ts"
         ]
       },
       "shared": [
@@ -103,6 +110,11 @@
       "types": "./dist/provider-registry.d.ts",
       "import": "./dist/provider-registry.js",
       "default": "./dist/provider-registry.js"
+    },
+    "./object-store": {
+      "types": "./dist/object-store.d.ts",
+      "import": "./dist/object-store.js",
+      "default": "./dist/object-store.js"
     },
     "./naming": {
       "types": "./dist/naming.d.ts",

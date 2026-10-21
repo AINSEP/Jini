@@ -12,6 +12,10 @@
  * workspace id, a project id, whatever the host application scopes storage by) — this
  * module carries no domain meaning for what a namespace *is*, only that paths are
  * grouped and traversal-guarded underneath one.
+ *
+ * Superseded (2026-10-21) by the one object-storage contract, `@jini-ai/core/object-store`
+ * (`ObjectStore`, keyed providers, default `local`). New code uses `ObjectStore` (local default:
+ * `@jini-ai/platform/object-store`); this module stays for its existing adapter consumers.
  */
 import path from 'node:path';
 import { promises as fsp, type Dirent } from 'node:fs';
