@@ -16,10 +16,12 @@
       ".": "universal",
       "./repo": "node",
       "./payments": "node",
+      "./payments/testkit": "node",
       "./store": "node",
       "./http": "node",
       "./react": "browser",
-      "./tools": "universal"
+      "./tools": "universal",
+      "./payments/kernel": "node"
     }
   },
   "type": "module",
@@ -39,6 +41,16 @@
       "types": "./dist/payments/index.d.ts",
       "import": "./dist/payments/index.js",
       "default": "./dist/payments/index.js"
+    },
+    "./payments/testkit": {
+      "types": "./dist/payments/testkit/index.d.ts",
+      "import": "./dist/payments/testkit/index.js",
+      "default": "./dist/payments/testkit/index.js"
+    },
+    "./payments/kernel": {
+      "types": "./dist/payments/kernel.d.ts",
+      "import": "./dist/payments/kernel.js",
+      "default": "./dist/payments/kernel.js"
     },
     "./store": {
       "types": "./dist/store/index.d.ts",
@@ -75,7 +87,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts src/payments/__tests__/*.test.ts src/http/__tests__/*.test.ts src/store/__tests__/*.test.ts && vitest run",
+    "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts src/payments/__tests__/*.test.ts src/http/__tests__/*.test.ts src/store/__tests__/*.test.ts && vitest run && vitest run -c vitest.kernel.config.ts --maxWorkers=2 --minWorkers=1",
     "test:react": "vitest run"
   },
   "dependencies": {
@@ -132,6 +144,8 @@
     "tsx": "^4.20.0",
     "vitest": "^2.1.9",
     "@jini-ai/cms": "workspace:*",
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@vitest/coverage-v8": "^2.1.9",
+    "@jini-ai/agent-plugins": "workspace:*"
   }
 }

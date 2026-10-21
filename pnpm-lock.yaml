@@ -585,6 +585,9 @@ importers:
         specifier: workspace:^
         version: link:../core
     devDependencies:
+      '@jini-ai/agent-plugins':
+        specifier: workspace:*
+        version: link:../agent-plugins
       '@jini-ai/agentic':
         specifier: workspace:*
         version: link:../agentic
@@ -615,6 +618,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.2.3(@types/react@19.2.17)
+      '@vitest/coverage-v8':
+        specifier: ^2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
       better-sqlite3:
         specifier: ^13.0.0
         version: 13.0.3
