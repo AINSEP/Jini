@@ -57,23 +57,27 @@ export function appendLogLine({ logPath, line }: { logPath: string; line: string
   }
 }
 
-export function createFileLogger({ logPath }: { logPath: string }, options: { echoToConsole?: boolean; append?: LogAppend } = {}): Logger {
+/** Where echoed lines go; defaults to the process's global `console`. */
+export type LogConsole = Pick<Console, 'error' | 'info' | 'warn'>;
+
+export function createFileLogger({ logPath }: { logPath: string }, options: { echoToConsole?: boolean; append?: LogAppend; console?: LogConsole } = {}): Logger {
   const echo = options.echoToConsole ?? true;
+  const out = options.console ?? console;
   const write = (level: LogLevel, message: string, meta?: Record<string, unknown>) => {
     appendLogLine({ logPath, line: serializeMessage(level, message, meta) }, options.append === undefined ? {} : { append: options.append });
   };
   const logger: Logger = {
     error({ message }, { meta, error } = {}) {
       write('error', message, error === undefined ? meta : { ...meta, error });
-      if (echo) console.error(message, error === undefined ? meta ?? '' : { ...meta, error });
+      if (echo) out.error(message, error === undefined ? meta ?? '' : { ...meta, error });
     },
     info({ message }, { meta, error } = {}) {
       write('info', message, error === undefined ? meta : { ...meta, error });
-      if (echo) console.info(message, error === undefined ? meta ?? '' : { ...meta, error });
+      if (echo) out.info(message, error === undefined ? meta ?? '' : { ...meta, error });
     },
     warn({ message }, { meta, error } = {}) {
       write('warn', message, error === undefined ? meta : { ...meta, error });
-      if (echo) console.warn(message, error === undefined ? meta ?? '' : { ...meta, error });
+      if (echo) out.warn(message, error === undefined ? meta ?? '' : { ...meta, error });
     },
   };
   return logger;
