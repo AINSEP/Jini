@@ -109,3 +109,16 @@ test('access ports answer with encoded keys of the visible subset', async () => 
   expect([...await members.visibleKeys({ siteId: 's1', keys: [key('a')], audiences: [] })]).toEqual([]);
   expect(calls[0]).toEqual({ siteId: 's1', key: key('a'), audiences: ['members'] });
 });
+
+test('index state: settle is a compare-and-swap on the observed revision and task', async () => {
+  const { indexState } = createInMemorySearchState();
+  expect(await indexState.settle({ row: row('a', { status: 'indexed' }), expected: { revision: 1, taskId: null } })).toBe(false);
+  expect(await indexState.get({ target, key: key('a') })).toBeNull();
+  await indexState.put({ row: row('a', { taskId: 't-1' }) });
+  expect(await indexState.settle({ row: row('a', { status: 'indexed' }), expected: { revision: 1, taskId: null } })).toBe(false);
+  expect(await indexState.settle({ row: row('a', { status: 'indexed' }), expected: { revision: 2, taskId: 't-1' } })).toBe(false);
+  expect(await indexState.settle({ row: row('a', { status: 'indexed' }), expected: { revision: 1, taskId: 't-1' } })).toBe(true);
+  expect(await indexState.get({ target, key: key('a') })).toMatchObject({ status: 'indexed' });
+  expect(await indexState.settle({ row: row('a', { status: 'failed' }), expected: { revision: 1, taskId: null } })).toBe(true);
+  expect((await indexState.get({ target, key: key('a') }))?.status).toBe('failed');
+});

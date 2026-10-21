@@ -101,14 +101,18 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     return ctx ? { provider, ctx } : null;
   };
 
-  const putPlan = (target: SearchTarget, plan: Plan, settle: Settle) => state.put({
-    row: {
-      target, key: plan.record.key, revision: plan.record.revision, deleted: !plan.upsert,
-      status: settle.status, attempts: plan.attempts, updatedAtMs: now(),
-      ...(settle.taskId === undefined ? {} : { taskId: settle.taskId }),
-      ...(settle.lastError === undefined ? {} : { lastError: settle.lastError }),
-    },
+  const planRow = (target: SearchTarget, plan: Plan, settle: Settle): SearchIndexStateRow => ({
+    target, key: plan.record.key, revision: plan.record.revision, deleted: !plan.upsert,
+    status: settle.status, attempts: plan.attempts, updatedAtMs: now(),
+    ...(settle.taskId === undefined ? {} : { taskId: settle.taskId }),
+    ...(settle.lastError === undefined ? {} : { lastError: settle.lastError }),
   });
+
+  const putPlan = (target: SearchTarget, plan: Plan, settle: Settle) => state.put({ row: planRow(target, plan, settle) });
+
+  /** Compare-and-swap a settled row against the identity the caller observed (see `settle`). */
+  const settleObserved = (row: SearchIndexStateRow, settled: SearchIndexStateRow) =>
+    state.settle({ row: settled, expected: { revision: row.revision, taskId: row.taskId ?? null } });
 
   /**
    * Records worth writing, each with its attempt number. An event/backfill write is skipped when
@@ -127,13 +131,17 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     return fresh;
   };
 
-  /** Map one write call's result onto its plans' rows; returns how many ended `indexed`. */
+  /**
+   * Map one write call's result onto its plans' rows; returns how many ended `indexed`. Each settle
+   * is a compare-and-swap on the `pending` mark this write made (its revision, no task): a newer
+   * revision written meanwhile owns the row and is never overwritten by this older completion.
+   */
   const settleCall = async (target: SearchTarget, plans: readonly Plan[], result: ProviderResult<SearchWriteResult>): Promise<number> => {
     let indexed = 0;
     for (const plan of plans) {
       const settle = settleOf(plan, result);
-      await putPlan(target, plan, settle);
-      if (settle.status === 'indexed') indexed += 1;
+      const written = await state.settle({ row: planRow(target, plan, settle), expected: { revision: plan.record.revision, taskId: null } });
+      if (written && settle.status === 'indexed') indexed += 1;
     }
     return indexed;
   };
@@ -183,13 +191,17 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     ...(settle.lastError === undefined ? {} : { lastError: settle.lastError }),
   });
 
-  /** Ask an async provider how an earlier `pending` write ended. 1 when it is now indexed. */
+  /**
+   * Ask an async provider how an earlier `pending` write ended. 1 when it is now indexed. The settle
+   * only lands while the row still holds this revision AND this task: an event that wrote a newer
+   * revision while the task was awaited keeps its own pending task (and its retry) intact.
+   */
   const settleTask = async (row: SearchIndexStateRow, taskId: string, resolved: Resolved, awaitTask: NonNullable<SearchProvider['awaitTask']>): Promise<number> => {
     const result = await guarded(() => awaitTask.call(resolved.provider, resolved.ctx, { taskId }));
     if (result.status !== 'ok' || result.value === 'pending') return 0;
     const succeeded = result.value === 'succeeded';
-    await state.put({ row: settledRow(row, succeeded ? { status: 'indexed' } : { status: 'failed', lastError: 'task_failed' }) });
-    return succeeded ? 1 : 0;
+    const written = await settleObserved(row, settledRow(row, succeeded ? { status: 'indexed' } : { status: 'failed', lastError: 'task_failed' }));
+    return succeeded && written ? 1 : 0;
   };
 
   /**
@@ -208,8 +220,7 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
         const entry = held.get(encodeSearchKey({ key: row.key }));
         const landed = entry !== undefined && entry.revision !== null && entry.revision >= row.revision && entry.deleted === row.deleted;
         if (!landed) { rewrite.push(row); continue; }
-        await state.put({ row: settledRow(row, { status: 'indexed' }) });
-        settled += 1;
+        if (await settleObserved(row, settledRow(row, { status: 'indexed' }))) settled += 1;
       }
     }
     return { settled, rewrite };
@@ -233,7 +244,7 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
   const rewriteRow = async (row: SearchIndexStateRow, workspaceId: string): Promise<number> => {
     const source = sources.find(candidate => candidate.collection === row.key.collection);
     if (!source) {
-      await state.put({ row: { ...settledRow(row, { status: 'failed', lastError: 'no_source' }), attempts: row.attempts + 1 } });
+      await settleObserved(row, { ...settledRow(row, { status: 'failed', lastError: 'no_source' }), attempts: row.attempts + 1 });
       return 0;
     }
     const record = await source.load({ siteId: row.target.siteId, workspaceId: row.key.workspaceId, documentId: row.key.documentId, occurredAtMs: now() });

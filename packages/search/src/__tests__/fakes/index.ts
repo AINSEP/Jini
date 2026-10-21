@@ -108,6 +108,13 @@ export function makeState(): FakeState {
     row: (target, k) => rows.get(rowKey(target, k)),
     async get({ target, key: k }) { return rows.get(rowKey(target, k)) ?? null; },
     async put({ row }) { puts.push(row); rows.set(rowKey(row.target, row.key), row); },
+    async settle({ row, expected }) {
+      const stored = rows.get(rowKey(row.target, row.key));
+      if (stored?.revision !== expected.revision || (stored.taskId ?? null) !== expected.taskId) return false;
+      puts.push(row);
+      rows.set(rowKey(row.target, row.key), row);
+      return true;
+    },
     async listByStatus({ target, statuses, limit }) { return ofTarget(target).filter(row => statuses.includes(row.status)).slice(0, limit); },
     async counts({ target }) {
       const counts = { ...ZERO };

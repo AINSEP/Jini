@@ -198,6 +198,19 @@ describe('createSearchIndexer — handleEvent', () => {
     expect(status('f')).toMatchObject({ status: 'unknown', lastError: 'missing_outcome' });
   });
 
+  it('an older write completing after a newer revision was written leaves the newer row (CAS settle)', async () => {
+    const { indexer, vendor, state, source } = setup();
+    source.records.set('a', record('a', 1));
+    vendor.next('upsert', async () => {
+      // Revision 2 is written and settled while revision 1's call is still in flight.
+      source.records.set('a', record('a', 2));
+      await indexer.handleEvent({ event: event('a') });
+      return providerOk({ value: { outcomes: [{ key: key('a'), revision: 1, status: 'applied' as const }] } });
+    });
+    await indexer.handleEvent({ event: event('a') });
+    expect(state.row(ACTIVE, key('a'))).toMatchObject({ revision: 2, status: 'indexed' });
+  });
+
   it('records not_configured without a provider call when the provider is unregistered or has no context', async () => {
     const unregistered = setup({ targets: { active: { ...ACTIVE, providerId: 'gone' } } });
     unregistered.source.records.set('a', record('a', 3));
@@ -238,6 +251,46 @@ describe('createSearchIndexer — reconcile', () => {
     expect(vendor.calls.filter(c => c.method === 'awaitTask').map(c => c.args)).toEqual([{ taskId: 't-ok' }, { taskId: 't-bad' }, { taskId: 't-wait' }, { taskId: 't-err' }]);
     // b failed (attempts 1 < 5) is only retried on a later pass; this pass listed it as pending.
     expect(result).toEqual({ settled: 1, remaining: 3 });
+  });
+
+  it('an older task completing while a newer revision is pending never overwrites the newer row (CAS settle)', async () => {
+    const vendor = makeProvider({ id: 'vendor', asyncIndexing: true, withAwaitTask: true });
+    const { indexer, state, source } = setup({ providers: [vendor] });
+    await state.put({ row: row({ status: 'pending', taskId: 't-1', revision: 1 }) });
+    source.records.set('a', record('a', 2));
+    vendor.next('upsert', async () => providerOk({ value: { outcomes: [{ key: key('a'), revision: 2, status: 'pending' as const }], taskId: 't-2' } }));
+    // Revision 2's event lands while reconcile is still awaiting revision 1's task.
+    vendor.next('awaitTask', async () => {
+      await indexer.handleEvent({ event: event('a') });
+      return providerOk({ value: 'succeeded' as const });
+    });
+    const result = await indexer.reconcile({ siteId: SITE, workspaceId: WS });
+    expect(state.row(ACTIVE, key('a'))).toMatchObject({ revision: 2, status: 'pending', taskId: 't-2' });
+    expect(result).toEqual({ settled: 0, remaining: 1 });
+  });
+
+  it('an older failed task does not mark a newer revision failed, and a stale revisionOf check settles nothing', async () => {
+    const vendor = makeProvider({ id: 'vendor', asyncIndexing: true, withAwaitTask: true });
+    const { indexer, state, source } = setup({ providers: [vendor] });
+    await state.put({ row: row({ documentId: 'a', status: 'pending', taskId: 't-1', revision: 1 }) });
+    await state.put({ row: row({ documentId: 'b', status: 'unknown', revision: 1 }) });
+    vendor.held.set(encodeSearchKey({ key: key('b') }), { revision: 1, deleted: false });
+    source.records.set('a', record('a', 2));
+    source.records.set('b', record('b', 2));
+    vendor.next('awaitTask', async () => {
+      await indexer.handleEvent({ event: event('a') });
+      return providerOk({ value: 'failed' as const });
+    });
+    const revisionOf = vendor.provider.revisionOf.bind(vendor.provider);
+    vendor.next('revisionOf', async (args) => {
+      await indexer.handleEvent({ event: event('b') });
+      return revisionOf(contextFor({ target: ACTIVE, workspaceId: WS }), args as { keys: [] });
+    });
+    const result = await indexer.reconcile({ siteId: SITE, workspaceId: WS });
+    expect(state.row(ACTIVE, key('a'))).toMatchObject({ revision: 2, status: 'indexed' });
+    expect(state.row(ACTIVE, key('a'))?.lastError).toBeUndefined();
+    expect(state.row(ACTIVE, key('b'))).toMatchObject({ revision: 2, status: 'indexed' });
+    expect(result.settled).toBe(0);
   });
 
   it('checks unknown rows (and pending rows without a task) with revisionOf', async () => {

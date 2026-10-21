@@ -58,6 +58,13 @@ function createIndexState(): SearchIndexStatePort {
   return {
     async get({ target, key }) { return rows.get(rowId(target, key)) ?? null; },
     async put({ row }) { rows.set(rowId(row.target, row.key), Object.freeze({ ...row })); },
+    async settle({ row, expected }) {
+      const stored = rows.get(rowId(row.target, row.key));
+      // Compare-and-swap: only the settle that still sees the row it observed may replace it.
+      if (stored?.revision !== expected.revision || (stored.taskId ?? null) !== expected.taskId) return false;
+      rows.set(rowId(row.target, row.key), Object.freeze({ ...row }));
+      return true;
+    },
     async listByStatus({ target, statuses, limit }) {
       return rowsOf(target).filter(row => statuses.includes(row.status)).slice(0, limit);
     },

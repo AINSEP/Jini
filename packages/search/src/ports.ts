@@ -89,6 +89,12 @@ export interface SearchIndexStateRow {
   readonly updatedAtMs: number;
 }
 
+/** The row identity a settle observed: its revision and the provider task it awaited (`null` = none). */
+export interface SearchSettleExpectation {
+  readonly revision: number;
+  readonly taskId: string | null;
+}
+
 export type SearchStatusCounts = Readonly<Record<SearchIndexStatus, number>>;
 
 /**
@@ -98,6 +104,13 @@ export type SearchStatusCounts = Readonly<Record<SearchIndexStatus, number>>;
 export interface SearchIndexStatePort {
   get(required: { readonly target: SearchTarget; readonly key: SearchDocumentKey }): Promise<SearchIndexStateRow | null>;
   put(required: { readonly row: SearchIndexStateRow }): Promise<void>;
+  /**
+   * Compare-and-swap settle: write `row` iff the stored row for (row.target, row.key) still carries
+   * `expected.revision` and `expected.taskId` (`null` = no task), atomically. Resolves whether it
+   * was written; `false` means a newer write replaced the row meanwhile and owns its settlement, so
+   * an older write's (or task's) completion can never overwrite the newer revision's bookkeeping.
+   */
+  settle(required: { readonly row: SearchIndexStateRow; readonly expected: SearchSettleExpectation }): Promise<boolean>;
   listByStatus(required: { readonly target: SearchTarget; readonly statuses: readonly SearchIndexStatus[]; readonly limit: number }): Promise<readonly SearchIndexStateRow[]>;
   counts(required: { readonly target: SearchTarget }): Promise<SearchStatusCounts>;
   /** Backfill watermark per (target, collection): `null` = not started, `{ done: true }` = complete. */
