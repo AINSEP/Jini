@@ -88,7 +88,7 @@ function richDocument() {
         href: "https://s.test/site.css",
         cssRules: [
           { style: decl({ "--brand": " #f00 ", "--gap": "4px", color: "red" }), cssText: ":root{--brand:#f00;--gap:4px}" },
-          new FakeFontFaceRule({ src: 'url("/f/a.woff2") format("woff2"), url( '/f/a.woff' )', "font-family": '"Inter"', "font-weight": "700" }, "@font-face{font-family:Inter}"),
+          new FakeFontFaceRule({ src: 'url("/f/a.woff2") format("woff2"), url( \'/f/a.woff\' )', "font-family": '"Inter"', "font-weight": "700" }, "@font-face{font-family:Inter}"),
           { cssText: "@media (min-width: 1px) { html { scroll-behavior: smooth } }" },
           { style: decl({}), cssText: ".rail{scroll-snap-type:x mandatory}" },
           { style: decl({}) },
