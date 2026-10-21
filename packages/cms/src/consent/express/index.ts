@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Express, type Request, type Response } from 'express';
-import { createConsentRecord, googleConsentSignals, readConsentRecord, resolveConsentRegion } from '../policy.js';
-import { CONSENT_MAX_AGE_MS, type ConsentConfig, type ConsentRecord, type ConsentRecordPort } from '../types.js';
+import { createConsentRecord, googleConsentSignals, readConsentRecord, resolveConsentChoices, resolveConsentRegion } from '../policy.js';
+import { CONSENT_MAX_AGE_MS, DENIED_CHOICES, type ConsentChoices, type ConsentConfig, type ConsentRecord, type ConsentRecordPort } from '../types.js';
 import { gateConsentHtml } from '../html/index.js';
 import { inertConsentBody, captureConsentHtml, CONSENT_MAX_HTML_BYTES } from './response.js';
 import type { ConsentGateOptions } from '../html/gate.js';
@@ -22,6 +22,12 @@ export interface ConsentHttpPorts {
   reportError(required: { operation: 'read' | 'save'; error: unknown }, optional?: Record<string, never>): void;
 }
 
+/** Receipt reads need only these ports, so request-level readers can take a narrower bag. */
+type ConsentReceiptPorts = Pick<ConsentHttpPorts, 'records' | 'clock' | 'readReceiptId' | 'reportError'>;
+
+/** Shared by the page gate, the choice endpoint and request-level reads. */
+const DEFAULT_CONSENT_COOKIE_NAME = 'jini_consent';
+
 function isPublicPage(request: Request): boolean {
   return ['GET', 'HEAD'].includes(request.method) && !/^\/(?:admin|api|theme-assets|assets|\.well-known)(?:\/|$)/.test(request.path);
 }
@@ -29,7 +35,7 @@ function isPublicPage(request: Request): boolean {
 /** Structured readers retain malformed-cookie presence. Legacy readers returning null are
  * checked against the configured cookie name, so they cannot mistake invalid proof for absence.
  * @complexity O(cookie header length), bounded by the HTTP server. */
-function receiptProof({ cookieHeader, cookieName, ports }: { cookieHeader: string; cookieName: string; ports: ConsentHttpPorts }): ConsentReceiptProof {
+function receiptProof({ cookieHeader, cookieName, ports }: { cookieHeader: string; cookieName: string; ports: Pick<ConsentHttpPorts, 'readReceiptId'> }): ConsentReceiptProof {
   const value = ports.readReceiptId({ cookieHeader });
   if (value !== null && typeof value === 'object') return value;
   const present = value !== null || cookieHeader.split(';').some(part => part.split('=', 1)[0]?.trim() === cookieName);
@@ -40,7 +46,7 @@ function receiptProof({ cookieHeader, cookieName, ports }: { cookieHeader: strin
  * Only a visitor without a receipt cookie is new: a cookie whose receipt is missing (evicted,
  * deleted, another store) is failed proof, so opt-out regions cannot turn a lost rejection into a grant.
  * @complexity O(1) and at most one bounded record read. */
-async function currentRecord({ request, ports, config }: { request: Request; ports: ConsentHttpPorts; config: ConsentConfig }, { cookieName }: { cookieName: string }): Promise<{ record: ConsentRecord | null; failed: boolean }> {
+async function currentRecord({ request, ports, config }: { request: Request; ports: ConsentReceiptPorts; config: ConsentConfig }, { cookieName }: { cookieName: string }): Promise<{ record: ConsentRecord | null; failed: boolean }> {
   try {
     const { id, present } = receiptProof({ cookieHeader: request.get('cookie') ?? '', cookieName, ports });
     if (!present) return { record: null, failed: false };
@@ -138,7 +144,7 @@ async function gatedBody({ body, request, response, ports, config, failed }: { b
   try {
     const encoding = response.getHeader('Content-Encoding');
     if (encoding && encoding !== 'identity') throw new Error('Consent requires uncompressed HTML. Mount consent before compression and retry this page.');
-    const receipt = failed ? { record: null, failed: false } : await currentRecord({ request, ports, config }, { cookieName: options.cookieName ?? 'jini_consent' });
+    const receipt = failed ? { record: null, failed: false } : await currentRecord({ request, ports, config }, { cookieName: options.cookieName ?? DEFAULT_CONSENT_COOKIE_NAME });
     const regionMode = failed || receipt.failed ? 'opt-in' : resolveConsentRegion({ configuredMode: config.regionMode, region: ports.region({ request }) });
     return Buffer.from(gateConsentHtml({ html: body.toString('utf8'), config, record: receipt.record, regionMode, gpc: request.get('sec-gpc') === '1', endpoint: options.endpoint }, gateOptions({ request, response }, options)));
   } catch (error) {
@@ -173,7 +179,7 @@ async function prepareDelivery({ request, response, ports, state }: { request: R
  * @complexity Per page O(HTML bytes), one config/receipt read; per choice O(1), one durable write.
  */
 export function registerConsentHttp({ app, ports }: { app: Express; ports: ConsentHttpPorts }, options: ConsentHttpOptions = {}): void {
-  const { endpoint = '/api/site-consent', cookieName = 'jini_consent', delivery = 'live', maxHtmlBytes = CONSENT_MAX_HTML_BYTES } = options;
+  const { endpoint = '/api/site-consent', cookieName = DEFAULT_CONSENT_COOKIE_NAME, delivery = 'live', maxHtmlBytes = CONSENT_MAX_HTML_BYTES } = options;
   if (!Number.isSafeInteger(maxHtmlBytes) || maxHtmlBytes < 1) throw new Error(`Consent maxHtmlBytes must be a positive whole number of bytes; got ${maxHtmlBytes}.`);
   const state: { lastGood?: ConsentConfig } = {};
   app.get(`${endpoint}/status`, async (_request, response) => {
@@ -206,4 +212,22 @@ export function registerConsentHttp({ app, ports }: { app: Express; ports: Conse
     });
     next();
   });
+}
+
+/** What this request's visitor currently allows, for server-side decisions such as forwarding an
+ * analytics hit to a vendor. Mirrors the page gate: disabled consent gates nothing, failed proof
+ * is read under opt-in (so an opt-out region never turns a lost rejection into a grant), and GPC
+ * wins. A config or region failure is reported and denies optional categories; never throws.
+ * @complexity O(cookie header length), one config read and at most one receipt read. */
+export async function readRequestConsentChoices({ ports, request }: { ports: Pick<ConsentHttpPorts, 'config' | 'records' | 'clock' | 'readReceiptId' | 'region' | 'reportError'>; request: Request }, { cookieName = DEFAULT_CONSENT_COOKIE_NAME }: { cookieName?: string } = {}): Promise<ConsentChoices> {
+  try {
+    const config = await ports.config.get({});
+    if (!config.enabled) return { necessary: true, functional: true, analytics: true, marketing: true };
+    const { record, failed } = await currentRecord({ request, ports, config }, { cookieName });
+    const regionMode = failed ? 'opt-in' : resolveConsentRegion({ configuredMode: config.regionMode, region: ports.region({ request }) });
+    return resolveConsentChoices({ choices: record?.choices, gpc: request.get('sec-gpc') === '1', regionMode });
+  } catch (error) {
+    ports.reportError({ operation: 'read', error });
+    return { ...DENIED_CHOICES };
+  }
 }
