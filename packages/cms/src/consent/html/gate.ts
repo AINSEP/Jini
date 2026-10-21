@@ -119,10 +119,16 @@ function isDeferredAttribute({ name, value }: Attribute): boolean {
 }
 
 /** Foreign content renames parsed attributes (viewbox→viewBox, xlink:href→prefix xlink + href);
- * source locations keep the tokenized spelling. @complexity O(1). */
+ * source locations keep the tokenized spelling. The prefix is rejoined here; case adjustments
+ * (viewBox, definitionURL) are not, because only reserved `data-jini-consent-*`/`id` and deferred
+ * `on*`/`href`/`action`/`formaction`/`background`/`style` attributes are ever located, and parse5
+ * adjusts the case of none of them. Should that set grow, a miss throws in removeAttributes and the
+ * page is refused (fail closed), never delivered with the attribute intact. Elements the parser
+ * synthesized (an adoption-agency clone of a misnested formatting element) have no start tag at
+ * all and also miss. @complexity O(1). */
 function attributeLocation({ attr, location }: { attr: Attribute; location: ElementLocation | null | undefined }) {
   const name = attr.prefix ? `${attr.prefix}:${attr.name}` : attr.name;
-  return location?.startTag ? location.attrs?.[name] ?? location.attrs?.[name.toLowerCase()] : undefined;
+  return location?.startTag ? location.attrs?.[name] : undefined;
 }
 
 /** An attribute the gate must change but cannot address in the source would reach the browser

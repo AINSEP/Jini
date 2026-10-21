@@ -66,7 +66,8 @@ function takeUntil({ tokens, state, delimiters }: { tokens: ConsentCssToken[]; s
     trackGroup(token, closing);
     parts.push(token.value); state.cursor++;
   }
-  if (closing.length) throw new ConsentCssSyntaxError('Unclosed CSS group.', tokens[state.cursor - 1]?.offset ?? 0);
+  // A non-empty `closing` means this loop consumed the opener, so `cursor - 1` is a real token.
+  if (closing.length) throw new ConsentCssSyntaxError('Unclosed CSS group.', tokens[state.cursor - 1]!.offset);
   return parts.join('').trim();
 }
 
@@ -80,7 +81,8 @@ function declarations({ tokens, state }: { tokens: ConsentCssToken[]; state: { c
     if (tokens[state.cursor]!.value === ';') { state.cursor++; continue; }
     result.push(declaration({ tokens, state }));
   }
-  throw new ConsentCssSyntaxError('Unclosed CSS rule.', tokens[state.cursor - 1]?.offset ?? 0);
+  // Only entered after the rule's `{` was consumed, so `cursor - 1` is always a real token.
+  throw new ConsentCssSyntaxError('Unclosed CSS rule.', tokens[state.cursor - 1]!.offset);
 }
 
 /** @throws ConsentCssSyntaxError for malformed properties/values. @complexity O(consumed tokens). */
