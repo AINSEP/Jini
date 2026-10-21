@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { defaultModelDiscoveryDeps, modelProbeTimeoutMs, parseClaudeInitializeMetadata, parsePiRpcMetadata, probeAgentCatalog, probeClaudeInitialize, probeCliCache, probeCliSubcommand, probeProviderApi } from '../model-discovery-adapters.js';
+import { createEnvCredentialPort, defaultModelDiscoveryDeps, modelProbeTimeoutMs, parseClaudeInitializeMetadata, parsePiRpcMetadata, probeAgentCatalog, probeClaudeInitialize, probeCliCache, probeCliSubcommand, probeProviderApi } from '../model-discovery-adapters.js';
 import { ModelProbeError } from '../model-discovery-shared.js';
 import type { AgentDiscoveryConfiguration, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from '../model-discovery-types.js';
 
@@ -445,4 +445,21 @@ describe('default RPC port over real child processes', () => {
     const outcome = await probeError(defaultModelDiscoveryDeps.rpc.probe({ agentId: 'copilot', context: scope(join(rpcDir, 'missing-copilot')), signal }));
     expect(outcome).not.toBe('resolved');
   }, 30_000);
+});
+
+describe('env credential port default base URLs', () => {
+  const key = ['sk', 'ant', 'env', 'fixture'].join('-');
+  const claude = { agentId: 'claude', context: { executable: '/cli', cwd: '/w', env: { ANTHROPIC_API_KEY: key } }, signal };
+  it('takes the default base URL from the injected provider catalog', async () => {
+    const { VENDOR_API_BASE_URLS } = await import('@jini-ai/integrations/media-providers/catalog');
+    const port = createEnvCredentialPort({}, { importCatalog: async () => ({ VENDOR_API_BASE_URLS: { ...VENDOR_API_BASE_URLS, anthropic: 'https://catalog.example/anthropic' } }) });
+    expect(await port.connection(claude)).toEqual({ protocol: 'anthropic', baseUrl: 'https://catalog.example/anthropic', apiKey: key });
+  });
+  it('explains how to fix a missing optional catalog peer, keeping the load failure as the cause', async () => {
+    const missing = new Error('Cannot find module');
+    const port = createEnvCredentialPort({}, { importCatalog: async () => { throw missing; } });
+    const error = await port.connection(claude).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ message: expect.stringContaining('Install the optional peer @jini-ai/integrations or inject ModelDiscoveryDeps.credential') });
+    expect((error as Error).cause).toBe(missing);
+  });
 });
