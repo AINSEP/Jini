@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { expect, it } from 'vitest';
 import { CredentialNotFoundError, CredentialedRequestValidationError, CredentialedRequestTransportError, ConsoleCredentialedRequestAuditLog, InMemoryCredentialedRequestAuditLog, makeCredentialedRequest } from '../credentialed-http/index.js';
 import { WebhookSubscriptionNotFoundError, WebhookSubscriptionValidationError, WebhookDeliveryVetoedError, createSubscription, enqueueDelivery, processDueDeliveries, createFixedSecretSigner, verifySignature } from '../webhooks/index.js';
@@ -89,6 +90,7 @@ it('sends the exact signed webhook body and retains the optional dead-letter tim
   expect(result).toEqual({ processed: 1, delivered: 0, failed: 0, dead: 1 });
   expect(requiredBodies).toEqual([true]);
   const request = requests[0]!;
+  assert.ok(typeof request.body === 'string');
   expect(JSON.parse(request.body!)).toEqual({ deliveryId: enqueued[0]!.id, eventId: event.id, topic: event.name, workspaceId: event.workspaceId, occurredAt: now, data: event.payload });
   expect(verifySignature({ vocabulary, secret, rawBody: request.body!, header: request.headers['receiver-signature']!, nowSeconds: Date.parse(now) / 1000, toleranceSeconds: 0 })).toBe(true);
   const stored = await deliveryRepo.findById({ workspaceId: 'workspace', id: enqueued[0]!.id });

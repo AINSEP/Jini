@@ -67,6 +67,22 @@ function defaultCreateMessageId(): string {
   return `msg-${Date.now()}-${fallbackIdCounter}`;
 }
 
+function pendingUserMessage(
+  { content, sendOptions, createMessageId }: { content: string; sendOptions: SendMessageOptions; createMessageId: () => string },
+  options: UserTextRedactionOptions = {},
+): ChatMessage {
+  return redactUserMessage<ChatMessage>({ message: {
+  id: createMessageId(),
+  role: 'user',
+  inputPending: true,
+  ...(sendOptions.acceptedInputs ? { events: sendOptions.acceptedInputs.map(input => acceptedInputUserEvent({ input }, { receipt: 'accepted' })) } : {}),
+  content,
+  createdAt: Date.now(),
+  ...(sendOptions.secretRedaction ? { secretRedaction: sendOptions.secretRedaction } : {}),
+  ...(sendOptions.attachments ? { attachments: sendOptions.attachments } : {}),
+} }, options).message;
+}
+
 export function useConversation(options: UseConversationOptions): UseConversationResult {
   const { transport, conversationId = null, agentId, createMessageId = defaultCreateMessageId } = options;
   const [messages, setMessagesState] = useState<ChatMessage[]>(() => redactUserHistory(
@@ -206,16 +222,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
 
   const sendMessage = useCallback(
     async (content: string, sendOptions: SendMessageOptions = {}) => {
-      const userMessage: ChatMessage = redactUserMessage<ChatMessage>({ message: {
-        id: createMessageId(),
-        role: 'user',
-        inputPending: true,
-        ...(sendOptions.acceptedInputs ? { events: sendOptions.acceptedInputs.map(input => acceptedInputUserEvent({ input }, { receipt: 'accepted' })) } : {}),
-        content,
-        createdAt: Date.now(),
-        ...(sendOptions.secretRedaction ? { secretRedaction: sendOptions.secretRedaction } : {}),
-        ...(sendOptions.attachments ? { attachments: sendOptions.attachments } : {}),
-      } }, options).message;
+      const userMessage = pendingUserMessage({ content, sendOptions, createMessageId }, options);
       const resolvedAgentId = sendOptions.agentId ?? agentId;
       const assistantMessage: ChatMessage = {
         id: createMessageId(),

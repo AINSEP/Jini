@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { executePageCapability, projectElementState, MAX_STATEFUL_ELEMENTS } from '../page-executor.js';
 import { PAGE_CAPABILITIES } from '../page-capabilities.js';
 import type { AgentElementRawState, AgentElementState, AgentElementDescriptor } from '../element-handles.js';
-import type { PageDriver } from '../page-driver.js';
+import type { PageDriver, PageSummary } from '../page-driver.js';
 import type { FieldDescriptor, FieldRefusal } from '../guards.js';
 import { describeFieldRefusal } from '../guards.js';
 
@@ -61,7 +61,7 @@ describe('L077 page dispatch and discovery', () => {
 
   it.each([{}, { withState: false }, { withState: true }])('reports discovery without an observing driver for %j', async (input) => {
     const driver = fakeDriver({}, {
-      findElements: vi.fn(async () => [{ handle: 'field-one', role: 'field', label: ' Label\u202E ', labelTruncated: true, page: 'home' }]),
+      findElements: vi.fn<PageDriver['findElements']>(async () => [{ handle: 'field-one', role: 'field', label: ' Label\u202E ', labelTruncated: true, page: 'home' }]),
       listPages: vi.fn(async () => [{ id: 'home', label: ' Home\u202E ' }]),
     });
     await expect(executePageCapability({ driver, capabilityId: 'page.find_elements', input })).resolves.toEqual({
@@ -138,7 +138,9 @@ describe('L077 fill and navigation safety', () => {
     expect(settle).toHaveBeenCalledTimes(settling ? 1 : 0);
   });
 
-  it.each([[], [{ id: 'home\u202E', label: ' Home\u202E ' }]])('bounds navigation refusals for %j', async (pages) => {
+  it.each<{ pages: readonly PageSummary[] }>([
+    { pages: [] }, { pages: [{ id: 'home\u202E', label: ' Home\u202E ' }] },
+  ])('bounds navigation refusals for %j', async ({ pages }) => {
     const driver = fakeDriver({}, { listPages: async () => pages });
     await expect(executePageCapability({ driver, capabilityId: 'page.navigate', input: { page: '\u202E' + 'x'.repeat(201) } })).rejects.toThrow(
       `"${'x'.repeat(200)}" is not a published page. Available: ${pages.length ? 'home (Home)' : '(none)'}`,

@@ -25,10 +25,10 @@ function fixture({ spec }: { readonly spec: Spec }, { adapter, closable = true, 
   } : {}) as unknown as Response;
   status.mockReturnValue(res);
   json.mockReturnValue(res);
-  const req = {
+  const req: Partial<Request> = {
     body: 'body', query: { key: 'value' }, params: { id: 'target' },
     headers: { host: 'localhost:7456', origin },
-  } satisfies Partial<Request>;
+  };
   const deps = { tag: 'injected' };
   mountJsonRoute({ app, spec, deps, ...(adapter === undefined ? {} : { adapter }) });
   return { run: () => mounted(req as Request, res), events, status, json, post, deps, res };

@@ -91,6 +91,13 @@ export function validateAdminSurfaceMessage(required: { readonly event: AdminSur
 export const ADMIN_SURFACE_MIN_HEIGHT = 96;
 export const ADMIN_SURFACE_MAX_HEIGHT = 4000;
 
+function isResizeForMount(
+  { message, mountId }: { message: Readonly<Record<string, unknown>>; mountId: string }, _options = {},
+): boolean {
+  const isResize = message.protocol === ADMIN_SURFACE_PROTOCOL && message.version === ADMIN_SURFACE_PROTOCOL_VERSION && message.kind === 'resize';
+  return isResize && message.mountId === mountId;
+}
+
 /**
  * The frame height `event` asks for when it is `mount`'s own `resize` message (same origin, window and
  * mount as every other inbound message), clamped to `[min, max]`; null for anything else, which the
@@ -104,7 +111,6 @@ export function readAdminSurfaceResize(
   const { event, mount } = required;
   if (frameTransportRefusal({ event, mount }) !== null || typeof event.data !== 'object' || event.data === null) return null;
   const message = event.data as Readonly<Record<string, unknown>>;
-  const isResize = message.protocol === ADMIN_SURFACE_PROTOCOL && message.version === ADMIN_SURFACE_PROTOCOL_VERSION && message.kind === 'resize';
-  if (!isResize || message.mountId !== mount.mountId || typeof message.height !== 'number' || !Number.isFinite(message.height)) return null;
+  if (!isResizeForMount({ message, mountId: mount.mountId }) || typeof message.height !== 'number' || !Number.isFinite(message.height)) return null;
   return Math.min(optional.max ?? ADMIN_SURFACE_MAX_HEIGHT, Math.max(optional.min ?? ADMIN_SURFACE_MIN_HEIGHT, Math.ceil(message.height)));
 }

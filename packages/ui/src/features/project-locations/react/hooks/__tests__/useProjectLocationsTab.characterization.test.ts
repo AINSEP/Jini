@@ -127,8 +127,8 @@ describe('useProjectLocationsTab add characterization', () => {
     let resolve!: (value: ScanResult) => void;
     let reject!: (reason: unknown) => void;
     const pending = new Promise<ScanResult>((yes, no) => { resolve = yes; reject = no; });
-    const port = createFakeProjectLocationsPort({ locations: [builtIn] });
-    const scan = vi.spyOn(port, 'scanLocations').mockImplementation(() => pending);
+    const scan = vi.fn<NonNullable<ProjectLocationsPort['scanLocations']>>(() => pending);
+    const port = { ...createFakeProjectLocationsPort({ locations: [builtIn] }), scanLocations: scan };
     const setResult = vi.fn();
     const alive = { current: true };
     const completion = scanAddedLocation({ port, alive, setResult });

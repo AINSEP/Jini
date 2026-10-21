@@ -59,7 +59,7 @@ describe('NotificationsTab characterization before L141 refactoring', () => {
   });
 
   it.each([undefined, 'notify'])('preserves sound choice order, selection, previews and handles with base %s', async (agentHandle) => {
-    const { onChange } = mount({ preferences: { soundEnabled: true }, agentHandle });
+    const { onChange } = mount({ preferences: { soundEnabled: true }, ...(agentHandle === undefined ? {} : { agentHandle }) });
     expect(screen.getByRole('button', { name: 'Completion sound' }).getAttribute('data-agent-element')).toBe(agentHandle ? 'notify-sound-toggle' : null);
     const groups = [
       { name: 'Success sound', key: 'successSoundId', ids: ['ding', 'chime', 'two-tone-up', 'pluck'], keys: ['ding', 'chime', 'twoToneUp', 'pluck'], action: 'success-sound' },

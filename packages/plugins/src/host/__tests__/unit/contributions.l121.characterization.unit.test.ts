@@ -104,7 +104,8 @@ describe('tool contribution capture before L121', () => {
     expect(() => capture.tools.add({ ...tool, name, description: '' })).toThrow(`undeclared plugin contribution '${name}'`);
   });
   it('requires an explicit tool declaration', () => {
-    const capture = createPluginContributionCapture({ manifest: { ...manifest, contributes: undefined } });
+    const { contributes: _contributes, ...undeclaredManifest } = manifest;
+    const capture = createPluginContributionCapture({ manifest: undeclaredManifest });
     expect(() => capture.tools.add(tool)).toThrow("undeclared plugin contribution 'hello'");
   });
   it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])('refuses invalid contribution limits: %s', maxContributions => {

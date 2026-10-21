@@ -20,6 +20,7 @@ import type {
   ChatPaneAttachmentUploadOptions,
   ChatPaneAgentSelection,
   ChatPaneRunContext,
+  ChatPaneRunContextInput,
   ChatPaneWorkingDirectoryAccess,
   DeliverMidRunMessage,
   DeliverTypedAnswer,
@@ -29,7 +30,7 @@ import type {
 } from '../types.js';
 import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 import type { ComposerHistoryStoragePort } from '../../../../core/composer-history.js';
-import type { ChatTransport } from '@jini-ai/chat';
+import type { ChatTransport, RunContext } from '@jini-ai/chat';
 import { definedProps } from '../../../util/defined-props.js';
 import { cacheAttachmentPreviewSource } from '../../../hooks/attachment-preview-cache.js';
 import {
@@ -171,6 +172,20 @@ function isRepeatedComposerSubmission(
   { composer, submitted }: { composer: UseComposerResult; submitted: UseComposerResult | null }, _options = {},
 ): boolean {
   return submitted === composer || (submitted !== null && composer.draft.trim() === '' && submitted.attachments === composer.attachments);
+}
+
+function composerDeliveryBlocked(
+  { delivering, starting, composer, submitted }: {
+    delivering: boolean; starting: boolean; composer: UseComposerResult; submitted: UseComposerResult | null;
+  }, _options = {},
+): boolean {
+  return delivering || starting || isRepeatedComposerSubmission({ composer, submitted });
+}
+
+function resolveRunContext(
+  { context, input }: { context: ChatPaneRunContext | undefined; input: ChatPaneRunContextInput }, _options = {},
+): RunContext | undefined {
+  return typeof context === 'function' ? context(input) : context;
 }
 
 function createChatLocalId(_required: {}, _options: {} = {}): string {
@@ -548,6 +563,31 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     });
   }, [composer, conversation.setMessages]);
 
+  /** Both accepted send paths consume the sent files and rotate the same upload batch. */
+  const consumeDeliveredAttachments = useCallback(({ attachments }: { attachments: ChatAttachment[] }, _options = {}) => {
+    for (const attachment of attachments) latestComposerRef.current.removeAttachment(attachment.path);
+    if (deliveredEveryStagedAttachment({
+      sent: attachments, staged: latestAttachmentsRef.current, activeUploadCount: activeUploadsRef.current.size,
+    })) attachmentBatchIdRef.current = createChatLocalId({});
+  }, []);
+
+  const finishPromptSend = useCallback((
+    { accepted, inputs, redaction, submittedDraft, attachments }: {
+      accepted: boolean; inputs: AcceptedChatInput[] | undefined; redaction: UserTextRedaction;
+      submittedDraft: string; attachments: ChatAttachment[];
+    }, _options = {},
+  ) => {
+    if (!accepted) {
+      if (inputs !== undefined) latestComposerRef.current.setDraft([redaction.text, latestDraftRef.current].filter(Boolean).join('\n\n'));
+      return;
+    }
+    if (inputs === undefined && latestDraftRef.current === submittedDraft) {
+      latestComposerRef.current.setDraft('');
+      latestComposerRef.current.closeMention();
+    }
+    consumeDeliveredAttachments({ attachments });
+  }, [consumeDeliveredAttachments]);
+
   const sendGuardedPrompt = useCallback(async (
     { redaction, inputs }: { redaction: UserTextRedaction; inputs?: AcceptedChatInput[] }, _options = {},
   ) => {
@@ -560,9 +600,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     const submittedDraft = latestDraftRef.current;
     const attachments = composer.attachments;
     try {
-      const context = typeof options.runContext === 'function'
-        ? options.runContext({ prompt: trimmed, selection, workingDirectory: workingDirectoryState.workingDirectory })
-        : options.runContext;
+      const context = resolveRunContext({ context: options.runContext,
+        input: { prompt: trimmed, selection, workingDirectory: workingDirectoryState.workingDirectory } });
       options.onActivityChange?.('queued');
       let accepted = false;
       await conversation.sendMessage(trimmed, definedProps({ source: {
@@ -578,20 +617,9 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
         },
       } }));
       if (!mountedRef.current || generation !== typedAnswerGenerationRef.current) return;
-      if (!accepted) {
-        if (inputs !== undefined) latestComposerRef.current.setDraft([redaction.text, latestDraftRef.current].filter(Boolean).join('\n\n'));
-        return;
-      }
-      if (inputs === undefined && latestDraftRef.current === submittedDraft) {
-        latestComposerRef.current.setDraft('');
-        latestComposerRef.current.closeMention();
-      }
-      for (const attachment of attachments) latestComposerRef.current.removeAttachment(attachment.path);
-      if (deliveredEveryStagedAttachment({
-        sent: attachments, staged: latestAttachmentsRef.current, activeUploadCount: activeUploadsRef.current.size,
-      })) attachmentBatchIdRef.current = createChatLocalId({});
+      finishPromptSend({ accepted, inputs, redaction, submittedDraft, attachments });
     } finally { startingPromptRef.current = false; }
-  }, [composer, conversation, options.onActivityChange, options.runContext, recordAcceptedInput,
+  }, [composer, conversation, options.onActivityChange, options.runContext, recordAcceptedInput, finishPromptSend,
     selection, sendBlocker, workingDirectoryState.workingDirectory]);
 
   const sendPrompt = useCallback(async (prompt: string) => {
@@ -640,6 +668,35 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     if (latestDraftRef.current === submittedDraft) latestComposerRef.current.setDraft('');
   }, [awaitedQuestionId, enqueueTurn, guard.redact, guard.redactText, recordAcceptedInput]);
 
+  const clearDeliveredDraft = useCallback((
+    { inputs, submittedDraft }: { inputs: AcceptedChatInput[] | undefined; submittedDraft: string }, _options = {},
+  ) => {
+    if (inputs === undefined && latestDraftRef.current === submittedDraft) latestComposerRef.current.setDraft('');
+  }, []);
+
+  const finishMidRunSend = useCallback((
+    { outcome, inputs, turn, attachments, afterInputId, submittedDraft }: {
+      outcome: MidRunMessageDelivery; inputs: AcceptedChatInput[] | undefined; turn: UserTextRedaction;
+      attachments: ChatAttachment[]; afterInputId: string | undefined; submittedDraft: string;
+    }, _options = {},
+  ) => {
+    if (outcome === 'failed') {
+      if (inputs !== undefined) latestComposerRef.current.setDraft([turn.text, latestDraftRef.current].filter(Boolean).join('\n\n'));
+      setTypedAnswerNotice('failed');
+      return;
+    }
+    if (outcome === 'delivered') {
+      recordAcceptedInput({ inputs: inputs ?? [{ id: createChatLocalId({}), text: turn.text }],
+        bubble: { text: turn.text, ...(afterInputId === undefined ? {} : { afterInputId }) } });
+      clearDeliveredDraft({ inputs, submittedDraft });
+      consumeDeliveredAttachments({ attachments });
+      return;
+    }
+    enqueueTurn({ turn, ...(inputs === undefined ? {} : { inputs }) });
+    clearDeliveredDraft({ inputs, submittedDraft });
+    if (outcome === 'unsupported' && attachments.length === 0) conversation.cancel();
+  }, [conversation.cancel, enqueueTurn, recordAcceptedInput, clearDeliveredDraft, consumeDeliveredAttachments]);
+
   // A delivered steer belongs to the existing run; unsupported turns use the same accepted queue.
   // A failed delivery keeps the working draft so retry cannot silently become another run.
   const sendIntoRunningTurn = useCallback(async (
@@ -660,27 +717,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     });
     deliveringTypedAnswerRef.current = false;
     if (!mountedRef.current || generation !== typedAnswerGenerationRef.current) return;
-    if (outcome === 'failed') {
-      if (inputs !== undefined) latestComposerRef.current.setDraft([turn.text, latestDraftRef.current].filter(Boolean).join('\n\n'));
-      setTypedAnswerNotice('failed');
-      return;
-    }
-    if (outcome === 'delivered') {
-      recordAcceptedInput({ inputs: inputs ?? [{ id: createChatLocalId({}), text: turn.text }],
-        bubble: { text: turn.text, ...(afterInputId === undefined ? {} : { afterInputId }) } });
-      if (inputs === undefined && latestDraftRef.current === submittedDraft) latestComposerRef.current.setDraft('');
-      for (const attachment of attachments) latestComposerRef.current.removeAttachment(attachment.path);
-      if (deliveredEveryStagedAttachment({
-        sent: attachments, staged: latestAttachmentsRef.current, activeUploadCount: activeUploadsRef.current.size,
-      })) {
-        attachmentBatchIdRef.current = createChatLocalId({});
-      }
-      return;
-    }
-    enqueueTurn({ turn, ...(inputs === undefined ? {} : { inputs }) });
-    if (inputs === undefined && latestDraftRef.current === submittedDraft) latestComposerRef.current.setDraft('');
-    if (outcome === 'unsupported' && attachments.length === 0) conversation.cancel();
-  }, [composer, conversation, enqueueTurn, recordAcceptedInput]);
+    finishMidRunSend({ outcome, inputs, turn, attachments, afterInputId, submittedDraft });
+  }, [composer, conversation, finishMidRunSend]);
 
   // The ordinary next-turn path: into the running run, else queue behind it, else send now.
   const sendOrdinaryTurn = useCallback(async (prompt: string) => {
@@ -723,7 +761,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const send = useCallback(async () => {
     const uploadingWhileStreaming = conversation.isStreaming && activeUploadsRef.current.size > 0;
     const prompt = composerPrompt(composer) || (uploadingWhileStreaming ? ATTACHMENTS_ONLY_PROMPT : '');
-    if (!prompt || deliveringTypedAnswerRef.current || startingPromptRef.current || isRepeatedComposerSubmission({ composer, submitted: submittedComposerRef.current })) return;
+    if (!prompt || composerDeliveryBlocked({ delivering: deliveringTypedAnswerRef.current, starting: startingPromptRef.current, composer, submitted: submittedComposerRef.current })) return;
     setTypedAnswerNotice(null);
     // Until upload completes, an empty attachment list is not evidence of a text-only answer.
     if (uploadingWhileStreaming) {
@@ -754,14 +792,14 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
 
   const sendAsNewMessage = useCallback(async () => {
     const prompt = composerPrompt(composer);
-    if (!prompt || deliveringTypedAnswerRef.current || startingPromptRef.current || isRepeatedComposerSubmission({ composer, submitted: submittedComposerRef.current })) return;
+    if (!prompt || composerDeliveryBlocked({ delivering: deliveringTypedAnswerRef.current, starting: startingPromptRef.current, composer, submitted: submittedComposerRef.current })) return;
     setTypedAnswerNotice(null);
     await sendOrdinaryTurn(prompt);
   }, [composer, sendOrdinaryTurn]);
 
   const interruptSend = useCallback(() => {
     const prompt = composerPrompt(composer);
-    if (!prompt || deliveringTypedAnswerRef.current || startingPromptRef.current || isRepeatedComposerSubmission({ composer, submitted: submittedComposerRef.current })) return;
+    if (!prompt || composerDeliveryBlocked({ delivering: deliveringTypedAnswerRef.current, starting: startingPromptRef.current, composer, submitted: submittedComposerRef.current })) return;
     enqueueTurn({ turn: guard.redact({ text: prompt }, {}) });
     composer.setDraft('');
     conversation.cancel();

@@ -40,27 +40,27 @@ export function acceptedInputUserEvent(
     data: { ...input, ...(receipt === 'optimistic' ? { optimistic: true } : {}), ...(inputs === undefined ? {} : { inputs }), ...(afterInputId === undefined ? {} : { afterInputId }), ...(toolUseId === undefined ? {} : { toolUseId }) } };
 }
 
-/** Projects saved answers and reconciles optimistic bubbles with wire events, occurrence for
- * occurrence. Legacy steering receipts have no client id: only unmatched optimistic input may
- * match by text; two real events with equal text always remain distinct.
- * @complexity O(e + u + a) time, O(e + u) space for e events, u user inputs and total answer-label lookup cost a.
- */
-export function projectAcceptedInputEvents(
-  { events }: { events: readonly AgentEvent[] }, _options = {},
-): AgentEvent[] {
+type OptimisticTextQueue = { events: UserMessageEvent[]; index: number };
+type OptimisticInputs = { byText: Map<string, OptimisticTextQueue>; byQuestion: Map<string, UserMessageEvent> };
+type InputReconciliation = { replacements: Map<AgentEvent, AgentEvent>; replaced: Set<AgentEvent>; seen: Set<string> };
+
+function expandQuestionAnswers({ events }: { events: readonly AgentEvent[] }, _options = {}): AgentEvent[] {
   const savedAnswers = new Set(events.flatMap(event => {
     const input = acceptedInputEvent({ event });
     return input && !input.data.optimistic && input.data.toolUseId ? [input.data.toolUseId] : [];
   }));
   // MOVE: Persisted picks carry values; the original tool input retains their human-readable labels.
   const questions = new Map(events.flatMap(event => event.kind === 'tool_use' ? [[event.id, event.input] as const] : []));
-  const expanded = events.flatMap(event => {
+  return events.flatMap(event => {
     const answer = questionAnswerEvent({ event, input: event.kind === 'tool_result' ? questions.get(event.toolUseId) : undefined });
     return answer && !savedAnswers.has(answer.data.toolUseId!) ? [event, answer] : [event];
   });
+}
+
+function collectOptimisticInputs({ events }: { events: readonly AgentEvent[] }, _options = {}): OptimisticInputs {
   const optimisticByText = new Map<string, { events: UserMessageEvent[]; index: number }>();
   const optimisticByQuestion = new Map<string, UserMessageEvent>();
-  for (const event of expanded) {
+  for (const event of events) {
     const input = acceptedInputEvent({ event });
     if (!input?.data.optimistic) continue;
     if (input.data.toolUseId) optimisticByQuestion.set(input.data.toolUseId, input);
@@ -70,28 +70,69 @@ export function projectAcceptedInputEvents(
       optimisticByText.set(input.data.text, list);
     }
   }
-  const replacements = new Map<AgentEvent, AgentEvent>();
-  const replaced = new Set<AgentEvent>();
-  const seen = new Set<string>();
-  for (const event of expanded) {
-    const input = acceptedInputEvent({ event });
-    if (!input || input.data.optimistic) continue;
-    const ids = [input.data.id, ...(input.data.toolUseId ? [`answer:${input.data.toolUseId}`] : []), ...(input.data.aliases ?? [])];
-    if (ids.some(id => seen.has(id))) { replaced.add(event); continue; }
-    const candidates = optimisticByText.get(input.data.text);
-    const next = candidates?.events[candidates.index];
-    const follows = next?.data.afterInputId === undefined || seen.has(next.data.afterInputId);
-    for (const id of ids) seen.add(id);
-    const pending = input.data.toolUseId ? optimisticByQuestion.get(input.data.toolUseId) : follows ? next : undefined;
-    if (pending && candidates && !input.data.toolUseId) candidates.index += 1;
-    if (!pending) continue;
-    for (const id of [pending.data.id, ...(pending.data.aliases ?? [])]) seen.add(id);
-    optimisticByQuestion.delete(input.data.toolUseId ?? '');
-    replaced.add(pending);
-    replacements.set(event, { ...input, data: { ...input.data, id: pending.data.id,
-      ...(pending.data.inputs ? { inputs: pending.data.inputs } : {}),
-      aliases: [...new Set([...(input.data.aliases ?? []), input.data.id, ...(pending.data.aliases ?? [])])] } });
-  }
+  return { byText: optimisticByText, byQuestion: optimisticByQuestion };
+}
+
+function matchOptimisticInput(
+  { input, optimistic, seen }: { input: UserMessageEvent; optimistic: OptimisticInputs; seen: Set<string> }, _options = {},
+): UserMessageEvent | undefined {
+  const candidates = optimistic.byText.get(input.data.text);
+  const next = candidates?.events[candidates.index];
+  const follows = next?.data.afterInputId === undefined || seen.has(next.data.afterInputId);
+  // Keep predecessor testing before the caller adds this receipt's ids to seen.
+  return input.data.toolUseId ? optimistic.byQuestion.get(input.data.toolUseId) : follows ? next : undefined;
+}
+
+function mergeAcceptedReceipt(
+  { input, pending }: { input: UserMessageEvent; pending: UserMessageEvent }, _options = {},
+): UserMessageEvent {
+  return { ...input, data: { ...input.data, id: pending.data.id,
+    ...(pending.data.inputs ? { inputs: pending.data.inputs } : {}),
+    aliases: [...new Set([...(input.data.aliases ?? []), input.data.id, ...(pending.data.aliases ?? [])])] } };
+}
+
+function acceptedInputIds({ input }: { input: UserMessageEvent }, _options = {}): string[] {
+  return [input.data.id, ...(input.data.toolUseId ? [`answer:${input.data.toolUseId}`] : []), ...(input.data.aliases ?? [])];
+}
+
+function reconcileAcceptedInput(
+  { event, optimistic, state }: { event: AgentEvent; optimistic: OptimisticInputs; state: InputReconciliation }, _options = {},
+): void {
+  const input = acceptedInputEvent({ event });
+  if (!input || input.data.optimistic) return;
+  const { replacements, replaced, seen } = state;
+  const ids = acceptedInputIds({ input });
+  if (ids.some(id => seen.has(id))) { replaced.add(event); return; }
+  const pending = matchOptimisticInput({ input, optimistic, seen });
+  for (const id of ids) seen.add(id);
+  if (!pending) return;
+  advanceOptimisticInput({ input, optimistic });
+  for (const id of [pending.data.id, ...(pending.data.aliases ?? [])]) seen.add(id);
+  optimistic.byQuestion.delete(input.data.toolUseId ?? '');
+  replaced.add(pending);
+  replacements.set(event, mergeAcceptedReceipt({ input, pending }));
+}
+
+function advanceOptimisticInput(
+  { input, optimistic }: { input: UserMessageEvent; optimistic: OptimisticInputs }, _options = {},
+): void {
+  const candidates = optimistic.byText.get(input.data.text);
+  if (candidates && !input.data.toolUseId) candidates.index += 1;
+}
+
+/** Projects saved answers and reconciles optimistic bubbles with wire events, occurrence for
+ * occurrence. Legacy steering receipts have no client id: only unmatched optimistic input may
+ * match by text; two real events with equal text always remain distinct.
+ * @complexity O(e + u + a) time, O(e + u) space for e events, u user inputs and total answer-label lookup cost a.
+ */
+export function projectAcceptedInputEvents(
+  { events }: { events: readonly AgentEvent[] }, _options = {},
+): AgentEvent[] {
+  const expanded = expandQuestionAnswers({ events });
+  const optimistic = collectOptimisticInputs({ events: expanded });
+  const state: InputReconciliation = { replacements: new Map(), replaced: new Set(), seen: new Set() };
+  for (const event of expanded) reconcileAcceptedInput({ event, optimistic, state });
+  const { replacements, replaced } = state;
   const projected: AgentEvent[] = [];
   const emitted = new Set<string>();
   for (const event of expanded) {

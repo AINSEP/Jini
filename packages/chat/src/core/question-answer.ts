@@ -12,6 +12,21 @@ function optionLabel(group: unknown, value: string): string {
   return typeof label === 'string' ? label : value;
 }
 
+function selectedAnswerText(
+  { result, input }: { result: Record<string, unknown>; input: unknown }, _options = {},
+): string | undefined {
+  const question = record(input);
+  const labels: string[] = [];
+  if (typeof result.choice === 'string') labels.push(optionLabel(question.singleSelect, result.choice));
+  if (Array.isArray(result.selections)) {
+    for (const selection of result.selections) {
+      if (typeof selection === 'string') labels.push(optionLabel(question.multiSelect, selection));
+    }
+  }
+  if (labels.length > 0) return labels.join(', ');
+  return Array.isArray(result.selections) && result.selections.length === 0 ? 'None selected' : undefined;
+}
+
 /** Read a classified result or delivered callback as plain user text. Decline wins over other fields;
  * expiry, invalid answers and unrecognized results produce no user message.
  * @returns Answer text, or undefined when no supported human answer is present; never throws.
@@ -26,16 +41,7 @@ export function questionAnswerText(
   if (result.submitted === false) return undefined;
   const freeText = result.freeText ?? result.__typedAnswer;
   if (typeof freeText === 'string' && freeText.trim()) return freeText.trim();
-  const question = record(input);
-  const labels: string[] = [];
-  if (typeof result.choice === 'string') labels.push(optionLabel(question.singleSelect, result.choice));
-  if (Array.isArray(result.selections)) {
-    for (const selection of result.selections) {
-      if (typeof selection === 'string') labels.push(optionLabel(question.multiSelect, selection));
-    }
-  }
-  if (labels.length > 0) return labels.join(', ');
-  return Array.isArray(result.selections) && result.selections.length === 0 ? 'None selected' : undefined;
+  return selectedAnswerText({ result, input });
 }
 
 /** Decode the persisted JSON result; failed tools and non-answer payloads never become user text.

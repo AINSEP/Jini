@@ -70,7 +70,7 @@ describe('API error decoding characterization', () => {
   it.each([{}, { error: {} }, { message: false }, { message: ['failure'] }])(
     'uses defaults or an explicitly empty fallback for missing string messages: %j', body => {
       expect(decodeApiError({ body }, {})).toStrictEqual({ message: 'request failed' });
-      expect(decodeApiError({ body }, { fallbackMessage: undefined }))
+      expect(decodeApiError({ body }))
         .toStrictEqual({ message: 'request failed' });
       expect(decodeApiError({ body }, { fallbackMessage: '' })).toStrictEqual({ message: '' });
     },

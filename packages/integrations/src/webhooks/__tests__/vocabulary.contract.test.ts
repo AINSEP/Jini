@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { nowIso } from "@jini-ai/core/primitives";
 import { expect, test } from "vitest";
 import { createFixedSecretSigner, processDueDeliveries, signPayload, verifySignature, type WebhookHeaderVocabulary } from "../index.js";
@@ -51,5 +52,6 @@ test("two hosts change HTTP header vocabulary independently and use the injected
   expect(baseline.headers["first-signature"]).toMatch(/^timestamp=1700000000,digest=/);
   expect(treatment.headers["first-signature"]).toBeUndefined();
   expect(treatment.headers["second-event"]).toBe("event");
+  assert.ok(typeof treatment.body === 'string');
   expect(verifySignature({ secret, rawBody: treatment.body!, header: treatment.headers["second-signature"]!, vocabulary, nowSeconds: timestampSeconds, toleranceSeconds: 0 })).toBe(true);
 });

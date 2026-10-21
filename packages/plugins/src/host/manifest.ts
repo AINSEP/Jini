@@ -25,7 +25,7 @@
  * `errors[]` — it never throws. Verified against `__tests__/unit/manifest.unit.test.ts`.
  */
 
-import type { PluginManifest, PluginValidationError } from './manifest-types.js';
+import type { PluginTier, PluginManifest, PluginValidationError } from './manifest-types.js';
 export type { PluginTier, PluginCapability, PluginManifestFieldDecl, PluginManifest, PluginContributions, PluginValidationError } from './manifest-types.js';
 import * as semver from "semver";
 import { PLUGIN_MANIFEST_FILENAME } from "./plugin-format.js";

@@ -286,6 +286,15 @@ export function findAwaitedTypedAnswerId({ messages, toolName }: {
   return [...awaited].at(-1) ?? null;
 }
 
+function trackOpenQuestionCall({ event, toolName, openCalls, settled }: {
+  event: NonNullable<ChatMessage['events']>[number];
+  toolName: string;
+  openCalls: Map<string, boolean>;
+  settled: Set<string>;
+}, _options = {}): void {
+  if (event.kind === 'tool_use' && !settled.has(event.id)) openCalls.set(event.id, openCalls.get(event.id) === true || event.name === toolName);
+}
+
 /** Folds one event into {@link findAwaitedTypedAnswerId}'s open-call and awaited-question state. */
 function trackTypedAnswerEvent({ event, toolName, openCalls, awaited, settled }: {
   event: NonNullable<ChatMessage['events']>[number];
@@ -303,7 +312,7 @@ function trackTypedAnswerEvent({ event, toolName, openCalls, awaited, settled }:
   }
   // MOVE: Receipts are user bubbles, never a new surface owned by another open question.
   if (receipt !== null) return;
-  if (event.kind === 'tool_use' && !settled.has(event.id)) openCalls.set(event.id, openCalls.get(event.id) === true || event.name === toolName);
+  trackOpenQuestionCall({ event, toolName, openCalls, settled });
   const owner = event.kind === 'ext' ? [...openCalls].at(-1) : undefined;
   if (owner?.[1] === true) awaited.add(owner[0]);
 }

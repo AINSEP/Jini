@@ -210,6 +210,27 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
     ? undefined
     : closedSurfaceLabel({ t, call, runStreaming, documentsForUri: events.length, expired: expiry?.expired === true });
   const answer = answerText ?? questionAnswerFromResult({ result: call?.result, input: call?.input });
+  return <SurfaceCardContent resources={resources} single={single} answerRecorded={answerRecorded}
+    answer={answer} closed={closed} call={call} t={t} sandboxProxyUrl={sandboxProxyUrl}
+    toolCall={toolCall} onOpenLink={onOpenLink} maxHeight={maxHeight} expiry={expiry} />;
+}
+
+/** Rendering priority stays receipt, answer, closure, then the live documents. */
+function SurfaceCardContent({ resources, single, answerRecorded, answer, closed, call, t,
+  sandboxProxyUrl, toolCall, onOpenLink, maxHeight, expiry }: {
+  resources: readonly UIResource[];
+  single: UIResource | undefined;
+  answerRecorded: McpUiSurfaceCardProps['answerRecorded'];
+  answer: string | undefined;
+  closed: string | undefined;
+  call: McpUiSurfaceCardProps['call'];
+  t: ReturnType<typeof useT>;
+  sandboxProxyUrl: URL;
+  toolCall: McpUiToolCallHandler | undefined;
+  onOpenLink: McpUiSurfaceCardProps['onOpenLink'];
+  maxHeight: number | undefined;
+  expiry: ReturnType<typeof useSurfaceExpiry>;
+}) {
   // MOVE: The accepted-input receipt owns its bubble; rendering the closed card too duplicates typed answers.
   if (single !== undefined && answerRecorded) return null;
   if (single !== undefined && answer !== undefined) {
