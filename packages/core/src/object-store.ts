@@ -100,3 +100,29 @@ export function createObjectStoreRegistry<H = unknown>(
     ...(optional.seed === undefined ? {} : { seed: optional.seed }),
   });
 }
+
+/**
+ * An `ObjectStore` whose real store is resolved on first use — for hosts whose boot must hand out
+ * a store before the provider choice (a setting, an installed plugin) can be read. A successful
+ * load is kept; a failed load rejects that call and is retried by the next one, so a transient
+ * plugin or settings fault does not pin the store broken for the life of the process.
+ * `publicAccess` is not forwarded: a deferred store cannot know it synchronously.
+ * @complexity O(1) per call after the first successful load.
+ */
+export function deferObjectStore(required: { readonly load: () => Promise<ObjectStore> }, _optional: Record<string, never> = {}): ObjectStore {
+  let loaded: Promise<ObjectStore> | undefined;
+  const current = (): Promise<ObjectStore> => {
+    if (!loaded) {
+      const pending = required.load();
+      loaded = pending;
+      pending.catch(() => { if (loaded === pending) loaded = undefined; });
+    }
+    return loaded;
+  };
+  return {
+    put: async (input, options) => (await current()).put(input, options),
+    get: async (input, options) => (await current()).get(input, options),
+    head: async (input, options) => (await current()).head(input, options),
+    delete: async (input, options) => (await current()).delete(input, options),
+  };
+}
