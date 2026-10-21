@@ -9,6 +9,7 @@ import { listTables } from "@jini-ai/db/kernel";
 import { openMemorySqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { MigrationChecksumError, runMigrations, sourceChecksum } from "@jini-ai/db/migrate";
 import { PAYMENTS_LEDGER_ID, paymentsLedger } from "../migrations/0001_payments_ledger.js";
+import { PAYMENTS_OPERATOR_ACTIONS_ID } from "../migrations/0002_payments_operator_actions.js";
 import { COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS } from "../migrations/checksums.js";
 import { LEDGER_INTEGER_COLUMNS, LEDGER_TABLE_RULES, LEDGER_TABLES } from "../rows.js";
 
@@ -57,7 +58,7 @@ describe("payments ledger migrations", () => {
       expect(step.checksum).toBe(COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS[step.id]);
     }
     expect(COMMERCE_PAYMENTS_MIGRATIONS.map((step) => step.id)).toEqual(STEP_IDS);
-    expect(STEP_IDS).toEqual([PAYMENTS_LEDGER_ID]);
+    expect(STEP_IDS).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID]);
   });
 
   test("pinnedChecksum refuses an id with no pin", async () => {
@@ -71,15 +72,16 @@ describe("payments ledger migrations", () => {
     const kernel = openKernel();
     try {
       const first = await migrateCommercePayments({ kernel });
-      expect(first.applied).toEqual([PAYMENTS_LEDGER_ID]);
+      expect(first.applied).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID]);
       const tables = await listTables(kernel);
       expect(tables).toEqual(expect.arrayContaining([...Object.values(LEDGER_TABLES), COMMERCE_PAYMENTS_LEDGER_TABLE]));
       const second = await migrateCommercePayments({ kernel });
-      expect(second).toEqual({ applied: [], alreadyApplied: [PAYMENTS_LEDGER_ID], notes: [] });
+      expect(second).toEqual({ applied: [], alreadyApplied: [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID], notes: [] });
       const indexes = await kernel.query<{ name: string }>(sql`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'commerce_%' ORDER BY name`);
       expect(indexes.map((row) => row.name)).toEqual(expect.arrayContaining([
         "commerce_payment_attempts_payment", "commerce_refunds_payment", "commerce_disputes_payment",
         "commerce_payment_evidence_payment", "commerce_webhook_inbox_due",
+        "commerce_operator_actions_payment", "commerce_payments_unknown", "commerce_refunds_unsettled",
       ]));
     } finally {
       await kernel.close();
@@ -108,7 +110,7 @@ describe("payments ledger migrations", () => {
         }
       }
       expect([...integers].sort()).toEqual([...LEDGER_INTEGER_COLUMNS].sort());
-      for (const table of [LEDGER_TABLES.attempts, LEDGER_TABLES.refunds, LEDGER_TABLES.disputes, LEDGER_TABLES.evidence]) {
+      for (const table of [LEDGER_TABLES.attempts, LEDGER_TABLES.refunds, LEDGER_TABLES.disputes, LEDGER_TABLES.evidence, LEDGER_TABLES.operatorActions]) {
         const keys = await kernel.query<{ table: string; from: string; to: string }>(sql.raw(`PRAGMA foreign_key_list(${table})`));
         expect(keys.map((k) => [k.table, k.from, k.to]), table).toEqual([
           ["commerce_payments", "payment_id", "id"], ["commerce_payments", "workspace_id", "workspace_id"], ["commerce_payments", "mode", "mode"],

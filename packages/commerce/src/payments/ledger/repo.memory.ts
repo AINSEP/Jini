@@ -5,8 +5,8 @@ import {
   PAYMENT_PATCH_COLUMNS, REFUND_PATCH_COLUMNS,
   attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, encodeColumns, encodeMinor, evidenceFromRow, evidenceToRow,
   inboxFromRow, inboxToRow, outboxFromRow, outboxToRow, patchColumns, paymentFromRow, paymentToRow, quarantineFromRow,
-  quarantineToRow, refundFromRow, refundToRow,
-  type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
+  quarantineToRow, refundFromRow, refundToRow, operatorActionFromRow, operatorActionToRow, UNSETTLED_REFUND_STATUSES,
+  type OperatorActionRecord, type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
   type LedgerTableName, type LedgerTableRules, type NewInbox, type NewOutbox, type NewPayment, type NewQuarantine,
   type OutboxRecord, type PaymentPatch, type PaymentRecord, type QuarantineRecord, type RefundPatch, type RefundRecord,
 } from "./rows.js";
@@ -168,9 +168,15 @@ class MemoryLedgerTables {
   readonly inbox = new MemoryTable<InboxRecord>({ name: LEDGER_TABLES.inbox, codec: codec(inboxToRow, inboxFromRow) }, { uniques: [inboxEventKey] });
   readonly outbox = new MemoryTable<OutboxRecord>({ name: LEDGER_TABLES.outbox, codec: codec(outboxToRow, outboxFromRow) });
   readonly quarantine = new MemoryTable<QuarantineRecord>({ name: LEDGER_TABLES.quarantine, codec: codec(quarantineToRow, quarantineFromRow) });
+  readonly operatorActions = new MemoryTable<OperatorActionRecord>(
+    { name: LEDGER_TABLES.operatorActions, codec: codec(operatorActionToRow, operatorActionFromRow) },
+    { parentOf: parentRef }
+  );
 
   private all(): MemoryTable<Row>[] {
-    return [this.payments, this.attempts, this.refunds, this.disputes, this.evidence, this.inbox, this.outbox, this.quarantine] as unknown as MemoryTable<Row>[];
+    return [
+      this.payments, this.attempts, this.refunds, this.disputes, this.evidence, this.inbox, this.outbox, this.quarantine, this.operatorActions,
+    ] as unknown as MemoryTable<Row>[];
   }
 
   snapshot(): Map<string, Row>[] {
@@ -185,6 +191,9 @@ class MemoryLedgerTables {
 }
 
 class MemoryLedgerTx implements LedgerTx {
+  /** The outbox enqueue order (the SQL `seq` column, 0002): ties on `createdAt` keep enqueue order. */
+  private readonly outboxSeq = new Map<string, number>();
+
   constructor(
     private readonly t: MemoryLedgerTables,
     private readonly inTransaction: () => boolean
@@ -349,10 +358,12 @@ class MemoryLedgerTx implements LedgerTx {
 
   async enqueueOutbox({ message }: { message: NewOutbox }): Promise<void> {
     this.insert({ table: this.t.outbox, record: { ...message, publishedAt: null } });
+    this.outboxSeq.set(message.id, this.outboxSeq.size + 1);
   }
 
   async listPendingOutbox({ limit }: { limit: number }): Promise<OutboxRecord[]> {
-    return this.t.outbox.list((r) => r.publishedAt === null, (r) => r.createdAt).slice(0, limit);
+    const seq = (r: OutboxRecord) => this.outboxSeq.get(r.id) as number;
+    return this.t.outbox.list((r) => r.publishedAt === null, (r) => r.createdAt).sort((a, b) => a.createdAt - b.createdAt || seq(a) - seq(b)).slice(0, limit);
   }
 
   async markOutboxPublished({ id, publishedAt }: { id: string; publishedAt: number }): Promise<boolean> {
@@ -375,6 +386,36 @@ class MemoryLedgerTx implements LedgerTx {
   async resolveQuarantine({ id, resolvedAt }: { id: string; resolvedAt: number }): Promise<boolean> {
     const set = encodeColumns({ resolved_at: resolvedAt });
     return this.t.quarantine.update({ id, set: () => set });
+  }
+
+  // Reconciliation scans ------------------------------------------------------------------------
+
+  async listUnknownPayments(
+    { updatedBefore, limit }: { updatedBefore: number; limit: number },
+    optional: { scope?: LedgerKeyScope } = {}
+  ): Promise<PaymentRecord[]> {
+    const scoped = optional.scope === undefined ? () => true : inScope(optional.scope);
+    const stale = (r: PaymentRecord) => r.intentStatus === "unknown" && r.updatedAt < updatedBefore && scoped(r);
+    return this.t.payments.list(stale, (r) => r.updatedAt).slice(0, limit);
+  }
+
+  async listUnsettledRefunds(
+    { updatedBefore, limit }: { updatedBefore: number; limit: number },
+    optional: { scope?: LedgerKeyScope } = {}
+  ): Promise<RefundRecord[]> {
+    const scoped = optional.scope === undefined ? () => true : inScope(optional.scope);
+    const stale = (r: RefundRecord) => UNSETTLED_REFUND_STATUSES.includes(r.status) && r.updatedAt < updatedBefore && scoped(r);
+    return this.t.refunds.list(stale, (r) => r.updatedAt).slice(0, limit);
+  }
+
+  // Operator actions ----------------------------------------------------------------------------
+
+  async appendOperatorAction({ action }: { action: OperatorActionRecord }): Promise<void> {
+    this.insert({ table: this.t.operatorActions, record: action });
+  }
+
+  async listOperatorActions({ paymentId }: { paymentId: string }): Promise<OperatorActionRecord[]> {
+    return this.t.operatorActions.list(ofPayment(paymentId), (r) => r.createdAt);
   }
 }
 

@@ -85,6 +85,8 @@ export const LEDGER_TABLES = {
   inbox: "commerce_webhook_inbox",
   outbox: "commerce_outbox",
   quarantine: "commerce_quarantine",
+  /** Added by `0002_payments_operator_actions` (L4): the append-only audit of operator resolutions. */
+  operatorActions: "commerce_operator_actions",
 } as const;
 
 export type LedgerTableName = (typeof LEDGER_TABLES)[keyof typeof LEDGER_TABLES];
@@ -97,7 +99,7 @@ export type LedgerTableName = (typeof LEDGER_TABLES)[keyof typeof LEDGER_TABLES]
 export const LEDGER_INTEGER_COLUMNS: ReadonlySet<string> = new Set([
   "amount_minor", "captured_minor", "refunded_minor", "refund_held_minor", "disputed_minor", "fee_minor", "net_minor",
   "settlement_minor", "version", "created_at", "updated_at", "due_by", "recorded_at", "attempts", "next_attempt_at",
-  "received_at", "applied_at", "purged_at", "published_at", "resolved_at",
+  "received_at", "applied_at", "purged_at", "published_at", "resolved_at", "seq",
 ]);
 
 /**
@@ -141,6 +143,7 @@ export const LEDGER_TABLE_RULES: Readonly<Record<LedgerTableName, LedgerTableRul
   commerce_webhook_inbox: { nullable: ["facts_json", "last_error", "applied_at", "purged_at"], nonNegative: [] },
   commerce_outbox: { nullable: ["published_at"], nonNegative: [] },
   commerce_quarantine: { nullable: ["payment_id", "resolved_at"], nonNegative: [] },
+  commerce_operator_actions: { nullable: ["refund_id"], nonNegative: [] },
 };
 
 /** What an integer column reads as on any driver (see {@link decodeMinor}); written as a number. */
@@ -291,6 +294,22 @@ export interface QuarantineTable {
   resolved_at: NullableInt;
 }
 
+export interface OperatorActionsTable {
+  id: string;
+  payment_id: string;
+  workspace_id: string;
+  site_id: string;
+  provider_id: string;
+  provider_account_id: string;
+  mode: string;
+  refund_id: string | null;
+  action: string;
+  outcome: string;
+  actor: string;
+  reason: string;
+  created_at: Int;
+}
+
 /** The Kysely database view of the ledger tables (nothing else). */
 export interface PaymentsLedgerDatabase {
   commerce_payments: PaymentsTable;
@@ -301,6 +320,7 @@ export interface PaymentsLedgerDatabase {
   commerce_webhook_inbox: InboxTable;
   commerce_outbox: OutboxTable;
   commerce_quarantine: QuarantineTable;
+  commerce_operator_actions: OperatorActionsTable;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -309,7 +329,8 @@ export interface PaymentsLedgerDatabase {
 export type AttemptOp = "intent" | "capture" | "void" | "refund";
 /** `dispatched` = written BEFORE the provider call, so a crash mid-call leaves a row to reconcile. */
 export type AttemptOutcome = "dispatched" | "ok" | "rejected" | "unknown";
-export type EvidenceSource = "response" | "webhook" | "retrieve";
+/** `operator` = a person resolved an `unknown` outcome (L4 `resolveUnknown`); its audit row is in the operator-actions table. */
+export type EvidenceSource = "response" | "webhook" | "retrieve" | "operator";
 export type EvidenceSubject = "payment" | "refund" | "dispute";
 export type InboxState = "received" | "applied" | "parked" | "dead";
 /** The states an inbox row is still open in: due for an apply attempt, and the only ones that may move on. */
@@ -480,6 +501,32 @@ export interface QuarantineRecord {
 }
 
 export type NewQuarantine = Omit<QuarantineRecord, "resolvedAt">;
+
+/** The refund statuses that still hold money and await evidence: what the reconciler scans. */
+export const UNSETTLED_REFUND_STATUSES: readonly RefundStatus[] = ["reserved", "unknown", "pending"];
+
+/** What an operator did. One kind today; the column is free TEXT so more need no migration. */
+export type OperatorActionKind = "resolve-unknown";
+
+/**
+ * One audited operator action (append-only: the port has no update or delete). `refundId` is set
+ * when the action was about a refund of the payment; `actor` is an opaque operator id, never an email.
+ */
+export interface OperatorActionRecord {
+  readonly id: string;
+  readonly paymentId: string;
+  readonly workspaceId: string;
+  readonly siteId: string;
+  readonly providerId: string;
+  readonly providerAccountId: string;
+  readonly mode: PaymentMode;
+  readonly refundId: string | null;
+  readonly action: OperatorActionKind;
+  readonly outcome: string;
+  readonly actor: string;
+  readonly reason: string;
+  readonly createdAt: number;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Patches: the fields an update may change, mapped to their columns.
@@ -791,5 +838,31 @@ export function quarantineToRow(r: QuarantineRecord, _optional: Record<string, n
   return encodeColumns({
     id: r.id, workspace_id: r.workspaceId, mode: r.mode, payment_id: r.paymentId, subject: r.subject, reason: r.reason,
     evidence_json: r.evidenceJson, created_at: r.createdAt, resolved_at: r.resolvedAt,
+  });
+}
+
+export function operatorActionFromRow(row: Selectable<OperatorActionsTable>, _optional: Record<string, never> = {}): OperatorActionRecord {
+  return {
+    id: row.id,
+    paymentId: row.payment_id,
+    workspaceId: row.workspace_id,
+    siteId: row.site_id,
+    providerId: row.provider_id,
+    providerAccountId: row.provider_account_id,
+    mode: row.mode as PaymentMode,
+    refundId: row.refund_id,
+    action: row.action as OperatorActionKind,
+    outcome: row.outcome,
+    actor: row.actor,
+    reason: row.reason,
+    createdAt: decodeMinor(row.created_at),
+  };
+}
+
+export function operatorActionToRow(r: OperatorActionRecord, _optional: Record<string, never> = {}): StoredRow<OperatorActionsTable> {
+  return encodeColumns({
+    id: r.id, payment_id: r.paymentId, workspace_id: r.workspaceId, site_id: r.siteId, provider_id: r.providerId,
+    provider_account_id: r.providerAccountId, mode: r.mode, refund_id: r.refundId, action: r.action, outcome: r.outcome,
+    actor: r.actor, reason: r.reason, created_at: r.createdAt,
   });
 }

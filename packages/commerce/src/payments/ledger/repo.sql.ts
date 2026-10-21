@@ -5,8 +5,8 @@ import {
   ATTEMPT_PATCH_COLUMNS, DISPUTE_PATCH_COLUMNS, LEDGER_TABLES, OPEN_INBOX_STATES, PAYMENT_PATCH_COLUMNS, REFUND_PATCH_COLUMNS,
   attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, encodeColumns, encodeMinor, evidenceFromRow, evidenceToRow,
   inboxFromRow, inboxToRow, outboxFromRow, outboxToRow, patchColumns, paymentFromRow, paymentToRow, quarantineFromRow,
-  quarantineToRow, refundFromRow, refundToRow,
-  type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
+  quarantineToRow, refundFromRow, refundToRow, operatorActionFromRow, operatorActionToRow, UNSETTLED_REFUND_STATUSES,
+  type OperatorActionRecord, type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
   type NewInbox, type NewOutbox, type NewPayment, type NewQuarantine, type OutboxRecord, type PaymentPatch,
   type PaymentRecord, type PaymentsLedgerDatabase, type PaymentsTable, type QuarantineRecord, type RefundPatch, type RefundRecord,
   type RefundsTable,
@@ -304,12 +304,14 @@ class SqlLedgerTx implements LedgerTx {
 
   async enqueueOutbox({ message }: { message: NewOutbox }): Promise<void> {
     const row = outboxToRow({ ...message, publishedAt: null });
-    await this.write({ table: LEDGER_TABLES.outbox, fn: (db) => db.insertInto("commerce_outbox").values(row).execute() });
+    // `seq` (0002) is the enqueue order: messages of one apply share `created_at`. It is internal, not on the record.
+    const seq = sql<number>`(SELECT COALESCE(MAX(seq), 0) + 1 FROM commerce_outbox)`;
+    await this.write({ table: LEDGER_TABLES.outbox, fn: (db) => db.insertInto("commerce_outbox").values({ ...row, seq } as typeof row).execute() });
   }
 
   async listPendingOutbox({ limit }: { limit: number }): Promise<OutboxRecord[]> {
     const rows = await this.read((db) =>
-      db.selectFrom("commerce_outbox").selectAll().where("published_at", "is", null).orderBy("created_at").orderBy("id").limit(limit).execute()
+      db.selectFrom("commerce_outbox").selectAll().where("published_at", "is", null).orderBy("created_at").orderBy(sql`seq`).orderBy("id").limit(limit).execute()
     );
     return rows.map((row) => outboxFromRow(row));
   }
@@ -336,6 +338,46 @@ class SqlLedgerTx implements LedgerTx {
 
   resolveQuarantine({ id, resolvedAt }: { id: string; resolvedAt: number }): Promise<boolean> {
     return this.updateById({ table: LEDGER_TABLES.quarantine, id, set: encodeColumns({ resolved_at: resolvedAt }) });
+  }
+
+  // Reconciliation scans ------------------------------------------------------------------------
+
+  async listUnknownPayments(
+    { updatedBefore, limit }: { updatedBefore: number; limit: number },
+    optional: { scope?: LedgerKeyScope } = {}
+  ): Promise<PaymentRecord[]> {
+    const rows = await this.read((db) => {
+      let query = db.selectFrom("commerce_payments").selectAll().where("intent_status", "=", "unknown").where("updated_at", "<", updatedBefore);
+      if (optional.scope !== undefined) query = query.where("workspace_id", "=", optional.scope.workspaceId).where("mode", "=", optional.scope.mode);
+      return query.orderBy("updated_at").orderBy("id").limit(limit).execute();
+    });
+    return rows.map((row) => paymentFromRow(row));
+  }
+
+  async listUnsettledRefunds(
+    { updatedBefore, limit }: { updatedBefore: number; limit: number },
+    optional: { scope?: LedgerKeyScope } = {}
+  ): Promise<RefundRecord[]> {
+    const rows = await this.read((db) => {
+      let query = db.selectFrom("commerce_refunds").selectAll().where("status", "in", [...UNSETTLED_REFUND_STATUSES]).where("updated_at", "<", updatedBefore);
+      if (optional.scope !== undefined) query = query.where("workspace_id", "=", optional.scope.workspaceId).where("mode", "=", optional.scope.mode);
+      return query.orderBy("updated_at").orderBy("id").limit(limit).execute();
+    });
+    return rows.map((row) => refundFromRow(row));
+  }
+
+  // Operator actions ----------------------------------------------------------------------------
+
+  async appendOperatorAction({ action }: { action: OperatorActionRecord }): Promise<void> {
+    const row = operatorActionToRow(action);
+    await this.write({ table: LEDGER_TABLES.operatorActions, fn: (db) => db.insertInto("commerce_operator_actions").values(row).execute() });
+  }
+
+  async listOperatorActions({ paymentId }: { paymentId: string }): Promise<OperatorActionRecord[]> {
+    const rows = await this.read((db) =>
+      db.selectFrom("commerce_operator_actions").selectAll().where("payment_id", "=", paymentId).orderBy("created_at").orderBy("id").execute()
+    );
+    return rows.map((row) => operatorActionFromRow(row));
   }
 }
 

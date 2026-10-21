@@ -62,7 +62,12 @@ export type EvidenceQuarantineReason =
   | "ref-conflict"
   | "over-refund"
   /** Evidence that money moved contradicts a terminal record (refund failed → succeeded, intent canceled → succeeded). */
-  | "terminal-conflict";
+  | "terminal-conflict"
+  /**
+   * A dispute CLOSED (won/lost) with an amount different from the one it opened with. Owner
+   * 2026-10-21: the status is applied and the stored amount kept; only the difference is quarantined.
+   */
+  | "dispute-amount-changed";
 
 type OutboxTopic = LedgerOutboxTopic;
 
@@ -104,6 +109,8 @@ export interface DisputePlan {
   readonly row: DisputeState;
   readonly disputes: readonly DisputeState[];
   readonly outbox: readonly OutboxTopic[];
+  /** Set when a closing observation carried a different amount: the writer quarantines the difference. */
+  readonly amountChanged?: { readonly storedMinor: number; readonly observedMinor: number };
 }
 
 export interface IntentPlan {
@@ -229,12 +236,17 @@ export function planDisputeEvidence(
     currency: payment.currency, minorUnits: evidence.amount.minorUnits, evidenceCurrency: evidence.amount.currency,
     ...(existing ? { amountMinor: existing.amountMinor } : {}),
   });
-  if (bad) return { kind: "quarantined", reason: bad };
   const row: DisputeState = existing
     ? { ...existing, status: mergeDisputeStatus({ current: existing.status, incoming: evidence.status }) }
     : { id: newId, providerDisputeRef: evidence.providerDisputeRef, amountMinor: evidence.amount.minorUnits, status: evidence.status };
+  // Only `amount-mismatch` has an `existing` row; a CLOSING one is applied (owner 2026-10-21), an open/stale one is not.
+  const closesWithNewAmount = bad === "amount-mismatch" && row.status !== existing?.status;
+  if (bad && !closesWithNewAmount) return { kind: "quarantined", reason: bad };
   const next = existing ? disputes.map((d) => (d.id === row.id ? row : d)) : [...disputes, row];
-  return { kind: "dispute", write: writeKind(existing, row), row, disputes: next, outbox: disputeOutbox(existing?.status, row.status) };
+  return {
+    kind: "dispute", write: writeKind(existing, row), row, disputes: next, outbox: disputeOutbox(existing?.status, row.status),
+    ...(closesWithNewAmount ? { amountChanged: { storedMinor: row.amountMinor, observedMinor: evidence.amount.minorUnits } } : {}),
+  };
 }
 
 /**

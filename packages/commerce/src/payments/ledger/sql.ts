@@ -8,3 +8,4 @@ export {
   COMMERCE_PAYMENTS_LEDGER_TABLE, COMMERCE_PAYMENTS_MIGRATIONS, migrateCommercePayments, pinnedChecksum,
 } from "./migrations/index.js";
 export { PAYMENTS_LEDGER_ID, paymentsLedger } from "./migrations/0001_payments_ledger.js";
+export { PAYMENTS_OPERATOR_ACTIONS_ID, paymentsOperatorActions } from "./migrations/0002_payments_operator_actions.js";

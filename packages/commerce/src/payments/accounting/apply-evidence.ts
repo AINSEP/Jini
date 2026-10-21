@@ -16,6 +16,7 @@
  * apply. On Postgres the transaction is poisoned, so the quarantine cannot be written inside it:
  * the inbox worker must catch the error, roll back, and dead-letter/quarantine in a new transaction.
  */
+import type { PaymentsAlertPort } from "../contract/alerts.js";
 import type { DisputeEvidence, PaymentEvidence, RefundEvidence } from "../contract/evidence.js";
 import type { PaymentMode } from "../contract/scope.js";
 import type { LedgerTx } from "../ledger/repo.js";
@@ -29,6 +30,8 @@ import {
 export interface WriterDeps {
   readonly now: () => number;
   readonly newId: () => string;
+  /** Raised (never capping anything) when withdrawn money exceeds captured. Absent = no alerts. */
+  readonly alerts?: PaymentsAlertPort;
 }
 
 export interface WriterInput {
@@ -129,6 +132,13 @@ async function applyOneDispute(ctx: Ctx, evidence: DisputeEvidence): Promise<voi
   const disputes = await ctx.tx.listDisputes({ paymentId: ctx.payment.id });
   const plan = planDisputeEvidence({ payment: stateOf(ctx.payment), disputes, evidence, newId: ctx.deps.newId() });
   if (plan.kind === "quarantined") return quarantine(ctx, "dispute", plan, evidence);
+  if (plan.amountChanged) {
+    // Owner 2026-10-21: the close is applied with the stored amount; only the difference waits for a person.
+    const { storedMinor, observedMinor } = plan.amountChanged;
+    await quarantine(ctx, "dispute", { kind: "quarantined", reason: "dispute-amount-changed" }, {
+      evidence, storedMinor, observedMinor, differenceMinor: observedMinor - storedMinor,
+    });
+  }
   const p = ctx.payment;
   if (plan.write === "insert") {
     await ctx.tx.insertDispute({
@@ -154,6 +164,21 @@ async function writeCaches(ctx: Ctx, intent: Partial<PaymentRecord>): Promise<vo
   });
   // The payment lock is held, so a lost version race means a writer bypassed this module.
   if (!written) throw new Error(`payments ledger: payment ${ctx.payment.id} changed under its lock`);
+  await alertOverWithdrawn(ctx, { capturedMinor: base.capturedMinor, withdrawnMinor: totals.refundedMinor + totals.disputedMinor });
+}
+
+/**
+ * Owner 2026-10-21: succeeded refunds + disputed money above captured is ALERTED, never capped or
+ * refused (it is real money that left). Raised once, when an apply first crosses the line, so
+ * webhook redeliveries do not repeat it. A failing alert port never rolls back the money facts.
+ */
+async function alertOverWithdrawn(ctx: Ctx, now: { capturedMinor: number; withdrawnMinor: number }): Promise<void> {
+  const before = ctx.payment.refundedMinor + ctx.payment.disputedMinor > ctx.payment.capturedMinor;
+  if (before || now.withdrawnMinor <= now.capturedMinor || !ctx.deps.alerts) return;
+  const detail = `withdrawn ${now.withdrawnMinor} > captured ${now.capturedMinor} ${ctx.payment.currency} (minor units)`;
+  await ctx.deps.alerts
+    .raise({ alert: { kind: "over-withdrawn", workspaceId: ctx.payment.workspaceId, mode: ctx.payment.mode, paymentId: ctx.payment.id, detail } })
+    .catch(() => undefined);
 }
 
 async function open(input: WriterInput, inboxId: string | null): Promise<Ctx | null> {
@@ -288,4 +313,78 @@ export async function recordRefundDispatchOutcome(
     await writeCaches(ctx, {});
   }
   return { kind: "applied", quarantined: [], outbox: [], deferred: 0 };
+}
+
+/**
+ * Record what a dispatched `createIntent` answered when it carried no evidence. `rejected`
+ * (provably no money moved) → `failed`; `unknown` (timeout, 5xx) leaves the intent `unknown` until
+ * a webhook, the reconciler's `retrieve` or an operator settles it — never `failed` (bug B4).
+ *
+ * Only an `unknown` payment with NO provider ref moves: once any evidence bound a ref or a status
+ * (a webhook that beat the response), the provider has spoken and only evidence may change it.
+ */
+export async function recordIntentDispatchOutcome(
+  required: Omit<WriterInput, "source"> & { outcome: "rejected" | "unknown" },
+  _optional: Record<string, never> = {}
+): Promise<ApplyResult> {
+  const ctx = await open({ ...required, source: "response" }, null);
+  if (!ctx) return { kind: "missing" };
+  const untouched = ctx.payment.intentStatus === "unknown" && ctx.payment.providerRef === null;
+  if (required.outcome === "rejected" && untouched) await writeCaches(ctx, { intentStatus: "failed" });
+  return { kind: "applied", quarantined: [], outbox: [], deferred: 0 };
+}
+
+/** What settling an `unknown` record did. `not-unknown` = it had already moved; nothing was written. */
+export type SettleResult =
+  | { readonly kind: "settled"; readonly outbox: readonly LedgerOutboxTopic[] }
+  | { readonly kind: "not-unknown"; readonly status: string }
+  | { readonly kind: "missing" };
+
+/**
+ * Settle an `unknown` refund WITHOUT provider evidence of the refund itself: the reconciler's
+ * owner rule (the provider's full snapshot lists no such refund → `failed`, source `retrieve`) and
+ * an operator's audited resolution (source `operator`). Only from `unknown`: a reserved row has not
+ * been dispatched, and a pending/settled one has provider evidence that outranks this. Appends the
+ * observation, emits `refund.succeeded` / `refund.failed` (payload `previousStatus: "unknown"`, so a
+ * consumer can tell it never counted the money) and re-derives the hold.
+ */
+export async function settleUnknownRefund(
+  required: WriterInput & { refundId: string; status: "succeeded" | "failed" },
+  _optional: Record<string, never> = {}
+): Promise<SettleResult> {
+  const ctx = await open(required, null);
+  if (!ctx) return { kind: "missing" };
+  const row = (await ctx.tx.listRefunds({ paymentId: ctx.payment.id })).find((r) => r.id === required.refundId);
+  if (!row) return { kind: "missing" };
+  if (row.status !== "unknown") return { kind: "not-unknown", status: row.status };
+  const amount = { minorUnits: row.amountMinor, currency: row.currency };
+  await appendEvidence(ctx, { subject: "refund", subjectRef: row.providerRefundRef ?? row.id, status: required.status, amount });
+  await ctx.tx.updateRefund({ id: row.id, patch: { status: required.status, updatedAt: ctx.deps.now() } });
+  const topic: LedgerOutboxTopic = required.status === "succeeded" ? "refund.succeeded" : "refund.failed";
+  await enqueue(ctx, [topic], { refundId: row.id, amountMinor: row.amountMinor, currency: row.currency, previousStatus: "unknown" });
+  await writeCaches(ctx, {});
+  return { kind: "settled", outbox: ctx.outbox };
+}
+
+/**
+ * Settle an `unknown` payment intent from an operator's audited resolution (source `operator`):
+ * `succeeded` captures the full amount and emits `payment.succeeded`; `failed` moves no money. Only
+ * from `unknown`; anything else already has provider evidence.
+ */
+export async function settleUnknownIntent(
+  required: WriterInput & { status: "succeeded" | "failed" },
+  _optional: Record<string, never> = {}
+): Promise<SettleResult> {
+  const ctx = await open(required, null);
+  if (!ctx) return { kind: "missing" };
+  const p = ctx.payment;
+  if (p.intentStatus !== "unknown") return { kind: "not-unknown", status: p.intentStatus };
+  const amount = { minorUnits: p.amountMinor, currency: p.currency };
+  await appendEvidence(ctx, { subject: "payment", subjectRef: p.providerRef ?? p.id, status: required.status, amount });
+  const succeeded = required.status === "succeeded";
+  const intent: Partial<PaymentRecord> = succeeded ? { intentStatus: "succeeded", capturedMinor: p.amountMinor } : { intentStatus: "failed" };
+  ctx.payment = { ...p, ...intent } as PaymentRecord;
+  await enqueue(ctx, succeeded ? ["payment.succeeded"] : [], { amountMinor: p.amountMinor, currency: p.currency });
+  await writeCaches(ctx, intent);
+  return { kind: "settled", outbox: ctx.outbox };
 }

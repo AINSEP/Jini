@@ -30,7 +30,9 @@ export type PaymentErrorCode =
   | "PROVIDER_ERROR"
   | "IDEMPOTENCY_CONFLICT"
   | "SIGNATURE_INVALID"
-  | "RISK_DENIED";
+  | "RISK_DENIED"
+  /** A money-moving call's grant was missing, expired, already used or bound to something else (design item 8). */
+  | "GRANT_INVALID";
 
 /** Typed, never thrown. `retryable` = retrying with the SAME idempotency key may succeed. */
 export interface PaymentError {

@@ -2,7 +2,8 @@ import { describe, expect, test } from "vitest";
 
 import { LedgerConstraintError, type LedgerConstraintKind, type LedgerTx, type PaymentsLedger } from "../repo.js";
 import type {
-  AttemptRecord, DisputeRecord, EvidenceRecord, NewInbox, NewOutbox, NewPayment, NewQuarantine, PaymentPatch, RefundRecord,
+  AttemptRecord, DisputeRecord, EvidenceRecord, NewInbox, NewOutbox, NewPayment, NewQuarantine, OperatorActionRecord, PaymentPatch,
+  RefundRecord,
 } from "../rows.js";
 
 /**
@@ -79,6 +80,14 @@ function quarantine(overrides: Partial<NewQuarantine> = {}): NewQuarantine {
   return {
     id: "q-1", workspaceId: WS, mode: "live", paymentId: "pay-1", subject: "refund", reason: "over-refund", evidenceJson: "{}",
     createdAt: 7_000, ...overrides,
+  };
+}
+
+function operatorAction(overrides: Partial<OperatorActionRecord> = {}): OperatorActionRecord {
+  return {
+    id: "op-1", paymentId: "pay-1", workspaceId: WS, siteId: "site-1", providerId: "stripe", providerAccountId: "acct-1", mode: "live",
+    refundId: null, action: "resolve-unknown", outcome: "failed", actor: "operator-7", reason: "provider support confirmed", createdAt: 8_000,
+    ...overrides,
   };
 }
 
@@ -503,6 +512,14 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
           expect((await tx.listPendingOutbox({ limit: 10 })).map((m) => m.id)).toEqual(["out-1", "out-2"]);
         });
       });
+
+      test("messages enqueued at the same time list in enqueue order, whatever their ids (one apply's topics stay ordered)", async () => {
+        await within(async (tx) => {
+          for (const id of ["out-z", "out-a", "out-m"]) await tx.enqueueOutbox({ message: outbox({ id, createdAt: 7 }) });
+          await tx.enqueueOutbox({ message: outbox({ id: "out-early", createdAt: 6 }) });
+          expect((await tx.listPendingOutbox({ limit: 10 })).map((m) => m.id)).toEqual(["out-early", "out-z", "out-a", "out-m"]);
+        });
+      });
     });
 
     describe("quarantine", () => {
@@ -517,6 +534,83 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
           expect(all).toEqual([{ ...quarantine({ id: "q-0", createdAt: 1, paymentId: null, subject: "payment", reason: "unmatched" }), resolvedAt: 9 }, { ...quarantine(), resolvedAt: null }]);
           expect((await tx.listQuarantine({ workspaceId: WS, mode: "live" }, { unresolvedOnly: true })).map((q) => q.id)).toEqual(["q-1"]);
           expect(await tx.listQuarantine({ workspaceId: "ws-2", mode: "live" })).toEqual([]);
+        });
+      });
+    });
+
+    describe("reconciliation scans", () => {
+      test("unknown intents updated before the cutoff, least recently updated first, bounded, optionally scoped", async () => {
+        await within(async (tx) => {
+          await tx.insertPayment({ payment: payment({ intentStatus: "unknown", status: "unknown", updatedAt: 500 }) });
+          await tx.insertPayment({ payment: payment({ id: "pay-0", idempotencyKey: "i0", intentStatus: "unknown", status: "unknown", updatedAt: 100 }) });
+          await tx.insertPayment({ payment: payment({ id: "pay-new", idempotencyKey: "i2", intentStatus: "unknown", status: "unknown", updatedAt: 900 }) });
+          await tx.insertPayment({ payment: payment({ id: "pay-ok", idempotencyKey: "i3", intentStatus: "succeeded", status: "succeeded", updatedAt: 1 }) });
+          await tx.insertPayment({ payment: payment({ id: "pay-t", idempotencyKey: "i4", mode: "test", intentStatus: "unknown", status: "unknown", updatedAt: 50 }) });
+          const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
+          expect(ids(await tx.listUnknownPayments({ updatedBefore: 900, limit: 10 }))).toEqual(["pay-t", "pay-0", "pay-1"]);
+          expect(ids(await tx.listUnknownPayments({ updatedBefore: 900, limit: 2 }))).toEqual(["pay-t", "pay-0"]);
+          expect(ids(await tx.listUnknownPayments({ updatedBefore: 900, limit: 10 }, { scope: LIVE }))).toEqual(["pay-0", "pay-1"]);
+          expect(await tx.listUnknownPayments({ updatedBefore: 900, limit: 10 }, { scope: { workspaceId: "ws-2", mode: "live" } })).toEqual([]);
+          expect((await tx.listUnknownPayments({ updatedBefore: 101, limit: 10 }, { scope: LIVE }))[0]).toEqual({
+            ...payment({ id: "pay-0", idempotencyKey: "i0", intentStatus: "unknown", status: "unknown", updatedAt: 100 }), version: 1,
+          });
+        });
+      });
+
+      test("unsettled refunds (reserved, unknown, pending) before the cutoff, same order, bound and scope", async () => {
+        await within(async (tx) => {
+          await tx.insertPayment({ payment: payment() });
+          await tx.insertPayment({ payment: payment({ id: "pay-t", idempotencyKey: "it", mode: "test" }) });
+          const statuses = ["reserved", "unknown", "pending", "succeeded", "failed"] as const;
+          for (const [index, status] of statuses.entries()) {
+            await tx.insertRefund({ refund: refund({ id: `ref-${status}`, idempotencyKey: `k-${status}`, status, updatedAt: 500 - index }) });
+          }
+          await tx.insertRefund({ refund: refund({ id: "ref-new", idempotencyKey: "k-new", status: "unknown", updatedAt: 900 }) });
+          await tx.insertRefund({ refund: refund({ id: "ref-t", paymentId: "pay-t", mode: "test", idempotencyKey: "k-t", status: "pending", updatedAt: 1 }) });
+          const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
+          expect(ids(await tx.listUnsettledRefunds({ updatedBefore: 900, limit: 10 }))).toEqual(["ref-t", "ref-pending", "ref-unknown", "ref-reserved"]);
+          expect(ids(await tx.listUnsettledRefunds({ updatedBefore: 900, limit: 1 }))).toEqual(["ref-t"]);
+          expect(ids(await tx.listUnsettledRefunds({ updatedBefore: 900, limit: 10 }, { scope: LIVE }))).toEqual(["ref-pending", "ref-unknown", "ref-reserved"]);
+          // The cutoff is strict: the row updated AT 499 is not listed.
+          expect(await tx.listUnsettledRefunds({ updatedBefore: 499, limit: 10 }, { scope: LIVE })).toEqual([
+            refund({ id: "ref-pending", idempotencyKey: "k-pending", status: "pending", updatedAt: 498 }),
+          ]);
+        });
+      });
+    });
+
+    describe("operator actions", () => {
+      test("append-only: actions round-trip and list oldest first per payment; the port has no way to change them", async () => {
+        await within(async (tx) => {
+          await tx.insertPayment({ payment: payment() });
+          await tx.appendOperatorAction({ action: operatorAction() });
+          await tx.appendOperatorAction({ action: operatorAction({ id: "op-0", refundId: "ref-1", outcome: "succeeded", createdAt: 10 }) });
+          expect(await tx.listOperatorActions({ paymentId: "pay-1" })).toEqual([
+            operatorAction({ id: "op-0", refundId: "ref-1", outcome: "succeeded", createdAt: 10 }), operatorAction(),
+          ]);
+          expect(await tx.listOperatorActions({ paymentId: "pay-2" })).toEqual([]);
+          const methods = new Set<string>();
+          for (let proto = Object.getPrototypeOf(tx); proto && proto !== Object.prototype; proto = Object.getPrototypeOf(proto)) {
+            for (const name of Object.getOwnPropertyNames(proto)) methods.add(name);
+          }
+          expect([...methods].filter((name) => /operatoraction/i.test(name)).sort()).toEqual(["appendOperatorAction", "listOperatorActions"]);
+        });
+      });
+
+      test("an action needs its payment in its own scope, a unique id, and every required column", async () => {
+        await withLedger(async (ledger) => {
+          await ledger.transaction(async (tx) => {
+            await tx.insertPayment({ payment: payment() });
+            await tx.appendOperatorAction({ action: operatorAction() });
+          });
+          const table = "commerce_operator_actions";
+          await expectConstraint(ledger.transaction((tx) => tx.appendOperatorAction({ action: operatorAction() })), "unique", table);
+          await expectConstraint(ledger.transaction((tx) => tx.appendOperatorAction({ action: operatorAction({ id: "op-2", workspaceId: "ws-2" }) })), "foreign-key", table);
+          await expectConstraint(ledger.transaction((tx) => tx.appendOperatorAction({ action: operatorAction({ id: "op-3", mode: "test" }) })), "foreign-key", table);
+          await expectConstraint(ledger.transaction((tx) => tx.appendOperatorAction({ action: operatorAction({ id: "op-4", mode: "staging" as "live" }) })), "check", table);
+          await expectConstraint(ledger.transaction((tx) => tx.appendOperatorAction({ action: operatorAction({ id: "op-5", actor: null as unknown as string }) })), "check", table);
+          await expect(ledger.transaction((tx) => tx.appendOperatorAction({ action: operatorAction({ id: "op-6", createdAt: 1.5 }) }))).rejects.toThrow(TypeError);
+          expect(await ledger.transaction((tx) => tx.listOperatorActions({ paymentId: "pay-1" }))).toHaveLength(1);
         });
       });
     });

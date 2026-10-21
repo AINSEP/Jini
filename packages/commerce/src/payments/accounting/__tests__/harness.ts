@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { openMemorySqliteKernel } from "@jini-ai/db/kernel/sqlite";
 
+import type { PaymentsAlertPort } from "../../contract/alerts.js";
 import type { PaymentEvidence, RefundEvidence } from "../../contract/evidence.js";
 import type { PaymentsLedger } from "../../ledger/repo.js";
 import { memoryPaymentsLedger } from "../../ledger/repo.memory.js";
@@ -39,12 +40,24 @@ export async function openLedger(kind: LedgerKind): Promise<PaymentsLedger> {
 }
 
 /** A paid $100 payment on a fresh ledger, with the fake provider that charged it. */
-export async function paidPayment(kind: LedgerKind, optional: { echoesCorrelation?: boolean } = {}) {
+/** An alert port that records what it was asked to raise. */
+export function recordingAlerts(optional: { fail?: boolean } = {}): PaymentsAlertPort & { raised: Parameters<PaymentsAlertPort["raise"]>[0]["alert"][] } {
+  const raised: Parameters<PaymentsAlertPort["raise"]>[0]["alert"][] = [];
+  return {
+    raised,
+    raise: async ({ alert }) => {
+      raised.push(alert);
+      if (optional.fail === true) throw new Error("alert sink down");
+    },
+  };
+}
+
+export async function paidPayment(kind: LedgerKind, optional: { echoesCorrelation?: boolean; alerts?: PaymentsAlertPort } = {}) {
   const ledger = await openLedger(kind);
   const fake = createLipayFake({ now: () => NOW }, optional);
   const ctx = lipayFakeContext({ now: () => NOW });
   let seq = 0;
-  const deps = { now: () => NOW, newId: () => `id_${++seq}` };
+  const deps = { now: () => NOW, newId: () => `id_${++seq}`, ...(optional.alerts ? { alerts: optional.alerts } : {}) };
   const scope = { workspaceId: "ws", mode: "test" } as const;
   await ledger.transaction((tx) => tx.insertPayment({ payment: newPayment() }));
   const charged = await fake.provider.createIntent({

@@ -175,9 +175,25 @@ describe("L3 review fixes (planner)", () => {
     expect(planRefundEvidence({ payment: paid, refunds: [other], evidence: noEcho, newId: "n" })).toMatchObject({ kind: "refund", write: "insert", row: { id: "n" } });
   });
 
-  test("an existing dispute whose amount changes is quarantined", () => {
+  test("a dispute CLOSING with a changed amount is applied with the stored amount; the difference is flagged (owner 2026-10-21)", () => {
     const open = { id: "d1", providerDisputeRef: "dp_1", amountMinor: 10_000, status: "open" as const };
     expect(planDisputeEvidence({ payment: paid, disputes: [open], evidence: { providerDisputeRef: "dp_1", amount: USD(5_000), status: "lost" }, newId: "x" }))
+      .toEqual({
+        kind: "dispute", write: "update", row: { ...open, status: "lost" }, disputes: [{ ...open, status: "lost" }], outbox: ["dispute.closed"],
+        amountChanged: { storedMinor: 10_000, observedMinor: 5_000 },
+      });
+  });
+  test("a changed amount that does not close the dispute (still open, or already closed) is quarantined whole", () => {
+    const open = { id: "d1", providerDisputeRef: "dp_1", amountMinor: 10_000, status: "open" as const };
+    expect(planDisputeEvidence({ payment: paid, disputes: [open], evidence: { providerDisputeRef: "dp_1", amount: USD(5_000), status: "open" }, newId: "x" }))
       .toEqual({ kind: "quarantined", reason: "amount-mismatch" });
+    const won = { ...open, status: "won" as const };
+    expect(planDisputeEvidence({ payment: paid, disputes: [won], evidence: { providerDisputeRef: "dp_1", amount: USD(5_000), status: "lost" }, newId: "x" }))
+      .toEqual({ kind: "quarantined", reason: "amount-mismatch" });
+  });
+  test("a closing observation in another currency is still quarantined whole", () => {
+    const open = { id: "d1", providerDisputeRef: "dp_1", amountMinor: 10_000, status: "open" as const };
+    expect(planDisputeEvidence({ payment: paid, disputes: [open], evidence: { providerDisputeRef: "dp_1", amount: { minorUnits: 10_000, currency: "EUR" }, status: "won" }, newId: "x" }))
+      .toEqual({ kind: "quarantined", reason: "currency-mismatch" });
   });
 });
