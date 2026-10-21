@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 
-import { decodeMinor, decodeNullableMinor, inboxFromRow, PAYMENT_PATCH_COLUMNS, patchColumns, paymentFromRow } from "../rows.js";
+import {
+  decodeMinor, decodeNullableMinor, encodeColumns, encodeMinor, encodeNullableMinor, inboxFromRow, PAYMENT_PATCH_COLUMNS, patchColumns,
+  paymentFromRow,
+} from "../rows.js";
 
 describe("decodeMinor: the one integer decoder every row mapper uses", () => {
   test("numbers, decimal strings (node-pg BIGINT) and bigints (safeIntegers, PGlite) decode to the same number", () => {
@@ -24,10 +27,36 @@ describe("decodeMinor: the one integer decoder every row mapper uses", () => {
     }
   });
 
+  test("-0 decodes to 0 from every representation", () => {
+    for (const zero of [-0, "-0", 0n]) expect(Object.is(decodeMinor(zero), 0), String(zero)).toBe(true);
+  });
+
   test("the NULLable variant keeps SQL NULL and decodes anything else", () => {
     expect(decodeNullableMinor(null)).toBeNull();
     expect(decodeNullableMinor("7")).toBe(7);
     expect(() => decodeNullableMinor(undefined)).toThrow(TypeError);
+  });
+});
+
+describe("encodeMinor: the one integer encoder every write uses", () => {
+  test("a safe integer passes unchanged; -0 becomes 0", () => {
+    expect(encodeMinor(1999)).toBe(1999);
+    expect(encodeMinor(-42)).toBe(-42);
+    expect(encodeMinor(Number.MAX_SAFE_INTEGER)).toBe(Number.MAX_SAFE_INTEGER);
+    expect(Object.is(encodeMinor(-0), 0)).toBe(true);
+  });
+
+  test("anything a driver would round, truncate or store as REAL throws TypeError", () => {
+    for (const bad of [1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53, "1", 1n, null, undefined]) {
+      expect(() => encodeMinor(bad as number), String(bad)).toThrow(/expected a safe integer to write/);
+    }
+  });
+
+  test("the NULLable variant keeps null; encodeColumns encodes only integer columns", () => {
+    expect(encodeNullableMinor(null)).toBeNull();
+    expect(encodeNullableMinor(-0)).toBe(0);
+    expect(encodeColumns({ status: "x", amount_minor: -0, fee_minor: null, reference: "1.5" })).toEqual({ status: "x", amount_minor: 0, fee_minor: null, reference: "1.5" });
+    expect(() => encodeColumns({ updated_at: 1.5 })).toThrow(TypeError);
   });
 });
 
@@ -70,8 +99,18 @@ describe("row mappers", () => {
     expect(() => inboxFromRow(row)).toThrow(TypeError);
   });
 
-  test("patchColumns maps present fields to columns and skips undefined ones", () => {
-    const patch = { status: "refunded", feeMinor: null, partyId: undefined, updatedAt: 5 } as const;
-    expect(patchColumns({ patch, columns: PAYMENT_PATCH_COLUMNS })).toEqual({ status: "refunded", fee_minor: null, updated_at: 5 });
+  test("patchColumns maps present fields to columns, encodes integers and skips undefined ones", () => {
+    const patch = { status: "refunded", feeMinor: null, partyId: undefined, refundedMinor: -0, updatedAt: 5 } as const;
+    const set = patchColumns({ patch, columns: PAYMENT_PATCH_COLUMNS });
+    expect(set).toEqual({ status: "refunded", fee_minor: null, refunded_minor: 0, updated_at: 5 });
+    expect(Object.is(set.refunded_minor, 0)).toBe(true);
+    expect(() => patchColumns({ patch: { capturedMinor: 1.5, updatedAt: 5 }, columns: PAYMENT_PATCH_COLUMNS })).toThrow(TypeError);
+  });
+
+  test("patchColumns is an allow-list: an unknown key throws, even an inherited name or an undefined value", () => {
+    for (const key of ["workspaceId", "version", "toString", "id"]) {
+      const patch = { [key]: undefined, updatedAt: 5 } as unknown as { updatedAt: number };
+      expect(() => patchColumns({ patch, columns: PAYMENT_PATCH_COLUMNS }), key).toThrow(`ledger: ${key} is not a patchable field`);
+    }
   });
 });

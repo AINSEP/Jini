@@ -12,6 +12,7 @@
  * observation kept, never dropped and never capped.
  */
 import type { DisputeEvidence, PaymentEvidence, RefundEvidence } from "../contract/evidence.js";
+import type { PaymentMode } from "../contract/scope.js";
 import type { LedgerTx } from "../ledger/repo.js";
 import type { EvidenceSource, EvidenceSubject, LedgerOutboxTopic, PaymentRecord, RefundRecord } from "../ledger/rows.js";
 import { mergeRefundStatus, refundTotals, refundableMinor } from "../state/status.js";
@@ -28,6 +29,9 @@ export interface WriterDeps {
 export interface WriterInput {
   readonly tx: LedgerTx;
   readonly deps: WriterDeps;
+  /** The payment's workspace + mode: `lockPayment` is fenced by them, so a foreign-scope id reads as missing. */
+  readonly workspaceId: string;
+  readonly mode: PaymentMode;
   readonly paymentId: string;
   readonly source: EvidenceSource;
 }
@@ -54,8 +58,8 @@ interface Ctx extends WriterInput {
 async function appendEvidence(ctx: Ctx, entry: { subject: EvidenceSubject; subjectRef: string; status: string; amount?: { minorUnits: number; currency: string } }): Promise<void> {
   await ctx.tx.appendEvidence({
     evidence: {
-      id: ctx.deps.newId(), paymentId: ctx.payment.id, workspaceId: ctx.payment.workspaceId, mode: ctx.payment.mode,
-      source: ctx.source, subject: entry.subject, subjectRef: entry.subjectRef, observedStatus: entry.status,
+      id: ctx.deps.newId(), paymentId: ctx.payment.id, workspaceId: ctx.payment.workspaceId, siteId: ctx.payment.siteId,
+      providerId: ctx.payment.providerId, providerAccountId: ctx.payment.providerAccountId, mode: ctx.payment.mode, source: ctx.source, subject: entry.subject, subjectRef: entry.subjectRef, observedStatus: entry.status,
       currency: entry.amount?.currency ?? null, amountMinor: entry.amount?.minorUnits ?? null, inboxId: ctx.inboxId, recordedAt: ctx.deps.now(),
     },
   });
@@ -124,7 +128,7 @@ async function applyOneDispute(ctx: Ctx, evidence: DisputeEvidence): Promise<voi
   if (plan.write === "insert") {
     await ctx.tx.insertDispute({
       dispute: {
-        ...plan.row, paymentId: p.id, workspaceId: p.workspaceId, providerId: p.providerId, providerAccountId: p.providerAccountId, mode: p.mode,
+        ...plan.row, paymentId: p.id, workspaceId: p.workspaceId, siteId: p.siteId, providerId: p.providerId, providerAccountId: p.providerAccountId, mode: p.mode,
         currency: p.currency, dueBy: evidence.dueBy ?? null, createdAt: ctx.deps.now(), updatedAt: ctx.deps.now(),
       },
     });
@@ -148,7 +152,7 @@ async function writeCaches(ctx: Ctx, intent: Partial<PaymentRecord>): Promise<vo
 }
 
 async function open(input: WriterInput, inboxId: string | null): Promise<Ctx | null> {
-  const payment = await input.tx.lockPayment({ id: input.paymentId });
+  const payment = await input.tx.lockPayment({ workspaceId: input.workspaceId, mode: input.mode, id: input.paymentId });
   return payment ? { ...input, payment, inboxId, outbox: [], quarantined: [], deferred: 0 } : null;
 }
 

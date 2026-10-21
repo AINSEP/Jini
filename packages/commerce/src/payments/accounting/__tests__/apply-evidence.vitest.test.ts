@@ -247,10 +247,10 @@ describe("guards", () => {
     const ledger = memoryPaymentsLedger();
     const evidence = { providerRefundRef: "re", amount: USD(1), status: "succeeded" as const };
     await ledger.transaction(async (tx) => {
-      expect(await applyPaymentEvidence({ tx, deps, paymentId: "nope", source: "webhook", evidence: { providerRef: "c", status: "pending", refunds: [], disputes: [] } })).toEqual({ kind: "missing" });
-      expect(await applyRefundEvidence({ tx, deps, paymentId: "nope", source: "webhook", evidence })).toEqual({ kind: "missing" });
-      expect(await reserveRefund({ tx, deps, paymentId: "nope", refundId: "r", amountMinor: 1, idempotencyKey: "k" })).toEqual({ kind: "missing" });
-      expect(await recordRefundDispatchOutcome({ tx, deps, paymentId: "nope", refundId: "r", outcome: "unknown" })).toEqual({ kind: "missing" });
+      expect(await applyPaymentEvidence({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "nope", source: "webhook", evidence: { providerRef: "c", status: "pending", refunds: [], disputes: [] } })).toEqual({ kind: "missing" });
+      expect(await applyRefundEvidence({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "nope", source: "webhook", evidence })).toEqual({ kind: "missing" });
+      expect(await reserveRefund({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "nope", refundId: "r", amountMinor: 1, idempotencyKey: "k" })).toEqual({ kind: "missing" });
+      expect(await recordRefundDispatchOutcome({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "nope", refundId: "r", outcome: "unknown" })).toEqual({ kind: "missing" });
     });
   });
 
@@ -258,8 +258,8 @@ describe("guards", () => {
     const ledger = memoryPaymentsLedger();
     await ledger.transaction((tx) => tx.insertPayment({ payment: newPayment({ intentStatus: "pending", status: "pending" }) }));
     await ledger.transaction(async (tx) => {
-      expect(await reserveRefund({ tx, deps, paymentId: "pay_1", refundId: "r", amountMinor: 1, idempotencyKey: "k" })).toEqual({ kind: "not-refundable", status: "pending" });
-      expect(await recordRefundDispatchOutcome({ tx, deps, paymentId: "pay_1", refundId: "r", outcome: "rejected" })).toEqual({ kind: "missing" });
+      expect(await reserveRefund({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", refundId: "r", amountMinor: 1, idempotencyKey: "k" })).toEqual({ kind: "not-refundable", status: "pending" });
+      expect(await recordRefundDispatchOutcome({ tx, deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", refundId: "r", outcome: "rejected" })).toEqual({ kind: "missing" });
     });
     const w = await paidPayment("memory");
     expect(await w.reserve("r", 0)).toEqual({ kind: "invalid-amount" });
@@ -269,7 +269,7 @@ describe("guards", () => {
   test("a refund reservation carries its idempotency key and reason", async () => {
     const w = await paidPayment("memory");
     const reserved = await w.ledger.transaction((tx) =>
-      reserveRefund({ tx, deps: w.deps, paymentId: "pay_1", refundId: "rf_r", amountMinor: 100, idempotencyKey: "kr" }, { reason: "requested_by_customer" }));
+      reserveRefund({ tx, deps: w.deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", refundId: "rf_r", amountMinor: 100, idempotencyKey: "kr" }, { reason: "requested_by_customer" }));
     expect(reserved).toMatchObject({ kind: "reserved", refund: { idempotencyKey: "kr", reason: "requested_by_customer", status: "reserved", currency: "USD" } });
   });
 
@@ -278,7 +278,7 @@ describe("guards", () => {
     await expect(w.ledger.transaction(async (tx) => {
       const original = tx.updatePayment.bind(tx);
       tx.updatePayment = async (r) => { await original({ ...r, patch: { updatedAt: NOW } }); return original(r); };
-      return applyRefundEvidence({ tx, deps: w.deps, paymentId: "pay_1", source: "webhook", evidence: { providerRefundRef: "re_q", amount: USD(5), status: "pending" } });
+      return applyRefundEvidence({ tx, deps: w.deps, workspaceId: "ws", mode: "test", paymentId: "pay_1", source: "webhook", evidence: { providerRefundRef: "re_q", amount: USD(5), status: "pending" } });
     })).rejects.toThrow("payments ledger: payment pay_1 changed under its lock");
   });
 });

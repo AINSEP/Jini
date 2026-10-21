@@ -28,7 +28,11 @@ describe("SQL adapter: driver errors", () => {
     expect(constraintKindOf({ code: "23505" })).toBe("unique");
     expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_FOREIGNKEY" })).toBe("foreign-key");
     expect(constraintKindOf({ code: "23503" })).toBe("foreign-key");
-    expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_CHECK" })).toBeNull();
+    expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_CHECK" })).toBe("check");
+    expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_NOTNULL" })).toBe("check");
+    expect(constraintKindOf({ code: "23514" })).toBe("check");
+    expect(constraintKindOf({ code: "23502" })).toBe("check");
+    expect(constraintKindOf({ code: "SQLITE_CONSTRAINT_TRIGGER" })).toBeNull();
     expect(constraintKindOf({ code: "toString" })).toBeNull();
     expect(constraintKindOf({ code: 23505 })).toBeNull();
     expect(constraintKindOf({})).toBeNull();
@@ -62,21 +66,17 @@ describe("SQL adapter: driver errors", () => {
       const byKey = await insert({ id: "pay-2" });
       expect(byKey).toBeInstanceOf(LedgerConstraintError);
       expect((byKey.cause as { code: string }).code).toBe("SQLITE_CONSTRAINT_UNIQUE");
-      const byId = await insert({ idempotencyKey: "idem-2" });
+      // Another workspace, so only the primary key (not the id + workspace + mode scope key) collides.
+      const byId = await insert({ idempotencyKey: "idem-2", workspaceId: "ws-2" });
       expect(byId).toBeInstanceOf(LedgerConstraintError);
       expect((byId.cause as { code: string }).code).toBe("SQLITE_CONSTRAINT_PRIMARYKEY");
-    } finally {
-      await kernel.close();
-    }
-  });
-
-  test("the CHECKs refuse an unknown mode and a negative amount", async () => {
-    const kernel = openKernel();
-    try {
-      await migrateCommercePayments({ kernel });
-      const ledger = sqlPaymentsLedger({ kernel });
-      await expect(ledger.transaction((tx) => tx.insertPayment({ payment: payment({ mode: "staging" as "live" }) }))).rejects.toThrow(/CHECK constraint failed/);
-      await expect(ledger.transaction((tx) => tx.insertPayment({ payment: payment({ amountMinor: -1 }) }))).rejects.toThrow(/CHECK constraint failed/);
+      const byCheck = await insert({ id: "pay-3", idempotencyKey: "idem-3", amountMinor: -1 });
+      expect(byCheck.kind).toBe("check");
+      expect((byCheck.cause as { code: string }).code).toBe("SQLITE_CONSTRAINT_CHECK");
+      // Without the explicit NOT NULL, SQLite would accept a NULL text primary key.
+      const byNull = await insert({ id: null as unknown as string, idempotencyKey: "idem-4" });
+      expect(byNull.kind).toBe("check");
+      expect((byNull.cause as { code: string }).code).toBe("SQLITE_CONSTRAINT_NOTNULL");
     } finally {
       await kernel.close();
     }

@@ -45,6 +45,7 @@ export async function paidPayment(kind: LedgerKind, optional: { echoesCorrelatio
   const ctx = lipayFakeContext({ now: () => NOW });
   let seq = 0;
   const deps = { now: () => NOW, newId: () => `id_${++seq}` };
+  const scope = { workspaceId: "ws", mode: "test" } as const;
   await ledger.transaction((tx) => tx.insertPayment({ payment: newPayment() }));
   const charged = await fake.provider.createIntent({
     req: { amount: USD(10_000), idempotencyKey: "idem-pay", correlationId: "pay_1", captureMode: "auto" }, ctx,
@@ -54,13 +55,13 @@ export async function paidPayment(kind: LedgerKind, optional: { echoesCorrelatio
   const w = {
     ledger, fake, ctx, deps,
     payment: (evidence: PaymentEvidence, source: "response" | "webhook" | "retrieve" = "webhook") =>
-      ledger.transaction((tx) => applyPaymentEvidence({ tx, deps, paymentId: "pay_1", source, evidence })),
+      ledger.transaction((tx) => applyPaymentEvidence({ tx, deps, ...scope, paymentId: "pay_1", source, evidence })),
     refundEvidence: (evidence: RefundEvidence, refundId?: string) =>
-      ledger.transaction((tx) => applyRefundEvidence({ tx, deps, paymentId: "pay_1", source: "response", evidence }, refundId === undefined ? {} : { refundId })),
+      ledger.transaction((tx) => applyRefundEvidence({ tx, deps, ...scope, paymentId: "pay_1", source: "response", evidence }, refundId === undefined ? {} : { refundId })),
     reserve: (refundId: string, amountMinor: number) =>
-      ledger.transaction((tx) => reserveRefund({ tx, deps, paymentId: "pay_1", refundId, amountMinor, idempotencyKey: `k_${refundId}` })),
+      ledger.transaction((tx) => reserveRefund({ tx, deps, ...scope, paymentId: "pay_1", refundId, amountMinor, idempotencyKey: `k_${refundId}` })),
     dispatchOutcome: (refundId: string, outcome: "rejected" | "unknown") =>
-      ledger.transaction((tx) => recordRefundDispatchOutcome({ tx, deps, paymentId: "pay_1", refundId, outcome })),
+      ledger.transaction((tx) => recordRefundDispatchOutcome({ tx, deps, ...scope, paymentId: "pay_1", refundId, outcome })),
     /** Dispatch a reserved refund to the fake; returns its synchronous outcome. */
     dispatch: (refundId: string, amountMinor: number) =>
       fake.provider.refund!({ req: { providerRef: "ch_1", amount: USD(amountMinor), idempotencyKey: `k_${refundId}`, correlationId: refundId }, ctx }),

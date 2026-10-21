@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { LedgerConstraintError, type LedgerTx, type PaymentsLedger } from "../repo.js";
+import { LedgerConstraintError, type LedgerConstraintKind, type LedgerTx, type PaymentsLedger } from "../repo.js";
 import type {
   AttemptRecord, DisputeRecord, EvidenceRecord, NewInbox, NewOutbox, NewPayment, NewQuarantine, PaymentPatch, RefundRecord,
 } from "../rows.js";
@@ -18,6 +18,7 @@ export interface LedgerHarness {
 }
 
 const WS = "ws-1";
+const LIVE = { workspaceId: WS, mode: "live" } as const;
 
 export function payment(overrides: Partial<NewPayment> = {}): NewPayment {
   return {
@@ -31,7 +32,7 @@ export function payment(overrides: Partial<NewPayment> = {}): NewPayment {
 
 function attempt(overrides: Partial<AttemptRecord> = {}): AttemptRecord {
   return {
-    id: "att-1", paymentId: "pay-1", workspaceId: WS, mode: "live", op: "intent", operationKey: "op-1", refundId: null,
+    id: "att-1", paymentId: "pay-1", workspaceId: WS, siteId: "site-1", providerId: "stripe", providerAccountId: "acct-1", mode: "live", op: "intent", operationKey: "op-1", refundId: null,
     outcome: "dispatched", errorCode: null, errorMessage: null, createdAt: 1_000, updatedAt: 1_000, ...overrides,
   };
 }
@@ -46,7 +47,7 @@ function refund(overrides: Partial<RefundRecord> = {}): RefundRecord {
 
 function dispute(overrides: Partial<DisputeRecord> = {}): DisputeRecord {
   return {
-    id: "dis-1", paymentId: "pay-1", workspaceId: WS, providerId: "stripe", providerAccountId: "acct-1", mode: "live",
+    id: "dis-1", paymentId: "pay-1", workspaceId: WS, siteId: "site-1", providerId: "stripe", providerAccountId: "acct-1", mode: "live",
     providerDisputeRef: "dp_1", currency: "USD", amountMinor: 10_000, status: "open", dueBy: 9_000, createdAt: 3_000,
     updatedAt: 3_000, ...overrides,
   };
@@ -54,7 +55,7 @@ function dispute(overrides: Partial<DisputeRecord> = {}): DisputeRecord {
 
 function evidence(overrides: Partial<EvidenceRecord> = {}): EvidenceRecord {
   return {
-    id: "ev-1", paymentId: "pay-1", workspaceId: WS, mode: "live", source: "webhook", subject: "refund", subjectRef: "re_1",
+    id: "ev-1", paymentId: "pay-1", workspaceId: WS, siteId: "site-1", providerId: "stripe", providerAccountId: "acct-1", mode: "live", source: "webhook", subject: "refund", subjectRef: "re_1",
     observedStatus: "succeeded", currency: "USD", amountMinor: 3_000, inboxId: "in-1", recordedAt: 4_000, ...overrides,
   };
 }
@@ -81,7 +82,7 @@ function quarantine(overrides: Partial<NewQuarantine> = {}): NewQuarantine {
   };
 }
 
-async function expectConstraint(promise: Promise<unknown>, kind: "unique" | "foreign-key", table: string): Promise<void> {
+async function expectConstraint(promise: Promise<unknown>, kind: LedgerConstraintKind, table: string): Promise<void> {
   const error = await promise.then(() => null, (caught: unknown) => caught);
   expect(error).toBeInstanceOf(LedgerConstraintError);
   expect((error as LedgerConstraintError).kind).toBe(kind);
@@ -195,11 +196,71 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
         });
       });
 
-      test("lockPayment reads the payment under its lock, or null", async () => {
+      test("lockPayment reads the payment under its lock, fenced by workspace and mode, or null", async () => {
         await within(async (tx) => {
           await tx.insertPayment({ payment: payment() });
-          expect((await tx.lockPayment({ id: "pay-1" }))?.version).toBe(1);
-          expect(await tx.lockPayment({ id: "missing" })).toBeNull();
+          expect((await tx.lockPayment({ ...LIVE, id: "pay-1" }))?.version).toBe(1);
+          expect(await tx.lockPayment({ ...LIVE, id: "missing" })).toBeNull();
+          expect(await tx.lockPayment({ workspaceId: WS, mode: "test", id: "pay-1" })).toBeNull();
+          expect(await tx.lockPayment({ workspaceId: "ws-2", mode: "live", id: "pay-1" })).toBeNull();
+        });
+      });
+
+      test("lockPayment outside a transaction throws: a lock nothing holds protects nothing", async () => {
+        await withLedger(async (ledger) => {
+          let escaped: LedgerTx | undefined;
+          await ledger.transaction(async (tx) => {
+            await tx.insertPayment({ payment: payment() });
+            escaped = tx;
+          });
+          await expect(escaped!.lockPayment({ ...LIVE, id: "pay-1" })).rejects.toThrow(/must be called inside transaction\(\)/);
+        });
+      });
+
+      test("every integer is guarded on write: a fraction, NaN or unsafe number throws TypeError and writes nothing", async () => {
+        await withLedger(async (ledger) => {
+          for (const bad of [1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53, "100" as unknown as number]) {
+            const error = await ledger.transaction((tx) => tx.insertPayment({ payment: payment({ amountMinor: bad }) })).catch((caught: unknown) => caught);
+            expect(error, String(bad)).toBeInstanceOf(TypeError);
+          }
+          await ledger.transaction((tx) => tx.insertPayment({ payment: payment() }));
+          await expect(ledger.transaction((tx) => tx.updatePayment({ id: "pay-1", expectedVersion: 1, patch: { capturedMinor: 0.5, updatedAt: 2 } }))).rejects.toBeInstanceOf(TypeError);
+          await expect(ledger.transaction((tx) => tx.updatePayment({ id: "pay-1", expectedVersion: 1.5, patch: { updatedAt: 2 } }))).rejects.toBeInstanceOf(TypeError);
+          await expect(ledger.transaction((tx) => tx.parkInbox({ id: "x", error: "e", nextAttemptAt: 1.5 }))).rejects.toBeInstanceOf(TypeError);
+          await expect(ledger.transaction((tx) => tx.insertInbox({ entry: inbox({ receivedAt: 1.5 }) }))).rejects.toBeInstanceOf(TypeError);
+          expect((await ledger.transaction((tx) => tx.getPayment({ ...LIVE, id: "pay-1" })))?.version).toBe(1);
+        });
+      });
+
+      test("-0 is stored and read back as 0", async () => {
+        await within(async (tx) => {
+          const stored = await tx.insertPayment({ payment: payment({ capturedMinor: -0, feeMinor: -0 }) });
+          expect(Object.is(stored.capturedMinor, 0)).toBe(true);
+          expect(await tx.updatePayment({ id: "pay-1", expectedVersion: 1, patch: { refundedMinor: -0, updatedAt: 2 } })).toBe(true);
+          const read = await tx.getPayment({ ...LIVE, id: "pay-1" });
+          expect([read?.capturedMinor, read?.feeMinor, read?.refundedMinor].map((value) => Object.is(value, 0))).toEqual([true, true, true]);
+        });
+      });
+
+      test("a patch key outside the update's allow-list throws TypeError and changes nothing", async () => {
+        await withLedger(async (ledger) => {
+          await ledger.transaction(async (tx) => {
+            await tx.insertPayment({ payment: payment() });
+            await tx.insertRefund({ refund: refund() });
+            await tx.insertAttempt({ attempt: attempt() });
+            await tx.insertDispute({ dispute: dispute() });
+          });
+          const smuggled = [
+            (tx: LedgerTx) => tx.updatePayment({ id: "pay-1", expectedVersion: 1, patch: { workspaceId: "ws-2", updatedAt: 2 } as unknown as PaymentPatch }),
+            (tx: LedgerTx) => tx.updatePayment({ id: "pay-1", expectedVersion: 1, patch: { version: 9, updatedAt: 2 } as unknown as PaymentPatch }),
+            (tx: LedgerTx) => tx.updateRefund({ id: "ref-1", patch: { paymentId: "pay-2", updatedAt: 2 } as never }),
+            (tx: LedgerTx) => tx.updateAttempt({ id: "att-1", patch: { mode: "test", updatedAt: 2 } as never }),
+            (tx: LedgerTx) => tx.updateDispute({ id: "dis-1", patch: { toString: "x", updatedAt: 2 } as never }),
+          ];
+          for (const update of smuggled) {
+            await expect(ledger.transaction(update)).rejects.toThrow(/is not a patchable field/);
+          }
+          expect(await ledger.transaction((tx) => tx.getPayment({ ...LIVE, id: "pay-1" }))).toEqual({ ...payment(), version: 1 });
         });
       });
     });
@@ -281,7 +342,8 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
             // Unsolicited refunds made at the provider carry no idempotency key: many may coexist.
             await tx.insertRefund({ refund: refund({ id: "ref-2", idempotencyKey: null, providerRefundRef: "re_2" }) });
             await tx.insertRefund({ refund: refund({ id: "ref-3", idempotencyKey: null, providerRefundRef: null }) });
-            await tx.insertRefund({ refund: refund({ id: "ref-4", idempotencyKey: "ridem-1", mode: "test", providerRefundRef: "re_1" }) });
+            await tx.insertPayment({ payment: payment({ id: "pay-t", mode: "test" }) });
+            await tx.insertRefund({ refund: refund({ id: "ref-4", paymentId: "pay-t", idempotencyKey: "ridem-1", mode: "test", providerRefundRef: "re_1" }) });
           });
           await expectConstraint(ledger.transaction((tx) => tx.insertRefund({ refund: refund({ id: "ref-9" }) })), "unique", "commerce_refunds");
           await expectConstraint(
@@ -307,13 +369,15 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
             await tx.insertPayment({ payment: payment() });
             await tx.insertDispute({ dispute: dispute() });
             await tx.insertDispute({ dispute: dispute({ id: "dis-0", providerDisputeRef: "dp_0", createdAt: 1, dueBy: null }) });
-            await tx.insertDispute({ dispute: dispute({ id: "dis-t", mode: "test" }) });
+            await tx.insertPayment({ payment: payment({ id: "pay-t", mode: "test" }) });
+            await tx.insertDispute({ dispute: dispute({ id: "dis-t", paymentId: "pay-t", mode: "test" }) });
             expect(await tx.findDispute({ paymentId: "pay-1", providerDisputeRef: "dp_1" })).toEqual(dispute());
             expect(await tx.findDispute({ paymentId: "pay-1", providerDisputeRef: "dp_x" })).toBeNull();
             expect(await tx.updateDispute({ id: "dis-1", patch: { status: "won", amountMinor: 9_000, dueBy: null, updatedAt: 9 } })).toBe(true);
             expect(await tx.updateDispute({ id: "missing", patch: { status: "lost", updatedAt: 9 } })).toBe(false);
             const listed = await tx.listDisputes({ paymentId: "pay-1" });
-            expect(listed.map((d) => d.id)).toEqual(["dis-0", "dis-1", "dis-t"]);
+            expect(listed.map((d) => d.id)).toEqual(["dis-0", "dis-1"]);
+            expect((await tx.listDisputes({ paymentId: "pay-t" })).map((d) => d.id)).toEqual(["dis-t"]);
             expect(listed[1]).toEqual(dispute({ status: "won", amountMinor: 9_000, dueBy: null, updatedAt: 9 }));
           });
           await expectConstraint(ledger.transaction((tx) => tx.insertDispute({ dispute: dispute({ id: "dis-9" }) })), "unique", "commerce_disputes");
@@ -380,6 +444,27 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
         });
       });
 
+      test("only an open (received/parked) row moves on: applied and dead rows are final", async () => {
+        await within(async (tx) => {
+          await tx.insertInbox({ entry: inbox({ id: "in-p", providerEventId: "p" }) });
+          await tx.insertInbox({ entry: inbox({ id: "in-a", providerEventId: "a" }) });
+          await tx.insertInbox({ entry: inbox({ id: "in-d", providerEventId: "d" }) });
+          // parked → applied, and parked → dead, are allowed.
+          expect(await tx.parkInbox({ id: "in-p", error: "later", nextAttemptAt: 1 })).toBe(true);
+          expect(await tx.markInboxApplied({ id: "in-p", appliedAt: 2 })).toBe(true);
+          expect(await tx.parkInbox({ id: "in-a", error: "later", nextAttemptAt: 1 })).toBe(true);
+          expect(await tx.deadInbox({ id: "in-a", error: "gave up", purgedAt: 3 })).toBe(true);
+          expect(await tx.deadInbox({ id: "in-d", error: "gave up", purgedAt: 4 })).toBe(true);
+          for (const id of ["in-p", "in-a", "in-d"]) {
+            const before = await tx.getInbox({ id });
+            expect(await tx.markInboxApplied({ id, appliedAt: 9 }), id).toBe(false);
+            expect(await tx.parkInbox({ id, error: "revive", nextAttemptAt: 9 }), id).toBe(false);
+            expect(await tx.deadInbox({ id, error: "again", purgedAt: 9 }), id).toBe(false);
+            expect(await tx.getInbox({ id }), id).toEqual(before);
+          }
+        });
+      });
+
       test("park counts the attempt and reschedules; dead stops retries; only due rows are listed, soonest first", async () => {
         await within(async (tx) => {
           await tx.insertInbox({ entry: inbox({ id: "in-a", providerEventId: "a", nextAttemptAt: 100 }) });
@@ -391,11 +476,13 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
           expect(await tx.parkInbox({ id: "in-a", error: "no-payment-yet", nextAttemptAt: 60 })).toBe(true);
           expect(await tx.parkInbox({ id: "in-a", error: "still none", nextAttemptAt: 70 })).toBe(true);
           expect(await tx.getInbox({ id: "in-a" })).toMatchObject({ state: "parked", attempts: 2, lastError: "still none", nextAttemptAt: 70 });
-          expect(await tx.deadInbox({ id: "in-d", error: "gave up" })).toBe(true);
-          expect(await tx.getInbox({ id: "in-d" })).toMatchObject({ state: "dead", lastError: "gave up", attempts: 0 });
+          expect(await tx.deadInbox({ id: "in-d", error: "gave up", purgedAt: 90 })).toBe(true);
+          expect(await tx.getInbox({ id: "in-d" })).toMatchObject({
+            state: "dead", lastError: "gave up", attempts: 0, factsJson: null, purgedAt: 90, appliedAt: null, bodySha256: "ab".repeat(32),
+          });
           await tx.markInboxApplied({ id: "in-e", appliedAt: 1 });
           expect(await tx.parkInbox({ id: "missing", error: "x", nextAttemptAt: 1 })).toBe(false);
-          expect(await tx.deadInbox({ id: "missing", error: "x" })).toBe(false);
+          expect(await tx.deadInbox({ id: "missing", error: "x", purgedAt: 1 })).toBe(false);
           expect((await tx.listDueInbox({ now: 100, limit: 10 })).map((r) => r.id)).toEqual(["in-b", "in-c", "in-a"]);
           expect((await tx.listDueInbox({ now: 100, limit: 2 })).map((r) => r.id)).toEqual(["in-b", "in-c"]);
           expect(await tx.listDueInbox({ now: 5, limit: 10 })).toEqual([]);
@@ -430,6 +517,50 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
           expect(all).toEqual([{ ...quarantine({ id: "q-0", createdAt: 1, paymentId: null, subject: "payment", reason: "unmatched" }), resolvedAt: 9 }, { ...quarantine(), resolvedAt: null }]);
           expect((await tx.listQuarantine({ workspaceId: WS, mode: "live" }, { unresolvedOnly: true })).map((q) => q.id)).toEqual(["q-1"]);
           expect(await tx.listQuarantine({ workspaceId: "ws-2", mode: "live" })).toEqual([]);
+        });
+      });
+    });
+
+    describe("structural rules", () => {
+      test("CHECK and NOT NULL: an unknown mode, a negative amount and a NULL required column (the primary key included) are refused", async () => {
+        await withLedger(async (ledger) => {
+          const write = (fn: (tx: LedgerTx) => Promise<unknown>) => ledger.transaction(fn);
+          await expectConstraint(write((tx) => tx.insertPayment({ payment: payment({ mode: "staging" as "live" }) })), "check", "commerce_payments");
+          await expectConstraint(write((tx) => tx.insertPayment({ payment: payment({ amountMinor: -1 }) })), "check", "commerce_payments");
+          await expectConstraint(write((tx) => tx.insertPayment({ payment: payment({ refundHeldMinor: -1 }) })), "check", "commerce_payments");
+          await expectConstraint(write((tx) => tx.insertPayment({ payment: payment({ id: null as unknown as string }) })), "check", "commerce_payments");
+          await expectConstraint(write((tx) => tx.insertPayment({ payment: payment({ reference: null as unknown as string }) })), "check", "commerce_payments");
+          await expectConstraint(write((tx) => tx.insertInbox({ entry: inbox({ mode: "staging" as "live" }) })), "check", "commerce_webhook_inbox");
+          await expectConstraint(write((tx) => tx.insertInbox({ entry: inbox({ id: null as unknown as string }) })), "check", "commerce_webhook_inbox");
+          await expectConstraint(write((tx) => tx.enqueueOutbox({ message: outbox({ payloadJson: null as unknown as string }) })), "check", "commerce_outbox");
+          await expectConstraint(write((tx) => tx.insertQuarantine({ entry: quarantine({ mode: "staging" as "live" }) })), "check", "commerce_quarantine");
+          await write(async (tx) => {
+            await tx.insertPayment({ payment: payment() });
+            await tx.insertDispute({ dispute: dispute() });
+            await tx.insertRefund({ refund: refund() });
+          });
+          await expectConstraint(write((tx) => tx.insertRefund({ refund: refund({ id: "ref-9", idempotencyKey: "k-9", amountMinor: -1 }) })), "check", "commerce_refunds");
+          await expectConstraint(write((tx) => tx.insertAttempt({ attempt: attempt({ siteId: null as unknown as string }) })), "check", "commerce_payment_attempts");
+          await expectConstraint(write((tx) => tx.appendEvidence({ evidence: evidence({ providerAccountId: null as unknown as string }) })), "check", "commerce_payment_evidence");
+          // An update is held to the same rules.
+          await expectConstraint(write((tx) => tx.updateDispute({ id: "dis-1", patch: { amountMinor: -5, updatedAt: 9 } })), "check", "commerce_disputes");
+          await expectConstraint(write((tx) => tx.updateRefund({ id: "ref-1", patch: { status: null as never, updatedAt: 9 } })), "check", "commerce_refunds");
+          await expectConstraint(write((tx) => tx.updatePayment({ id: "pay-1", expectedVersion: 1, patch: { capturedMinor: -1, updatedAt: 9 } })), "check", "commerce_payments");
+          expect(await write((tx) => tx.listDisputes({ paymentId: "pay-1" }))).toEqual([dispute()]);
+        });
+      });
+
+      test("a child row must name its payment in its own workspace and mode", async () => {
+        await withLedger(async (ledger) => {
+          await ledger.transaction((tx) => tx.insertPayment({ payment: payment() }));
+          const foreign = [{ workspaceId: "ws-2" }, { mode: "test" as const }];
+          for (const scope of foreign) {
+            await expectConstraint(ledger.transaction((tx) => tx.insertAttempt({ attempt: attempt(scope) })), "foreign-key", "commerce_payment_attempts");
+            await expectConstraint(ledger.transaction((tx) => tx.insertRefund({ refund: refund(scope) })), "foreign-key", "commerce_refunds");
+            await expectConstraint(ledger.transaction((tx) => tx.insertDispute({ dispute: dispute(scope) })), "foreign-key", "commerce_disputes");
+            await expectConstraint(ledger.transaction((tx) => tx.appendEvidence({ evidence: evidence(scope) })), "foreign-key", "commerce_payment_evidence");
+          }
+          expect(await ledger.transaction((tx) => tx.listRefunds({ paymentId: "pay-1" }))).toEqual([]);
         });
       });
     });
@@ -473,7 +604,7 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
             throw new Error("outer fails");
           })).rejects.toThrow("outer fails");
           // The inner transaction joined the outer one, so the outer failure rolled it back too.
-          expect(await ledger.transaction((tx) => tx.lockPayment({ id: "pay-2" }))).toBeNull();
+          expect(await ledger.transaction((tx) => tx.lockPayment({ ...LIVE, id: "pay-2" }))).toBeNull();
           expect(await ledger.transaction(async () => 42)).toBe(42);
         });
       });
@@ -482,13 +613,13 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
         await withLedger(async (ledger) => {
           await ledger.transaction((tx) => tx.insertPayment({ payment: payment() }));
           const bump = () => ledger.transaction(async (tx) => {
-            const current = await tx.lockPayment({ id: "pay-1" });
+            const current = await tx.lockPayment({ ...LIVE, id: "pay-1" });
             await new Promise((resolve) => setTimeout(resolve, 5));
             const version = current?.version ?? 0;
             return tx.updatePayment({ id: "pay-1", expectedVersion: version, patch: { refundHeldMinor: version * 100, updatedAt: version } });
           });
           expect(await Promise.all([bump(), bump(), bump()])).toEqual([true, true, true]);
-          expect((await ledger.transaction((tx) => tx.lockPayment({ id: "pay-1" })))?.version).toBe(4);
+          expect((await ledger.transaction((tx) => tx.lockPayment({ ...LIVE, id: "pay-1" })))?.version).toBe(4);
         });
       });
 

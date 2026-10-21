@@ -8,12 +8,17 @@ import type { StorageKernel } from "@jini-ai/db/kernel";
  * and Postgres with no dialect branch.
  *
  * - Money is BIGINT minor units, times BIGINT epoch ms (SQLite stores both as INTEGER affinity).
- * - Every money table is keyed by workspace + mode (and provider account where a provider ref is
- *   unique), never by a provider ref alone.
+ * - Every money row carries its full scope (workspace + site + provider account + mode); unique
+ *   keys are fenced by workspace + mode (and provider account where a provider ref is unique),
+ *   never by a provider ref alone.
+ * - Every primary key is NOT NULL explicitly: SQLite's legacy quirk lets a non-INTEGER PRIMARY KEY
+ *   hold NULL otherwise.
  * - CHECKs only on what is stable forever (mode, non-negative amounts). Status vocabularies grow,
  *   and SQLite cannot alter a CHECK without rebuilding the table, so statuses are free TEXT that
  *   the writer validates.
- * - Child rows reference `commerce_payments(id)`; payments are never deleted (legal retention).
+ * - Child rows reference `commerce_payments(id, workspace_id, mode)` (a composite key over the
+ *   `commerce_payments_scope` UNIQUE), so a child can never name a payment in another workspace or
+ *   mode; payments are never deleted (legal retention).
  *
  * Frozen once shipped: its checksum is pinned in `checksums.ts`. Change the schema with a new step.
  */
@@ -44,6 +49,7 @@ const PAYMENTS: TableSpec = {
     ["version", "integer"], ["created_at", "bigint"], ["updated_at", "bigint"],
   ],
   uniques: [
+    ["commerce_payments_scope", ["id", "workspace_id", "mode"]],
     ["commerce_payments_idempotency", ["workspace_id", "mode", "idempotency_key"]],
     ["commerce_payments_provider_ref", ["workspace_id", "mode", "provider_id", "provider_account_id", "provider_ref"]],
   ],
@@ -57,7 +63,8 @@ const PAYMENTS: TableSpec = {
 const ATTEMPTS: TableSpec = {
   name: "commerce_payment_attempts",
   columns: [
-    ["id", "text", "pk"], ["payment_id", "text"], ["workspace_id", "text"], ["mode", "text"], ["op", "text"],
+    ["id", "text", "pk"], ["payment_id", "text"], ["workspace_id", "text"], ["site_id", "text"], ["provider_id", "text"],
+    ["provider_account_id", "text"], ["mode", "text"], ["op", "text"],
     ["operation_key", "text"], ["refund_id", "text", "null"], ["outcome", "text"], ["error_code", "text", "null"],
     ["error_message", "text", "null"], ["created_at", "bigint"], ["updated_at", "bigint"],
   ],
@@ -85,7 +92,7 @@ const REFUNDS: TableSpec = {
 const DISPUTES: TableSpec = {
   name: "commerce_disputes",
   columns: [
-    ["id", "text", "pk"], ["payment_id", "text"], ["workspace_id", "text"], ["provider_id", "text"],
+    ["id", "text", "pk"], ["payment_id", "text"], ["workspace_id", "text"], ["site_id", "text"], ["provider_id", "text"],
     ["provider_account_id", "text"], ["mode", "text"], ["provider_dispute_ref", "text"], ["currency", "text"],
     ["amount_minor", "bigint"], ["status", "text"], ["due_by", "bigint", "null"], ["created_at", "bigint"], ["updated_at", "bigint"],
   ],
@@ -97,7 +104,8 @@ const DISPUTES: TableSpec = {
 const EVIDENCE: TableSpec = {
   name: "commerce_payment_evidence",
   columns: [
-    ["id", "text", "pk"], ["payment_id", "text"], ["workspace_id", "text"], ["mode", "text"], ["source", "text"],
+    ["id", "text", "pk"], ["payment_id", "text"], ["workspace_id", "text"], ["site_id", "text"], ["provider_id", "text"],
+    ["provider_account_id", "text"], ["mode", "text"], ["source", "text"],
     ["subject", "text"], ["subject_ref", "text"], ["observed_status", "text"], ["currency", "text", "null"],
     ["amount_minor", "bigint", "null"], ["inbox_id", "text", "null"], ["recorded_at", "bigint"],
   ],
@@ -153,14 +161,17 @@ const INDEXES: readonly (readonly [name: string, table: string, columns: readonl
   ["commerce_quarantine_scope", "commerce_quarantine", ["workspace_id", "mode", "created_at"]],
 ];
 
-/** NOT NULL unless the column is the primary key or marked nullable. */
+/** NOT NULL unless the column is marked nullable; the primary key is NOT NULL too. */
 const COLUMN: Readonly<Record<"pk" | "null" | "required", (column: ColumnDefinitionBuilder) => ColumnDefinitionBuilder>> = {
-  pk: (column) => column.primaryKey(),
+  pk: (column) => column.primaryKey().notNull(),
   null: (column) => column,
   required: (column) => column.notNull(),
 };
 
-async function createTable(kernel: StorageKernel<unknown>, spec: TableSpec): Promise<void> {
+const SCOPED_PAYMENT_KEY = ["payment_id", "workspace_id", "mode"];
+const PAYMENT_SCOPE_KEY = ["id", "workspace_id", "mode"];
+
+async function createTable({ kernel, spec }: { kernel: StorageKernel<unknown>; spec: TableSpec }): Promise<void> {
   await kernel.run((db) => {
     // Columns are added in a loop, so Kysely cannot track their names: widen the builder to `string`.
     let builder = db.schema.createTable(spec.name) as unknown as CreateTableBuilder<string, string>;
@@ -170,14 +181,14 @@ async function createTable(kernel: StorageKernel<unknown>, spec: TableSpec): Pro
     for (const [name, columns] of spec.uniques) builder = builder.addUniqueConstraint(name, [...columns]);
     for (const [name, expression] of spec.checks) builder = builder.addCheckConstraint(name, sql.raw(expression));
     if (spec.referencesPayment) {
-      builder = builder.addForeignKeyConstraint(`${spec.name}_payment_fk`, ["payment_id"], "commerce_payments", ["id"]);
+      builder = builder.addForeignKeyConstraint(`${spec.name}_payment_fk`, SCOPED_PAYMENT_KEY, "commerce_payments", PAYMENT_SCOPE_KEY);
     }
     return builder.execute();
   });
 }
 
 async function up(kernel: StorageKernel<unknown>): Promise<void> {
-  for (const spec of TABLES) await createTable(kernel, spec);
+  for (const spec of TABLES) await createTable({ kernel, spec });
   for (const [name, table, columns] of INDEXES) {
     await kernel.run((db) => db.schema.createIndex(name).on(table).columns([...columns]).execute());
   }

@@ -12,6 +12,8 @@
  * - Every integer read goes through ONE decoder, {@link decodeMinor}: node-postgres returns BIGINT
  *   as a decimal string, better-sqlite3 in `safeIntegers` mode as a `bigint`, and a silently
  *   rounded amount is a money bug, so anything that is not a safe integer throws.
+ * - Every integer WRITE goes through ONE encoder, {@link encodeMinor} (via {@link encodeColumns}),
+ *   in both adapters, so a fraction or an unsafe number is refused before it reaches storage.
  */
 import type { ColumnType, Selectable } from "kysely";
 
@@ -40,13 +42,34 @@ export function decodeMinor(value: unknown, _optional: Record<string, never> = {
   return typeof value === "number" ? checkedSafe(value, value) : fail(value);
 }
 
+/** `-0` is normalized to `0` on both read and write, so it never reaches a comparison or a JSON payload. */
 function checkedSafe(decoded: number, original: unknown): number {
-  return Number.isSafeInteger(decoded) ? decoded : fail(original);
+  if (!Number.isSafeInteger(decoded)) fail(original);
+  return decoded === 0 ? 0 : decoded;
 }
 
 /** {@link decodeMinor} for a NULLable column: SQL NULL stays `null`. */
 export function decodeNullableMinor(value: unknown, _optional: Record<string, never> = {}): number | null {
   return value === null ? null : decodeMinor(value);
+}
+
+/**
+ * The guard on write: the safe integer to store for an integer column. Throws a `TypeError` on a
+ * non-number, a fraction, NaN/Infinity and anything beyond `Number.MAX_SAFE_INTEGER` (the driver
+ * would otherwise round, truncate or store REAL); normalizes `-0` to `0`.
+ *
+ * @example encodeMinor(1999) === 1999
+ */
+export function encodeMinor(value: number, _optional: Record<string, never> = {}): number {
+  if (!Number.isSafeInteger(value)) {
+    throw new TypeError(`ledger: expected a safe integer to write, got ${typeof value} ${String(value)}`);
+  }
+  return value === 0 ? 0 : value;
+}
+
+/** {@link encodeMinor} for a NULLable column: `null` stays `null` (a NOT NULL column then refuses it). */
+export function encodeNullableMinor(value: number | null, _optional: Record<string, never> = {}): number | null {
+  return value === null ? null : encodeMinor(value);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -63,6 +86,62 @@ export const LEDGER_TABLES = {
   outbox: "commerce_outbox",
   quarantine: "commerce_quarantine",
 } as const;
+
+export type LedgerTableName = (typeof LEDGER_TABLES)[keyof typeof LEDGER_TABLES];
+
+/**
+ * Every BIGINT/INTEGER column name across the ledger tables. A column name means the same thing in
+ * every table, so one set drives {@link encodeColumns}; `migrations.vitest.test.ts` holds it equal
+ * to the integer columns the migration actually creates.
+ */
+export const LEDGER_INTEGER_COLUMNS: ReadonlySet<string> = new Set([
+  "amount_minor", "captured_minor", "refunded_minor", "refund_held_minor", "disputed_minor", "fee_minor", "net_minor",
+  "settlement_minor", "version", "created_at", "updated_at", "due_by", "recorded_at", "attempts", "next_attempt_at",
+  "received_at", "applied_at", "purged_at", "published_at", "resolved_at",
+]);
+
+/**
+ * `set` with every integer column passed through {@link encodeNullableMinor}; other columns as given.
+ * Both adapters build every insert row and every update `set` through this.
+ */
+export function encodeColumns<S extends object>(set: S, _optional: Record<string, never> = {}): S {
+  const out: Record<string, unknown> = { ...(set as Record<string, unknown>) };
+  for (const [column, value] of Object.entries(set)) {
+    if (LEDGER_INTEGER_COLUMNS.has(column)) out[column] = encodeNullableMinor(value as number | null);
+  }
+  return out as S;
+}
+
+/**
+ * The structural rules the migration's NOT NULL and CHECK constraints enforce, per table, for the
+ * in-memory adapter to enforce identically. Every table also CHECKs `mode IN ('test', 'live')`
+ * ({@link LEDGER_MODES}). `migrations.vitest.test.ts` holds this equal to the created schema.
+ */
+export interface LedgerTableRules {
+  /** The only columns that may hold NULL; every other column (the primary key included) is NOT NULL. */
+  readonly nullable: readonly string[];
+  /** Columns CHECKed `>= 0`. */
+  readonly nonNegative: readonly string[];
+}
+
+export const LEDGER_MODES: readonly PaymentMode[] = ["test", "live"];
+
+export const LEDGER_TABLE_RULES: Readonly<Record<LedgerTableName, LedgerTableRules>> = {
+  commerce_payments: {
+    nullable: [
+      "party_id", "provider_ref", "next_action_json", "fee_currency", "fee_minor", "net_currency", "net_minor",
+      "settlement_currency", "settlement_minor",
+    ],
+    nonNegative: ["amount_minor", "captured_minor", "refunded_minor", "refund_held_minor", "disputed_minor"],
+  },
+  commerce_payment_attempts: { nullable: ["refund_id", "error_code", "error_message"], nonNegative: [] },
+  commerce_refunds: { nullable: ["idempotency_key", "provider_refund_ref", "reason"], nonNegative: ["amount_minor"] },
+  commerce_disputes: { nullable: ["due_by"], nonNegative: ["amount_minor"] },
+  commerce_payment_evidence: { nullable: ["currency", "amount_minor", "inbox_id"], nonNegative: [] },
+  commerce_webhook_inbox: { nullable: ["facts_json", "last_error", "applied_at", "purged_at"], nonNegative: [] },
+  commerce_outbox: { nullable: ["published_at"], nonNegative: [] },
+  commerce_quarantine: { nullable: ["payment_id", "resolved_at"], nonNegative: [] },
+};
 
 /** What an integer column reads as on any driver (see {@link decodeMinor}); written as a number. */
 type Int = ColumnType<number | string | bigint, number, number>;
@@ -103,6 +182,9 @@ export interface AttemptsTable {
   id: string;
   payment_id: string;
   workspace_id: string;
+  site_id: string;
+  provider_id: string;
+  provider_account_id: string;
   mode: string;
   op: string;
   operation_key: string;
@@ -136,6 +218,7 @@ export interface DisputesTable {
   id: string;
   payment_id: string;
   workspace_id: string;
+  site_id: string;
   provider_id: string;
   provider_account_id: string;
   mode: string;
@@ -152,6 +235,9 @@ export interface EvidenceTable {
   id: string;
   payment_id: string;
   workspace_id: string;
+  site_id: string;
+  provider_id: string;
+  provider_account_id: string;
   mode: string;
   source: string;
   subject: string;
@@ -226,6 +312,8 @@ export type AttemptOutcome = "dispatched" | "ok" | "rejected" | "unknown";
 export type EvidenceSource = "response" | "webhook" | "retrieve";
 export type EvidenceSubject = "payment" | "refund" | "dispute";
 export type InboxState = "received" | "applied" | "parked" | "dead";
+/** The states an inbox row is still open in: due for an apply attempt, and the only ones that may move on. */
+export const OPEN_INBOX_STATES: readonly InboxState[] = ["received", "parked"];
 export type LedgerOutboxTopic = "payment.succeeded" | "refund.succeeded" | "refund.failed" | "dispute.opened" | "dispute.closed";
 /** Open-ended on purpose: L3/L4 add reasons without a migration (the column is free TEXT). */
 export type LedgerQuarantineReason = "over-refund" | "bad-amount" | "currency-mismatch" | "unmatched" | (string & {});
@@ -272,6 +360,9 @@ export interface AttemptRecord {
   readonly id: string;
   readonly paymentId: string;
   readonly workspaceId: string;
+  readonly siteId: string;
+  readonly providerId: string;
+  readonly providerAccountId: string;
   readonly mode: PaymentMode;
   readonly op: AttemptOp;
   readonly operationKey: string;
@@ -307,6 +398,7 @@ export interface DisputeRecord {
   readonly id: string;
   readonly paymentId: string;
   readonly workspaceId: string;
+  readonly siteId: string;
   readonly providerId: string;
   readonly providerAccountId: string;
   readonly mode: PaymentMode;
@@ -323,6 +415,9 @@ export interface EvidenceRecord {
   readonly id: string;
   readonly paymentId: string;
   readonly workspaceId: string;
+  readonly siteId: string;
+  readonly providerId: string;
+  readonly providerAccountId: string;
   readonly mode: PaymentMode;
   readonly source: EvidenceSource;
   readonly subject: EvidenceSubject;
@@ -443,8 +538,10 @@ export const DISPUTE_PATCH_COLUMNS: Readonly<Record<keyof DisputePatch, keyof Di
 };
 
 /**
- * The column→value object for a patch: only the keys the patch actually carries, so an omitted
- * field is left alone rather than written as NULL.
+ * The column→value `set` for a patch, integers encoded: only the keys the patch actually carries,
+ * so an omitted (or `undefined`) field is left alone rather than written as NULL. `columns` is the
+ * allow-list: a key it does not name (a scope column, the version, a typo smuggled past the type)
+ * throws a `TypeError` instead of being written. Both adapters build every patch through this.
  */
 export function patchColumns<P extends object>(
   { patch, columns }: { patch: P; columns: Readonly<Record<keyof P, string>> },
@@ -452,9 +549,10 @@ export function patchColumns<P extends object>(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
+    if (!Object.hasOwn(columns, key)) throw new TypeError(`ledger: ${key} is not a patchable field`);
     if (value !== undefined) out[columns[key as keyof P]] = value;
   }
-  return out;
+  return encodeColumns(out);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -498,6 +596,9 @@ export function attemptFromRow(row: Selectable<AttemptsTable>, _optional: Record
     id: row.id,
     paymentId: row.payment_id,
     workspaceId: row.workspace_id,
+    siteId: row.site_id,
+    providerId: row.provider_id,
+    providerAccountId: row.provider_account_id,
     mode: row.mode as PaymentMode,
     op: row.op as AttemptOp,
     operationKey: row.operation_key,
@@ -535,6 +636,7 @@ export function disputeFromRow(row: Selectable<DisputesTable>, _optional: Record
     id: row.id,
     paymentId: row.payment_id,
     workspaceId: row.workspace_id,
+    siteId: row.site_id,
     providerId: row.provider_id,
     providerAccountId: row.provider_account_id,
     mode: row.mode as PaymentMode,
@@ -553,6 +655,9 @@ export function evidenceFromRow(row: Selectable<EvidenceTable>, _optional: Recor
     id: row.id,
     paymentId: row.payment_id,
     workspaceId: row.workspace_id,
+    siteId: row.site_id,
+    providerId: row.provider_id,
+    providerAccountId: row.provider_account_id,
     mode: row.mode as PaymentMode,
     source: row.source as EvidenceSource,
     subject: row.subject as EvidenceSubject,
@@ -611,4 +716,80 @@ export function quarantineFromRow(row: Selectable<QuarantineTable>, _optional: R
     createdAt: decodeMinor(row.created_at),
     resolvedAt: decodeNullableMinor(row.resolved_at),
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Record → row mappers (writes). Every integer goes through encodeColumns, so a bad number throws
+// a `TypeError` before any storage is touched.
+
+/** A complete row as written: every integer column a plain safe number. */
+export type StoredRow<T> = { [K in keyof T]: T[K] extends ColumnType<unknown, infer I, unknown> ? I : T[K] };
+
+export function paymentToRow(r: PaymentRecord, _optional: Record<string, never> = {}): StoredRow<PaymentsTable> {
+  return encodeColumns({
+    id: r.id, workspace_id: r.workspaceId, site_id: r.siteId, provider_id: r.providerId, provider_account_id: r.providerAccountId,
+    mode: r.mode, idempotency_key: r.idempotencyKey, reference: r.reference, party_id: r.partyId, currency: r.currency,
+    amount_minor: r.amountMinor, captured_minor: r.capturedMinor, intent_status: r.intentStatus, refunded_minor: r.refundedMinor,
+    refund_held_minor: r.refundHeldMinor, disputed_minor: r.disputedMinor, status: r.status, provider_ref: r.providerRef,
+    next_action_json: r.nextActionJson, fee_currency: r.feeCurrency, fee_minor: r.feeMinor, net_currency: r.netCurrency,
+    net_minor: r.netMinor, settlement_currency: r.settlementCurrency, settlement_minor: r.settlementMinor, version: r.version,
+    created_at: r.createdAt, updated_at: r.updatedAt,
+  });
+}
+
+export function attemptToRow(r: AttemptRecord, _optional: Record<string, never> = {}): StoredRow<AttemptsTable> {
+  return encodeColumns({
+    id: r.id, payment_id: r.paymentId, workspace_id: r.workspaceId, site_id: r.siteId, provider_id: r.providerId,
+    provider_account_id: r.providerAccountId, mode: r.mode, op: r.op, operation_key: r.operationKey, refund_id: r.refundId,
+    outcome: r.outcome, error_code: r.errorCode, error_message: r.errorMessage, created_at: r.createdAt, updated_at: r.updatedAt,
+  });
+}
+
+export function refundToRow(r: RefundRecord, _optional: Record<string, never> = {}): StoredRow<RefundsTable> {
+  return encodeColumns({
+    id: r.id, payment_id: r.paymentId, workspace_id: r.workspaceId, site_id: r.siteId, provider_id: r.providerId,
+    provider_account_id: r.providerAccountId, mode: r.mode, idempotency_key: r.idempotencyKey,
+    provider_refund_ref: r.providerRefundRef, currency: r.currency, amount_minor: r.amountMinor, status: r.status,
+    reason: r.reason, created_at: r.createdAt, updated_at: r.updatedAt,
+  });
+}
+
+export function disputeToRow(r: DisputeRecord, _optional: Record<string, never> = {}): StoredRow<DisputesTable> {
+  return encodeColumns({
+    id: r.id, payment_id: r.paymentId, workspace_id: r.workspaceId, site_id: r.siteId, provider_id: r.providerId,
+    provider_account_id: r.providerAccountId, mode: r.mode, provider_dispute_ref: r.providerDisputeRef, currency: r.currency,
+    amount_minor: r.amountMinor, status: r.status, due_by: r.dueBy, created_at: r.createdAt, updated_at: r.updatedAt,
+  });
+}
+
+export function evidenceToRow(r: EvidenceRecord, _optional: Record<string, never> = {}): StoredRow<EvidenceTable> {
+  return encodeColumns({
+    id: r.id, payment_id: r.paymentId, workspace_id: r.workspaceId, site_id: r.siteId, provider_id: r.providerId,
+    provider_account_id: r.providerAccountId, mode: r.mode, source: r.source, subject: r.subject, subject_ref: r.subjectRef,
+    observed_status: r.observedStatus, currency: r.currency, amount_minor: r.amountMinor, inbox_id: r.inboxId,
+    recorded_at: r.recordedAt,
+  });
+}
+
+export function inboxToRow(r: InboxRecord, _optional: Record<string, never> = {}): StoredRow<InboxTable> {
+  return encodeColumns({
+    id: r.id, workspace_id: r.workspaceId, site_id: r.siteId, provider_id: r.providerId, provider_account_id: r.providerAccountId,
+    mode: r.mode, provider_event_id: r.providerEventId, facts_json: r.factsJson, body_sha256: r.bodySha256, state: r.state,
+    attempts: r.attempts, next_attempt_at: r.nextAttemptAt, last_error: r.lastError, received_at: r.receivedAt,
+    applied_at: r.appliedAt, purged_at: r.purgedAt,
+  });
+}
+
+export function outboxToRow(r: OutboxRecord, _optional: Record<string, never> = {}): StoredRow<OutboxTable> {
+  return encodeColumns({
+    id: r.id, workspace_id: r.workspaceId, mode: r.mode, topic: r.topic, aggregate_id: r.aggregateId,
+    payload_json: r.payloadJson, created_at: r.createdAt, published_at: r.publishedAt,
+  });
+}
+
+export function quarantineToRow(r: QuarantineRecord, _optional: Record<string, never> = {}): StoredRow<QuarantineTable> {
+  return encodeColumns({
+    id: r.id, workspace_id: r.workspaceId, mode: r.mode, payment_id: r.paymentId, subject: r.subject, reason: r.reason,
+    evidence_json: r.evidenceJson, created_at: r.createdAt, resolved_at: r.resolvedAt,
+  });
 }

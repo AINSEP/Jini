@@ -2,12 +2,14 @@ import { type Kysely, type Selectable, sql } from "kysely";
 
 import type { StorageKernel } from "@jini-ai/db/kernel";
 import {
-  ATTEMPT_PATCH_COLUMNS, DISPUTE_PATCH_COLUMNS, LEDGER_TABLES, PAYMENT_PATCH_COLUMNS, REFUND_PATCH_COLUMNS,
-  attemptFromRow, disputeFromRow, evidenceFromRow, inboxFromRow, outboxFromRow, patchColumns, paymentFromRow,
-  quarantineFromRow, refundFromRow,
+  ATTEMPT_PATCH_COLUMNS, DISPUTE_PATCH_COLUMNS, LEDGER_TABLES, OPEN_INBOX_STATES, PAYMENT_PATCH_COLUMNS, REFUND_PATCH_COLUMNS,
+  attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, encodeColumns, encodeMinor, evidenceFromRow, evidenceToRow,
+  inboxFromRow, inboxToRow, outboxFromRow, outboxToRow, patchColumns, paymentFromRow, paymentToRow, quarantineFromRow,
+  quarantineToRow, refundFromRow, refundToRow,
   type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
   type NewInbox, type NewOutbox, type NewPayment, type NewQuarantine, type OutboxRecord, type PaymentPatch,
-  type PaymentRecord, type PaymentsLedgerDatabase, type QuarantineRecord, type RefundPatch, type RefundRecord, type RefundsTable,
+  type PaymentRecord, type PaymentsLedgerDatabase, type PaymentsTable, type QuarantineRecord, type RefundPatch, type RefundRecord,
+  type RefundsTable,
 } from "./rows.js";
 import {
   LedgerConstraintError, type LedgerConstraintKind, type LedgerKeyScope, type LedgerTx, type PaymentsLedger, type ProviderRefScope,
@@ -21,7 +23,12 @@ import {
  * serializes writers).
  *
  * Driver errors for broken constraints are translated to {@link LedgerConstraintError} so callers
- * see the same error from this adapter and from `repo.memory.ts`.
+ * see the same error from this adapter and from `repo.memory.ts`. Every insert row and update `set`
+ * is built through `rows.ts`'s encoders, so a bad integer throws before the driver sees it.
+ *
+ * Ordering: lists order by their time column, then `id`. The `id` tie-break is the database's
+ * collation order (binary on SQLite; the database collation on Postgres), so callers must not rely
+ * on how equal-time rows tie beyond it being stable.
  */
 
 type Db = Kysely<PaymentsLedgerDatabase>;
@@ -36,6 +43,10 @@ const CONSTRAINT_CODES: ReadonlyMap<string, LedgerConstraintKind> = new Map([
   ["23505", "unique"],
   ["SQLITE_CONSTRAINT_FOREIGNKEY", "foreign-key"],
   ["23503", "foreign-key"],
+  ["SQLITE_CONSTRAINT_CHECK", "check"],
+  ["SQLITE_CONSTRAINT_NOTNULL", "check"],
+  ["23514", "check"],
+  ["23502", "check"],
 ]);
 
 /** Which ledger constraint a driver error reports, or `null` when it is not one. */
@@ -43,8 +54,6 @@ export function constraintKindOf(error: unknown, _optional: Record<string, never
   const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
   return typeof code === "string" ? (CONSTRAINT_CODES.get(code) ?? null) : null;
 }
-
-const DUE_STATES = ["received", "parked"] as const;
 
 class SqlLedgerTx implements LedgerTx {
   constructor(private readonly kernel: StorageKernel<PaymentsLedgerDatabase>) {}
@@ -54,7 +63,7 @@ class SqlLedgerTx implements LedgerTx {
   }
 
   /** A write whose constraint failures surface as {@link LedgerConstraintError}. */
-  private async write<T>(table: TableName, fn: (db: Db) => Promise<T>): Promise<T> {
+  private async write<T>({ table, fn }: { table: TableName; fn: (db: Db) => Promise<T> }): Promise<T> {
     try {
       return await this.kernel.run(fn);
     } catch (error) {
@@ -63,88 +72,82 @@ class SqlLedgerTx implements LedgerTx {
     }
   }
 
-  private async updateById(table: TableName, id: string, set: Record<string, unknown>): Promise<boolean> {
-    const result = await this.write(table, (db) =>
-      (db as unknown as LooseDb).updateTable(table).set(set).where("id", "=", id).executeTakeFirst()
-    );
+  /**
+   * `UPDATE table SET set WHERE id = ?`, optionally also fenced on the row's `version` or `state`.
+   * `set` must already be encoded (patchColumns / encodeColumns).
+   */
+  private async updateById(
+    { table, id, set }: { table: TableName; id: string; set: Record<string, unknown> },
+    optional: { version?: number; states?: readonly string[] } = {}
+  ): Promise<boolean> {
+    const result = await this.write({
+      table,
+      fn: (db) => {
+        let query = (db as unknown as LooseDb).updateTable(table).set(set).where("id", "=", id);
+        if (optional.version !== undefined) query = query.where("version", "=", optional.version);
+        if (optional.states !== undefined) query = query.where("state", "in", [...optional.states]);
+        return query.executeTakeFirst();
+      },
+    });
     return result.numUpdatedRows > 0n;
+  }
+
+  private async onePayment(where: (db: Db) => Promise<Selectable<PaymentsTable> | undefined>): Promise<PaymentRecord | null> {
+    const row = await this.read(where);
+    return row === undefined ? null : paymentFromRow(row);
   }
 
   // Payments ------------------------------------------------------------------------------------
 
   async insertPayment({ payment }: { payment: NewPayment }): Promise<PaymentRecord> {
-    const record: PaymentRecord = { ...payment, version: 1 };
-    await this.write(LEDGER_TABLES.payments, (db) =>
-      db.insertInto("commerce_payments").values({
-        id: record.id, workspace_id: record.workspaceId, site_id: record.siteId, provider_id: record.providerId,
-        provider_account_id: record.providerAccountId, mode: record.mode, idempotency_key: record.idempotencyKey,
-        reference: record.reference, party_id: record.partyId, currency: record.currency, amount_minor: record.amountMinor,
-        captured_minor: record.capturedMinor, intent_status: record.intentStatus, refunded_minor: record.refundedMinor,
-        refund_held_minor: record.refundHeldMinor, disputed_minor: record.disputedMinor, status: record.status,
-        provider_ref: record.providerRef, next_action_json: record.nextActionJson, fee_currency: record.feeCurrency,
-        fee_minor: record.feeMinor, net_currency: record.netCurrency, net_minor: record.netMinor,
-        settlement_currency: record.settlementCurrency, settlement_minor: record.settlementMinor, version: record.version,
-        created_at: record.createdAt, updated_at: record.updatedAt,
-      }).execute()
-    );
-    return record;
+    const row = paymentToRow({ ...payment, version: 1 });
+    await this.write({ table: LEDGER_TABLES.payments, fn: (db) => db.insertInto("commerce_payments").values(row).execute() });
+    return paymentFromRow(row);
   }
 
-  async getPayment({ workspaceId, mode, id }: LedgerKeyScope & { id: string }): Promise<PaymentRecord | null> {
-    const row = await this.read((db) =>
+  getPayment({ workspaceId, mode, id }: LedgerKeyScope & { id: string }): Promise<PaymentRecord | null> {
+    return this.onePayment((db) =>
       db.selectFrom("commerce_payments").selectAll().where("workspace_id", "=", workspaceId).where("mode", "=", mode)
         .where("id", "=", id).executeTakeFirst()
     );
-    return row === undefined ? null : paymentFromRow(row);
   }
 
-  async findPaymentByIdempotencyKey({ workspaceId, mode, key }: LedgerKeyScope & { key: string }): Promise<PaymentRecord | null> {
-    const row = await this.read((db) =>
+  findPaymentByIdempotencyKey({ workspaceId, mode, key }: LedgerKeyScope & { key: string }): Promise<PaymentRecord | null> {
+    return this.onePayment((db) =>
       db.selectFrom("commerce_payments").selectAll().where("workspace_id", "=", workspaceId).where("mode", "=", mode)
         .where("idempotency_key", "=", key).executeTakeFirst()
     );
-    return row === undefined ? null : paymentFromRow(row);
   }
 
-  async findPaymentByProviderRef(required: ProviderRefScope & { providerRef: string }): Promise<PaymentRecord | null> {
-    const row = await this.read((db) =>
+  findPaymentByProviderRef(required: ProviderRefScope & { providerRef: string }): Promise<PaymentRecord | null> {
+    return this.onePayment((db) =>
       db.selectFrom("commerce_payments").selectAll().where("workspace_id", "=", required.workspaceId)
         .where("mode", "=", required.mode).where("provider_id", "=", required.providerId)
         .where("provider_account_id", "=", required.providerAccountId).where("provider_ref", "=", required.providerRef)
         .executeTakeFirst()
     );
-    return row === undefined ? null : paymentFromRow(row);
   }
 
-  async lockPayment({ id }: { id: string }): Promise<PaymentRecord | null> {
-    await this.kernel.lockKey(`commerce.payment:${id}`);
-    const row = await this.read((db) => db.selectFrom("commerce_payments").selectAll().where("id", "=", id).executeTakeFirst());
-    return row === undefined ? null : paymentFromRow(row);
+  /** The lock key is the payment id alone (ids are globally unique); the read is scope-fenced. */
+  async lockPayment(required: LedgerKeyScope & { id: string }): Promise<PaymentRecord | null> {
+    await this.kernel.lockKey(`commerce.payment:${required.id}`);
+    return this.getPayment(required);
   }
 
-  async updatePayment({ id, expectedVersion, patch }: { id: string; expectedVersion: number; patch: PaymentPatch }): Promise<boolean> {
-    const set = { ...patchColumns({ patch, columns: PAYMENT_PATCH_COLUMNS }), version: expectedVersion + 1 };
-    const result = await this.write(LEDGER_TABLES.payments, (db) =>
-      (db as unknown as LooseDb).updateTable(LEDGER_TABLES.payments).set(set).where("id", "=", id)
-        .where("version", "=", expectedVersion).executeTakeFirst()
-    );
-    return result.numUpdatedRows > 0n;
+  updatePayment({ id, expectedVersion, patch }: { id: string; expectedVersion: number; patch: PaymentPatch }): Promise<boolean> {
+    const set = { ...patchColumns({ patch, columns: PAYMENT_PATCH_COLUMNS }), version: encodeMinor(expectedVersion + 1) };
+    return this.updateById({ table: LEDGER_TABLES.payments, id, set }, { version: expectedVersion });
   }
 
   // Attempts ------------------------------------------------------------------------------------
 
-  async insertAttempt({ attempt: a }: { attempt: AttemptRecord }): Promise<void> {
-    await this.write(LEDGER_TABLES.attempts, (db) =>
-      db.insertInto("commerce_payment_attempts").values({
-        id: a.id, payment_id: a.paymentId, workspace_id: a.workspaceId, mode: a.mode, op: a.op, operation_key: a.operationKey,
-        refund_id: a.refundId, outcome: a.outcome, error_code: a.errorCode, error_message: a.errorMessage,
-        created_at: a.createdAt, updated_at: a.updatedAt,
-      }).execute()
-    );
+  async insertAttempt({ attempt }: { attempt: AttemptRecord }): Promise<void> {
+    const row = attemptToRow(attempt);
+    await this.write({ table: LEDGER_TABLES.attempts, fn: (db) => db.insertInto("commerce_payment_attempts").values(row).execute() });
   }
 
   updateAttempt({ id, patch }: { id: string; patch: AttemptPatch }): Promise<boolean> {
-    return this.updateById(LEDGER_TABLES.attempts, id, patchColumns({ patch, columns: ATTEMPT_PATCH_COLUMNS }));
+    return this.updateById({ table: LEDGER_TABLES.attempts, id, set: patchColumns({ patch, columns: ATTEMPT_PATCH_COLUMNS }) });
   }
 
   async findAttemptByOperationKey({ workspaceId, mode, operationKey }: LedgerKeyScope & { operationKey: string }): Promise<AttemptRecord | null> {
@@ -164,22 +167,18 @@ class SqlLedgerTx implements LedgerTx {
 
   // Refunds -------------------------------------------------------------------------------------
 
-  async insertRefund({ refund: r }: { refund: RefundRecord }): Promise<void> {
-    await this.write(LEDGER_TABLES.refunds, (db) =>
-      db.insertInto("commerce_refunds").values({
-        id: r.id, payment_id: r.paymentId, workspace_id: r.workspaceId, site_id: r.siteId, provider_id: r.providerId,
-        provider_account_id: r.providerAccountId, mode: r.mode, idempotency_key: r.idempotencyKey,
-        provider_refund_ref: r.providerRefundRef, currency: r.currency, amount_minor: r.amountMinor, status: r.status,
-        reason: r.reason, created_at: r.createdAt, updated_at: r.updatedAt,
-      }).execute()
-    );
+  async insertRefund({ refund }: { refund: RefundRecord }): Promise<void> {
+    const row = refundToRow(refund);
+    await this.write({ table: LEDGER_TABLES.refunds, fn: (db) => db.insertInto("commerce_refunds").values(row).execute() });
   }
 
   updateRefund({ id, patch }: { id: string; patch: RefundPatch }): Promise<boolean> {
-    return this.updateById(LEDGER_TABLES.refunds, id, patchColumns({ patch, columns: REFUND_PATCH_COLUMNS }));
+    return this.updateById({ table: LEDGER_TABLES.refunds, id, set: patchColumns({ patch, columns: REFUND_PATCH_COLUMNS }) });
   }
 
-  private async refundWhere(paymentId: string, column: "id" | "provider_refund_ref", value: string): Promise<RefundRecord | null> {
+  private async refundWhere(
+    { paymentId, column, value }: { paymentId: string; column: "id" | "provider_refund_ref"; value: string }
+  ): Promise<RefundRecord | null> {
     const row: Selectable<RefundsTable> | undefined = await this.read((db) =>
       db.selectFrom("commerce_refunds").selectAll().where("payment_id", "=", paymentId).where(column, "=", value).executeTakeFirst()
     );
@@ -190,9 +189,10 @@ class SqlLedgerTx implements LedgerTx {
     { paymentId }: { paymentId: string },
     optional: { correlationId?: string; providerRefundRef?: string } = {}
   ): Promise<RefundRecord | null> {
-    const byCorrelation = optional.correlationId === undefined ? null : await this.refundWhere(paymentId, "id", optional.correlationId);
+    const byCorrelation =
+      optional.correlationId === undefined ? null : await this.refundWhere({ paymentId, column: "id", value: optional.correlationId });
     if (byCorrelation !== null || optional.providerRefundRef === undefined) return byCorrelation;
-    return this.refundWhere(paymentId, "provider_refund_ref", optional.providerRefundRef);
+    return this.refundWhere({ paymentId, column: "provider_refund_ref", value: optional.providerRefundRef });
   }
 
   async findRefundByIdempotencyKey({ workspaceId, mode, key }: LedgerKeyScope & { key: string }): Promise<RefundRecord | null> {
@@ -212,18 +212,13 @@ class SqlLedgerTx implements LedgerTx {
 
   // Disputes ------------------------------------------------------------------------------------
 
-  async insertDispute({ dispute: d }: { dispute: DisputeRecord }): Promise<void> {
-    await this.write(LEDGER_TABLES.disputes, (db) =>
-      db.insertInto("commerce_disputes").values({
-        id: d.id, payment_id: d.paymentId, workspace_id: d.workspaceId, provider_id: d.providerId,
-        provider_account_id: d.providerAccountId, mode: d.mode, provider_dispute_ref: d.providerDisputeRef, currency: d.currency,
-        amount_minor: d.amountMinor, status: d.status, due_by: d.dueBy, created_at: d.createdAt, updated_at: d.updatedAt,
-      }).execute()
-    );
+  async insertDispute({ dispute }: { dispute: DisputeRecord }): Promise<void> {
+    const row = disputeToRow(dispute);
+    await this.write({ table: LEDGER_TABLES.disputes, fn: (db) => db.insertInto("commerce_disputes").values(row).execute() });
   }
 
   updateDispute({ id, patch }: { id: string; patch: DisputePatch }): Promise<boolean> {
-    return this.updateById(LEDGER_TABLES.disputes, id, patchColumns({ patch, columns: DISPUTE_PATCH_COLUMNS }));
+    return this.updateById({ table: LEDGER_TABLES.disputes, id, set: patchColumns({ patch, columns: DISPUTE_PATCH_COLUMNS }) });
   }
 
   async findDispute({ paymentId, providerDisputeRef }: { paymentId: string; providerDisputeRef: string }): Promise<DisputeRecord | null> {
@@ -243,14 +238,9 @@ class SqlLedgerTx implements LedgerTx {
 
   // Evidence ------------------------------------------------------------------------------------
 
-  async appendEvidence({ evidence: e }: { evidence: EvidenceRecord }): Promise<void> {
-    await this.write(LEDGER_TABLES.evidence, (db) =>
-      db.insertInto("commerce_payment_evidence").values({
-        id: e.id, payment_id: e.paymentId, workspace_id: e.workspaceId, mode: e.mode, source: e.source, subject: e.subject,
-        subject_ref: e.subjectRef, observed_status: e.observedStatus, currency: e.currency, amount_minor: e.amountMinor,
-        inbox_id: e.inboxId, recorded_at: e.recordedAt,
-      }).execute()
-    );
+  async appendEvidence({ evidence }: { evidence: EvidenceRecord }): Promise<void> {
+    const row = evidenceToRow(evidence);
+    await this.write({ table: LEDGER_TABLES.evidence, fn: (db) => db.insertInto("commerce_payment_evidence").values(row).execute() });
   }
 
   async listEvidence({ paymentId }: { paymentId: string }): Promise<EvidenceRecord[]> {
@@ -263,14 +253,14 @@ class SqlLedgerTx implements LedgerTx {
   // Webhook inbox -------------------------------------------------------------------------------
 
   async insertInbox({ entry: e }: { entry: NewInbox }): Promise<{ inserted: boolean; id: string }> {
-    const result = await this.write(LEDGER_TABLES.inbox, (db) =>
-      db.insertInto("commerce_webhook_inbox").values({
-        id: e.id, workspace_id: e.workspaceId, site_id: e.siteId, provider_id: e.providerId, provider_account_id: e.providerAccountId,
-        mode: e.mode, provider_event_id: e.providerEventId, facts_json: e.factsJson, body_sha256: e.bodySha256, state: "received",
-        attempts: 0, next_attempt_at: e.nextAttemptAt, last_error: null, received_at: e.receivedAt, applied_at: null, purged_at: null,
-      }).onConflict((oc) => oc.columns(["workspace_id", "mode", "provider_id", "provider_account_id", "provider_event_id"]).doNothing())
-        .executeTakeFirst()
-    );
+    const row = inboxToRow({ ...e, state: "received", attempts: 0, lastError: null, appliedAt: null, purgedAt: null });
+    const result = await this.write({
+      table: LEDGER_TABLES.inbox,
+      fn: (db) =>
+        db.insertInto("commerce_webhook_inbox").values(row)
+          .onConflict((oc) => oc.columns(["workspace_id", "mode", "provider_id", "provider_account_id", "provider_event_id"]).doNothing())
+          .executeTakeFirst(),
+    });
     // `numInsertedOrUpdatedRows` is 0 when ON CONFLICT DO NOTHING skipped the row (Number(undefined) is NaN: not inserted).
     if (Number(result.numInsertedOrUpdatedRows) > 0) return { inserted: true, id: e.id };
     // A redelivery: hand back the first delivery's id. The row exists — the conflict just proved it.
@@ -288,25 +278,23 @@ class SqlLedgerTx implements LedgerTx {
   }
 
   markInboxApplied({ id, appliedAt }: { id: string; appliedAt: number }): Promise<boolean> {
-    return this.updateById(LEDGER_TABLES.inbox, id, { state: "applied", facts_json: null, applied_at: appliedAt, purged_at: appliedAt });
+    const set = encodeColumns({ state: "applied", facts_json: null, applied_at: appliedAt, purged_at: appliedAt });
+    return this.updateById({ table: LEDGER_TABLES.inbox, id, set }, { states: OPEN_INBOX_STATES });
   }
 
-  async parkInbox({ id, error, nextAttemptAt }: { id: string; error: string; nextAttemptAt: number }): Promise<boolean> {
-    const result = await this.write(LEDGER_TABLES.inbox, (db) =>
-      db.updateTable("commerce_webhook_inbox")
-        .set({ state: "parked", last_error: error, next_attempt_at: nextAttemptAt, attempts: sql<number>`attempts + 1` })
-        .where("id", "=", id).executeTakeFirst()
-    );
-    return result.numUpdatedRows > 0n;
+  parkInbox({ id, error, nextAttemptAt }: { id: string; error: string; nextAttemptAt: number }): Promise<boolean> {
+    const set = { ...encodeColumns({ state: "parked", last_error: error, next_attempt_at: nextAttemptAt }), attempts: sql<number>`attempts + 1` };
+    return this.updateById({ table: LEDGER_TABLES.inbox, id, set }, { states: OPEN_INBOX_STATES });
   }
 
-  deadInbox({ id, error }: { id: string; error: string }): Promise<boolean> {
-    return this.updateById(LEDGER_TABLES.inbox, id, { state: "dead", last_error: error });
+  deadInbox({ id, error, purgedAt }: { id: string; error: string; purgedAt: number }): Promise<boolean> {
+    const set = encodeColumns({ state: "dead", last_error: error, facts_json: null, purged_at: purgedAt });
+    return this.updateById({ table: LEDGER_TABLES.inbox, id, set }, { states: OPEN_INBOX_STATES });
   }
 
   async listDueInbox({ now, limit }: { now: number; limit: number }): Promise<InboxRecord[]> {
     const rows = await this.read((db) =>
-      db.selectFrom("commerce_webhook_inbox").selectAll().where("state", "in", DUE_STATES).where("next_attempt_at", "<=", now)
+      db.selectFrom("commerce_webhook_inbox").selectAll().where("state", "in", [...OPEN_INBOX_STATES]).where("next_attempt_at", "<=", now)
         .orderBy("next_attempt_at").orderBy("id").limit(limit).execute()
     );
     return rows.map((row) => inboxFromRow(row));
@@ -314,13 +302,9 @@ class SqlLedgerTx implements LedgerTx {
 
   // Outbox --------------------------------------------------------------------------------------
 
-  async enqueueOutbox({ message: m }: { message: NewOutbox }): Promise<void> {
-    await this.write(LEDGER_TABLES.outbox, (db) =>
-      db.insertInto("commerce_outbox").values({
-        id: m.id, workspace_id: m.workspaceId, mode: m.mode, topic: m.topic, aggregate_id: m.aggregateId,
-        payload_json: m.payloadJson, created_at: m.createdAt, published_at: null,
-      }).execute()
-    );
+  async enqueueOutbox({ message }: { message: NewOutbox }): Promise<void> {
+    const row = outboxToRow({ ...message, publishedAt: null });
+    await this.write({ table: LEDGER_TABLES.outbox, fn: (db) => db.insertInto("commerce_outbox").values(row).execute() });
   }
 
   async listPendingOutbox({ limit }: { limit: number }): Promise<OutboxRecord[]> {
@@ -331,18 +315,14 @@ class SqlLedgerTx implements LedgerTx {
   }
 
   markOutboxPublished({ id, publishedAt }: { id: string; publishedAt: number }): Promise<boolean> {
-    return this.updateById(LEDGER_TABLES.outbox, id, { published_at: publishedAt });
+    return this.updateById({ table: LEDGER_TABLES.outbox, id, set: encodeColumns({ published_at: publishedAt }) });
   }
 
   // Quarantine ----------------------------------------------------------------------------------
 
-  async insertQuarantine({ entry: q }: { entry: NewQuarantine }): Promise<void> {
-    await this.write(LEDGER_TABLES.quarantine, (db) =>
-      db.insertInto("commerce_quarantine").values({
-        id: q.id, workspace_id: q.workspaceId, mode: q.mode, payment_id: q.paymentId, subject: q.subject, reason: q.reason,
-        evidence_json: q.evidenceJson, created_at: q.createdAt, resolved_at: null,
-      }).execute()
-    );
+  async insertQuarantine({ entry }: { entry: NewQuarantine }): Promise<void> {
+    const row = quarantineToRow({ ...entry, resolvedAt: null });
+    await this.write({ table: LEDGER_TABLES.quarantine, fn: (db) => db.insertInto("commerce_quarantine").values(row).execute() });
   }
 
   async listQuarantine({ workspaceId, mode }: LedgerKeyScope, optional: { unresolvedOnly?: boolean } = {}): Promise<QuarantineRecord[]> {
@@ -355,7 +335,7 @@ class SqlLedgerTx implements LedgerTx {
   }
 
   resolveQuarantine({ id, resolvedAt }: { id: string; resolvedAt: number }): Promise<boolean> {
-    return this.updateById(LEDGER_TABLES.quarantine, id, { resolved_at: resolvedAt });
+    return this.updateById({ table: LEDGER_TABLES.quarantine, id, set: encodeColumns({ resolved_at: resolvedAt }) });
   }
 }
 
@@ -363,7 +343,7 @@ class SqlLedgerTx implements LedgerTx {
  * The SQL ledger over the host's storage kernel. The tables must exist: run
  * `migrateCommercePayments({ kernel })` first. No connection work happens here.
  *
- * @example const ledger = sqlPaymentsLedger({ kernel }); await ledger.transaction(async (tx) => tx.lockPayment({ id }));
+ * @example const ledger = sqlPaymentsLedger({ kernel }); await ledger.transaction(async (tx) => tx.lockPayment({ workspaceId, mode, id }));
  */
 export function sqlPaymentsLedger<DB>(required: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): PaymentsLedger {
   const kernel = required.kernel as unknown as StorageKernel<PaymentsLedgerDatabase>;

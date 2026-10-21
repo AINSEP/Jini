@@ -10,7 +10,7 @@ import { openMemorySqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { MigrationChecksumError, runMigrations, sourceChecksum } from "@jini-ai/db/migrate";
 import { PAYMENTS_LEDGER_ID, paymentsLedger } from "../migrations/0001_payments_ledger.js";
 import { COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS } from "../migrations/checksums.js";
-import { LEDGER_TABLES } from "../rows.js";
+import { LEDGER_INTEGER_COLUMNS, LEDGER_TABLE_RULES, LEDGER_TABLES } from "../rows.js";
 
 /**
  * @file Holds the payments ledger's migration history immutable (ADR-066 §3) and proves it applies:
@@ -81,6 +81,39 @@ describe("payments ledger migrations", () => {
         "commerce_payment_attempts_payment", "commerce_refunds_payment", "commerce_disputes_payment",
         "commerce_payment_evidence_payment", "commerce_webhook_inbox_due",
       ]));
+    } finally {
+      await kernel.close();
+    }
+  });
+
+  test("the created schema matches the rules the in-memory adapter enforces (NOT NULL, CHECK, integers, scoped FK)", async () => {
+    const { migrateCommercePayments } = await history();
+    const kernel = openKernel();
+    try {
+      await migrateCommercePayments({ kernel });
+      const integers = new Set<string>();
+      for (const table of Object.values(LEDGER_TABLES)) {
+        const columns = await kernel.query<{ name: string; type: string; notnull: number; pk: number }>(sql.raw(`PRAGMA table_info(${table})`));
+        // Every column but the declared nullable ones is NOT NULL — the text primary key included.
+        expect(columns.filter((c) => c.notnull === 0).map((c) => c.name).sort(), table).toEqual([...LEDGER_TABLE_RULES[table].nullable].sort());
+        expect(columns.find((c) => c.pk === 1), table).toMatchObject({ name: "id", notnull: 1 });
+        for (const c of columns) if (/int/i.test(c.type)) integers.add(c.name);
+        const [{ sql: ddl }] = await kernel.query<{ sql: string }>(sql`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ${table}`);
+        expect(ddl, table).toContain("mode IN ('test', 'live')");
+        const nonNegative = [...ddl.matchAll(/(\w+) >= 0/g)].map((match) => match[1]);
+        expect(nonNegative.sort(), table).toEqual([...LEDGER_TABLE_RULES[table].nonNegative].sort());
+        // Every money table carries its full scope.
+        if (table !== LEDGER_TABLES.outbox && table !== LEDGER_TABLES.quarantine) {
+          expect(columns.map((c) => c.name), table).toEqual(expect.arrayContaining(["workspace_id", "site_id", "provider_id", "provider_account_id", "mode"]));
+        }
+      }
+      expect([...integers].sort()).toEqual([...LEDGER_INTEGER_COLUMNS].sort());
+      for (const table of [LEDGER_TABLES.attempts, LEDGER_TABLES.refunds, LEDGER_TABLES.disputes, LEDGER_TABLES.evidence]) {
+        const keys = await kernel.query<{ table: string; from: string; to: string }>(sql.raw(`PRAGMA foreign_key_list(${table})`));
+        expect(keys.map((k) => [k.table, k.from, k.to]), table).toEqual([
+          ["commerce_payments", "payment_id", "id"], ["commerce_payments", "workspace_id", "workspace_id"], ["commerce_payments", "mode", "mode"],
+        ]);
+      }
     } finally {
       await kernel.close();
     }

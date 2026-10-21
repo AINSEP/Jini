@@ -10,10 +10,13 @@
  *
  * What the port does NOT do: decide anything. Status merging, totals and quarantine decisions are
  * L3's; this layer stores what it is told and enforces only the structural rules a database would
- * (unique keys, payment references, optimistic versions).
+ * (unique keys, scoped payment references, NOT NULL / CHECK rules, optimistic versions, inbox
+ * state transitions).
  *
- * Errors: a broken unique key or a reference to a missing payment throws
- * {@link LedgerConstraintError} from both adapters. On Postgres such an error poisons the
+ * Errors: a broken unique key, a reference to a missing (or differently scoped) payment, or a
+ * broken NOT NULL / CHECK rule throws {@link LedgerConstraintError} from both adapters; a
+ * non-safe-integer amount or time throws a `TypeError` before anything is written, and so does a
+ * patch key outside the update's allow-list. On Postgres such an error poisons the
  * surrounding transaction, so callers treat it as fatal for the transaction (let it roll back)
  * and use the find-first / insert-or-ignore methods for races they expect.
  */
@@ -23,9 +26,13 @@ import type {
   NewQuarantine, OutboxRecord, PaymentPatch, PaymentRecord, QuarantineRecord, RefundPatch, RefundRecord,
 } from "./rows.js";
 
-export type LedgerConstraintKind = "unique" | "foreign-key";
+export type LedgerConstraintKind = "unique" | "foreign-key" | "check";
 
-/** A write broke a unique key (`unique`) or named a payment that does not exist (`foreign-key`). */
+/**
+ * A write broke a unique key (`unique`), named a payment that does not exist in the row's workspace
+ * + mode (`foreign-key`), or broke a NOT NULL / CHECK rule (`check`: unknown mode, negative amount,
+ * NULL in a required column).
+ */
 export class LedgerConstraintError extends Error {
   readonly kind: LedgerConstraintKind;
   readonly table: string;
@@ -57,11 +64,13 @@ export interface LedgerTx {
   findPaymentByIdempotencyKey(required: LedgerKeyScope & { key: string }, optional?: Record<string, never>): Promise<PaymentRecord | null>;
   findPaymentByProviderRef(required: ProviderRefScope & { providerRef: string }, optional?: Record<string, never>): Promise<PaymentRecord | null>;
   /**
-   * Takes the payment's lock for the rest of the transaction, then reads it. Every writer that
+   * Takes the payment's lock for the rest of the transaction, then reads it — fenced by workspace +
+   * mode like every caller-keyed lookup (null outside the scope). Every writer that
    * reads-then-writes a payment's refunds/disputes/caches goes through this first; it is what
-   * keeps two concurrent applies from both reserving the last refundable cent.
+   * keeps two concurrent applies from both reserving the last refundable cent. Throws when called
+   * outside `transaction()` (a lock with no transaction to hold it would protect nothing).
    */
-  lockPayment(required: { id: string }, optional?: Record<string, never>): Promise<PaymentRecord | null>;
+  lockPayment(required: LedgerKeyScope & { id: string }, optional?: Record<string, never>): Promise<PaymentRecord | null>;
   /** Applies `patch` only when the stored version is `expectedVersion`; bumps the version. False = lost the race. */
   updatePayment(required: { id: string; expectedVersion: number; patch: PaymentPatch }, optional?: Record<string, never>): Promise<boolean>;
 
@@ -107,13 +116,27 @@ export interface LedgerTx {
    */
   insertInbox(required: { entry: NewInbox }, optional?: Record<string, never>): Promise<{ inserted: boolean; id: string }>;
   getInbox(required: { id: string }, optional?: Record<string, never>): Promise<InboxRecord | null>;
-  /** `applied`, and the payload purged (`facts_json` NULL, `purged_at` set); `body_sha256` is kept. */
+  /**
+   * `applied`, and the payload purged (`facts_json` NULL, `purged_at` set); `body_sha256` is kept.
+   * Only from an open state (`received`/`parked`): false for a missing, applied or dead row.
+   */
   markInboxApplied(required: { id: string; appliedAt: number }, optional?: Record<string, never>): Promise<boolean>;
-  /** `parked` for a retry at `nextAttemptAt`; counts the attempt and records why. */
+  /**
+   * `parked` for a retry at `nextAttemptAt`; counts the attempt and records why. Only from an open
+   * state: false for a missing, applied or dead row (a finished row is never revived).
+   */
   parkInbox(required: { id: string; error: string; nextAttemptAt: number }, optional?: Record<string, never>): Promise<boolean>;
-  /** `dead`: no more retries; left for an operator (stuck-money alert). */
-  deadInbox(required: { id: string; error: string }, optional?: Record<string, never>): Promise<boolean>;
-  /** `received`/`parked` rows whose `next_attempt_at <= now`, soonest first. */
+  /**
+   * `dead`: no more retries; left for an operator (stuck-money alert) with the error and body hash.
+   * The payload is purged (`facts_json` NULL, `purged_at` = `purgedAt`), as on apply. Only from an
+   * open state: false for a missing, applied or dead row.
+   */
+  deadInbox(required: { id: string; error: string; purgedAt: number }, optional?: Record<string, never>): Promise<boolean>;
+  /**
+   * `received`/`parked` rows whose `next_attempt_at <= now`, soonest first (ties by id). A plain
+   * read, NOT a claim: two concurrent workers would both get the same rows. v1 runs a single inbox
+   * worker per database; a multi-worker host needs a claim (lease column / `SKIP LOCKED`) first.
+   */
   listDueInbox(required: { now: number; limit: number }, optional?: Record<string, never>): Promise<InboxRecord[]>;
 
   // Outbox --------------------------------------------------------------------------------------
