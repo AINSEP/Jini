@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { providerOk, providerRejected, providerUnknown, type ProviderContext, type ProviderResult } from "@jini-ai/core/provider-registry";
 import {
   ANALYTICS_FORWARDER_CONTRACT, asAnalyticsForwarderModule, asAnalyticsIngestHook, composeBeforeIngestHooks,
-  createAnalyticsForwarderRegistry, createAnalyticsForwardLimiter, createFanOutAnalyticsSink, DEFAULT_MAX_FORWARDS_IN_FLIGHT, LocalBufferSink, selectAnalyticsForwarder, toForwardedHit,
+  cacheAnalyticsProviderLoad, createAnalyticsForwarderRegistry, createAnalyticsForwardLimiter, DEFAULT_ANALYTICS_PROVIDERS_TTL_MS, createFanOutAnalyticsSink, DEFAULT_MAX_FORWARDS_IN_FLIGHT, LocalBufferSink, selectAnalyticsForwarder, toForwardedHit,
   type AnalyticsForwarder, type AnalyticsForwarderModule, type ForwardedHit, type NormalizedHit,
 } from "../index.js";
 
@@ -260,5 +260,49 @@ describe("createAnalyticsForwardLimiter + fan-out", () => {
     limiter.release();
     for (let i = 0; i < DEFAULT_MAX_FORWARDS_IN_FLIGHT; i++) expect(limiter.tryAcquire()).toBe(true);
     expect(limiter.tryAcquire()).toBe(false);
+  });
+});
+
+describe("cacheAnalyticsProviderLoad", () => {
+  it("memoises per TTL, calls onLoad once per successful load, and never caches a failure", async () => {
+    let now = 0;
+    let loads = 0;
+    let fail = true;
+    const seen: number[] = [];
+    const load = cacheAnalyticsProviderLoad({
+      load: async () => { loads++; if (fail) throw new Error("not yet"); return loads; },
+      clock: { nowMs: () => now },
+    }, { ttlMs: 100, onLoad: (value) => seen.push(value) });
+    await expect(load()).rejects.toThrow("not yet");
+    await Promise.resolve();
+    fail = false;
+    const first = await load();
+    expect(loads).toBe(2);
+    now = 99;
+    expect(await load()).toBe(first);
+    expect(loads).toBe(2);
+    now = 100;
+    await load();
+    expect(loads).toBe(3);
+    expect(seen).toEqual([2, 3]);
+  });
+
+  it("keeps a newer cache entry when an older load rejects; defaults to the documented TTL", async () => {
+    let now = 0;
+    let rejectFirst!: (e: Error) => void;
+    let calls = 0;
+    const load = cacheAnalyticsProviderLoad({
+      load: () => { calls++; return calls === 1 ? new Promise<string>((_, reject) => { rejectFirst = reject; }) : Promise.resolve("fresh"); },
+      clock: { nowMs: () => now },
+    });
+    const stale = load();
+    now = DEFAULT_ANALYTICS_PROVIDERS_TTL_MS;
+    expect(await load()).toBe("fresh");
+    rejectFirst(new Error("late"));
+    await expect(stale).rejects.toThrow("late");
+    now = DEFAULT_ANALYTICS_PROVIDERS_TTL_MS + 1;
+    expect(await load()).toBe("fresh");
+    expect(calls).toBe(2);
+    expect(DEFAULT_ANALYTICS_PROVIDERS_TTL_MS).toBe(60_000);
   });
 });

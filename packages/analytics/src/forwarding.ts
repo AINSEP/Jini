@@ -6,7 +6,7 @@
  * (it is the only thing dashboards and recent-hits read), and vendors are FORWARDERS. A vendor can
  * therefore never become the primary, so switching or removing one never loses or hides local data.
  */
-import type { HttpClientPort } from "@jini-ai/core/primitives";
+import type { Clock, HttpClientPort } from "@jini-ai/core/primitives";
 import {
   createProviderRegistry, type ProviderContext, type ProviderDefinition, type ProviderRegistry, type ProviderResult, type RegisteredProvider,
 } from "@jini-ai/core/provider-registry";
@@ -254,5 +254,31 @@ export function composeBeforeIngestHooks(
       }
       return current;
     },
+  };
+}
+
+/** Plugin providers are re-read at most this often: a beacon is high-volume, a plugin change is not. */
+export const DEFAULT_ANALYTICS_PROVIDERS_TTL_MS = 60_000;
+
+/**
+ * Memoises an async provider load for `ttlMs`, so a per-beacon read costs one plugin load per TTL
+ * window. A failed load is not cached (the next caller retries), and a late rejection of an older
+ * load never evicts a newer entry. `onLoad` runs once per successful load (hosts report refusals).
+ * @complexity O(1) per call; one load per TTL window.
+ */
+export function cacheAnalyticsProviderLoad<T>(
+  required: { load: () => Promise<T>; clock: Pick<Clock, "nowMs"> },
+  optional: { ttlMs?: number; onLoad?: (value: T) => void } = {},
+): () => Promise<T> {
+  const { load, clock } = required;
+  const { ttlMs = DEFAULT_ANALYTICS_PROVIDERS_TTL_MS, onLoad } = optional;
+  let cached: { at: number; value: Promise<T> } | undefined;
+  return () => {
+    const now = clock.nowMs();
+    if (cached && now - cached.at < ttlMs) return cached.value;
+    const value = load().then((loaded) => { onLoad?.(loaded); return loaded; });
+    cached = { at: now, value };
+    value.catch(() => { if (cached?.value === value) cached = undefined; });
+    return value;
   };
 }
