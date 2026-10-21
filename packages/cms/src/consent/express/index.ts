@@ -133,12 +133,13 @@ function gateOptions({ request, response }: { request: Request; response: Respon
 }
 
 /** Gate one enabled HTML body; any failure returns inert text under the blocking policy.
+ * `endpoint`/`cookieName` arrive already defaulted by the handler factory, the one place defaults live.
  * @complexity O(HTML bytes), at most one receipt read. */
-async function gatedBody({ body, request, response, ports, config, failed }: { body: Buffer; request: Request; response: Response; ports: ConsentHttpPorts; config: ConsentConfig; failed: boolean }, options: ConsentHttpOptions & { endpoint: string }): Promise<Buffer> {
+async function gatedBody({ body, request, response, ports, config, failed }: { body: Buffer; request: Request; response: Response; ports: ConsentHttpPorts; config: ConsentConfig; failed: boolean }, options: ConsentHttpOptions & { endpoint: string; cookieName: string }): Promise<Buffer> {
   try {
     const encoding = response.getHeader('Content-Encoding');
     if (encoding && encoding !== 'identity') throw new Error('Consent requires uncompressed HTML. Mount consent before compression and retry this page.');
-    const receipt = failed ? { record: null, failed: false } : await currentRecord({ request, ports, config }, { cookieName: options.cookieName ?? 'jini_consent' });
+    const receipt = failed ? { record: null, failed: false } : await currentRecord({ request, ports, config }, { cookieName: options.cookieName });
     const regionMode = failed || receipt.failed ? 'opt-in' : resolveConsentRegion({ configuredMode: config.regionMode, region: ports.region({ request }) });
     return Buffer.from(gateConsentHtml({ html: body.toString('utf8'), config, record: receipt.record, regionMode, gpc: request.get('sec-gpc') === '1', endpoint: options.endpoint }, gateOptions({ request, response }, options)));
   } catch (error) {
