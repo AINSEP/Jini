@@ -1,4 +1,4 @@
-import { createPsqlPostgresTarget } from "../transfer/postgres-target.js";
+import { createPsqlPostgresTarget, type PostgresTargetPort } from "../transfer/postgres-target.js";
 
 /**
  * @file Throwaway-database helpers for this feature's live-Postgres tests, built on the feature's own
@@ -8,27 +8,51 @@ import { createPsqlPostgresTarget } from "../transfer/postgres-target.js";
  * named database is ever dropped.
  */
 
-const USER = process.env.PGUSER ?? "la";
-const PORT = process.env.PGPORT ?? "5432";
-const HOST = process.env.PGHOST;
-
-export function connectionFor(database: string, password?: string): string {
-  const auth = password === undefined ? USER : `${USER}:${password}`;
-  return `postgresql://${auth}@localhost:${PORT}/${database}${HOST !== undefined ? `?host=${encodeURIComponent(HOST)}` : ""}`;
+export interface TransferPgTestDb {
+  connectionFor(database: string, password?: string): string;
+  /** Runs one statement; rows joined by newlines, cells by tabs. Throws on any error. */
+  sql(database: string, statement: string): Promise<string>;
+  recreateDatabase(database: string): Promise<void>;
+  dropDatabase(database: string): Promise<void>;
 }
 
-/** Runs one statement; rows joined by newlines, cells by tabs. Throws on any error. */
-export async function sql(database: string, statement: string): Promise<string> {
-  const result = await createPsqlPostgresTarget({ connectionString: connectionFor(database) }).query(statement);
-  if (!result.ok) throw new Error(`${database}: ${result.error}`);
-  return result.value.map((row) => row.join("\t")).join("\n");
+/** The psql adapter for one connection string; the helpers' default target. */
+function psqlTarget(connectionString: string): PostgresTargetPort {
+  return createPsqlPostgresTarget({ connectionString });
 }
 
-export async function recreateDatabase(database: string): Promise<void> {
-  await sql("postgres", `DROP DATABASE IF EXISTS ${database}`);
-  await sql("postgres", `CREATE DATABASE ${database}`);
+/**
+ * Binds the helpers to one environment and target factory. The module's own exports below are this
+ * factory over `process.env` (read once, at import) and the psql adapter.
+ * @complexity O(1) per helper call plus one target query.
+ */
+export function createTransferPgTestDb(
+  { env }: { env: Readonly<Record<string, string | undefined>> },
+  { target = psqlTarget }: { target?: (connectionString: string) => PostgresTargetPort } = {},
+): TransferPgTestDb {
+  const user = env.PGUSER ?? "la";
+  const port = env.PGPORT ?? "5432";
+  const host = env.PGHOST;
+  const connectionFor = (database: string, password?: string): string => {
+    const auth = password === undefined ? user : `${user}:${password}`;
+    return `postgresql://${auth}@localhost:${port}/${database}${host !== undefined ? `?host=${encodeURIComponent(host)}` : ""}`;
+  };
+  const sql = async (database: string, statement: string): Promise<string> => {
+    const result = await target(connectionFor(database)).query(statement);
+    if (!result.ok) throw new Error(`${database}: ${result.error}`);
+    return result.value.map((row) => row.join("\t")).join("\n");
+  };
+  return {
+    connectionFor,
+    sql,
+    async recreateDatabase(database) {
+      await sql("postgres", `DROP DATABASE IF EXISTS ${database}`);
+      await sql("postgres", `CREATE DATABASE ${database}`);
+    },
+    async dropDatabase(database) {
+      await sql("postgres", `DROP DATABASE IF EXISTS ${database}`);
+    },
+  };
 }
 
-export async function dropDatabase(database: string): Promise<void> {
-  await sql("postgres", `DROP DATABASE IF EXISTS ${database}`);
-}
+export const { connectionFor, sql, recreateDatabase, dropDatabase } = createTransferPgTestDb({ env: process.env });

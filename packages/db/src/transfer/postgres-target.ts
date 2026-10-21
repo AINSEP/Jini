@@ -98,10 +98,25 @@ function failureFrom({ stderr }: { stderr: string }, _options = {}): { ok: false
   return copyTable === undefined ? { ok: false, error } : { ok: false, error, copyTable };
 }
 
-function runPsql(env: Record<string, string>, args: readonly string[], chunks: Iterable<string> | null): Promise<TargetResult<string>> {
+/** The slice of a spawned `psql` child this adapter drives: its three pipes, `error` and `close`. */
+export interface PsqlProcess {
+  readonly stdin: NodeJS.WritableStream;
+  readonly stdout: NodeJS.ReadableStream;
+  readonly stderr: NodeJS.ReadableStream;
+  on(event: "error", listener: (error: Error) => void): unknown;
+  on(event: "close", listener: (code: number | null) => void): unknown;
+}
+
+/** Starts `psql` with the given argv and environment; the default resolves it on the host PATH. */
+export type PsqlSpawn = (args: readonly string[], options: { env: Record<string, string> }) => PsqlProcess;
+
+const spawnPsql: PsqlSpawn = (args, { env }) =>
+  // eslint-disable-next-line sonarjs/no-os-command-from-path -- Operator-installed psql intentionally resolves through the trusted host PATH; connection input supplies PG fields, never the executable or PATH.
+  spawn("psql", args, { env, stdio: ["pipe", "pipe", "pipe"] });
+
+function runPsql(env: Record<string, string>, args: readonly string[], chunks: Iterable<string> | null, launch: PsqlSpawn): Promise<TargetResult<string>> {
   return new Promise((resolve) => {
-    // eslint-disable-next-line sonarjs/no-os-command-from-path -- Operator-installed psql intentionally resolves through the trusted host PATH; connection input supplies PG fields, never the executable or PATH.
-    const child = spawn("psql", ["-X", "-q", "-v", "ON_ERROR_STOP=1", ...args], { env, stdio: ["pipe", "pipe", "pipe"] });
+    const child = launch(["-X", "-q", "-v", "ON_ERROR_STOP=1", ...args], { env });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8").on("data", (data: string) => (stdout += data));
@@ -119,23 +134,24 @@ function runPsql(env: Record<string, string>, args: readonly string[], chunks: I
 }
 
 /**
- * The P0 adapter: every call is one short-lived `psql` process.
+ * The P0 adapter: every call is one short-lived `psql` process, started through `spawnProcess`
+ * (default: `psql` on the host PATH).
  *
  * @throws {InvalidConnectionStringError} When the string cannot be parsed.
  */
-export function createPsqlPostgresTarget({ connectionString }: { connectionString: string }, { parentEnv = process.env, applicationName }: { parentEnv?: NodeJS.ProcessEnv; applicationName?: string } = {}): PostgresTargetPort {
+export function createPsqlPostgresTarget({ connectionString }: { connectionString: string }, { parentEnv = process.env, applicationName, spawnProcess = spawnPsql }: { parentEnv?: NodeJS.ProcessEnv; applicationName?: string; spawnProcess?: PsqlSpawn } = {}): PostgresTargetPort {
   const parsed = parseConnectionString({ raw: connectionString }, applicationName === undefined ? {} : { applicationName });
   const env = { ...environmentWithout(parentEnv), ...parsed.env };
   return {
     describe: () => parsed.description,
     async query(sql) {
-      const result = await runPsql(env, ["-t", "-A", "-F", "\t", "-c", sql], null);
+      const result = await runPsql(env, ["-t", "-A", "-F", "\t", "-c", sql], null, spawnProcess);
       if (!result.ok) return result;
       const rows = result.value.split("\n").filter((line) => line !== "").map((line) => line.split("\t"));
       return { ok: true, value: rows };
     },
     async runScript(chunks) {
-      const result = await runPsql(env, ["-f", "-"], chunks);
+      const result = await runPsql(env, ["-f", "-"], chunks, spawnProcess);
       return result.ok ? { ok: true, value: null } : result;
     },
   };
