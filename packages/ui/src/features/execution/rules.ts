@@ -707,13 +707,18 @@ export function splitReasoningModelId(
  * has no level, so nothing is stripped, and a vendor label that happens to end in an unrelated
  * parenthetical keeps it.
  */
+/** `Head (Inner)` with optional surrounding whitespace; group 1 is the head, group 2 the qualifier. */
+const TRAILING_PARENTHETICAL = /^(.*?)\s*\(([^()]*)\)\s*$/;
+
 function baseLabelForLevel(label: string, level: AgentModelOption | undefined): string {
   if (!level) return label;
-  const match = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(label);
-  if (!match) return label;
-  const inner = (match[2] ?? '').trim().toLowerCase();
+  if (!TRAILING_PARENTHETICAL.test(label)) return label;
+  // Both capture groups always participate once the pattern matches, so reading them through
+  // `replace` (which yields a plain string) replaces the old `match[n] ?? ''` fallbacks, which no
+  // matching label could ever reach.
+  const inner = label.replace(TRAILING_PARENTHETICAL, '$2').trim().toLowerCase();
   if (inner !== level.id.toLowerCase() && inner !== level.label.toLowerCase()) return label;
-  const stripped = (match[1] ?? '').trim();
+  const stripped = label.replace(TRAILING_PARENTHETICAL, '$1').trim();
   return stripped || label;
 }
 
