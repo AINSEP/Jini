@@ -99,6 +99,15 @@ test('stopping-run lookup failure cancels the injected deadline', async () => {
   await expect(waitForStoppingRuns({ tracker, lifecycle, scheduler: time.scheduler, conversationId: 'c', runId: 'new' })).rejects.toThrow('lookup');
   expect(time.timerCount()).toBe(0);
 });
+test('a peer whose cancellation lookup throws is not treated as stopping, so no wait or deadline is armed', async () => {
+  const time = clock(); const tracker = createLiveRunTracker({}); tracker.register({ conversationId: 'c', runId: 'old' });
+  const waited: string[] = [];
+  const lifecycle = { onCancelRequested: () => { throw new Error('lifecycle unavailable'); }, waitForTerminal: async ({ runId }: { runId: string }) => { waited.push(runId); } };
+  await waitForStoppingRuns({ tracker, lifecycle, scheduler: time.scheduler, conversationId: 'c', runId: 'new' });
+  expect(waited).toEqual([]);
+  expect(time.timerCount()).toBe(0);
+  expect(tracker.concurrentLiveRunIds({ conversationId: 'c', runId: 'new' })).toEqual(['old']);
+});
 test('synchronous sink and reporter failures cannot change an executor result or a catalog call', async () => {
   const result: ToolExecutionResult = { executionId: 'e', status: 'completed', output: 7 };
   const inner: ToolExecutor = { execute: async () => result, resumeConfirmation: () => {}, cancel: () => {}, getAuditRecord: () => null };

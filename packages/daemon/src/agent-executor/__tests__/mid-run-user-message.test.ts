@@ -329,6 +329,51 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
     await harness.lifecycle.waitForTerminal({ runId });
   });
 
+  it('ignores stdout lines that only mention a control response, holding the message until the real acknowledgement', async () => {
+    const harness = createHarness(createDef({}));
+    const runId = await startRun(harness);
+    let settled = false;
+    const delivery = harness.executor.sendUserMessage({ runId, text: 'later' }).then((result) => { settled = true; return result; });
+    await flush();
+    const interrupt = JSON.parse(harness.child.stdin.writes[1]!);
+    for (const noise of [
+      '{"control_response" is not json',
+      JSON.stringify({ type: 'assistant', control_response: true }),
+      JSON.stringify({ type: 'control_response', response: 'not-an-object' }),
+      JSON.stringify({ type: 'control_response', response: { request_id: 7 } }),
+    ]) harness.child.stdout.emit('data', `${noise}\n`);
+    await flush();
+    expect(settled).toBe(false);
+    expect(harness.child.stdin.writes).toHaveLength(2);
+
+    harness.child.stdout.emit('data', `${JSON.stringify(controlResponse(interrupt.request_id))}\n`);
+    await expect(delivery).resolves.toBe('delivered');
+    harness.child.emit('close', 0, null);
+    await harness.lifecycle.waitForTerminal({ runId });
+  });
+
+  it('ignores lines that only mention background_tasks_changed: the held stdin closes only on a real empty task list', async () => {
+    const harness = createHarness(createDef({}));
+    const runId = await startRun(harness);
+    const task = { task_id: 'bg-1', task_type: 'local_agent', description: 'Port pages' };
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [task] })}\n`);
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text: 'working' }], stop_reason: 'end_turn' } })}\n`);
+    for (const noise of [
+      '{"background_tasks_changed" is not json',
+      JSON.stringify({ type: 'assistant', background_tasks_changed: true }),
+      JSON.stringify({ type: 'system', subtype: 'init', background_tasks_changed: [] }),
+      JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: 'none' }),
+    ]) harness.child.stdout.emit('data', `${noise}\n`);
+    await flush();
+    expect(harness.child.stdin.ended).toBe(false);
+
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })}\n`);
+    await flush();
+    expect(harness.child.stdin.ended).toBe(true);
+    harness.child.emit('close', 0, null);
+    await harness.lifecycle.waitForTerminal({ runId });
+  });
+
   it('still writes the message when the CLI never acknowledges the interrupt', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);

@@ -152,7 +152,12 @@ export function createSurfaceExchangeStore(
       try {
         cancelLifetime = deps.scheduler.schedule({ delayMs: maxLifetimeMs, callback: () => end({ status: 'expired' }) });
         armIdle();
-      } catch (error) { cancelLifetime?.(); cancelIdle?.(); throw error; }
+      } catch (error) {
+        // Only the lifetime timer can be live here: `armIdle` is the last statement, and it assigns
+        // `cancelIdle` only once its own `schedule` call has returned, so a throw there leaves it unset.
+        cancelLifetime?.();
+        throw error;
+      }
       openExchanges.set(id, {
         binding: { ...binding },
         accept(params) {

@@ -272,7 +272,7 @@ function rehydratedStatus(
 function rehydratedRunRecord(
   runId: string,
   entries: readonly EventLogEntry[],
-): { record: RunRecord; idempotencyKey: string | undefined; isTerminal: boolean } {
+): { record: RunRecord; idempotencyKey: string | undefined; terminalAt: number | undefined } {
   const startEntry = entries.find((entry) => entry.event === 'start');
   const endEntry = [...entries].reverse().find((entry) => entry.event === 'end');
   const firstEntry = entries[0]!;
@@ -299,7 +299,9 @@ function rehydratedRunRecord(
       retentionTimer: undefined,
     },
     idempotencyKey,
-    isTerminal: terminal !== null,
+    // Terminal exactly when the log holds an 'end' entry (`terminal` is derived from it), so the
+    // end entry's own timestamp is the terminal time — never a "now" substitute.
+    terminalAt: endEntry?.recordedAt,
   };
 }
 
@@ -702,29 +704,25 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
    * it would undo the operator's inactivity policy. Other unexpected process failures still
    * retain their original runtime classification.
    *
-   * The `!record || isTerminalRunState(...)` guard below is defensive only and is currently
-   * unreachable through the public API — deliberately kept, not fake-tested, and the reason is
-   * recorded here so the next reader does not spend time trying to cover it:
+   * There is deliberately no "run missing or already terminal" guard here (an earlier
+   * `!record || isTerminalRunState(...)` guard was removed as unreachable through the public API,
+   * and the handler needs nothing from the record — it acts through `lifecycle.emit`/`finish` by id):
    *
-   * - `isTerminalRunState(...)`: every route to a terminal state runs through `finish()`, which
+   * - terminal: every route to a terminal state runs through `finish()`, which
    *   calls `record.watchdog?.cancel()` and assigns `record.status.state` in the *same synchronous
    *   block* after its durable end append resolves. There is no interleaving point between the two,
    *   so "watchdog still armed" and "record already terminal" cannot both hold when this fires. (If
    *   the end append *throws*, the watchdog stays armed but the run also stays non-terminal.)
-   * - `!record`: the only `runs.delete()` is `start()`'s unwind on a failed durable start append,
-   *   which happens strictly before the watchdog is armed a few lines later. It is also required
-   *   for type-narrowing `record` before `record.status.state` is read, so it cannot simply be
-   *   dropped.
+   * - missing: the only `runs.delete()` calls are `start()`'s unwind on a failed durable start
+   *   append, which happens strictly before the watchdog is armed a few lines later, and terminal
+   *   eviction, which only ever touches runs whose watchdog `finish()` already cancelled. And
+   *   `createInactivityWatchdog` never calls `onTimeout` after `cancel()`.
    *
-   * Note the "start/finish race" test below does *not* exercise this guard despite its name: by the
+   * Note the "start/finish race" test below does *not* exercise this handler despite its name: by the
    * time it advances the timers, `finish()` has already cancelled the watchdog, so the callback
    * never runs at all. It still correctly asserts that no second `finish()` happens.
    */
   async function handleInactivityTimeout(runId: string): Promise<void> {
-    const record = runs.get(runId);
-    if (!record || isTerminalRunState({ state: record.status.state })) {
-      return;
-    }
     try {
       // A deliberate inactivity kill is permanent for this attempt, not an auto-resume signal.
       await lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'Stopped by inactivity watchdog', detail: 'inactivity-watchdog' } } });
@@ -756,21 +754,17 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
    * one — see that variant's own doc in `@jini-ai/protocol`'s `events.ts` for why: nothing in this
    * codebase renders `'status'` events today, so reusing it here would have shipped an invisible fix.
    *
-   * The `!record || isTerminalRunState(...)` guard mirrors {@link handleInactivityTimeout}'s own
-   * (see that function's doc for why it is unreachable-but-kept there); it is reachable here in one
-   * more case worth naming: `finish()` cancels `record.slowRunWatchdog` synchronously before its
+   * Like {@link handleInactivityTimeout}, it has no "run missing or already terminal" guard (see
+   * that function's doc for why such a guard is unreachable). One more case is worth naming:
+   * `finish()` cancels `record.slowRunWatchdog` synchronously before its
    * `record.status.state` write ever yields, so between this timer firing and `emit()` actually
    * running there is no window where a normal `finish()` could race it — but `emit()` itself can
    * still legitimately throw (e.g. a `finishPromise` in flight from a concurrent `cancel()`-driven
-   * finish that started after this callback's own `runs.get()` read but before its `emit()` call
+   * finish that started after this callback fired but before its `emit()` call
    * completes its internal `await record.startPromise`), which is exactly what the `try`/`catch`
    * below contains rather than letting escape as an unhandled rejection.
    */
   async function handleSlowRunNotice(runId: string): Promise<void> {
-    const record = runs.get(runId);
-    if (!record || isTerminalRunState({ state: record.status.state })) {
-      return;
-    }
     try {
       await lifecycle.emit({ runId: runId, input: {
         event: 'agent',
@@ -806,15 +800,16 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     const replay = await eventLog.replay({ runId: runId, afterCursor: null });
     if (replay.kind !== 'ok' || replay.entries.length === 0) return 'skipped';
 
-    const { record, idempotencyKey, isTerminal } = rehydratedRunRecord(runId, replay.entries);
+    const { record, idempotencyKey, terminalAt } = rehydratedRunRecord(runId, replay.entries);
     runs.set(runId, record);
     if (idempotencyKey !== undefined) idempotencyIndex.set(idempotencyKey, runId);
     // `eventLog.listRunIds()` returns every run id the durable log has ever seen, with no bound of
     // its own — without this, a restart would re-populate `runs` with the daemon's entire terminal
     // run history on every boot, reproducing the same unbounded growth this module now guards
     // against at runtime.
-    if (isTerminal) trackTerminalRun(runId, record, record.status.endedAt ?? Date.now());
-    return isTerminal ? 'terminal' : 'non-terminal';
+    if (terminalAt === undefined) return 'non-terminal';
+    trackTerminalRun(runId, record, terminalAt);
+    return 'terminal';
   }
 
   const lifecycle: RunLifecycle = {
