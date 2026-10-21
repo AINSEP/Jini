@@ -1,4 +1,4 @@
-import { type Kysely, type Selectable, sql } from "kysely";
+import { type Kysely, type RawBuilder, type Selectable, sql } from "kysely";
 
 import type { StorageKernel } from "@jini-ai/db/kernel";
 import {
@@ -6,13 +6,14 @@ import {
   attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, encodeColumns, encodeMinor, evidenceFromRow, evidenceToRow,
   inboxFromRow, inboxToRow, outboxFromRow, outboxToRow, patchColumns, paymentFromRow, paymentToRow, quarantineFromRow,
   quarantineToRow, refundFromRow, refundToRow, operatorActionFromRow, operatorActionToRow, revivedPayload, UNSETTLED_REFUND_STATUSES,
-  type OperatorActionRecord, type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
+  OPEN_ATTEMPT_OUTCOMES, type AttemptOp, type OperatorActionRecord, type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
   type NewInbox, type NewOutbox, type NewPayment, type NewQuarantine, type OutboxRecord, type PaymentPatch,
   type PaymentRecord, type PaymentsLedgerDatabase, type PaymentsTable, type QuarantineRecord, type RefundPatch, type RefundRecord,
   type RefundsTable,
 } from "./rows.js";
 import {
   LedgerConstraintError, type LedgerConstraintKind, type LedgerKeyScope, type LedgerTx, type PaymentsLedger, type ProviderRefScope,
+  type ScanCursor, type ScanOptions,
 } from "./repo.js";
 
 /**
@@ -53,6 +54,18 @@ const CONSTRAINT_CODES: ReadonlyMap<string, LedgerConstraintKind> = new Map([
 export function constraintKindOf({ error }: { error: unknown }, _optional: Record<string, never> = {}): LedgerConstraintKind | null {
   const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
   return typeof code === "string" ? (CONSTRAINT_CODES.get(code) ?? null) : null;
+}
+
+/** Rows ordered after `after` by (`updated_at`, `id`) — the scans' own order — or every row without a cursor. */
+function afterCursor({ after }: { after?: ScanCursor }, _optional: Record<string, never> = {}): RawBuilder<boolean> {
+  if (after === undefined) return sql<boolean>`1 = 1`;
+  const at = encodeMinor({ value: after.updatedAt });
+  return sql<boolean>`(updated_at > ${at} OR (updated_at = ${at} AND id > ${after.id}))`;
+}
+
+/** Workspace + mode of a scan's optional scope, or every row without one. */
+function inScanScope({ scope }: { scope?: LedgerKeyScope }, _optional: Record<string, never> = {}): RawBuilder<boolean> {
+  return scope === undefined ? sql<boolean>`1 = 1` : sql<boolean>`(workspace_id = ${scope.workspaceId} AND mode = ${scope.mode})`;
 }
 
 class SqlLedgerTx implements LedgerTx {
@@ -350,28 +363,32 @@ class SqlLedgerTx implements LedgerTx {
 
   // Reconciliation scans ------------------------------------------------------------------------
 
-  async listUnknownPayments(
-    { updatedBefore, limit }: { updatedBefore: number; limit: number },
-    optional: { scope?: LedgerKeyScope } = {}
-  ): Promise<PaymentRecord[]> {
-    const rows = await this.read((db) => {
-      let query = db.selectFrom("commerce_payments").selectAll().where("intent_status", "=", "unknown").where("updated_at", "<", updatedBefore);
-      if (optional.scope !== undefined) query = query.where("workspace_id", "=", optional.scope.workspaceId).where("mode", "=", optional.scope.mode);
-      return query.orderBy("updated_at").orderBy("id").limit(limit).execute();
-    });
+  async listUnknownPayments({ updatedBefore, limit }: { updatedBefore: number; limit: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
+    const rows = await this.read((db) =>
+      db.selectFrom("commerce_payments").selectAll().where("intent_status", "=", "unknown").where("updated_at", "<", updatedBefore)
+        .where(inScanScope(optional)).where(afterCursor(optional)).orderBy("updated_at").orderBy("id").limit(limit).execute()
+    );
     return rows.map((row) => paymentFromRow(row));
   }
 
-  async listUnsettledRefunds(
-    { updatedBefore, limit }: { updatedBefore: number; limit: number },
-    optional: { scope?: LedgerKeyScope } = {}
-  ): Promise<RefundRecord[]> {
-    const rows = await this.read((db) => {
-      let query = db.selectFrom("commerce_refunds").selectAll().where("status", "in", [...UNSETTLED_REFUND_STATUSES]).where("updated_at", "<", updatedBefore);
-      if (optional.scope !== undefined) query = query.where("workspace_id", "=", optional.scope.workspaceId).where("mode", "=", optional.scope.mode);
-      return query.orderBy("updated_at").orderBy("id").limit(limit).execute();
-    });
+  async listUnsettledRefunds({ updatedBefore, limit }: { updatedBefore: number; limit: number }, optional: ScanOptions = {}): Promise<RefundRecord[]> {
+    const rows = await this.read((db) =>
+      db.selectFrom("commerce_refunds").selectAll().where("status", "in", [...UNSETTLED_REFUND_STATUSES]).where("updated_at", "<", updatedBefore)
+        .where(inScanScope(optional)).where(afterCursor(optional)).orderBy("updated_at").orderBy("id").limit(limit).execute()
+    );
     return rows.map((row) => refundFromRow(row));
+  }
+
+  async listOpenAttempts(
+    { ops, updatedBefore, limit }: { ops: readonly AttemptOp[]; updatedBefore: number; limit: number },
+    optional: ScanOptions = {}
+  ): Promise<AttemptRecord[]> {
+    const rows = await this.read((db) =>
+      db.selectFrom("commerce_payment_attempts").selectAll().where("op", "in", [...ops]).where("outcome", "in", [...OPEN_ATTEMPT_OUTCOMES])
+        .where("updated_at", "<", updatedBefore).where(inScanScope(optional)).where(afterCursor(optional))
+        .orderBy("updated_at").orderBy("id").limit(limit).execute()
+    );
+    return rows.map((row) => attemptFromRow(row));
   }
 
   // Operator actions ----------------------------------------------------------------------------

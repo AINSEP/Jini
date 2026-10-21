@@ -22,7 +22,7 @@
  */
 import type { PaymentMode } from "../contract/scope.js";
 import type {
-  AttemptPatch, AttemptRecord, DisputePatch, DisputeRecord, EvidenceRecord, InboxRecord, NewInbox, NewOutbox, NewPayment,
+  AttemptOp, AttemptPatch, AttemptRecord, DisputePatch, DisputeRecord, EvidenceRecord, InboxRecord, NewInbox, NewOutbox, NewPayment,
   NewQuarantine, OperatorActionRecord, OutboxRecord, PaymentPatch, PaymentRecord, QuarantineRecord, RefundPatch, RefundRecord,
 } from "./rows.js";
 
@@ -48,6 +48,22 @@ export class LedgerConstraintError extends Error {
 export interface LedgerKeyScope {
   readonly workspaceId: string;
   readonly mode: PaymentMode;
+}
+
+/**
+ * Where a limited reconciliation scan stopped: the last row it returned. The next scan resumes at
+ * rows ordered after it (`updated_at`, then `id`), so rows the reconciler cannot settle never pin
+ * every pass to the same oldest batch.
+ */
+export interface ScanCursor {
+  readonly updatedAt: number;
+  readonly id: string;
+}
+
+/** What every reconciliation scan may narrow by: one workspace + mode, and a resume position. */
+export interface ScanOptions {
+  readonly scope?: LedgerKeyScope;
+  readonly after?: ScanCursor;
 }
 
 /** Workspace + mode + provider account: the fence for a provider-supplied ref. */
@@ -167,11 +183,17 @@ export interface LedgerTx {
    * Payments whose intent is `unknown` and that were last updated before `updatedBefore`, least
    * recently updated first (ties by id), at most `limit`. `scope` narrows to one workspace + mode;
    * without it the scan spans every workspace (the reconciler is a host-level job) and each record
-   * carries its own scope.
+   * carries its own scope. `after` resumes past a {@link ScanCursor}.
    */
-  listUnknownPayments(required: { updatedBefore: number; limit: number }, optional?: { scope?: LedgerKeyScope }): Promise<PaymentRecord[]>;
-  /** Refunds still holding money (`UNSETTLED_REFUND_STATUSES`), same cutoff, order, limit and scope rules. */
-  listUnsettledRefunds(required: { updatedBefore: number; limit: number }, optional?: { scope?: LedgerKeyScope }): Promise<RefundRecord[]>;
+  listUnknownPayments(required: { updatedBefore: number; limit: number }, optional?: ScanOptions): Promise<PaymentRecord[]>;
+  /** Refunds still holding money (`UNSETTLED_REFUND_STATUSES`), same cutoff, order, limit, scope and cursor rules. */
+  listUnsettledRefunds(required: { updatedBefore: number; limit: number }, optional?: ScanOptions): Promise<RefundRecord[]>;
+  /**
+   * Attempts of `ops` whose provider call never reported back (`OPEN_ATTEMPT_OUTCOMES`: dispatched
+   * or unknown), same cutoff, order, limit, scope and cursor rules. A lost capture/void response
+   * leaves the payment as it was, so only its attempt shows a call went out.
+   */
+  listOpenAttempts(required: { ops: readonly AttemptOp[]; updatedBefore: number; limit: number }, optional?: ScanOptions): Promise<AttemptRecord[]>;
 
   // Operator actions (append-only audit, L4) -------------------------------------------------------
   appendOperatorAction(required: { action: OperatorActionRecord }, optional?: Record<string, never>): Promise<void>;

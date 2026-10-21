@@ -603,6 +603,52 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
       });
     });
 
+    describe("reconciliation scans: cursor and open capture/void attempts", () => {
+      test("`after` resumes a scan past a position: later update time, or the same time and a later id", async () => {
+        await within(async (tx) => {
+          const unknown = { intentStatus: "unknown", status: "unknown" } as const;
+          await tx.insertPayment({ payment: payment({ id: "pay-a", idempotencyKey: "a", ...unknown, updatedAt: 100 }) });
+          await tx.insertPayment({ payment: payment({ id: "pay-b", idempotencyKey: "b", ...unknown, updatedAt: 100 }) });
+          await tx.insertPayment({ payment: payment({ id: "pay-c", idempotencyKey: "c", ...unknown, updatedAt: 200 }) });
+          const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
+          expect(ids(await tx.listUnknownPayments({ updatedBefore: 900, limit: 10 }, { after: { updatedAt: 100, id: "pay-a" } }))).toEqual(["pay-b", "pay-c"]);
+          expect(ids(await tx.listUnknownPayments({ updatedBefore: 900, limit: 10 }, { after: { updatedAt: 100, id: "pay-b" }, scope: LIVE }))).toEqual(["pay-c"]);
+          expect(await tx.listUnknownPayments({ updatedBefore: 900, limit: 10 }, { after: { updatedAt: 200, id: "pay-c" } })).toEqual([]);
+          await tx.insertRefund({ refund: refund({ id: "ref-a", idempotencyKey: "ra", status: "unknown", paymentId: "pay-a", updatedAt: 100 }) });
+          await tx.insertRefund({ refund: refund({ id: "ref-b", idempotencyKey: "rb", status: "pending", paymentId: "pay-a", updatedAt: 150 }) });
+          expect(ids(await tx.listUnsettledRefunds({ updatedBefore: 900, limit: 10 }, { after: { updatedAt: 100, id: "ref-a" } }))).toEqual(["ref-b"]);
+          expect(ids(await tx.listUnsettledRefunds({ updatedBefore: 900, limit: 10 }, { after: { updatedAt: 99, id: "zzz" }, scope: LIVE }))).toEqual(["ref-a", "ref-b"]);
+        });
+      });
+
+      test("open attempts: only the named ops still dispatched/unknown, before the cutoff, oldest first, bounded, scoped, resumable", async () => {
+        await within(async (tx) => {
+          await tx.insertPayment({ payment: payment() });
+          await tx.insertPayment({ payment: payment({ id: "pay-t", idempotencyKey: "it", mode: "test" }) });
+          const rows: Partial<AttemptRecord>[] = [
+            { id: "att-cap", op: "capture", outcome: "unknown", updatedAt: 300, currency: "USD", amountMinor: 500 },
+            { id: "att-void", op: "void", outcome: "dispatched", updatedAt: 200 },
+            { id: "att-done", op: "capture", outcome: "ok", updatedAt: 100 },
+            { id: "att-rej", op: "void", outcome: "rejected", updatedAt: 100 },
+            { id: "att-intent", op: "intent", outcome: "unknown", updatedAt: 100 },
+            { id: "att-new", op: "capture", outcome: "unknown", updatedAt: 900 },
+            { id: "att-t", op: "void", outcome: "unknown", updatedAt: 50, paymentId: "pay-t", mode: "test" },
+          ];
+          for (const row of rows) await tx.insertAttempt({ attempt: attempt({ operationKey: `k-${row.id}`, ...row }) });
+          const ids = (list: { id: string }[]) => list.map((r) => r.id);
+          const ops = ["capture", "void"] as const;
+          expect(ids(await tx.listOpenAttempts({ ops, updatedBefore: 900, limit: 10 }))).toEqual(["att-t", "att-void", "att-cap"]);
+          expect(ids(await tx.listOpenAttempts({ ops, updatedBefore: 900, limit: 1 }))).toEqual(["att-t"]);
+          expect(ids(await tx.listOpenAttempts({ ops: ["capture"], updatedBefore: 900, limit: 10 }))).toEqual(["att-cap"]);
+          expect(ids(await tx.listOpenAttempts({ ops, updatedBefore: 900, limit: 10 }, { scope: LIVE }))).toEqual(["att-void", "att-cap"]);
+          expect(ids(await tx.listOpenAttempts({ ops, updatedBefore: 900, limit: 10 }, { after: { updatedAt: 200, id: "att-void" } }))).toEqual(["att-cap"]);
+          expect((await tx.listOpenAttempts({ ops: ["capture"], updatedBefore: 301, limit: 10 }))[0]).toEqual(
+            attempt({ id: "att-cap", operationKey: "k-att-cap", op: "capture", outcome: "unknown", updatedAt: 300, currency: "USD", amountMinor: 500 })
+          );
+        });
+      });
+    });
+
     describe("operator actions", () => {
       test("append-only: actions round-trip and list oldest first per payment; the port has no way to change them", async () => {
         await within(async (tx) => {

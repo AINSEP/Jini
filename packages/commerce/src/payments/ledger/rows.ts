@@ -333,6 +333,8 @@ export interface PaymentsLedgerDatabase {
 export type AttemptOp = "intent" | "capture" | "void" | "refund";
 /** `dispatched` = written BEFORE the provider call, so a crash mid-call leaves a row to reconcile. */
 export type AttemptOutcome = "dispatched" | "ok" | "rejected" | "unknown";
+/** Outcomes of a call that never reported back: the reconciler settles them, and they block a conflicting capture/void. */
+export const OPEN_ATTEMPT_OUTCOMES: readonly AttemptOutcome[] = ["dispatched", "unknown"];
 /** `operator` = a person resolved an `unknown` outcome (L4 `resolveUnknown`); its audit row is in the operator-actions table. */
 export type EvidenceSource = "response" | "webhook" | "retrieve" | "operator";
 export type EvidenceSubject = "payment" | "refund" | "dispute";

@@ -5,6 +5,10 @@
  * evidence through `applyPaymentEvidence`; rejected/unknown: the attempt records it and the
  * authorization is left as the provider last reported it).
  *
+ * While a capture or void of a payment has no answer yet (its attempt is still `dispatched` or
+ * `unknown`: a lost response), a conflicting capture/void of that payment is refused (retryable,
+ * before its grant is redeemed) until the reconciler (`reconciler.ts`) or the late answer closes it.
+ *
  * Idempotency here is keyed on the attempt row (`capture:<key>` / `void:<key>`). A replay must name
  * the same payment and, for a capture, the same amount the attempt stored (0004); anything else is
  * an `IDEMPOTENCY_CONFLICT`. A capture attempt written before 0004 has no amount and is matched on
@@ -18,7 +22,7 @@ import type { PaymentScope } from "../contract/scope.js";
 import type { IntentStatus } from "../state/status.js";
 import { applyPaymentEvidence, type ApplyResult } from "../accounting/apply-evidence.js";
 import type { LedgerTx } from "../ledger/repo.js";
-import type { AttemptRecord, PaymentRecord } from "../ledger/rows.js";
+import { OPEN_ATTEMPT_OUTCOMES, type AttemptRecord, type PaymentRecord } from "../ledger/rows.js";
 import {
   NOT_ASSESSED_RISK, REPLAY_RISK, checkAmount, checkProvider, checkText, dispatch, fail, markAttempt, newAttempt, noteApplied,
   onUniqueRace, owned, readPayment, resolveContext, type Failure,
@@ -38,6 +42,15 @@ export type VoidRequired = Omit<CaptureRequired, "amount">;
 
 type ProviderCall = (required: { providerRef: string; idempotencyKey: string; ctx: ProviderContext }) => Promise<Outcome<PaymentEvidence>>;
 
+/**
+ * The intent statuses each op acts on (`from`) and the one it leads to (`done`). Shared with the
+ * reconciler, which judges a capture/void whose response was lost by the same rule.
+ */
+export const CAPTURE_VOID_STATUSES: Readonly<Record<"capture" | "void", { readonly from: ReadonlySet<IntentStatus>; readonly done: IntentStatus }>> = {
+  capture: { from: new Set(["authorized"]), done: "succeeded" },
+  void: { from: new Set(["authorized", "requires_action", "pending"]), done: "canceled" },
+};
+
 /** What differs between capture and void. */
 interface OpSpec {
   readonly op: "capture" | "void";
@@ -50,7 +63,7 @@ interface OpSpec {
 
 function captureSpec(amount: Money): OpSpec {
   return {
-    op: "capture", amount, from: new Set(["authorized"]),
+    op: "capture", amount, from: CAPTURE_VOID_STATUSES.capture.from,
     method: (provider) => {
       const capture = provider.capture;
       if (provider.capabilities.capture !== "manual" || typeof capture !== "function") return null;
@@ -60,7 +73,7 @@ function captureSpec(amount: Money): OpSpec {
 }
 
 const VOID_SPEC: OpSpec = {
-  op: "void", amount: null, from: new Set(["authorized", "requires_action", "pending"]),
+  op: "void", amount: null, from: CAPTURE_VOID_STATUSES.void.from,
   method: (provider) => {
     const release = provider.void;
     if (!provider.capabilities.void || typeof release !== "function") return null;
@@ -110,6 +123,25 @@ function paymentProblem({ payment, spec, required }: { payment: PaymentRecord | 
   return null;
 }
 
+/** A capture or void of this payment still waiting for its answer: dispatching another now could contradict it. */
+async function unresolvedConflict({ tx, paymentId }: { tx: LedgerTx; paymentId: string }): Promise<Failure | null> {
+  const open = (await tx.listAttempts({ paymentId })).find((a) => (a.op === "capture" || a.op === "void") && OPEN_ATTEMPT_OUTCOMES.includes(a.outcome));
+  if (!open) return null;
+  return fail({ code: "INVALID_REQUEST", message: `a ${open.op} of this payment is still unresolved; retry once it is reconciled` }, { retryable: true });
+}
+
+/** Under the payment lock: the payment's state, an unresolved conflicting op, then the grant (redeemed last, so a refusal never spends it). */
+async function admit(
+  { tx, deps, spec, required, payment }: { tx: LedgerTx; deps: OpsDeps; spec: OpSpec; required: VoidRequired; payment: PaymentRecord | null }
+): Promise<Failure | null> {
+  const problem = paymentProblem({ payment, spec, required }) ?? (await unresolvedConflict({ tx, paymentId: required.paymentId }));
+  if (problem) return problem;
+  const { scope, idempotencyKey } = required;
+  const binding = { op: spec.op, workspaceId: scope.workspaceId, mode: scope.mode, paymentId: required.paymentId, amount: spec.amount, idempotencyKey };
+  if (await deps.grants.redeem({ grant: required.grant, binding })) return null;
+  return fail({ code: "GRANT_INVALID", message: `the ${spec.op} grant is missing, expired, used or bound to another request` });
+}
+
 async function openOp({ deps, spec, required }: { deps: OpsDeps; spec: OpSpec; required: VoidRequired }): Promise<Done | Opened> {
   const { scope, idempotencyKey } = required;
   const open = () => deps.ledger.transaction(async (tx): Promise<Done | Opened> => {
@@ -117,12 +149,8 @@ async function openOp({ deps, spec, required }: { deps: OpsDeps; spec: OpSpec; r
     if (prior) return prior;
     // The lock serializes this check against a concurrent capture/void and the evidence writers.
     const payment = owned({ record: await tx.lockPayment({ workspaceId: scope.workspaceId, mode: scope.mode, id: required.paymentId }), scope });
-    const problem = paymentProblem({ payment, spec, required });
-    if (problem) return { kind: "done", result: problem };
-    const binding = { op: spec.op, workspaceId: scope.workspaceId, mode: scope.mode, paymentId: required.paymentId, amount: spec.amount, idempotencyKey };
-    if (!(await deps.grants.redeem({ grant: required.grant, binding }))) {
-      return { kind: "done", result: fail({ code: "GRANT_INVALID", message: `the ${spec.op} grant is missing, expired, used or bound to another request` }) };
-    }
+    const refused = await admit({ tx, deps, spec, required, payment });
+    if (refused) return { kind: "done", result: refused };
     const attempt = newAttempt(
       { deps, payment: payment as PaymentRecord, op: spec.op, operationKey: `${spec.op}:${idempotencyKey}` },
       spec.amount === null ? {} : { amount: spec.amount }

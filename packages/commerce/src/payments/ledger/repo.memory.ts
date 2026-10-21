@@ -6,11 +6,13 @@ import {
   attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, encodeColumns, encodeMinor, evidenceFromRow, evidenceToRow,
   inboxFromRow, inboxToRow, outboxFromRow, outboxToRow, patchColumns, paymentFromRow, paymentToRow, quarantineFromRow,
   quarantineToRow, refundFromRow, refundToRow, operatorActionFromRow, operatorActionToRow, revivedPayload, UNSETTLED_REFUND_STATUSES,
-  type OperatorActionRecord, type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
+  OPEN_ATTEMPT_OUTCOMES, type AttemptOp, type OperatorActionRecord, type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
   type LedgerTableName, type LedgerTableRules, type NewInbox, type NewOutbox, type NewPayment, type NewQuarantine,
   type OutboxRecord, type PaymentPatch, type PaymentRecord, type QuarantineRecord, type RefundPatch, type RefundRecord,
 } from "./rows.js";
-import { LedgerConstraintError, type LedgerKeyScope, type LedgerTx, type PaymentsLedger, type ProviderRefScope } from "./repo.js";
+import {
+  LedgerConstraintError, type LedgerKeyScope, type LedgerTx, type PaymentsLedger, type ProviderRefScope, type ScanOptions,
+} from "./repo.js";
 
 /**
  * @file The in-memory `PaymentsLedger`: same semantics as `repo.sql.ts`, proven by the shared
@@ -138,6 +140,16 @@ const inScope = (scope: LedgerKeyScope) => (row: { workspaceId: string; mode: st
   row.workspaceId === scope.workspaceId && row.mode === scope.mode;
 const ofPayment = (paymentId: string) => (row: { paymentId: string | null }) => row.paymentId === paymentId;
 const isOpen = (row: InboxRecord) => OPEN_INBOX_STATES.includes(row.state);
+
+type Scanned = { readonly id: string; readonly workspaceId: string; readonly mode: string; readonly updatedAt: number };
+
+/** A scan's shared filters, as the SQL adapter's: the cutoff, the optional scope, and the resume cursor. */
+function scanMatch({ updatedBefore, options }: { updatedBefore: number; options: ScanOptions }): (row: Scanned) => boolean {
+  const { scope, after } = options;
+  return (row) => row.updatedAt < updatedBefore
+    && (scope === undefined || inScope(scope)(row))
+    && (after === undefined || row.updatedAt > after.updatedAt || (row.updatedAt === after.updatedAt && row.id > after.id));
+}
 const parentRef = (row: ParentRef): ParentRef => row;
 
 class MemoryLedgerTables {
@@ -398,22 +410,23 @@ class MemoryLedgerTx implements LedgerTx {
 
   // Reconciliation scans ------------------------------------------------------------------------
 
-  async listUnknownPayments(
-    { updatedBefore, limit }: { updatedBefore: number; limit: number },
-    optional: { scope?: LedgerKeyScope } = {}
-  ): Promise<PaymentRecord[]> {
-    const scoped = optional.scope === undefined ? () => true : inScope(optional.scope);
-    const stale = (r: PaymentRecord) => r.intentStatus === "unknown" && r.updatedAt < updatedBefore && scoped(r);
-    return this.t.payments.list(stale, (r) => r.updatedAt).slice(0, limit);
+  async listUnknownPayments({ updatedBefore, limit }: { updatedBefore: number; limit: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
+    const due = scanMatch({ updatedBefore, options: optional });
+    return this.t.payments.list((r) => r.intentStatus === "unknown" && due(r), (r) => r.updatedAt).slice(0, limit);
   }
 
-  async listUnsettledRefunds(
-    { updatedBefore, limit }: { updatedBefore: number; limit: number },
-    optional: { scope?: LedgerKeyScope } = {}
-  ): Promise<RefundRecord[]> {
-    const scoped = optional.scope === undefined ? () => true : inScope(optional.scope);
-    const stale = (r: RefundRecord) => UNSETTLED_REFUND_STATUSES.includes(r.status) && r.updatedAt < updatedBefore && scoped(r);
-    return this.t.refunds.list(stale, (r) => r.updatedAt).slice(0, limit);
+  async listUnsettledRefunds({ updatedBefore, limit }: { updatedBefore: number; limit: number }, optional: ScanOptions = {}): Promise<RefundRecord[]> {
+    const due = scanMatch({ updatedBefore, options: optional });
+    return this.t.refunds.list((r) => UNSETTLED_REFUND_STATUSES.includes(r.status) && due(r), (r) => r.updatedAt).slice(0, limit);
+  }
+
+  async listOpenAttempts(
+    { ops, updatedBefore, limit }: { ops: readonly AttemptOp[]; updatedBefore: number; limit: number },
+    optional: ScanOptions = {}
+  ): Promise<AttemptRecord[]> {
+    const due = scanMatch({ updatedBefore, options: optional });
+    const open = (r: AttemptRecord) => ops.includes(r.op) && OPEN_ATTEMPT_OUTCOMES.includes(r.outcome) && due(r);
+    return this.t.attempts.list(open, (r) => r.updatedAt).slice(0, limit);
   }
 
   // Operator actions ----------------------------------------------------------------------------

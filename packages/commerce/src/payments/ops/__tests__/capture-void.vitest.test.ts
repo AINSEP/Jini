@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import type { LedgerTx, PaymentsLedger } from "../../ledger/repo.js";
-import { LIPAY, SCRIPTED, USD, authorizedScripted, paidLipay, recordingAlerts, rejected, world, type World } from "./harness.js";
+import { LIPAY, NOW, SCRIPTED, USD, authorizedScripted, paidLipay, recordingAlerts, rejected, timedOut, world, type World } from "./harness.js";
 
 /**
  * @file `PaymentsPort.capture` / `void`: the refund skeleton on an authorization — grant re-check,
@@ -163,5 +163,36 @@ describe("capture/void: provider answers", () => {
     expect(await w.service.void({ scope: SCRIPTED, paymentId: held.id, idempotencyKey: "vk-1", grant: await voidGrant(w, held.id) }))
       .toMatchObject({ ok: false, error: { code: "PROVIDER_ERROR" }, payment: { status: "authorized" } });
     expect(alerts.raised).toEqual([expect.objectContaining({ kind: "quarantine", paymentId: held.id, detail: expect.stringContaining("ref-conflict") })]);
+  });
+});
+
+describe("capture/void: an ambiguous outcome blocks a conflicting dispatch until it is reconciled", () => {
+  test("a capture that timed out blocks a void (retryable, the grant is NOT spent); a dispatched void blocks a capture", async () => {
+    const w = await world();
+    const held = await authorizedScripted(w);
+    w.scripted.queue("capture", timedOut());
+    expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(100), idempotencyKey: "ck-1", grant: await captureGrant(w, held.id, 100) }))
+      .toMatchObject({ ok: false, error: { code: "TRANSPORT_ERROR" }, payment: { status: "authorized" } });
+    const grant = await voidGrant(w, held.id);
+    const blocked = await w.service.void({ scope: SCRIPTED, paymentId: held.id, idempotencyKey: "vk-1", grant });
+    expect(blocked).toMatchObject({
+      ok: false, error: { code: "INVALID_REQUEST", retryable: true, message: "a capture of this payment is still unresolved; retry once it is reconciled" },
+    });
+    expect(w.scripted.calls.filter((c) => c.op === "void")).toHaveLength(0);
+    // The capture's own key still replays (it is the same request, not a conflicting one).
+    expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(100), idempotencyKey: "ck-1", grant: "g" })).toMatchObject({ ok: true, replayed: true });
+    // Resolved (here: the provider's answer finally recorded): the same grant now works.
+    const [open] = (await w.read(held.id)).attempts.filter((a) => a.op === "capture");
+    await w.ledger.transaction((tx) => tx.updateAttempt({ id: open!.id, patch: { outcome: "rejected", updatedAt: NOW } }));
+    expect(await w.service.void({ scope: SCRIPTED, paymentId: held.id, idempotencyKey: "vk-1", grant })).toMatchObject({ ok: true, payment: { status: "canceled" } });
+  });
+
+  test("a void left dispatched (a crash before its provider call) blocks a capture", async () => {
+    const w = await world();
+    const held = await authorizedScripted(w);
+    const [intent] = (await w.read(held.id)).attempts;
+    await w.ledger.transaction((tx) => tx.insertAttempt({ attempt: { ...intent!, id: "att_v", op: "void", operationKey: "void:vk-0", outcome: "dispatched" } }));
+    expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(100), idempotencyKey: "ck-1", grant: await captureGrant(w, held.id, 100) }))
+      .toMatchObject({ ok: false, error: { code: "INVALID_REQUEST", message: "a void of this payment is still unresolved; retry once it is reconciled" } });
   });
 });

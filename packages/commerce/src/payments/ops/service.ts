@@ -13,9 +13,8 @@ import { readPayment } from "./common.js";
 import { resolveOpsDeps, type OpsDeps, type PaymentsServiceOptional, type PaymentsServiceRequired } from "./deps.js";
 import { createIntent } from "./intent.js";
 import { resolveUnknown, type ResolveUnknownRequired, type ResolveUnknownResult } from "./operator.js";
-import { reconcileUnknown, type ReconcileReport } from "./reconciler.js";
+import { createCursorReconciler, type ReconcileOptions, type ReconcileReport } from "./reconciler.js";
 import { refund } from "./refund.js";
-import type { LedgerKeyScope } from "../ledger/repo.js";
 import { paymentView, providerSummary } from "./view.js";
 
 async function getPayment({ deps, scope, paymentId }: { deps: OpsDeps; scope: PaymentScope; paymentId: string }): Promise<PaymentView | null> {
@@ -45,7 +44,8 @@ export function createPaymentsService(required: PaymentsServiceRequired, optiona
 
 /** The back-office half: never handed to consumer plugins. A host schedules the reconciler and exposes resolve to operators. */
 export interface PaymentsOperatorPort {
-  reconcileUnknown(required: { olderThanMs: number; limit: number }, optional?: { scope?: LedgerKeyScope }): Promise<ReconcileReport>;
+  /** One reconcile pass; it resumes where this port's previous pass of the same scope stopped (see `reconciler.ts`). */
+  reconcileUnknown(required: { olderThanMs: number; limit: number }, optional?: ReconcileOptions): Promise<ReconcileReport>;
   resolveUnknown(required: ResolveUnknownRequired, optional?: Record<string, never>): Promise<ResolveUnknownResult>;
 }
 
@@ -53,7 +53,7 @@ export interface PaymentsOperatorPort {
 export function createPaymentsOperator(required: PaymentsServiceRequired, optional: PaymentsServiceOptional = {}): PaymentsOperatorPort {
   const deps = resolveOpsDeps(required, optional);
   return {
-    reconcileUnknown: ({ olderThanMs, limit }, o) => reconcileUnknown({ deps, olderThanMs, limit }, o),
+    reconcileUnknown: createCursorReconciler({ deps }),
     resolveUnknown: (r) => resolveUnknown({ deps, required: r }),
   };
 }

@@ -10,6 +10,7 @@ import { createKernelProviderRegistry, type ProviderContextPort } from "../../pr
 import { createLipayFake, lipayFakeContext } from "../../testkit/lipay-fake.js";
 import { openLedger, type LedgerKind } from "../../accounting/__tests__/harness.js";
 import { createMemoryGrantStore, type MoneyGrantBinding } from "../grants.js";
+import { resolveOpsDeps } from "../deps.js";
 import { createPaymentsOperator, createPaymentsService } from "../service.js";
 
 /**
@@ -137,9 +138,11 @@ export async function world(optional: WorldOptions = {}) {
     : undefined;
   const opts = { ...(risk ? { risk } : {}), ...(optional.alerts ? { alerts: optional.alerts } : {}) };
   const service = createPaymentsService(required, opts);
+  /** The resolved dependency set, for calling an operation module directly. */
+  const deps = resolveOpsDeps(required, opts);
   const operator = createPaymentsOperator(required, opts);
   return {
-    ledger, lipay, scripted, providers, grants, service, operator,
+    ledger, lipay, scripted, providers, grants, service, operator, deps,
     tick: (ms: number) => { clock += ms; },
     failContextFor: (providerId: string) => contextFailures.add(providerId),
     /** Mints a grant for exactly this binding (what L7's approval flow does). */

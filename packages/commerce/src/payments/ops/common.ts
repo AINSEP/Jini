@@ -23,9 +23,12 @@ export interface Failure {
   readonly error: PaymentError;
 }
 
-/** A typed refusal. */
-export function fail({ code, message }: { code: PaymentErrorCode; message: string }, _optional: Record<string, never> = {}): Failure {
-  return { ok: false, error: paymentError({ code, message }) };
+/** A typed refusal. `optional.retryable`: the same request may succeed later (e.g. once a conflicting call is reconciled). */
+export function fail(
+  { code, message }: { code: PaymentErrorCode; message: string },
+  optional: { retryable?: boolean } = {}
+): Failure {
+  return { ok: false, error: paymentError({ code, message }, optional) };
 }
 
 /** A replayed operation re-reads its result; the original risk decision is not stored, so this says so. */
