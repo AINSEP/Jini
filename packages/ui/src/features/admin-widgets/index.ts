@@ -14,8 +14,10 @@ export type { SeeMoreProps, SeeMoreView } from './components/SeeMore/SeeMore.js'
 export { useSeeMoreClamp } from './components/SeeMore/SeeMore.hooks.js';
 export { ImagePreviewModal } from './components/ImagePreviewModal.js';
 export type { ImagePreviewModalProps } from './components/ImagePreviewModal.js';
-export { useImagePreviewModal } from './components/ImagePreviewModal.hooks.js';
-export type { ImagePreviewModalController } from './components/ImagePreviewModal.hooks.js';
+export { Lightbox } from './components/Lightbox/Lightbox.js';
+export type { LightboxProps } from './components/Lightbox/Lightbox.js';
+export { useLightbox, openLightboxDialog, closeLightboxDialog } from './components/Lightbox/Lightbox.hooks.js';
+export type { LightboxController, LightboxHookInput } from './components/Lightbox/Lightbox.hooks.js';
 export { ComingSoonPanel } from './components/ComingSoonPanel.js';
 export type { ComingSoonPanelProps } from './components/ComingSoonPanel.js';
 export { ComingSoonNotice } from './components/ComingSoonNotice.js';

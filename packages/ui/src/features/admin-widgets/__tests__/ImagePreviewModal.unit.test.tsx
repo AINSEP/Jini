@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ImagePreviewModal } from "../components/ImagePreviewModal.js";
-import type { ImagePreviewModalController } from "../components/ImagePreviewModal.hooks";
+import type { LightboxController } from "../components/Lightbox/Lightbox.hooks.js";
 
 /**
  * @file `ImagePreviewModal` — the click-to-expand lightbox for a theme card's screenshot thumbnail.
@@ -87,26 +87,21 @@ describe("closing", () => {
 });
 
 describe("ImagePreviewModal modal-hook injection", () => {
-  it("renders purely off an injected fake, proving useImagePreviewModal is not hardcoded", () => {
-    // A fake `dialogRef` that never points at a real element would make the real hook's effect a
-    // silent no-op (`if (!dialog) return;`) — proof here comes from the handlers instead: a fake
-    // `handleBackdropClick` that calls `onClose` unconditionally, regardless of click target, is
-    // something the real hook never does (it always checks `e.target === dialogRef.current`
-    // first).
+  it("renders purely off an injected fake, proving the lightbox hook is not hardcoded", () => {
+    // The real hook only dismisses on the dialog/stage itself; a fake whose click handler calls
+    // onClose unconditionally proves this render used the fake when the image click dismisses.
     const onClose = vi.fn();
-    function useFakeImagePreviewModal(): ImagePreviewModalController {
+    function useFakeLightbox(): LightboxController {
+      const ref = { current: null };
       return {
-        dialogRef: { current: null },
-        handleNativeCancel: () => {},
-        handleBackdropClick: () => onClose(),
+        dialogRef: ref, closeRef: ref, prevRef: ref, nextRef: ref,
+        navigable: false, hasPrev: false, hasNext: false, counter: "",
+        previous: () => {}, next: () => {},
+        handleCancel: () => {}, handleClick: () => onClose(), handleKeyDown: () => {},
       };
     }
 
-    render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={vi.fn()} useModal={useFakeImagePreviewModal} />);
-
-    // Clicking the image (a child, never the backdrop under the real hook's own guard) still
-    // triggers the fake's unconditional onClose — proving this render used the fake, not the real
-    // `useImagePreviewModal`.
+    render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={vi.fn()} useModal={useFakeLightbox} />);
     fireEvent.click(screen.getByAltText("x"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });

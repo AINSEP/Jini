@@ -144,15 +144,16 @@ describe('FileDropzoneLightbox', () => {
     const onClose = vi.fn();
     const f = file('a.png', 'image/png');
     render(<FileDropzoneLightbox file={f} previews={EMPTY_PREVIEWS} onClose={onClose} />);
-    await userEvent.click(document.querySelector('.jini-file-dropzone__lightbox')!);
+    await userEvent.click(document.querySelector('dialog.jini-file-dropzone__lightbox')!);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('clicking inside the dialog does not call onClose (stops propagation)', async () => {
+  it('clicking the preview or the title does not call onClose', async () => {
     const onClose = vi.fn();
     const f = file('a.png', 'image/png');
     render(<FileDropzoneLightbox file={f} previews={EMPTY_PREVIEWS} onClose={onClose} />);
-    await userEvent.click(screen.getByRole('dialog'));
+    await userEvent.click(document.querySelector('.jini-file-dropzone__lightbox-fallback')!);
+    await userEvent.click(screen.getByRole('heading', { name: 'a.png' }));
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -164,10 +165,10 @@ describe('FileDropzoneLightbox', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('dialog is labeled and portaled to document.body', () => {
+  it('is the shared lightbox, labeled by the file name, with the size in its actions row', () => {
     render(<FileDropzoneLightbox file={file('a.png', 'image/png')} previews={EMPTY_PREVIEWS} onClose={vi.fn()} />);
-    expect(document.body.querySelector(':scope > .jini-file-dropzone__lightbox')).not.toBeNull();
-    expect(screen.getByRole('dialog', { name: 'a.png' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'a.png' })).toHaveClass('jini-lightbox');
+    expect(document.querySelector('.jini-lightbox-actions .jini-file-dropzone__lightbox-meta')).not.toBeNull();
   });
 
   it('translates the close button label and empty-file placeholder end-to-end under I18nProvider', () => {

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { Icon } from '../../../../react/components/Icon.js';
+import { Lightbox } from '../../../admin-widgets/components/Lightbox/Lightbox.js';
 import { useT } from '../../../i18n/index.js';
 import type { TranslationVars } from '../../../i18n/index.js';
 import { FILE_DROPZONE_FONT_PANGRAM, FILE_DROPZONE_FONT_SPECIMEN, FILE_DROPZONE_GLYPH_ICON } from '../../constants.js';
@@ -97,38 +97,22 @@ function renderStage({ t, file, kind, previews }: StageInput & { kind: FileDropz
   return STAGE_RENDERERS[kind]?.({ t, file, previews }) ?? renderFallback({ t, file, kind });
 }
 
-/** Click-to-enlarge, kind-aware preview for one staged file — image, PDF embed, HTML mini-render, video/audio player, font specimen, or a text snippet, with a name/size fallback card for everything else. Portaled to `document.body`. Ported from `DesignSystemAssetDropzone.tsx`'s lightbox. */
+/** Click-to-enlarge, kind-aware preview for one staged file — image, PDF embed, HTML mini-render, video/audio player, font specimen, or a text snippet, with a name/size fallback card for everything else. Rendered in the shared `Lightbox` (a top-layer native dialog, so no portal is needed). Ported from `DesignSystemAssetDropzone.tsx`'s lightbox. */
 export function FileDropzoneLightbox({ file, previews, onClose }: FileDropzoneLightboxProps) {
   const t = useT();
   const kind = fileDropzoneKind(file);
-  return createPortal(
-    <div className="jini-file-dropzone__lightbox" onClick={onClose} role="presentation">
-      <div
-        className="jini-file-dropzone__lightbox-inner"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={file.name}
-      >
-        <div className="jini-file-dropzone__lightbox-stage" data-kind={kind}>
-          {renderStage({ t, file, kind, previews })}
-        </div>
-        <div className="jini-file-dropzone__lightbox-bar">
-          <span className="jini-file-dropzone__lightbox-name" title={file.name}>
-            {file.name}
-          </span>
-          <span className="jini-file-dropzone__lightbox-meta">{fileDropzoneSizeLabel(file.size)}</span>
-          <button
-            type="button"
-            className="jini-file-dropzone__lightbox-close"
-            onClick={onClose}
-            aria-label={t('Close preview')}
-          >
-            <Icon name="close" size={18} />
-          </button>
-        </div>
+  return (
+    <Lightbox
+      open
+      title={file.name}
+      onClose={onClose}
+      className="jini-file-dropzone__lightbox"
+      labels={{ close: t('Close preview') }}
+      actions={<span className="jini-file-dropzone__lightbox-meta">{fileDropzoneSizeLabel(file.size)}</span>}
+    >
+      <div className="jini-file-dropzone__lightbox-stage" data-kind={kind}>
+        {renderStage({ t, file, kind, previews })}
       </div>
-    </div>,
-    document.body,
+    </Lightbox>
   );
 }
