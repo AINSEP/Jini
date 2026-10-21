@@ -194,7 +194,20 @@ export interface CreateToolExecutorOptions {
   readonly delegate?: ExecutionDelegate;
   /** Injectable clock for audit timestamps — defaults to `Date.now`. Test-only hook. */
   readonly now?: () => number;
+  /** Cap on retained finished audit records, oldest evicted first. See {@link DEFAULT_MAX_AUDIT_RECORDS}. */
+  readonly maxAuditRecords?: number;
 }
+
+/**
+ * Default cap on finished audit records kept for `getAuditRecord`. One record is added per tool
+ * execution and nothing else ever removed one, so a long-lived daemon grew the map for its whole
+ * uptime (memory investigation 2026-10-21). An in-flight execution's record is never evicted: its
+ * later transitions still have to land on it.
+ */
+export const DEFAULT_MAX_AUDIT_RECORDS = 1000;
+
+/** Phases after which an execution's audit record receives no further events. */
+const TERMINAL_AUDIT_PHASES: ReadonlySet<ToolExecutionPhase> = new Set<ToolExecutionPhase>(['denied', 'confirmation-denied', 'completed', 'failed', 'timed-out', 'cancelled']);
 
 /**
  * Enforces `maxOutputBytes` in BYTES, which is what the option is named for.
@@ -228,15 +241,19 @@ function truncateOutput(output: unknown, maxOutputBytes: number | undefined): { 
  * — the one and only caller of that internal export.
  * @param options.delegate - Transport-supplied authorize/confirm UI seam;
  * omit for a headless caller whose tools never need interactive gating.
+ * @param options.maxAuditRecords - Finished audit records kept, see {@link DEFAULT_MAX_AUDIT_RECORDS}.
  * @complexity Known-id `execute` adds schema-guided normalization to the handler's cost; unknown ids scan O(n) descriptors for hints. `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
  * @overallScore 100/100
  */
-export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance"> = {}): ToolExecutor {
+export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance" | "maxAuditRecords"> = {}): ToolExecutor {
   const options: CreateToolExecutorOptions = { ...requiredArgs, ...optionalArgs };
   const { registry, delegate = {} } = options;
   const now = options.now ?? Date.now;
+  const maxAuditRecords = options.maxAuditRecords ?? DEFAULT_MAX_AUDIT_RECORDS;
 
   const audits = new Map<string, ToolExecutionAuditRecord & { events: ToolExecutionAuditEvent[] }>();
+  // Finished executionIds, oldest first (Set insertion order): the only records `retireAudit` evicts.
+  const finishedAudits = new Set<string>();
   const pendingConfirmations = new Map<string, (decision: ConfirmationDecision) => void>();
   const activeControllers = new Map<string, AbortController>();
   /**
@@ -256,6 +273,19 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // defensive `if (!record) return` guard with no reachable path to hit it.
     const record = audits.get(executionId)!;
     record.events.push(detail === undefined ? { phase, at: now() } : { phase, at: now(), detail });
+    // A terminal transition is each execution's last append (`execute()` returns right after it),
+    // so evicting finished records can never pull one out from under a later `appendEvent`.
+    if (TERMINAL_AUDIT_PHASES.has(phase)) retireAudit(executionId);
+  }
+
+  /** Marks `executionId` finished and evicts the oldest finished records past `maxAuditRecords`. */
+  function retireAudit(executionId: string): void {
+    finishedAudits.add(executionId);
+    while (finishedAudits.size > maxAuditRecords) {
+      const oldest = finishedAudits.values().next().value as string;
+      finishedAudits.delete(oldest);
+      audits.delete(oldest);
+    }
   }
 
   function requestConfirmation(request: ToolConfirmationRequest): Promise<ConfirmationDecision> {
