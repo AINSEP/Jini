@@ -190,6 +190,15 @@
   --jini-control-thumb-bg: var(--jini-theme-control-thumb-bg, #fff);
   --jini-control-solid-ink: var(--jini-theme-control-solid-ink, #fff);
   --jini-overlay-bg-lightbox: var(--jini-theme-overlay-bg-lightbox, oklch(0% 0 0 / 0.6));
+  --jini-lightbox-bg: var(--jini-theme-lightbox-bg, oklch(23% 0.005 256));
+  --jini-lightbox-ink: var(--jini-theme-lightbox-ink, oklch(97% 0 0));
+  --jini-lightbox-ink-muted: var(--jini-theme-lightbox-ink-muted, oklch(97% 0 0 / 0.58));
+  --jini-lightbox-media-bg: var(--jini-theme-lightbox-media-bg, oklch(0% 0 0 / 0.25));
+  --jini-lightbox-document-bg: var(--jini-theme-lightbox-document-bg, #fff);
+  --jini-lightbox-button-border: var(--jini-theme-lightbox-button-border, oklch(100% 0 0 / 0.16));
+  --jini-lightbox-button-bg: var(--jini-theme-lightbox-button-bg, oklch(100% 0 0 / 0.07));
+  --jini-lightbox-button-bg-hover: var(--jini-theme-lightbox-button-bg-hover, oklch(100% 0 0 / 0.15));
+  --jini-lightbox-button-border-hover: var(--jini-theme-lightbox-button-border-hover, oklch(100% 0 0 / 0.28));
   --jini-control-media-bg: var(--jini-theme-control-media-bg, oklch(0% 0 0 / 0.55));
   --jini-control-media-ink: var(--jini-theme-control-media-ink, oklch(100% 0 0));
   --jini-control-media-border: var(--jini-theme-control-media-border, oklch(100% 0 0 / 0.35));

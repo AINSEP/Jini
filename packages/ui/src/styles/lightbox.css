@@ -4,10 +4,6 @@
    media or the title. The stage stays dark in both admin themes: photos read best on a neutral dark
    surround, and the white title then stays readable whatever the theme. */
 .jini-lightbox {
-  /* Opaque: even a few percent of alpha lets the admin page's text ghost through behind the media. */
-  --jini-lightbox-bg: var(--jini-theme-lightbox-bg, oklch(23% 0.005 256));
-  --jini-lightbox-ink: var(--jini-theme-lightbox-ink, oklch(97% 0 0));
-  --jini-lightbox-ink-muted: var(--jini-theme-lightbox-ink-muted, oklch(97% 0 0 / 0.58));
   --jini-lightbox-edge: clamp(0.75rem, 2vw, 1.25rem);
   --jini-lightbox-button: 2.25rem;
   /* Header and footer rows: one button tall plus the edge margin above/below it. */
@@ -82,7 +78,7 @@
   max-height: var(--jini-lightbox-media-max-h);
   object-fit: contain;
   border-radius: var(--jini-radius-sm, 6px);
-  background: oklch(0% 0 0 / 0.25);
+  background: var(--jini-lightbox-media-bg);
 }
 /* Documents (PDF, HTML) have no natural size: give them the whole stage. */
 .jini-lightbox-stage iframe {
@@ -90,7 +86,7 @@
   height: var(--jini-lightbox-media-max-h);
   border: 0;
   border-radius: var(--jini-radius-sm, 6px);
-  background: #fff;
+  background: var(--jini-lightbox-document-bg);
 }
 
 .jini-lightbox-footer {
@@ -122,13 +118,13 @@
   width: var(--jini-lightbox-button);
   height: var(--jini-lightbox-button);
   padding: 0;
-  border: 1px solid oklch(100% 0 0 / 0.16);
+  border: 1px solid var(--jini-lightbox-button-border);
   border-radius: 50%;
   color: var(--jini-lightbox-ink);
-  background: oklch(100% 0 0 / 0.07);
+  background: var(--jini-lightbox-button-bg);
   cursor: pointer;
 }
-.jini-lightbox-button:hover:not(:disabled) { background: oklch(100% 0 0 / 0.15); border-color: oklch(100% 0 0 / 0.28); }
+.jini-lightbox-button:hover:not(:disabled) { background: var(--jini-lightbox-button-bg-hover); border-color: var(--jini-lightbox-button-border-hover); }
 .jini-lightbox-button:focus-visible { outline: 2px solid var(--jini-lightbox-ink); outline-offset: 2px; }
 /* Same chip, only fainter: a host `button:disabled` fill (the Tovu admin's light `--surface-3`) would
    otherwise turn the end-of-set arrow into a bright pressed-looking disc. */
@@ -136,7 +132,7 @@
   opacity: 0.3;
   cursor: default;
   color: var(--jini-lightbox-ink);
-  background: oklch(100% 0 0 / 0.07);
+  background: var(--jini-lightbox-button-bg);
 }
 
 @media (prefers-reduced-motion: no-preference) {

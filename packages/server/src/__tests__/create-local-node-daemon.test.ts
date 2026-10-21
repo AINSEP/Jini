@@ -37,6 +37,22 @@ import * as HostBootstrapModule from '../host-bootstrap.js';
 
 const ENV_KEYS = ['JINI_API_TOKEN', 'JINI_DISABLE_API_AUTH', 'JINI_ALLOWED_ORIGINS', 'JINI_WEB_PORT', 'JINI_BIND_HOST'] as const;
 let savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string>>;
+let ipv6Probe: Promise<string | undefined> | undefined;
+
+/** Probe IPv6 loopback once; close the probe socket before returning an environment skip reason.
+ * Unexpected listen/close errors reject the test. @complexity O(1). */
+function ipv6LoopbackUnavailable(): Promise<string | undefined> {
+  return ipv6Probe ??= new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', (error: NodeJS.ErrnoException) => {
+      if (!['EAFNOSUPPORT', 'EADDRNOTAVAIL', 'EPROTONOSUPPORT', 'EACCES', 'EPERM'].includes(error.code ?? '')) { reject(error); return; }
+      resolve(`IPv6 loopback unavailable: this platform cannot bind ::1 (${error.code}).`);
+    });
+    server.listen({ host: '::1', port: 0 }, () => {
+      server.close(error => { if (error) reject(error); else resolve(undefined); });
+    });
+  });
+}
 
 beforeEach(() => {
   savedEnv = {};
@@ -1396,7 +1412,9 @@ describe('createLocalNodeDaemon', () => {
     }
   });
 
-  it('binds an IPv6 loopback host to a URL that actually parses and answers', async () => {
+  it('binds an IPv6 loopback host to a URL that actually parses and answers', async ({ skip }) => {
+    const unavailable = await ipv6LoopbackUnavailable();
+    if (unavailable) { console.warn(unavailable); skip(); return; }
     const dataDir = makeTempDataDir();
     const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], host: '::1' });
     daemonsToStop.push(daemon);

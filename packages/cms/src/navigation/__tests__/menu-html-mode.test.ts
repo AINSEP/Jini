@@ -195,5 +195,5 @@ test("the published create/update schemas declare mode and html, and update no l
     assert.equal(schema.properties.html?.type, "string", name);
   }
   const update = menusAgentToolCatalog.find((t) => t.name === "menus_update_menu_tree")?.inputSchema as { required: string[] };
-  assert.deepEqual(update.required, ["menuId", "expectedVersion"]);
+  assert.deepEqual(update.required, ["id", "expectedVersion"]);
 });

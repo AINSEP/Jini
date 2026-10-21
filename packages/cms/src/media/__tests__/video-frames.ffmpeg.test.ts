@@ -1,13 +1,18 @@
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess, spawn } from 'node:child_process';
-import { chmodSync, writeFileSync } from 'node:fs';
-import { access, chmod, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { writeFileSync } from 'node:fs';
+import { access, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createFfmpegVideoFrameExtractor, findVideoBinaries, runLowPriorityVideoProcess } from '../video-frames.ffmpeg.js';
 import { VIDEO_EXTRACTION_TIMEOUT_MS, VIDEO_MAX_FRAME_BYTES, VIDEO_MAX_INPUT_BYTES, VIDEO_MAX_OUTPUT_BYTES, VIDEO_MAX_SHEET_BYTES } from '../video-frames.js';
+
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...actual, rm: vi.fn(actual.rm) };
+});
 
 // Contract: 2026-10-06-release-0111-video64b/spec.md.
 // Spec SHA256: 33792c2bad891b94e381f33e2f0e2be4c830ab371107312245f2ba8b9fb284a8.
@@ -710,16 +715,19 @@ it.each(['frames', 'sheet'] as const)('refuses a %s output that grows past the t
 
 it('reports temporary files that cannot be removed and still releases the lock', async () => {
   let directory = '';
+  const { rm: remove } = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+  const removal = vi.mocked(rm);
   const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
     directory = dirname(required.args[required.args.indexOf('-i') + 1]!);
-    chmodSync(directory, 0o500);
+    removal.mockRejectedValueOnce(Object.assign(new Error('Permission denied'), { code: 'EACCES' }));
     throw new Error('probe failed');
   } }, {});
   try {
     expect(await extractor.extract({ bytes: mp4 }, {})).toEqual({ ok: false, reason: 'invalid', message: 'Video preview temporary files could not be removed.' });
+    expect(removal).toHaveBeenCalledWith(directory, { recursive: true, force: true });
+    expect(await createFfmpegVideoFrameExtractor({ findBinaries: async () => undefined }, {}).extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'unavailable' });
   } finally {
-    await chmod(directory, 0o700);
-    await rm(directory, { recursive: true, force: true });
+    removal.mockReset().mockImplementation(remove);
+    await remove(directory, { recursive: true, force: true });
   }
-  expect(await createFfmpegVideoFrameExtractor({ findBinaries: async () => undefined }, {}).extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'unavailable' });
 });

@@ -32,3 +32,13 @@ it('rejects embedded palette and font literals outside the sole defaults', () =>
     expect(source, file).not.toMatch(/font(?:Family|\-family)\s*:\s*['"]?(?:ui-monospace|monospace|system-ui|sans-serif)/);
   }
 });
+
+it('declares every lightbox paint token in the theme defaults and hides closed dialogs', () => {
+  const lightbox = readFileSync(path.resolve(__dirname, '../../styles/lightbox.css'), 'utf8');
+  const defaults = readFileSync(path.resolve(__dirname, '../../styles/variables.css'), 'utf8');
+  const tokens = [...lightbox.matchAll(/var\((--jini-lightbox-[\w-]+)/g)].map(match => match[1]!);
+  const layoutTokens = new Set(['--jini-lightbox-edge', '--jini-lightbox-button', '--jini-lightbox-bar', '--jini-lightbox-media-max-w', '--jini-lightbox-media-max-h']);
+  for (const token of tokens.filter(token => !layoutTokens.has(token))) expect(defaults).toContain(`${token}: var(--jini-theme-`);
+  expect(lightbox).toMatch(/\.jini-lightbox\s*\{[^}]*display:\s*none;/);
+  expect(lightbox).toMatch(/\.jini-lightbox\[open\]\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*display:\s*grid;/);
+});

@@ -125,7 +125,9 @@ describe('availability and delivery regressions', () => {
     const { base, html, ports, failures, records } = await site({ enabled: false, delivery, register });
     let published = { ...config, enabled: false, regionMode: 'opt-out' as const };
     let readFails = false;
+    let configReads = 0;
     ports.config.get = async () => {
+      configReads++;
       if (readFails) throw new Error('Ledger unavailable');
       return published;
     };
@@ -149,7 +151,11 @@ describe('availability and delivery regressions', () => {
       expect(denied).toContain('"marketing":false');
     }
     expect(receiptReads).toBe(0);
-    expect(failures.map(entry => entry.operation)).toEqual(['read']);
+    expect(configReads).toBe(2);
+    expect(failures.map(entry => ({ operation: entry.operation, message: (entry.error as Error).message }))).toEqual([
+      { operation: 'read', message: 'Ledger unavailable' },
+      ...('maxHtmlBytes' in register ? [{ operation: 'read', message: 'Consent HTML exceeded 16 bytes, so delivery was refused or replaced with inert text. Raise maxHtmlBytes if pages are legitimately larger.' }] : []),
+    ]);
     readFails = false;
     expect((await fetch(base)).status).toBe(expectedStatus);
   });
