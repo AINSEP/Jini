@@ -29,6 +29,7 @@ import {
   type IntentStatus,
   type RefundStatus,
 } from "../state/status.js";
+import type { LedgerOutboxTopic } from "../ledger/rows.js";
 
 /** The ledger's view of one payment, as the planner needs it. */
 export interface PaymentState {
@@ -54,18 +55,28 @@ export interface DisputeState {
   readonly status: DisputeStatus;
 }
 
-export type QuarantineReason =
+export type EvidenceQuarantineReason =
   | "bad-amount"
   | "currency-mismatch"
   | "amount-mismatch"
   | "ref-conflict"
   | "over-refund";
 
-export type OutboxTopic = "payment.succeeded" | "refund.succeeded" | "refund.failed" | "dispute.opened" | "dispute.closed";
+type OutboxTopic = LedgerOutboxTopic;
+
+/**
+ * The evidence cannot be matched YET: it carries no correlation id, no row has its provider ref,
+ * and one of our refunds is still in flight without a provider ref. Inserting it as a new
+ * (unsolicited) row would count the same money twice once our response binds the ref, so the
+ * caller parks it and retries after the attempt settles (Opus R3: providers that cannot echo).
+ */
+export interface Deferred {
+  readonly kind: "deferred";
+}
 
 export interface Quarantined {
   readonly kind: "quarantined";
-  readonly reason: QuarantineReason;
+  readonly reason: EvidenceQuarantineReason;
 }
 
 /** The derived caches the writer stores on the payment row after every apply. */
@@ -102,7 +113,7 @@ export interface IntentPlan {
 
 function amountProblem({ currency, amountMinor, minorUnits, evidenceCurrency }: {
   currency: string; amountMinor?: number; minorUnits: number; evidenceCurrency: string;
-}): QuarantineReason | null {
+}): EvidenceQuarantineReason | null {
   if (!Number.isSafeInteger(minorUnits) || minorUnits <= 0) return "bad-amount";
   if (evidenceCurrency !== currency) return "currency-mismatch";
   if (amountMinor !== undefined && amountMinor !== minorUnits) return "amount-mismatch";
@@ -117,6 +128,8 @@ export function matchRefund(
   const byCorrelation = evidence.correlationId === undefined ? undefined : refunds.find((r) => r.id === evidence.correlationId);
   return byCorrelation ?? refunds.find((r) => r.providerRefundRef === evidence.providerRefundRef);
 }
+
+const isUnboundInFlight = (r: RefundState): boolean => r.providerRefundRef === null && r.status !== "failed" && r.status !== "succeeded";
 
 function refundOutbox(previous: RefundStatus | undefined, next: RefundStatus): OutboxTopic[] {
   if (next === previous) return [];
@@ -150,8 +163,9 @@ export function planRefundEvidence(
     payment: PaymentState; refunds: readonly RefundState[]; evidence: RefundEvidence; newId: string;
   },
   _optional: Record<string, never> = {}
-): RefundPlan | Quarantined {
+): RefundPlan | Quarantined | Deferred {
   const existing = matchRefund({ refunds, evidence });
+  if (!existing && evidence.correlationId === undefined && refunds.some(isUnboundInFlight)) return { kind: "deferred" };
   const bad = amountProblem({
     currency: payment.currency, minorUnits: evidence.amount.minorUnits, evidenceCurrency: evidence.amount.currency,
     ...(existing ? { amountMinor: existing.amountMinor } : {}),
@@ -194,7 +208,7 @@ function nextCaptured({ payment, evidence, intent }: { payment: PaymentState; ev
   return Math.max(payment.capturedMinor, reported);
 }
 
-function intentProblem({ payment, evidence }: { payment: PaymentState; evidence: PaymentEvidence }): QuarantineReason | null {
+function intentProblem({ payment, evidence }: { payment: PaymentState; evidence: PaymentEvidence }): EvidenceQuarantineReason | null {
   if (payment.providerRef !== null && payment.providerRef !== evidence.providerRef) return "ref-conflict";
   const checks = [evidence.amount, evidence.captured].filter((m) => m !== undefined);
   for (const reported of checks) {

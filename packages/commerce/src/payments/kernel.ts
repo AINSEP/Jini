@@ -21,3 +21,5 @@ export * from "./provider-module-guard.js";
 export * from "./ledger/rows.js";
 export * from "./ledger/repo.js";
 export * from "./ledger/repo.memory.js";
+export * from "./accounting/plan-evidence.js";
+export * from "./accounting/apply-evidence.js";

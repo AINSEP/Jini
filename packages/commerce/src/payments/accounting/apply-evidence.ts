@@ -1,0 +1,267 @@
+/**
+ * @file THE single writer of payment intent state, refunds, disputes and the payment's derived
+ * caches (commerce design item 2). Synchronous provider responses, webhooks and `retrieve`
+ * snapshots all arrive here as evidence; nothing else in the kernel writes those columns. Today's
+ * `lipay-plugin.ts` had two writers of the refunded total (`:825` and `:456-459`) — bug B2.
+ *
+ * Every function runs INSIDE the caller's ledger transaction and starts with `lockPayment`, so two
+ * concurrent applies (a webhook racing the synchronous response, two refunds at once) serialize
+ * on the payment. Each apply appends the observation to the evidence log (append-only), merges it
+ * through the pure planner (`plan-evidence.ts`), writes what changed, re-derives the caches from
+ * the rows and enqueues outbox events. Evidence the planner refuses is quarantined with the
+ * observation kept, never dropped and never capped.
+ */
+import type { DisputeEvidence, PaymentEvidence, RefundEvidence } from "../contract/evidence.js";
+import type { LedgerTx } from "../ledger/repo.js";
+import type { EvidenceSource, EvidenceSubject, LedgerOutboxTopic, PaymentRecord, RefundRecord } from "../ledger/rows.js";
+import { mergeRefundStatus, refundTotals, refundableMinor } from "../state/status.js";
+import {
+  computeTotals, planDisputeEvidence, planIntentEvidence, planRefundEvidence,
+  type EvidenceQuarantineReason, type PaymentState, type Quarantined,
+} from "./plan-evidence.js";
+
+export interface WriterDeps {
+  readonly now: () => number;
+  readonly newId: () => string;
+}
+
+export interface WriterInput {
+  readonly tx: LedgerTx;
+  readonly deps: WriterDeps;
+  readonly paymentId: string;
+  readonly source: EvidenceSource;
+}
+
+export type ApplyResult =
+  | {
+      readonly kind: "applied"; readonly quarantined: readonly EvidenceQuarantineReason[]; readonly outbox: readonly LedgerOutboxTopic[];
+      /** Refund observations that could not be matched yet; the caller parks and retries the whole observation. */
+      readonly deferred: number;
+    }
+  | { readonly kind: "deferred" }
+  | { readonly kind: "quarantined"; readonly reason: EvidenceQuarantineReason }
+  | { readonly kind: "missing" };
+
+interface Ctx extends WriterInput {
+  /** Reassigned once the intent patch is known, so refunds are checked against the new captured amount. */
+  payment: PaymentRecord;
+  readonly inboxId: string | null;
+  readonly outbox: LedgerOutboxTopic[];
+  readonly quarantined: EvidenceQuarantineReason[];
+  deferred: number;
+}
+
+async function appendEvidence(ctx: Ctx, entry: { subject: EvidenceSubject; subjectRef: string; status: string; amount?: { minorUnits: number; currency: string } }): Promise<void> {
+  await ctx.tx.appendEvidence({
+    evidence: {
+      id: ctx.deps.newId(), paymentId: ctx.payment.id, workspaceId: ctx.payment.workspaceId, mode: ctx.payment.mode,
+      source: ctx.source, subject: entry.subject, subjectRef: entry.subjectRef, observedStatus: entry.status,
+      currency: entry.amount?.currency ?? null, amountMinor: entry.amount?.minorUnits ?? null, inboxId: ctx.inboxId, recordedAt: ctx.deps.now(),
+    },
+  });
+}
+
+async function quarantine(ctx: Ctx, subject: EvidenceSubject, plan: Quarantined, evidence: unknown): Promise<void> {
+  ctx.quarantined.push(plan.reason);
+  await ctx.tx.insertQuarantine({
+    entry: {
+      id: ctx.deps.newId(), workspaceId: ctx.payment.workspaceId, mode: ctx.payment.mode, paymentId: ctx.payment.id,
+      subject, reason: plan.reason, evidenceJson: JSON.stringify(evidence), createdAt: ctx.deps.now(),
+    },
+  });
+}
+
+async function enqueue(ctx: Ctx, topics: readonly LedgerOutboxTopic[], payload: Record<string, unknown>): Promise<void> {
+  for (const topic of topics) {
+    ctx.outbox.push(topic);
+    // Ids and amounts only: no personal data leaves through the outbox (gap check item 4).
+    await ctx.tx.enqueueOutbox({
+      message: {
+        id: ctx.deps.newId(), workspaceId: ctx.payment.workspaceId, mode: ctx.payment.mode, topic, aggregateId: ctx.payment.id,
+        payloadJson: JSON.stringify({ paymentId: ctx.payment.id, ...payload }), createdAt: ctx.deps.now(),
+      },
+    });
+  }
+}
+
+function stateOf(payment: PaymentRecord): PaymentState {
+  return {
+    id: payment.id, currency: payment.currency, amountMinor: payment.amountMinor, capturedMinor: payment.capturedMinor,
+    intentStatus: payment.intentStatus, providerRef: payment.providerRef,
+  };
+}
+
+function newRefundRecord(ctx: Ctx, row: { id: string; providerRefundRef: string | null; amountMinor: number; status: RefundRecord["status"] }): RefundRecord {
+  const p = ctx.payment;
+  return {
+    ...row, paymentId: p.id, workspaceId: p.workspaceId, siteId: p.siteId, providerId: p.providerId, providerAccountId: p.providerAccountId,
+    mode: p.mode, idempotencyKey: null, currency: p.currency, reason: null, createdAt: ctx.deps.now(), updatedAt: ctx.deps.now(),
+  };
+}
+
+async function applyOneRefund(ctx: Ctx, evidence: RefundEvidence): Promise<void> {
+  await appendEvidence(ctx, { subject: "refund", subjectRef: evidence.providerRefundRef, status: evidence.status, amount: evidence.amount });
+  const refunds = await ctx.tx.listRefunds({ paymentId: ctx.payment.id });
+  const plan = planRefundEvidence({ payment: stateOf(ctx.payment), refunds, evidence, newId: ctx.deps.newId() });
+  if (plan.kind === "quarantined") return quarantine(ctx, "refund", plan, evidence);
+  if (plan.kind === "deferred") {
+    ctx.deferred += 1;
+    return;
+  }
+  if (plan.write === "insert") await ctx.tx.insertRefund({ refund: newRefundRecord(ctx, plan.row) });
+  if (plan.write === "update") {
+    await ctx.tx.updateRefund({ id: plan.row.id, patch: { status: plan.row.status, providerRefundRef: plan.row.providerRefundRef, updatedAt: ctx.deps.now() } });
+  }
+  await enqueue(ctx, plan.outbox, { refundId: plan.row.id, amountMinor: plan.row.amountMinor, currency: ctx.payment.currency });
+}
+
+async function applyOneDispute(ctx: Ctx, evidence: DisputeEvidence): Promise<void> {
+  await appendEvidence(ctx, { subject: "dispute", subjectRef: evidence.providerDisputeRef, status: evidence.status, amount: evidence.amount });
+  const disputes = await ctx.tx.listDisputes({ paymentId: ctx.payment.id });
+  const plan = planDisputeEvidence({ payment: stateOf(ctx.payment), disputes, evidence, newId: ctx.deps.newId() });
+  if (plan.kind === "quarantined") return quarantine(ctx, "dispute", plan, evidence);
+  const p = ctx.payment;
+  if (plan.write === "insert") {
+    await ctx.tx.insertDispute({
+      dispute: {
+        ...plan.row, paymentId: p.id, workspaceId: p.workspaceId, providerId: p.providerId, providerAccountId: p.providerAccountId, mode: p.mode,
+        currency: p.currency, dueBy: evidence.dueBy ?? null, createdAt: ctx.deps.now(), updatedAt: ctx.deps.now(),
+      },
+    });
+  }
+  if (plan.write === "update") await ctx.tx.updateDispute({ id: plan.row.id, patch: { status: plan.row.status, updatedAt: ctx.deps.now() } });
+  await enqueue(ctx, plan.outbox, { disputeId: plan.row.id, status: plan.row.status });
+}
+
+/** Re-derives the caches from the rows and writes them with whatever intent patch applies. */
+async function writeCaches(ctx: Ctx, intent: Partial<PaymentRecord>): Promise<void> {
+  const base = { ...stateOf(ctx.payment), ...intent } as PaymentState;
+  const refunds = await ctx.tx.listRefunds({ paymentId: ctx.payment.id });
+  const disputes = await ctx.tx.listDisputes({ paymentId: ctx.payment.id });
+  const totals = computeTotals({ payment: base, refunds, disputes });
+  const written = await ctx.tx.updatePayment({
+    id: ctx.payment.id, expectedVersion: ctx.payment.version,
+    patch: { ...intent, ...totals, updatedAt: ctx.deps.now() },
+  });
+  // The payment lock is held, so a lost version race means a writer bypassed this module.
+  if (!written) throw new Error(`payments ledger: payment ${ctx.payment.id} changed under its lock`);
+}
+
+async function open(input: WriterInput, inboxId: string | null): Promise<Ctx | null> {
+  const payment = await input.tx.lockPayment({ id: input.paymentId });
+  return payment ? { ...input, payment, inboxId, outbox: [], quarantined: [], deferred: 0 } : null;
+}
+
+function settlementPatch(evidence: PaymentEvidence): Partial<PaymentRecord> {
+  const s = evidence.settlement;
+  return {
+    ...(s?.fee ? { feeCurrency: s.fee.currency, feeMinor: s.fee.minorUnits } : {}),
+    ...(s?.net ? { netCurrency: s.net.currency, netMinor: s.net.minorUnits } : {}),
+    ...(s?.settlement ? { settlementCurrency: s.settlement.currency, settlementMinor: s.settlement.minorUnits } : {}),
+  };
+}
+
+/**
+ * Apply a full payment observation: the intent first (a quarantined intent stops the whole
+ * observation — its refunds cannot be trusted to belong to this payment), then each refund and
+ * dispute, then the derived caches.
+ */
+export async function applyPaymentEvidence(
+  required: WriterInput & { evidence: PaymentEvidence },
+  optional: { inboxId?: string } = {}
+): Promise<ApplyResult> {
+  const ctx = await open(required, optional.inboxId ?? null);
+  if (!ctx) return { kind: "missing" };
+  const { evidence } = required;
+  await appendEvidence(ctx, { subject: "payment", subjectRef: evidence.providerRef, status: evidence.status, ...(evidence.amount ? { amount: evidence.amount } : {}) });
+  const plan = planIntentEvidence({ payment: stateOf(ctx.payment), evidence });
+  if (plan.kind === "quarantined") {
+    await quarantine(ctx, "payment", plan, evidence);
+    return { kind: "quarantined", reason: plan.reason };
+  }
+  const intent: Partial<PaymentRecord> = {
+    intentStatus: plan.payment.intentStatus, providerRef: plan.payment.providerRef, capturedMinor: plan.payment.capturedMinor,
+    ...(evidence.next ? { nextActionJson: JSON.stringify(evidence.next) } : {}),
+    ...settlementPatch(evidence),
+  };
+  ctx.payment = { ...ctx.payment, ...intent } as PaymentRecord;
+  for (const refund of evidence.refunds) await applyOneRefund(ctx, refund);
+  for (const dispute of evidence.disputes) await applyOneDispute(ctx, dispute);
+  await writeCaches(ctx, intent);
+  await enqueue(ctx, plan.outbox, { amountMinor: ctx.payment.capturedMinor, currency: ctx.payment.currency });
+  return { kind: "applied", quarantined: ctx.quarantined, outbox: ctx.outbox, deferred: ctx.deferred };
+}
+
+/**
+ * Apply one refund observation (a synchronous refund response, or a refund-only webhook).
+ * `refundId` = the reservation this response answers: a synchronous response belongs to the row
+ * that was dispatched even when the provider does not echo our correlation id.
+ */
+export async function applyRefundEvidence(
+  required: WriterInput & { evidence: RefundEvidence },
+  optional: { inboxId?: string; refundId?: string } = {}
+): Promise<ApplyResult> {
+  const ctx = await open(required, optional.inboxId ?? null);
+  if (!ctx) return { kind: "missing" };
+  const correlationId = required.evidence.correlationId ?? optional.refundId;
+  await applyOneRefund(ctx, { ...required.evidence, ...(correlationId === undefined ? {} : { correlationId }) });
+  await writeCaches(ctx, {});
+  const [reason] = ctx.quarantined;
+  if (reason) return { kind: "quarantined", reason };
+  return ctx.deferred > 0 ? { kind: "deferred" } : { kind: "applied", quarantined: [], outbox: ctx.outbox, deferred: 0 };
+}
+
+export type ReserveResult =
+  | { readonly kind: "reserved"; readonly refund: RefundRecord }
+  | { readonly kind: "insufficient"; readonly refundableMinor: number }
+  | { readonly kind: "invalid-amount" }
+  | { readonly kind: "not-refundable"; readonly status: PaymentRecord["status"] }
+  | { readonly kind: "missing" };
+
+/**
+ * Reserve money for a refund BEFORE dispatching it: under the payment lock, check
+ * `captured − succeeded − held` and insert a `reserved` row. The row id is the correlation id
+ * sent to the provider. A reserved/unknown/pending refund keeps holding money until evidence
+ * settles it, so two concurrent refunds can never both take the last refundable cent.
+ */
+export async function reserveRefund(
+  required: Omit<WriterInput, "source"> & { refundId: string; amountMinor: number; idempotencyKey: string },
+  optional: { reason?: string } = {}
+): Promise<ReserveResult> {
+  const ctx = await open({ ...required, source: "response" }, null);
+  if (!ctx) return { kind: "missing" };
+  if (ctx.payment.intentStatus !== "succeeded") return { kind: "not-refundable", status: ctx.payment.status };
+  const refunds = await ctx.tx.listRefunds({ paymentId: ctx.payment.id });
+  const available = refundableMinor({ capturedMinor: ctx.payment.capturedMinor, totals: refundTotals({ refunds }) });
+  if (!Number.isSafeInteger(required.amountMinor) || required.amountMinor <= 0) return { kind: "invalid-amount" };
+  if (required.amountMinor > available) return { kind: "insufficient", refundableMinor: available };
+  const refund: RefundRecord = {
+    ...newRefundRecord(ctx, { id: required.refundId, providerRefundRef: null, amountMinor: required.amountMinor, status: "reserved" }),
+    idempotencyKey: required.idempotencyKey, reason: optional.reason ?? null,
+  };
+  await ctx.tx.insertRefund({ refund });
+  await writeCaches(ctx, {});
+  return { kind: "reserved", refund };
+}
+
+/**
+ * Record what a dispatched refund call answered when it carried no evidence: `rejected` (provably
+ * no money moved) → `failed`, releasing the hold; `unknown` (timeout, 5xx) → `unknown`, keeping
+ * the hold until a webhook or `retrieve` settles it — never `failed` (bug B4). Merged like any
+ * evidence, so a webhook that already settled the row is not regressed.
+ */
+export async function recordRefundDispatchOutcome(
+  required: Omit<WriterInput, "source"> & { refundId: string; outcome: "rejected" | "unknown" },
+  _optional: Record<string, never> = {}
+): Promise<ApplyResult> {
+  const ctx = await open({ ...required, source: "response" }, null);
+  if (!ctx) return { kind: "missing" };
+  const refunds = await ctx.tx.listRefunds({ paymentId: ctx.payment.id });
+  const row = refunds.find((r) => r.id === required.refundId);
+  if (!row) return { kind: "missing" };
+  const incoming = required.outcome === "rejected" ? "failed" : "unknown";
+  const status = mergeRefundStatus({ current: row.status, incoming });
+  if (status !== row.status) await ctx.tx.updateRefund({ id: row.id, patch: { status, updatedAt: ctx.deps.now() } });
+  await writeCaches(ctx, {});
+  return { kind: "applied", quarantined: [], outbox: [], deferred: 0 };
+}
