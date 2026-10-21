@@ -123,4 +123,20 @@ describe('admin action tools', () => {
     expect(await tools[0]!.tool.handler({ pluginId: 'acme', auth: context, input: { payload: { value: 'hello' } } })).toEqual({ decorated: plain });
     expect(f.calls).toHaveLength(2);
   });
+  test('a live projected admin tool runs the same handler; an additional tool without an effect discloses as write', async () => {
+    const f = fixture(); const registry = createPluginContributionRegistry({});
+    const projection = createAgentPluginToolProjection({ registry, toolIdFor: pluginToolIdFor, issuedTokens: f.issuedTokens,
+      capabilities: () => fakeCapabilities({ tokenRequests: [], requests: [] }),
+    });
+    const { effect: _dropped, ...withoutEffect } = f.tools[0]!.tool;
+    const failing = { pluginId: 'acme', tool: { ...withoutEffect, name: 'account_probe' }, describeAffectedResources: () => { throw new Error('resource lookup failed'); } };
+    const plain = { ...failing, tool: { ...withoutEffect, name: 'account_plain' }, describeAffectedResources: () => ['Account: plain'] };
+    expect(projection.sync({ loaded: [], refusals: [], additionalTools: [...f.tools, failing, plain] }).refusals).toEqual([]);
+    const snapshot = registry.list({})[0]!;
+    const live = snapshot.tools.find(tool => tool.name === 'account_save')!;
+    expect(await live.handler({ pluginId: 'acme', sdk: snapshot.sdk, auth: { ...context, access: 'admin' }, input: { payload: { value: 'live' } } })).toEqual(await f.call({ payload: { value: 'live' } }));
+    expect(f.calls).toHaveLength(2);
+    expect(await projection.describeAffectedResources({ toolId: 'p_acme__account_plain', input: {} })).toEqual({ effect: 'write', resources: ['Account: plain'] });
+    await expect(projection.describeAffectedResources({ toolId: 'p_acme__account_probe', input: {} })).rejects.toThrow('resource lookup failed');
+  });
 });
