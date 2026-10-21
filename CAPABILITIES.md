@@ -48,7 +48,7 @@ Checked 2026-10-07 against the working tree. Find the owning entry point here, t
 | Media generation provider gateway | `@jini-ai/integrations/media-providers` | `createCapabilityRegistry`, `renderStub` |
 | Media library and renditions | `@jini-ai/cms/media` | `MediaRecord`, `AssetBlobRecord` |
 | Credentialed HTTP and SSRF protection | `@jini-ai/integrations/credentialed-http` | makeCredentialedRequest; pair with platform/http/guarded |
-| Webhooks and delivery retries | `@jini-ai/integrations/webhooks` | `enqueueDelivery`, `processDueDeliveries` |
+| Webhooks and delivery retries | `@jini-ai/integrations/webhooks` | `enqueueDelivery`, `processDueDeliveries`, `startWebhookDeliveryWorker` |
 | SQL kernels / migrations / store copy | `@jini-ai/db/kernel` | StorageKernel; use db/migrate and db/kernel/store-copy |
 | Owner-scoped chat persistence | `@jini-ai/chat/store` | ChatStore; use store/sqlite, store/pglite or store/postgres |
 | Run lifecycle / tool authorization gate | `@jini-ai/daemon` | `createRunLifecycle`, `createToolExecutor` |
@@ -224,7 +224,7 @@ abstraction · [README](packages/platform/README.md)
 | `@jini-ai/platform/secrets/credential-sets` | Secrets vault service, vault records and workspace-bound vault AAD; vendor credential contracts. | `SecretsVaultService`, `buildVaultAad`, `VendorCredentialSetRepoPort` | node | Tovu: website |
 | `@jini-ai/platform/secrets/testing` | In-memory/fixed keyrings for fixtures. | `InMemoryKeyring`, `FixedRootKeyKeyring` | node | none yet |
 | `@jini-ai/platform/http/guarded` | Guard outbound requests, validate peers/redirects and pin vetted DNS addresses. | `createHttpClient`, `classifyAddress`, `createNodeGuardedHttpPorts` | node | Tovu: website; Jini: integrations |
-| `@jini-ai/platform/mail` | Mail contracts and purpose/lane gates; production delivery readiness is host-owned. | `MailerPort`, `wrapMailerWithPurposeGate` | node | Tovu: website |
+| `@jini-ai/platform/mail` | Mail contracts, purpose/lane gates and the system-email sender-identity resolver; production delivery readiness is host-owned. | `MailerPort`, `wrapMailerWithPurposeGate`, `createMailSenderIdentityResolver` | node | Tovu: website |
 | `@jini-ai/platform/mail/smtp` | SMTP adapter over an injected native transport/module and clock. | `SmtpMailerAdapter`, `createNodemailerSmtpTransport` | node | Tovu: website |
 | `@jini-ai/platform/fs/guarded-reader` | Bounded filesystem reads with roots, deny rules and traversal limits. | `createNodeGuardedReaderFilesystem`, `createGuardedFileReader` | node | Tovu: website |
 | `@jini-ai/platform/fs/durable-json` | Atomic JSON replacement, corruption/quarantine handling and coordinated updates. | `createNodeDurableJsonPorts`, `createDurableJsonFile`, `salvageJsonPrefix` | node | Tovu: desktop |
@@ -531,7 +531,7 @@ vendor-integration-gateway · [README](packages/integrations/README.md)
 | `@jini-ai/integrations/media-providers` | Generate images/video/audio through vendor gateway, policy, staging and task stores. | `renderStub`, `createCapabilityRegistry`, `createSqliteMediaTaskStore` | node | Tovu: website |
 | `@jini-ai/integrations/media-providers/catalog` | Browser-safe provider/model capability catalog with no vendor dispatch. | `findProvider`, `findMediaModel`, `modelsForSurface` | universal | Tovu: admin, website |
 | `@jini-ai/integrations/credentialed-http` | Bind credentials to permitted origins and send audited/redacted guarded requests. | `makeCredentialedRequest`, `buildAuthorizationHeader`, `resolveRequestTarget` | node | Tovu: website |
-| `@jini-ai/integrations/webhooks` | Manage subscriptions, signed deliveries, independent retries and envelope storage ports. | `createSubscription`, `enqueueDelivery`, `processDueDeliveries`, `signPayload` | node | Tovu: website |
+| `@jini-ai/integrations/webhooks` | Manage subscriptions, signed deliveries, independent retries, claim leases, the cancellable delivery loop and envelope storage ports. | `createSubscription`, `enqueueDelivery`, `processDueDeliveries`, `startWebhookDeliveryWorker`, `signPayload` | node | Tovu: website |
 
 ## integration · `@jini-ai/mcp`
 
