@@ -38,6 +38,46 @@ describe("toForwardedHit", () => {
   });
 });
 
+describe("vendor projection privacy", () => {
+  it("redacts literal and percent-encoded email-shaped path segments before forwarding", () => {
+    expect(toForwardedHit({ hit: hit("/users/alice@example.com/orders") }).path).toBe("/users/:redacted/orders");
+    expect(toForwardedHit({ hit: hit("/u/alice%40example.com") }).path).toBe("/u/:redacted");
+    expect(toForwardedHit({ hit: hit("/bad/%E0%A4%A") }).path).toBe("/bad/%E0%A4%A");
+    expect(toForwardedHit({ hit: hit("/a/b") }).path).toBe("/a/b");
+  });
+
+  it("never passes credential or payload text from a throwing forwarder or hook into reports", async () => {
+    const reports: unknown[] = [];
+    const leaky: AnalyticsForwarder = { forward: async () => { throw new Error("token=SECRET-123 path=/users/alice@example.com"); } };
+    const leakyResult = recordingForwarder(async () => providerRejected({ code: "unauthorized", message: "key SECRET-123 rejected" }));
+    const tasks: Promise<void>[] = [];
+    const sink = createFanOutAnalyticsSink({ primary: new LocalBufferSink({}) }, {
+      forwarders: [{ id: "leaky", forwarder: leaky, context }, { id: "res", forwarder: leakyResult.forwarder, context }],
+      report: (r) => reports.push(r), schedule: (t) => tasks.push(t),
+    });
+    await sink.accept({ hit: hit() });
+    await Promise.all(tasks);
+    const hookReports: unknown[] = [];
+    const hooks = composeBeforeIngestHooks({ hooks: [{ beforeIngest: async () => { throw new Error("SECRET-123"); } }] }, { report: (r) => hookReports.push(r) });
+    await hooks!.beforeIngest({ hit: hit() });
+    expect(JSON.stringify([reports, hookReports])).not.toMatch(/SECRET|alice/);
+  });
+
+  it("gives each vendor its own deep copy so a mutating vendor cannot alter the primary record or another vendor's hit", async () => {
+    const primary = new LocalBufferSink({});
+    const mutator: AnalyticsForwarder = { forward: async ({ hit: h }) => { ((h.eventProps as { nested: { v: number } }).nested).v = 99; (h.utm as { source: string | null }).source = "x"; return providerOk({ value: undefined }); } };
+    const other = recordingForwarder();
+    const tasks: Promise<void>[] = [];
+    const sink = createFanOutAnalyticsSink({ primary }, { forwarders: [{ id: "m", forwarder: mutator, context }, { id: "o", forwarder: other.forwarder, context }], schedule: (t) => tasks.push(t) });
+    await sink.accept({ hit: { ...hit(), eventName: "e", eventProps: { nested: { v: 1 } } } });
+    await Promise.all(tasks);
+    expect(primary.all({})[0]?.eventProps).toEqual({ nested: { v: 1 } });
+    expect(primary.all({})[0]?.utm.source).toBe("news");
+    expect(other.seen[0]?.eventProps).toEqual({ nested: { v: 1 } });
+    expect(other.seen[0]?.utm.source).toBe("news");
+  });
+});
+
 describe("module validators", () => {
   it("accepts a module with create() and refuses others", () => {
     const valid = { create: () => recordingForwarder().forwarder };
@@ -128,10 +168,10 @@ describe("createFanOutAnalyticsSink", () => {
     // Forwards run concurrently, so report order is settle order, not declaration order.
     expect(reports).toHaveLength(4);
     expect(reports).toEqual(expect.arrayContaining([
-      { forwarderId: "rej", outcome: "rejected", message: "bad key" },
-      { forwarderId: "unk", outcome: "unknown", message: "slow" },
-      { forwarderId: "thr", outcome: "threw", message: "boom" },
-      { forwarderId: "raw", outcome: "threw", message: "raw" },
+      { forwarderId: "rej", outcome: "rejected", message: "unauthorized" },
+      { forwarderId: "unk", outcome: "unknown", message: "timeout" },
+      { forwarderId: "thr", outcome: "threw", message: "forwarder threw" },
+      { forwarderId: "raw", outcome: "threw", message: "forwarder threw" },
     ]));
   });
 
@@ -186,7 +226,7 @@ describe("composeBeforeIngestHooks", () => {
       { beforeIngest: async ({ hit: h }) => ({ ...h, path: "/after" }) },
     ] }, { report: (r) => reports.push(r) });
     expect((await chain!.beforeIngest({ hit: hit() }))?.path).toBe("/after");
-    expect(reports).toEqual([{ index: 0, message: "broken plugin" }, { index: 1, message: "7" }]);
+    expect(reports).toEqual([{ index: 0, message: "beforeIngest handler threw" }, { index: 1, message: "beforeIngest handler threw" }]);
   });
 
   it("uses a silent default report", async () => {

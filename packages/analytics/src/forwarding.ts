@@ -10,6 +10,7 @@ import type { HttpClientPort } from "@jini-ai/core/primitives";
 import {
   createProviderRegistry, type ProviderContext, type ProviderDefinition, type ProviderRegistry, type ProviderResult, type RegisteredProvider,
 } from "@jini-ai/core/provider-registry";
+import { redactPiiPathSegments } from "./ingest.js";
 import type { AnalyticsHooks, AnalyticsSinkPort } from "./ports.js";
 import type { NormalizedHit } from "./types.js";
 
@@ -52,14 +53,18 @@ export interface AnalyticsForwarderModule {
   create(required: { credential: AnalyticsForwarderCredential | null; kit: { httpClient: HttpClientPort } }): AnalyticsForwarder;
 }
 
-/** Copies only the forwarded fields. @complexity O(1). */
+/**
+ * Copies only the forwarded fields into a fresh, deep-copied object, so a vendor that mutates its
+ * input can never reach the primary's record or another vendor's hit. Email-shaped path segments
+ * are redacted: the hit is leaving the host. @complexity O(size of the hit).
+ */
 export function toForwardedHit(required: { hit: NormalizedHit }, _optional: Record<string, never> = {}): ForwardedHit {
   const { hit } = required;
   return {
-    workspaceId: hit.workspaceId, occurredAt: hit.occurredAt, kind: hit.kind, path: hit.path,
+    workspaceId: hit.workspaceId, occurredAt: hit.occurredAt, kind: hit.kind, path: redactPiiPathSegments({ path: hit.path }),
     referrerHost: hit.referrerHost, utm: { ...hit.utm }, country: hit.country, deviceClass: hit.deviceClass,
     browserFamily: hit.browserFamily, osFamily: hit.osFamily, visitorHash: hit.visitorHash,
-    eventName: hit.eventName, eventProps: hit.eventProps,
+    eventName: hit.eventName, eventProps: hit.eventProps === null ? null : structuredClone(hit.eventProps),
   };
 }
 
@@ -157,14 +162,18 @@ export function createAnalyticsForwardLimiter(
   };
 }
 
-/** Runs one forward; every failure becomes a report, never a throw. @complexity O(1) + vendor call. */
+/**
+ * Runs one forward; every failure becomes a report, never a throw. Reports carry fixed codes only:
+ * a vendor's thrown text or result message may echo its credential or the hit, so it is discarded.
+ * @complexity O(1) + vendor call.
+ */
 async function forwardOne(required: { bound: BoundAnalyticsForwarder; hit: ForwardedHit; report: AnalyticsForwardReport }): Promise<void> {
   const { bound, hit, report } = required;
   try {
     const result = await bound.forwarder.forward({ hit, context: bound.context });
-    if (result.status !== "ok") report({ forwarderId: bound.id, outcome: result.status, message: result.error.message });
-  } catch (error) {
-    report({ forwarderId: bound.id, outcome: "threw", message: error instanceof Error ? error.message : String(error) });
+    if (result.status !== "ok") report({ forwarderId: bound.id, outcome: result.status, message: result.error.code });
+  } catch {
+    report({ forwarderId: bound.id, outcome: "threw", message: "forwarder threw" });
   }
 }
 
@@ -195,9 +204,9 @@ export function createFanOutAnalyticsSink(
     if (!limiter.tryAcquire()) return report({ forwarderId: bound.id, outcome: "dropped", message: "too many vendor calls in flight" });
     schedule(forwardOne({ bound, hit, report }).finally(() => limiter.release()));
   };
+  // One projection per vendor (not one shared object): see toForwardedHit.
   const fanOut = (hit: NormalizedHit): void => {
-    const forwarded = toForwardedHit({ hit });
-    for (const bound of forwarders) send(bound, forwarded);
+    for (const bound of forwarders) send(bound, toForwardedHit({ hit }));
   };
   return {
     capabilities: (input) => primary.capabilities(input),
@@ -238,8 +247,9 @@ export function composeBeforeIngestHooks(
           const next = await hook.beforeIngest({ hit: current });
           if (next === null) return null;
           current = next;
-        } catch (error) {
-          report({ index, message: error instanceof Error ? error.message : String(error) });
+        } catch {
+          // Fixed text: a plugin's exception may carry the hit or a secret into host logs.
+          report({ index, message: "beforeIngest handler threw" });
         }
       }
       return current;

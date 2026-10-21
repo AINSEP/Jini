@@ -56,6 +56,21 @@ function validatePrivacyPolicy(policy: AnalyticsPrivacyPolicy): void {
 /** Loose email-shape check — deliberately simple for v1 (see file header). */
 const EMAIL_SHAPE_PATTERN = /[^\s@]+@[^\s@]+\.[^\s@]+/;
 
+/** Decodes one path segment for the shape check; a malformed escape is checked as written. */
+function decodedSegment(segment: string): string {
+  try { return decodeURIComponent(segment); } catch { return segment; }
+}
+
+/**
+ * Replaces every email-shaped path segment (literal or percent-encoded) with `:redacted`. The local
+ * sink keeps the path as ingested; this is the shared check for data leaving the host (vendor
+ * forwarding), where `/users/alice@example.com` would otherwise reach a third party.
+ * @complexity O(n) over the path's characters.
+ */
+export function redactPiiPathSegments(required: { path: string }, _optional: Record<string, never> = {}): string {
+  return required.path.split("/").map((segment) => (EMAIL_SHAPE_PATTERN.test(decodedSegment(segment)) ? ":redacted" : segment)).join("/");
+}
+
 /** Property-key names that read as PII by themselves, regardless of value. */
 const PII_KEY_NAME_PATTERN =
   /email|phone|ssn|social[-_]?security|password|credit[-_]?card|street[-_]?address|full[-_]?name|first[-_]?name|last[-_]?name/i;
