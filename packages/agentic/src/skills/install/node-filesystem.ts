@@ -29,7 +29,9 @@ export function createNodeSkillFilesystem(_required: Record<string, never>, _opt
         return Buffer.concat(chunks);
       } finally { await handle.close(); }
     },
-    writeFile: ({ path, bytes, exclusive, mode }) => writeFile(path, bytes, { flag: exclusive ? 'wx' : 'w', mode }),
+    // The port types `exclusive` as the literal `true`: skill files and state temporaries are only
+    // ever created, never overwritten in place, so the flag is always exclusive-create.
+    writeFile: ({ path, bytes, mode }) => writeFile(path, bytes, { flag: 'wx', mode }),
     rename: ({ from, to }) => rename(from, to),
     remove: ({ path }, options = {}) => rm(path, options),
   };

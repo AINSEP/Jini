@@ -51,3 +51,46 @@ test('request refresh reports a failed read before allowing discovery or executi
   await middleware({ next: (_required, optional = {}) => calls.push(optional) });
   assert.deepEqual(calls, [{ error: failure }]); assert.equal(changed, 0);
 });
+
+test('active slots apply the current tool policy; tools the slots never managed keep the base registry answer', () => {
+  const base = new Map<string, SkillRegistration<{ id: string }, { input: string }>>();
+  const registry: SkillRegistryPort<{ id: string }, { input: string }> = {
+    list: () => [...base.values()].map(t => t.descriptor),
+    has: ({ id }) => base.has(id),
+    register: ({ tool }) => { base.set(tool.descriptor.id, tool); },
+  };
+  registry.register({ tool: { descriptor: { id: 'builtin_search' }, policy: { authorize: () => 'allow' }, handler: () => 'search' } });
+  const replace = createLiveSkillRegistration({ registry, inactiveError: () => new Error('skill inactive') });
+  replace({ tools: [{ descriptor: { id: 'skill_review' }, policy: { authorize: ({ context }) => (context.input === 'ok' ? 'allow' : 'deny') }, handler: () => 'reviewed' }] });
+  const slot = base.get('skill_review')!;
+  assert.equal(slot.policy.authorize({ context: { input: 'ok' } }), 'allow');
+  assert.equal(slot.policy.authorize({ context: { input: 'no' } }), 'deny');
+  assert.equal(registry.has({ id: 'builtin_search' }), true);
+  assert.equal(registry.has({ id: 'never_registered' }), false);
+  assert.deepEqual(registry.list({}).map(d => d.id), ['builtin_search', 'skill_review']);
+});
+
+test('a refresh that lists the same skill id twice is refused', () => {
+  const registry: SkillRegistryPort<{ id: string }, Record<string, never>> = { list: () => [], has: () => false, register: () => {} };
+  const replace = createLiveSkillRegistration({ registry, inactiveError: () => new Error('inactive') });
+  const tool = { descriptor: { id: 'skill_dup' }, policy: { authorize: () => 'allow' as const }, handler: () => 'x' };
+  assert.throws(() => replace({ tools: [tool, tool] }), /^Error: Duplicate skill registration ID\.$/);
+});
+
+test('request refresh continues without error, announcing only an actual change', async () => {
+  for (const [refreshed, expectedChanges] of [[true, 1], [false, 0]] as const) {
+    let changes = 0;
+    const middleware = createSkillRefreshMiddleware({ registry: { refreshInstalledSkills: async () => refreshed } }, { onChanged: () => { changes++; } });
+    const calls: unknown[][] = [];
+    await middleware({ next: (...args) => { calls.push(args); } });
+    assert.deepEqual(calls, [[{}]]);
+    assert.equal(changes, expectedChanges);
+  }
+});
+
+test('request refresh is a pass-through for a registry without live skills', async () => {
+  const middleware = createSkillRefreshMiddleware({ registry: {} });
+  const calls: unknown[][] = [];
+  await middleware({ next: (...args) => { calls.push(args); } });
+  assert.deepEqual(calls, [[{}]]);
+});
