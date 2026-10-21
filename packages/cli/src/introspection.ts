@@ -67,7 +67,7 @@ export function introspectProgram({ program, excludedCommands }: {
       return;
     }
     commands.push({
-      name: fullPath.join(" "), description: command.description() ?? "",
+      name: fullPath.join(" "), description: command.description(),
       arguments: command.registeredArguments.map((arg) => ({ name: arg.name(), required: arg.required, description: arg.description ?? "" })),
       options: command.options.map((opt) => ({
         flags: opt.flags, attributeName: opt.attributeName(), description: opt.description ?? "",
@@ -77,7 +77,7 @@ export function introspectProgram({ program, excludedCommands }: {
     });
   }
   for (const command of program.commands) visit(command, []);
-  return { name: program.name(), description: program.description() ?? "", commands };
+  return { name: program.name(), description: program.description(), commands };
 }
 
 /**
