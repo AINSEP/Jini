@@ -4,7 +4,8 @@ import { createInMemorySearchProvider } from '../memory-provider.js';
 import { memoryContext } from './helpers.js';
 
 const ctx = memoryContext({ siteId: 's', indexName: 'idx' });
-const key = (documentId: string): SearchDocumentKey => ({ siteId: 's', workspaceId: 'w', collection: 'post', documentId });
+// The context's own tenant (site 's', workspace 'ws_conformance'): a query only sees that tenant.
+const key = (documentId: string): SearchDocumentKey => ({ siteId: 's', workspaceId: 'ws_conformance', collection: 'post', documentId });
 const doc = (documentId: string, extra: Partial<SearchDocument> = {}): SearchDocument => ({
   key: key(documentId), revision: 1, url: `/${documentId}`, title: `Title ${documentId}`, body: `Body of ${documentId}`, visibility: { kind: 'public' }, ...extra,
 });

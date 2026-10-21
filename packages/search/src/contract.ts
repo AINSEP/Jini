@@ -185,6 +185,7 @@ export interface SearchProvider {
   dropIndex(ctx: SearchProviderContext, required?: Record<string, never>): Promise<ProviderResult<void>>;
   upsert(ctx: SearchProviderContext, required: { readonly documents: readonly SearchDocument[] }): Promise<ProviderResult<SearchWriteResult>>;
   remove(ctx: SearchProviderContext, required: { readonly tombstones: readonly SearchTombstone[] }): Promise<ProviderResult<SearchWriteResult>>;
+  /** Only documents keyed to `ctx.siteId` and `ctx.workspaceId` match, even when other tenants share the index. */
   query(ctx: SearchProviderContext, required: { readonly query: SearchQuery }): Promise<ProviderResult<SearchPage>>;
   revisionOf(ctx: SearchProviderContext, required: { readonly keys: readonly SearchDocumentKey[] }): Promise<ProviderResult<readonly SearchRevisionState[]>>;
   /** Required when `capabilities.asyncIndexing`; reports the state of an earlier `pending` write. */

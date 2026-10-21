@@ -100,8 +100,12 @@ function scopeMatches(document: SearchDocument, query: SearchQuery): boolean {
   return collectionOk && (query.locale === undefined || document.locale === query.locale);
 }
 
-function passesFilters(document: SearchDocument, query: SearchQuery): boolean {
-  return scopeMatches(document, query) && fieldsMatch(document, query.filters ?? {}) && audienceAllows(document, query.audiences ?? []);
+/** The querying tenant: a query only ever sees documents of `ctx.siteId` and `ctx.workspaceId`, even in a shared index. */
+interface Tenant { readonly siteId: string; readonly workspaceId: string }
+
+function passesFilters(document: SearchDocument, query: SearchQuery, tenant: Tenant): boolean {
+  const ownTenant = document.key.siteId === tenant.siteId && document.key.workspaceId === tenant.workspaceId;
+  return ownTenant && scopeMatches(document, query) && fieldsMatch(document, query.filters ?? {}) && audienceAllows(document, query.audiences ?? []);
 }
 
 function pageBounds(query: SearchQuery): { readonly offset: number; readonly limit: number } | string {
@@ -126,7 +130,7 @@ function hitOf(document: SearchDocument, score: number, matches: (word: string) 
   return { key: document.key, revision: document.revision, url: document.url, title: document.title, snippet, highlights, score };
 }
 
-function runQuery(index: Index, query: SearchQuery, typoTolerance: boolean): ProviderResult<SearchPage> {
+function runQuery(index: Index, query: SearchQuery, typoTolerance: boolean, tenant: Tenant): ProviderResult<SearchPage> {
   const terms = words(query.text);
   if (terms.length === 0) return providerRejected({ code: 'invalid_request', message: 'query text must not be empty' });
   const bounds = pageBounds(query);
@@ -134,7 +138,7 @@ function runQuery(index: Index, query: SearchQuery, typoTolerance: boolean): Pro
   const matches = makeMatcher({ terms, typoTolerance });
   const termMatchers = terms.map(term => makeMatcher({ terms: [term], typoTolerance }));
   const ranked = [...index.entries()]
-    .flatMap(([encoded, entry]) => entry.document !== undefined && passesFilters(entry.document, query) ? [{ encoded, document: entry.document, score: scoreOf(entry.document, { termMatchers, matches }) }] : [])
+    .flatMap(([encoded, entry]) => entry.document !== undefined && passesFilters(entry.document, query, tenant) ? [{ encoded, document: entry.document, score: scoreOf(entry.document, { termMatchers, matches }) }] : [])
     .filter(candidate => candidate.score > 0)
     // Score first, then the encoded key: a total order, so cursors over offsets are stable.
     .sort((a, b) => b.score - a.score || (a.encoded < b.encoded ? -1 : 1));
@@ -249,7 +253,7 @@ export function createInMemorySearchProvider(_required: Record<string, never> = 
       return write(ctx, tombstones.map((tombstone: SearchTombstone) => ({ key: tombstone.key, revision: tombstone.revision })));
     },
     async query(ctx, { query }) {
-      return guarded(ctx, index => runQuery(index, query, typoTolerance));
+      return guarded(ctx, index => runQuery(index, query, typoTolerance, ctx));
     },
     async revisionOf(ctx, { keys }) {
       return guarded(ctx, index => providerOk({

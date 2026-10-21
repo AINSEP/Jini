@@ -266,14 +266,16 @@ describe('queries', () => {
       upsert: (ctx, required) => base.upsert(shared(ctx), required), remove: (ctx, required) => base.remove(shared(ctx), required),
       query: (ctx, required) => base.query(shared(ctx), required), revisionOf: (ctx, required) => base.revisionOf(shared(ctx), required),
     }));
-    await expect(runCase(crossing, 'indexes and sites never cross')).rejects.toThrow('a removal did not apply in its own index');
+    // One shared backend index: the second index's copy of the same key is the first one's, so its removal empties both.
+    await expect(runCase(crossing, 'indexes and sites never cross')).rejects.toThrow(/_b returned \[\], expected only 'Beta copy'/);
   });
   test('an index that also returns a sibling index\'s documents', async () => {
     const crossSite = broken(base => ({
       async query(ctx, required) {
         const own = await pageOf(base, ctx, required);
         if (!ctx.indexName.endsWith('_c')) return ok(own);
-        const sibling = await pageOf(base, { ...ctx, indexName: ctx.indexName.replace(/_c$/, '_b') }, required);
+        // Reads the sibling index as its own tenant (site_a), i.e. leaks it whole.
+        const sibling = await pageOf(base, { ...ctx, indexName: ctx.indexName.replace(/_c$/, '_b'), siteId: 'site_a' }, required);
         return ok({ hits: [...own.hits, ...sibling.hits] });
       },
     }));
@@ -366,5 +368,36 @@ describe('overlapping writes', () => {
       },
     }));
     await expect(runCase(forgetful, OVERLAP)).rejects.toThrow('expected the revision-5 tombstone');
+  });
+});
+
+describe('tenants, field filters and query text', () => {
+  test('a provider that also returns another site\'s documents from a shared index', async () => {
+    const leaky = broken(base => ({
+      async query(ctx, required) {
+        const own = await base.query(ctx, required);
+        const other = await base.query({ ...ctx, siteId: ctx.siteId === 'site_a' ? 'site_b' : 'site_a' }, required);
+        return own.status === 'ok' && other.status === 'ok' ? providerOk({ value: { hits: [...own.value.hits, ...other.value.hits] } }) : own;
+      },
+    }));
+    await expect(runCase(leaky, 'sites and workspaces sharing one index never cross')).rejects.toThrow(/from a shared index, expected only 'Home tenant'/);
+  });
+  test('a provider that ignores field filters', async () => {
+    const unfiltered = broken(base => ({ query: (ctx, { query: { filters: _ignored, ...rest } }) => base.query(ctx, { query: rest }) }));
+    await expect(runCase(unfiltered, 'field filters match exactly and by type')).rejects.toThrow(/filters \{"color":"red"\} returned/);
+  });
+  test('a provider that compares filter values as strings', async () => {
+    const untyped = broken(base => ({
+      query: (ctx, { query }) => base.query(ctx, { query: { ...query, ...(query.filters === undefined ? {} : { filters: Object.fromEntries(Object.entries(query.filters).map(([name, value]) => [name, value === '3' ? 3 : value])) }) } }),
+    }));
+    await expect(runCase(untyped, 'field filters match exactly and by type')).rejects.toThrow(/filters \{"size":"3"\} returned/);
+  });
+  test('a provider that substitutes a shared term for every query', async () => {
+    const substituting = broken(base => ({ query: (ctx, { query }) => base.query(ctx, { query: { ...query, text: 'zephyrine' } }) }));
+    await expect(runCase(substituting, 'query text no document contains finds nothing')).rejects.toThrow("query text 'quixotic', which no document contains");
+  });
+  test('a provider that finds nothing at all', async () => {
+    const blind = broken(() => ({ query: () => ok({ hits: [] }) }));
+    await expect(runCase(blind, 'query text no document contains finds nothing')).rejects.toThrow('a document is not found by a word of its own body');
   });
 });

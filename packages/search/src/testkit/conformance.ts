@@ -45,6 +45,7 @@ export interface SearchProviderConformanceOptional {
 const WORKSPACE = 'ws_conformance';
 const SITE_A = 'site_a';
 const SITE_B = 'site_b';
+const OTHER_WORKSPACE = 'ws_conformance_other';
 /** A word no case uses elsewhere, so `text: TERM` matches exactly the documents a case wrote. */
 const TERM = 'zephyrine';
 
@@ -54,6 +55,8 @@ interface Session {
   readonly provider: SearchProvider;
   /** A fresh (dropped, then ensured) index for this case. */
   readonly open: (required: { readonly suffix: string; readonly siteId?: string }) => Promise<SearchProviderContext>;
+  /** Another site's context on the SAME index as `ctx` (nothing dropped): tenants sharing one backend index. */
+  readonly sibling: (ctx: SearchProviderContext, required: { readonly siteId: string }) => Promise<SearchProviderContext>;
   readonly upsert: (ctx: SearchProviderContext, documents: readonly SearchDocument[]) => Promise<readonly SearchWriteOutcome[]>;
   readonly remove: (ctx: SearchProviderContext, tombstones: readonly SearchTombstone[]) => Promise<readonly SearchWriteOutcome[]>;
   readonly search: (ctx: SearchProviderContext, query: Omit<SearchQuery, 'text'> & { readonly text?: string }) => Promise<SearchPage>;
@@ -88,8 +91,8 @@ function expectOk<T>(result: ProviderResult<T>, label: string): T {
 }
 
 const keyText = (key: SearchDocumentKey): string => encodeSearchKey({ key });
-const keyOf = (documentId: string, optional: { readonly siteId?: string; readonly collection?: string } = {}): SearchDocumentKey =>
-  ({ siteId: optional.siteId ?? SITE_A, workspaceId: WORKSPACE, collection: optional.collection ?? 'post', documentId });
+const keyOf = (documentId: string, optional: { readonly siteId?: string; readonly collection?: string; readonly workspaceId?: string } = {}): SearchDocumentKey =>
+  ({ siteId: optional.siteId ?? SITE_A, workspaceId: optional.workspaceId ?? WORKSPACE, collection: optional.collection ?? 'post', documentId });
 
 interface DocInput {
   readonly key: SearchDocumentKey;
@@ -188,6 +191,7 @@ function createSession(required: SearchProviderConformanceRequired & { readonly 
       expectOk(await attempt('ensureIndex', () => provider.ensureIndex(ctx)), 'ensureIndex');
       return ctx;
     },
+    sibling: (ctx, { siteId }) => Promise.resolve(required.makeContext({ siteId, indexName: ctx.indexName })),
     upsert: (ctx, documents) => write(ctx, documents, 'upsert', chunk => provider.upsert(ctx, { documents: chunk })),
     remove: (ctx, tombstones) => write(ctx, tombstones, 'remove', chunk => provider.remove(ctx, { tombstones: chunk })),
     async search(ctx, query) {
@@ -324,6 +328,59 @@ async function indexIsolationCase(s: Session): Promise<void> {
   for (const { ctx, title } of contexts.slice(1)) {
     const titles = (await s.search(ctx, {})).hits.map(hit => hit.title);
     check(titles.length === 1 && titles[0] === title, `index ${ctx.indexName} returned ${JSON.stringify(titles)}, expected only '${title}' (indexes or sites crossed)`);
+  }
+}
+
+/**
+ * Tenants sharing ONE index (another site, another workspace): a query sees only its own context's
+ * documents. Separate indexes would hide a provider that never filters by site or workspace.
+ */
+async function mixedTenantsCase(s: Session): Promise<void> {
+  const home = await s.open({ suffix: 'x' });
+  const tenants = [
+    { ctx: home, key: keyOf('tenant'), title: 'Home tenant' },
+    { ctx: await s.sibling(home, { siteId: SITE_B }), key: keyOf('tenant', { siteId: SITE_B }), title: 'Other site tenant' },
+    { ctx: { ...home, workspaceId: OTHER_WORKSPACE }, key: keyOf('tenant', { workspaceId: OTHER_WORKSPACE }), title: 'Other workspace tenant' },
+  ];
+  for (const { ctx, key, title } of tenants) await s.upsert(ctx, [doc({ key, revision: 1, title })]);
+  for (const { ctx, title } of tenants) {
+    const titles = (await s.search(ctx, {})).hits.map(hit => hit.title);
+    check(titles.length === 1 && titles[0] === title, `site ${ctx.siteId} / workspace ${ctx.workspaceId} returned ${JSON.stringify(titles)} from a shared index, expected only '${title}'`);
+  }
+}
+
+type FieldFilters = NonNullable<SearchQuery['filters']>;
+
+/** Exact, TYPED matches on `fields`: a string `'3'` is not the number `3`, and an array matches by element. */
+async function fieldFiltersCase(s: Session): Promise<void> {
+  const ctx = await s.open({ suffix: 'x' });
+  const red = keyOf('red');
+  const blue = keyOf('blue');
+  await s.upsert(ctx, [
+    { ...doc({ key: red, revision: 1, title: 'Red item' }), fields: { color: 'red', size: 3, sale: true, tags: ['new', 'featured'] } },
+    { ...doc({ key: blue, revision: 1, title: 'Blue item' }), fields: { color: 'blue', size: 4, sale: false, tags: ['old'] } },
+  ]);
+  const expectations: readonly (readonly [FieldFilters, readonly SearchDocumentKey[]])[] = [
+    [{ color: 'red' }, [red]], [{ color: 'blue' }, [blue]], [{ color: 'green' }, []],
+    [{ size: 3 }, [red]], [{ size: '3' }, []], [{ sale: true }, [red]], [{ sale: false }, [blue]], [{ sale: 'true' }, []],
+    [{ tags: 'featured' }, [red]], [{ tags: 'old' }, [blue]], [{ color: 'red', sale: false }, []], [{ missing: 'x' }, []],
+  ];
+  for (const [filters, expected] of expectations) {
+    const keys = [...hitKeys(await s.search(ctx, { filters }))].sort();
+    const wanted = expected.map(keyText).sort();
+    check(JSON.stringify(keys) === JSON.stringify(wanted), `filters ${JSON.stringify(filters)} returned ${JSON.stringify(keys)}, expected ${JSON.stringify(wanted)}`);
+  }
+}
+
+/** A query for words no document contains finds nothing (a provider may not substitute other text). */
+async function unrelatedTextCase(s: Session): Promise<void> {
+  const ctx = await s.open({ suffix: 'x' });
+  const key = keyOf('only');
+  await s.upsert(ctx, [doc({ key, revision: 1, title: 'Only document' })]);
+  check(hitFor(await s.search(ctx, {}), key) !== undefined, 'a document is not found by a word of its own body');
+  for (const text of ['quixotic', 'xylograph marmalade']) {
+    const keys = hitKeys(await s.search(ctx, { text }));
+    check(keys.length === 0, `query text '${text}', which no document contains, returned ${JSON.stringify(keys)}`);
   }
 }
 
@@ -469,6 +526,9 @@ function casesFor(provider: SearchProvider, optional: SearchProviderConformanceO
       ? ['restricted documents reach only their audience', restrictedCase]
       : ['a public-only provider never returns restricted documents', publicOnlyCase],
     ['indexes and sites never cross', indexIsolationCase],
+    ['sites and workspaces sharing one index never cross', mixedTenantsCase],
+    ['field filters match exactly and by type', fieldFiltersCase],
+    ['query text no document contains finds nothing', unrelatedTextCase],
     ['collections filter', collectionsCase],
     ['limit and cursor pagination is stable and non-overlapping', paginationCase],
     ['empty or whitespace query text is rejected as invalid_request', emptyTextCase],
