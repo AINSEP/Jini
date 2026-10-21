@@ -159,9 +159,15 @@ export const FORCE_LIGHT_SURFACE_THEME = true;
  * @returns A `:root { … }` block, then a `:root:root { … }` block holding the overrides (when any),
  * followed by a `@media (prefers-color-scheme: dark) { :root { … } }` block unless {@link FORCE_LIGHT_SURFACE_THEME} suppresses it, ready to paste into the first
  * `<style>` tag.
+ * @param options.forceLight - Defaults to {@link FORCE_LIGHT_SURFACE_THEME}. Exposed so the dark
+ * variant this function still knows how to emit is reachable (and verified) rather than dead code
+ * behind a module constant; every production caller keeps the default.
  * @complexity O(n) in the number of tokens.
  */
-export function renderTokenBlock(overrides: Partial<Record<SurfaceTokenName, string>> = {}): string {
+export function renderTokenBlock(
+  overrides: Partial<Record<SurfaceTokenName, string>> = {},
+  { forceLight = FORCE_LIGHT_SURFACE_THEME }: { forceLight?: boolean } = {},
+): string {
   const declare = (entries: readonly (readonly [string, string])[]): string =>
     entries.map(([name, value]) => `  ${name}: ${value};`).join('\n');
   const notOverridden = ([name]: readonly [string, string]): boolean => !(name in overrides);
@@ -175,7 +181,7 @@ export function renderTokenBlock(overrides: Partial<Record<SurfaceTokenName, str
   const overrideEntries = Object.entries(overrides);
   const overrideBlock = overrideEntries.length === 0 ? '' : `\n:root:root {\n${declare(overrideEntries)}\n}`;
   const lightBlock = `:root {\n${light}\n}${overrideBlock}`;
-  if (FORCE_LIGHT_SURFACE_THEME) return lightBlock;
+  if (forceLight) return lightBlock;
 
   const dark = declare([
     ...Object.entries(SURFACE_TOKENS_DARK).filter(notOverridden),
