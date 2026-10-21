@@ -1,7 +1,8 @@
 import { createRef } from 'react';
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CANVAS_STYLES_PENDING_CLASS } from '../../../canvas-style.js';
+import { prepareEditorSource, type RequestEditHtml } from '../../../editor-blocks.js';
 import type { InteractiveHtmlEditorHandle } from '../../components/InteractiveHtmlEditor.js';
 
 /**
@@ -828,5 +829,170 @@ describe('useInteractiveHtmlEditor — flush() (Interactive edit-loss fix)', () 
     expect(result).toBe(EDITED);
     expect(onChange).toHaveBeenCalledWith(EDITED);
     expect(order).toEqual(['disable', 'onChange']);
+  });
+});
+
+const { default: grapesjs } = await import('grapesjs');
+
+describe('useInteractiveHtmlEditor — integrity failures and lifecycle edges', () => {
+  let capturedFlush: (() => Promise<string | undefined>) | undefined;
+
+  function EdgeHarness({ html = SPLICE_ORIGINAL_HTML, onChange = () => {}, attach = true, translate, onRequestEditHtml, describeEmbedPlaceholder }: {
+    describeEmbedPlaceholder?: Parameters<typeof useInteractiveHtmlEditor>[4];
+    html?: string; onChange?: (html: string) => void; attach?: boolean; translate?: (text: string) => string;
+    onRequestEditHtml?: RequestEditHtml;
+  }) {
+    const { containerRef, flush, sourceError } = useInteractiveHtmlEditor(html, onChange, undefined, undefined, describeEmbedPlaceholder, {
+      ...(translate ? { translate } : {}), ...(onRequestEditHtml ? { onRequestEditHtml } : {}),
+    });
+    capturedFlush = flush;
+    return <div>{attach ? <div data-testid="mount" ref={containerRef} /> : null}{sourceError ? <p role="alert">{sourceError}</p> : null}</div>;
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    lastFake = undefined;
+    lastInitConfig = undefined;
+    nextWrapper = undefined;
+    nextEditing = undefined;
+    capturedFlush = undefined;
+  });
+
+  it('never initializes GrapesJS when the host has not attached the container', () => {
+    render(<EdgeHarness attach={false} />);
+    expect(grapesjs.init).not.toHaveBeenCalled();
+  });
+
+  it('fails closed with a visible integrity error when GrapesJS itself cannot initialize', () => {
+    vi.mocked(grapesjs.init).mockImplementationOnce(() => { throw new Error('init failed'); });
+    render(<EdgeHarness />);
+    expect(screen.getByRole('alert')).toHaveTextContent("Can't edit this source visually. Use HTML.");
+    expect(screen.getByTestId('mount').childElementCount).toBe(0);
+  });
+
+  it('registers the protected type with an Edit HTML command that first closes any open text edit', async () => {
+    const onRequestEditHtml = vi.fn();
+    render(<EdgeHarness translate={(text) => `[es] ${text}`} onRequestEditHtml={onRequestEditHtml} />);
+    const plugins = lastInitConfig?.plugins as Array<(editor: unknown) => void>;
+    const addType = vi.fn();
+    const commands: Record<string, { run: () => Promise<void> }> = {};
+    const getEditing = vi.fn(() => undefined);
+    plugins[0]!({
+      Components: { addType },
+      Commands: { add: (name: string, command: { run: () => Promise<void> }) => { commands[name] = command; } },
+      getEditing, getSelected: () => undefined, getWrapper: () => undefined,
+    });
+    expect(addType).toHaveBeenCalledWith('protected-element', expect.any(Object));
+    await commands['jini:protected-edit-html']!.run();
+    expect(getEditing).toHaveBeenCalled();
+    expect(onRequestEditHtml).not.toHaveBeenCalled();
+  });
+
+  it('describes protected canvas cards from model metadata and excludes raw atoms from splice paths', () => {
+    const wrapper = makeFakeComponent('body', 'wrapper');
+    const metadata: Record<string, unknown> = { originalHtml: '<style>body{margin:0}</style>', sourceNonvisual: true, sourceTagName: 'style' };
+    const styleShell = Object.assign(makeFakeComponent('style', 'protected-element'), { get: (name: string) => metadata[name], getEl: () => undefined });
+    const pA = makeFakeComponent('p', 'text', 'Hello');
+    const marker = makeFakeComponent('div', 'default', '');
+    const pB = makeFakeComponent('p', 'text', 'Old &mdash; New');
+    linkFakeComponents(wrapper, [styleShell, pA, marker, pB]);
+    nextWrapper = wrapper;
+    const onChange = vi.fn();
+    render(<EdgeHarness onChange={onChange} />);
+    act(() => { lastFake!.fire('load'); });
+    const describeCall = vi.mocked(applyCanvasEmbedPlaceholders).mock.calls.at(-1)!;
+    expect(describeCall[1](document.createElement('div'))).toBeUndefined();
+    pA.setInnerHTML('Hello, edited');
+    act(() => {
+      lastFake!.fire('component:update:content', pA);
+      lastFake!.fire('update');
+    });
+    expect(onChange).toHaveBeenLastCalledWith(SPLICE_ORIGINAL_HTML.replace('>Hello<', '>Hello, edited<'));
+  });
+
+  it('reports an integrity error raised by the export itself, keeping the last good copy', () => {
+    const { wrapper, pA } = buildSpliceComponentTree();
+    nextWrapper = wrapper;
+    const onChange = vi.fn();
+    render(<EdgeHarness html='<p id="a">Hello</p>' onChange={onChange} />);
+    const plan = prepareEditorSource({ html: '<p id="a">Hello</p>' }, {});
+    if (!plan.ok) throw new Error(plan.problem);
+    pA.setInnerHTML(`typed ${plan.markerAttribute} by hand`);
+    act(() => {
+      lastFake!.fire('component:update:content', pA);
+      lastFake!.fire('update');
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent("Can't edit this source visually. Use HTML.");
+  });
+
+  it('keeps the last good copy and shows the error when an export throws, and flush then rejects', async () => {
+    const onChange = vi.fn();
+    render(<EdgeHarness onChange={onChange} />);
+    lastFake!.editor.getCss.mockImplementation(() => { throw new Error('css export failed'); });
+    act(() => {
+      lastFake!.fire('component:add');
+      lastFake!.fire('update');
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent("Can't edit this source visually. Use HTML.");
+    await expect(capturedFlush!()).rejects.toBeInstanceOf(Error);
+  });
+
+  it('rejects flush and shows the error when a protected element has lost its source metadata', async () => {
+    const wrapper = makeFakeComponent('body', 'wrapper');
+    const shell = Object.assign(makeFakeComponent('div', 'protected-element'), { get: () => undefined });
+    linkFakeComponents(wrapper, [shell]);
+    nextWrapper = wrapper;
+    render(<EdgeHarness />);
+    let rejection: unknown;
+    await act(async () => { rejection = await capturedFlush!().catch((error: unknown) => error); });
+    expect(rejection).toBeInstanceOf(Error);
+    expect(screen.getByRole('alert')).toHaveTextContent("Can't edit this source visually. Use HTML.");
+  });
+
+  it('ignores a content update for a component no longer found in its parent, so it is never spliced', async () => {
+    const { wrapper, pA } = buildSpliceComponentTree();
+    nextWrapper = wrapper;
+    const onChange = vi.fn();
+    render(<EdgeHarness onChange={onChange} />);
+    const orphan = makeFakeComponent('p', 'text', 'Orphaned edit');
+    orphan._parent = wrapper;
+    act(() => {
+      lastFake!.fire('component:update:content', orphan);
+      lastFake!.fire('update');
+    });
+    // No dirty edit was recorded for the orphan, so the export falls back to the cleaned tree
+    // instead of splicing the orphan's text into some other element's source range.
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0]![0]).not.toContain('Orphaned edit');
+    expect(pA.getInnerHTML()).toBe('Hello');
+  });
+
+  it('loads and unmounts cleanly when the canvas has no document yet', () => {
+    const view = render(<EdgeHarness html='<p id="a">Hello</p>' />);
+    lastFake!.editor.Canvas.getDocument.mockReturnValue(null);
+    act(() => { lastFake!.fire('load'); });
+    expect(applyCanvasContentWrapper).toHaveBeenCalled();
+    expect(() => view.unmount()).not.toThrow();
+    expect(lastFake!.editor.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('repairs canvas cards when the canvas window resizes, and stops listening on unmount', async () => {
+    const view = render(<EdgeHarness html='<p id="a">Hello</p>' describeEmbedPlaceholder={() => undefined} />);
+    lastFake!.editor.Canvas.getDocument.mockReturnValue(document);
+    const add = vi.spyOn(window, 'addEventListener');
+    const remove = vi.spyOn(window, 'removeEventListener');
+    act(() => { lastFake!.fire('load'); });
+    const resizeListener = add.mock.calls.find(([type]) => type === 'resize')?.[1];
+    expect(resizeListener).toBeTypeOf('function');
+    const before = vi.mocked(applyCanvasEmbedPlaceholders).mock.calls.length;
+    await act(async () => { window.dispatchEvent(new Event('resize')); await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(vi.mocked(applyCanvasEmbedPlaceholders).mock.calls.length).toBe(before + 1);
+    view.unmount();
+    expect(remove).toHaveBeenCalledWith('resize', resizeListener);
+    add.mockRestore();
+    remove.mockRestore();
   });
 });

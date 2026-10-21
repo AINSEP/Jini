@@ -312,9 +312,10 @@ export function useInteractiveHtmlEditor(
     };
     const serialize = () => {
       try {
-        const next = serializeEditorSource({ editor, html, edits: dirty, sourcePlan }, { structuralChange });
-        if (next.includes(sourcePlan.markerAttribute)) throw new EditorSourceError();
-        return next;
+        // No separate marker-leak check here: `serializeEditorSource` already throws an
+        // `EditorSourceError` when its result carries `sourcePlan.markerAttribute`, so a second
+        // identical check on the same result could never fire.
+        return serializeEditorSource({ editor, html, edits: dirty, sourcePlan }, { structuralChange });
       } catch (error) {
         const failure = error instanceof EditorSourceError ? error : new EditorSourceError();
         reportSourceError(failure);
