@@ -12,12 +12,14 @@ export function createAuthController({ api, onLogin }: { api: AuthApiPort; onLog
     async submit(_required: Record<string, never>, _optional: Record<string, never> = {}) {
       const s = store.getSnapshot({}); if (!store.active({}) || s.busy) return false;
       set({ busy: true, error: null });
+      // One return after the try statement, so no unreachable continuation follows the catch.
+      let loggedIn = false;
       try {
         const { user } = await api.login({ username: s.username, password: s.password }, store.call);
-        if (!store.active({})) return false;
-        set({ password: '' }); onLogin({ user }); return true;
-      } catch (error) { set({ error: error instanceof Error ? error.message : 'login failed' }); return false; }
+        if (store.active({})) { set({ password: '' }); onLogin({ user }); loggedIn = true; }
+      } catch (error) { set({ error: error instanceof Error ? error.message : 'login failed' }); }
       finally { set({ busy: false }); }
+      return loggedIn;
     },
   };
 }

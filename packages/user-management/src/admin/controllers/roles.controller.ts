@@ -249,19 +249,20 @@ export function createRolesController({ api }: {
         if (!target || state.confirming || state.rowSavingId || !targetGate(target))
             return false;
         set({ confirming: true, rowError: null });
+        let destroyed = false;
         try {
             await destroy(target);
-            return !disposed;
+            destroyed = !disposed;
         }
         catch (error) {
             set({ rowError: report(error, target.kind === 'permission' ? 'Failed to remove permission.' : `Failed to delete ${target.kind}.`) });
-            return false;
         }
         finally {
             if (state.pending === target)
                 set({ pending: null });
             set({ confirming: false, removingPermissionId: null });
         }
+        return destroyed;
     }
     return {
         getSnapshot(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) { return state; },
