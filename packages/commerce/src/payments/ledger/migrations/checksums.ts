@@ -9,4 +9,5 @@
  * Add new ids with `UPDATE_COMMERCE_PAYMENTS_CHECKSUMS=1`; the updater never changes an existing one.
  */
 export const COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS: Readonly<Record<string, string>> = {
+  "0001_payments_ledger": "ae31911eaebaab4e0060a17f8ebf36e74c98050d1572409c3c9655e1ed3ec4b3",
 };

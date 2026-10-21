@@ -226,9 +226,9 @@ export type AttemptOutcome = "dispatched" | "ok" | "rejected" | "unknown";
 export type EvidenceSource = "response" | "webhook" | "retrieve";
 export type EvidenceSubject = "payment" | "refund" | "dispute";
 export type InboxState = "received" | "applied" | "parked" | "dead";
-export type OutboxTopic = "payment.succeeded" | "refund.succeeded" | "refund.failed" | "dispute.opened" | "dispute.closed";
+export type LedgerOutboxTopic = "payment.succeeded" | "refund.succeeded" | "refund.failed" | "dispute.opened" | "dispute.closed";
 /** Open-ended on purpose: L3/L4 add reasons without a migration (the column is free TEXT). */
-export type QuarantineReason = "over-refund" | "bad-amount" | "currency-mismatch" | "unmatched" | (string & {});
+export type LedgerQuarantineReason = "over-refund" | "bad-amount" | "currency-mismatch" | "unmatched" | (string & {});
 
 export interface PaymentRecord {
   readonly id: string;
@@ -363,7 +363,7 @@ export interface OutboxRecord {
   readonly id: string;
   readonly workspaceId: string;
   readonly mode: PaymentMode;
-  readonly topic: OutboxTopic;
+  readonly topic: LedgerOutboxTopic;
   readonly aggregateId: string;
   readonly payloadJson: string;
   readonly createdAt: number;
@@ -378,7 +378,7 @@ export interface QuarantineRecord {
   readonly mode: PaymentMode;
   readonly paymentId: string | null;
   readonly subject: EvidenceSubject | (string & {});
-  readonly reason: QuarantineReason;
+  readonly reason: LedgerQuarantineReason;
   readonly evidenceJson: string;
   readonly createdAt: number;
   readonly resolvedAt: number | null;
@@ -591,7 +591,7 @@ export function outboxFromRow(row: Selectable<OutboxTable>, _optional: Record<st
     id: row.id,
     workspaceId: row.workspace_id,
     mode: row.mode as PaymentMode,
-    topic: row.topic as OutboxTopic,
+    topic: row.topic as LedgerOutboxTopic,
     aggregateId: row.aggregate_id,
     payloadJson: row.payload_json,
     createdAt: decodeMinor(row.created_at),

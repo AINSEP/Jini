@@ -1,4 +1,4 @@
-import { type CreateTableBuilder, sql } from "kysely";
+import { type ColumnDefinitionBuilder, type CreateTableBuilder, sql } from "kysely";
 import type { MigrationStep } from "@jini-ai/db/migrate";
 import type { StorageKernel } from "@jini-ai/db/kernel";
 
@@ -153,12 +153,19 @@ const INDEXES: readonly (readonly [name: string, table: string, columns: readonl
   ["commerce_quarantine_scope", "commerce_quarantine", ["workspace_id", "mode", "created_at"]],
 ];
 
+/** NOT NULL unless the column is the primary key or marked nullable. */
+const COLUMN: Readonly<Record<"pk" | "null" | "required", (column: ColumnDefinitionBuilder) => ColumnDefinitionBuilder>> = {
+  pk: (column) => column.primaryKey(),
+  null: (column) => column,
+  required: (column) => column.notNull(),
+};
+
 async function createTable(kernel: StorageKernel<unknown>, spec: TableSpec): Promise<void> {
   await kernel.run((db) => {
     // Columns are added in a loop, so Kysely cannot track their names: widen the builder to `string`.
     let builder = db.schema.createTable(spec.name) as unknown as CreateTableBuilder<string, string>;
     for (const [name, type, flag] of spec.columns) {
-      builder = builder.addColumn(name, type, (column) => (flag === "pk" ? column.primaryKey() : flag === "null" ? column : column.notNull()));
+      builder = builder.addColumn(name, type, COLUMN[flag ?? "required"]);
     }
     for (const [name, columns] of spec.uniques) builder = builder.addUniqueConstraint(name, [...columns]);
     for (const [name, expression] of spec.checks) builder = builder.addCheckConstraint(name, sql.raw(expression));

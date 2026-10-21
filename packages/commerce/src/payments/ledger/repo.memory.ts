@@ -75,6 +75,10 @@ function defined<P extends object>(patch: P): Partial<P> {
   return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) as Partial<P>;
 }
 
+/** The inbox's dedupe key: one provider event per workspace + mode + provider account. */
+const inboxEventKey = (r: Pick<InboxRecord, "workspaceId" | "mode" | "providerId" | "providerAccountId" | "providerEventId">) =>
+  key(r.workspaceId, r.mode, r.providerId, r.providerAccountId, r.providerEventId);
+
 const inScope = (scope: LedgerKeyScope) => (row: { workspaceId: string; mode: string }) =>
   row.workspaceId === scope.workspaceId && row.mode === scope.mode;
 const ofPayment = (paymentId: string) => (row: { paymentId: string | null }) => row.paymentId === paymentId;
@@ -93,9 +97,7 @@ class MemoryLedgerTables {
     (r) => key(r.workspaceId, r.mode, r.providerId, r.providerAccountId, r.providerDisputeRef),
   ], (r) => r.paymentId);
   readonly evidence = new MemoryTable<EvidenceRecord>(LEDGER_TABLES.evidence, [], (r) => r.paymentId);
-  readonly inbox = new MemoryTable<InboxRecord>(LEDGER_TABLES.inbox, [
-    (r) => key(r.workspaceId, r.mode, r.providerId, r.providerAccountId, r.providerEventId),
-  ]);
+  readonly inbox = new MemoryTable<InboxRecord>(LEDGER_TABLES.inbox, [inboxEventKey]);
   readonly outbox = new MemoryTable<OutboxRecord>(LEDGER_TABLES.outbox, []);
   readonly quarantine = new MemoryTable<QuarantineRecord>(LEDGER_TABLES.quarantine, []);
 
@@ -231,10 +233,8 @@ class MemoryLedgerTx implements LedgerTx {
   // Webhook inbox -------------------------------------------------------------------------------
 
   async insertInbox({ entry }: { entry: NewInbox }): Promise<{ inserted: boolean; id: string }> {
-    const existing = this.t.inbox.find(
-      (r) => r.workspaceId === entry.workspaceId && r.mode === entry.mode && r.providerId === entry.providerId &&
-        r.providerAccountId === entry.providerAccountId && r.providerEventId === entry.providerEventId
-    );
+    const eventKey = inboxEventKey(entry);
+    const existing = this.t.inbox.find((r) => inboxEventKey(r) === eventKey);
     if (existing !== null) return { inserted: false, id: existing.id };
     this.t.inbox.insert({ ...entry, state: "received", attempts: 0, lastError: null, appliedAt: null, purgedAt: null }, this.t.payments.rows);
     return { inserted: true, id: entry.id };

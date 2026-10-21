@@ -21,7 +21,8 @@
       "./http": "node",
       "./react": "browser",
       "./tools": "universal",
-      "./payments/kernel": "node"
+      "./payments/kernel": "node",
+      "./payments/ledger/sql": "node"
     }
   },
   "type": "module",
@@ -71,6 +72,11 @@
       "types": "./dist/tools.d.ts",
       "import": "./dist/tools.js",
       "default": "./dist/tools.js"
+    },
+    "./payments/ledger/sql": {
+      "types": "./dist/payments/ledger/sql.d.ts",
+      "import": "./dist/payments/ledger/sql.js",
+      "default": "./dist/payments/ledger/sql.js"
     }
   },
   "files": [
