@@ -30,7 +30,7 @@ const ARG_SPEC = {
 };
 
 export function parseArgs(argv) {
-  return parseCliArgs(argv, ARG_SPEC);
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
 export function safeFixtureName(url, contentType) {
@@ -140,16 +140,16 @@ async function capture(args, deps) {
  * CLI entry: capture requests and xhr/fetch fixtures into `<label>-network.json`.
  * @returns {Promise<number>} exit code (0 ok, 1 usage error or failure).
  */
-export async function main(argv, deps = {}) {
+export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
-  return runCli("network-capture", () => {
+  return runCli({ label: "network-capture", body: () => {
     const args = parseArgs(argv);
     if (args.help || !args.url) {
       usage(io.log);
       return args.help ? 0 : 1;
     }
     return capture(args, io);
-  }, io.error);
+  }, report: io.error });
 }
 
-await runIfMain(import.meta.url, main);
+await runIfMain({ moduleUrl: import.meta.url, main });

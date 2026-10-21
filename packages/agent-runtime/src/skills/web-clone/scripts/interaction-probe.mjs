@@ -41,7 +41,7 @@ const ARG_SPEC = {
 };
 
 export function parseArgs(argv) {
-  return parseCliArgs(argv, ARG_SPEC);
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
 export function shortHash(value) {
@@ -335,16 +335,16 @@ async function probe(args, deps) {
  * CLI entry: parse `argv`, probe the page, write `<label>-interactions.{json,md}`.
  * @returns {Promise<number>} exit code (0 ok, 1 usage error or failure).
  */
-export async function main(argv, deps = {}) {
+export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
-  return runCli("interaction-probe", () => {
+  return runCli({ label: "interaction-probe", body: () => {
     const args = parseArgs(argv);
     if (args.help || !args.url) {
       usage(io.log);
       return args.help ? 0 : 1;
     }
     return probe(args, io);
-  }, io.error);
+  }, report: io.error });
 }
 
-await runIfMain(import.meta.url, main);
+await runIfMain({ moduleUrl: import.meta.url, main });

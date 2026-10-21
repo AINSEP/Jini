@@ -43,7 +43,7 @@ const ARG_SPEC = {
 };
 
 export function parseArgs(argv) {
-  return parseCliArgs(argv, ARG_SPEC);
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
 /** Canonical http(s) URL (no hash, sorted query, no trailing slash), or "". */
@@ -248,16 +248,16 @@ async function crawlSite(args, deps) {
  * CLI entry: crawl same-site routes and write `<label>-route-map.{json,md}`.
  * @returns {Promise<number>} exit code (0 ok, 1 usage error or failure).
  */
-export async function main(argv, deps = {}) {
+export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
-  return runCli("route-crawl", () => {
+  return runCli({ label: "route-crawl", body: () => {
     const args = parseArgs(argv);
     if (args.help || !args.url) {
       usage(io.log);
       return args.help ? 0 : 1;
     }
     return crawlSite(args, io);
-  }, io.error);
+  }, report: io.error });
 }
 
-await runIfMain(import.meta.url, main);
+await runIfMain({ moduleUrl: import.meta.url, main });

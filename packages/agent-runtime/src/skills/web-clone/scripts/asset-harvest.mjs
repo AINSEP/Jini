@@ -75,7 +75,7 @@ const ARG_SPEC = {
 };
 
 export function parseArgs(argv) {
-  return parseCliArgs(argv, ARG_SPEC);
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
 const FONT_EXT = /\.(woff2?|ttf|otf|eot)(?:$|[?#])/i;

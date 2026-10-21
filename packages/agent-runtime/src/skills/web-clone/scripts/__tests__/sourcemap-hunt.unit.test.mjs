@@ -61,9 +61,9 @@ describe("argument parsing and helpers", () => {
 describe("main", () => {
   it("prints usage: exit 0 for --help, 1 without --recon, 1 on a bad flag", async () => {
     const out = createOutput();
-    expect(await main(["--help"], out)).toBe(0);
-    expect(await main([], out)).toBe(1);
-    expect(await main(["--x"], out)).toBe(1);
+    expect(await main({ argv: ["--help"] }, out)).toBe(0);
+    expect(await main({ argv: [] }, out)).toBe(1);
+    expect(await main({ argv: ["--x"] }, out)).toBe(1);
     expect(out.logs[0]).toContain("node scripts/sourcemap-hunt.mjs --recon original-recon.json");
     expect(out.errors).toEqual(["sourcemap-hunt failed: Unexpected argument: --x"]);
   });
@@ -91,7 +91,7 @@ describe("main", () => {
     });
     const outDir = path.join(dir, "maps");
     const out = createOutput();
-    expect(await main(["--recon", reconFile, "--out", outDir], { ...out, fetch: fetchImpl })).toBe(0);
+    expect(await main({ argv: ["--recon", reconFile, "--out", outDir] }, { ...out, fetch: fetchImpl })).toBe(0);
 
     const manifestFile = path.join(outDir, "sourcemap-manifest.json");
     expect(out.logs).toEqual([manifestFile]);
@@ -113,18 +113,18 @@ describe("main", () => {
     fs.writeFileSync(reconFile, JSON.stringify({ captures: [{ signals: { scripts: ["https://cdn.test/lib.js"] } }] }));
     const out = createOutput();
     const fetchImpl = fakeFetch({ "https://cdn.test/lib.js": "a()", "https://cdn.test/lib.js.map": "{}" });
-    expect(await main(["--recon", reconFile, "--out", dir, "--all-external"], { ...out, fetch: fetchImpl })).toBe(0);
+    expect(await main({ argv: ["--recon", reconFile, "--out", dir, "--all-external"] }, { ...out, fetch: fetchImpl })).toBe(0);
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, "sourcemap-manifest.json"), "utf8"));
     expect(manifest).toMatchObject({ allExternal: true, scriptCount: 1, mapCount: 1 });
 
     const none = createOutput();
-    expect(await main(["--recon", reconFile, "--out", dir], { ...none, fetch: fetchImpl })).toBe(0);
+    expect(await main({ argv: ["--recon", reconFile, "--out", dir] }, { ...none, fetch: fetchImpl })).toBe(0);
     expect(JSON.parse(fs.readFileSync(path.join(dir, "sourcemap-manifest.json"), "utf8")).scriptCount).toBe(0);
   });
 
   it("fails with exit 1 when the recon file cannot be read", async () => {
     const out = createOutput();
-    expect(await main(["--recon", path.join(tempDir(), "nope.json")], out)).toBe(1);
+    expect(await main({ argv: ["--recon", path.join(tempDir(), "nope.json")] }, out)).toBe(1);
     expect(out.errors[0]).toMatch(/^sourcemap-hunt failed: ENOENT/);
   });
 });

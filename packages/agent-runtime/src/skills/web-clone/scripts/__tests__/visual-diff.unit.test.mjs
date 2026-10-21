@@ -126,9 +126,9 @@ describe("compareInBrowser", () => {
 describe("main", () => {
   it("prints usage: exit 0 for --help, 1 when an image is missing, 1 on a bad flag", async () => {
     const out = createOutput();
-    expect(await main(["--help"], out)).toBe(0);
-    expect(await main(["--original", "a.png"], out)).toBe(1);
-    expect(await main(["--x"], out)).toBe(1);
+    expect(await main({ argv: ["--help"] }, out)).toBe(0);
+    expect(await main({ argv: ["--original", "a.png"] }, out)).toBe(1);
+    expect(await main({ argv: ["--x"] }, out)).toBe(1);
     expect(out.logs[0]).toContain("node scripts/visual-diff.mjs --original <png> --clone <png>");
     expect(out.errors).toEqual(["visual-diff failed: Unexpected argument: --x"]);
   });
@@ -145,7 +145,7 @@ describe("main", () => {
     const diffFile = path.join(dir, "diffs", "diff.png");
     const out = createOutput();
 
-    expect(await main(["--original", originalFile, "--clone", cloneFile, "--out", outFile, "--diff", diffFile], { ...out, ...playwrightPorts(browser) })).toBe(0);
+    expect(await main({ argv: ["--original", originalFile, "--clone", cloneFile, "--out", outFile, "--diff", diffFile] }, { ...out, ...playwrightPorts(browser) })).toBe(0);
 
     expect(out.logs).toEqual([outFile]);
     const result = JSON.parse(fs.readFileSync(outFile, "utf8"));
@@ -162,20 +162,20 @@ describe("main", () => {
     const browser = createFakeBrowser(() => createFakePage({ env: diffEnv({ [imageDataUrl(a)]: original }) }));
     const outFile = path.join(dir, "same.json");
     const out = createOutput();
-    expect(await main(["--original", a, "--clone", a, "--out", outFile], { ...out, ...playwrightPorts(browser) })).toBe(0);
+    expect(await main({ argv: ["--original", a, "--clone", a, "--out", outFile] }, { ...out, ...playwrightPorts(browser) })).toBe(0);
     const result = JSON.parse(fs.readFileSync(outFile, "utf8"));
     expect(result).toMatchObject({ changedPixels: 0, visualScore: 5, files: { diff: "" } });
     expect(fs.readdirSync(dir).sort()).toEqual(["a.png", "same.json"]);
 
     const broken = createFakeBrowser(() => createFakePage({ env: diffEnv({}) }));
-    expect(await main(["--original", a, "--clone", a, "--out", outFile], { ...out, ...playwrightPorts(broken) })).toBe(1);
+    expect(await main({ argv: ["--original", a, "--clone", a, "--out", outFile] }, { ...out, ...playwrightPorts(broken) })).toBe(1);
     expect(out.errors).toEqual([`visual-diff failed: Failed to load image: ${imageDataUrl(a).slice(0, 80)}`]);
   });
 
   it("fails with exit 1 when a screenshot file is missing", async () => {
     const out = createOutput();
     const browser = createFakeBrowser(() => createFakePage({ env: diffEnv({}) }));
-    expect(await main(["--original", path.join(tempDir(), "no.png"), "--clone", "x.png"], { ...out, ...playwrightPorts(browser) })).toBe(1);
+    expect(await main({ argv: ["--original", path.join(tempDir(), "no.png"), "--clone", "x.png"] }, { ...out, ...playwrightPorts(browser) })).toBe(1);
     expect(out.errors[0]).toMatch(/^visual-diff failed: ENOENT/);
   });
 });

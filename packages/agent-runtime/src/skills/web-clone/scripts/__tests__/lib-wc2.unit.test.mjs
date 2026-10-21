@@ -20,23 +20,23 @@ describe("parseCliArgs", () => {
   };
 
   it("overlays parsed values on a copy of the defaults", () => {
-    const parsed = parseCliArgs(["--url", "u", "--wait", "1.5", "--steps", "12px", "--quiet", "-h"], spec);
+    const parsed = parseCliArgs({ argv: ["--url", "u", "--wait", "1.5", "--steps", "12px", "--quiet", "-h"], ...spec });
     expect(parsed).toEqual({ url: "u", wait: 1.5, steps: 12, quiet: true, help: true });
     expect(spec.defaults).toEqual({ url: "", wait: 5, steps: 7, quiet: false });
   });
 
   it("uses each option's fallback when the value is missing or empty", () => {
-    expect(parseCliArgs(["--url", "", "--steps"], spec)).toMatchObject({ url: "none", steps: 7 });
-    expect(parseCliArgs(["--wait"], spec).wait).toBe(5);
+    expect(parseCliArgs({ argv: ["--url", "", "--steps"], ...spec })).toMatchObject({ url: "none", steps: 7 });
+    expect(parseCliArgs({ argv: ["--wait"], ...spec }).wait).toBe(5);
   });
 
   it("throws on unknown arguments in strict mode, including prototype keys", () => {
-    expect(() => parseCliArgs(["--nope"], spec)).toThrow("Unexpected argument: --nope");
-    expect(() => parseCliArgs(["constructor"], spec)).toThrow("Unexpected argument: constructor");
+    expect(() => parseCliArgs({ argv: ["--nope"], ...spec })).toThrow("Unexpected argument: --nope");
+    expect(() => parseCliArgs({ argv: ["constructor"], ...spec })).toThrow("Unexpected argument: constructor");
   });
 
   it("skips unknown arguments without consuming a value in non-strict mode", () => {
-    expect(parseCliArgs(["--extra", "--url", "u"], { ...spec, strict: false })).toMatchObject({ url: "u" });
+    expect(parseCliArgs({ argv: ["--extra", "--url", "u"], ...spec }, { strict: false })).toMatchObject({ url: "u" });
   });
 });
 
@@ -48,9 +48,9 @@ describe("main guard", () => {
     fs.writeFileSync(real, "");
     fs.symlinkSync(real, link);
     const url = pathToFileURL(fs.realpathSync(real)).href;
-    expect(isMainModule(url, link)).toBe(true);
-    expect(isMainModule(url, path.join(dir, "other.mjs"))).toBe(false);
-    expect(isMainModule(url, undefined)).toBe(false);
+    expect(isMainModule({ moduleUrl: url, argv1: link })).toBe(true);
+    expect(isMainModule({ moduleUrl: url, argv1: path.join(dir, "other.mjs") })).toBe(false);
+    expect(isMainModule({ moduleUrl: url, argv1: undefined })).toBe(false);
   });
 
   it("isMainModule compares the path as given when it cannot be resolved", () => {
@@ -58,43 +58,43 @@ describe("main guard", () => {
     const failing = () => {
       throw new Error("ENOENT");
     };
-    expect(isMainModule(pathToFileURL(missing).href, missing, failing)).toBe(true);
+    expect(isMainModule({ moduleUrl: pathToFileURL(missing).href, argv1: missing }, { realpath: failing })).toBe(true);
   });
 
   it("runIfMain runs main with the trailing argv and hands its code to onExit", async () => {
     const exits = [];
     const seen = [];
-    const main = async (argv) => {
+    const main = async ({ argv }) => {
       seen.push(argv);
       return 3;
     };
     const url = "file:///scripts/x.mjs";
     const realpath = (p) => p;
-    expect(await runIfMain(url, main, { argv: ["node", "/scripts/x.mjs", "--a"], realpath, onExit: (c) => exits.push(c) })).toBe(true);
-    expect(await runIfMain(url, main, { argv: ["node", "/scripts/y.mjs"], realpath, onExit: (c) => exits.push(c) })).toBe(false);
+    expect(await runIfMain({ moduleUrl: url, main }, { argv: ["node", "/scripts/x.mjs", "--a"], realpath, onExit: ({ code }) => exits.push(code) })).toBe(true);
+    expect(await runIfMain({ moduleUrl: url, main }, { argv: ["node", "/scripts/y.mjs"], realpath, onExit: ({ code }) => exits.push(code) })).toBe(false);
     expect(seen).toEqual([["--a"]]);
     expect(exits).toEqual([3]);
   });
 
   it("runIfMain defaults to process.argv, which is not this module under the test runner", async () => {
-    expect(await runIfMain("file:///not-the-entry.mjs", async () => 0)).toBe(false);
+    expect(await runIfMain({ moduleUrl: "file:///not-the-entry.mjs", main: async () => 0 })).toBe(false);
   });
 
   it("exitOnFailure exits only for a non-zero code", () => {
     const exits = [];
     const proc = { exit: (code) => exits.push(code) };
-    exitOnFailure(0, proc);
-    exitOnFailure(2, proc);
+    exitOnFailure({ code: 0 }, { proc });
+    exitOnFailure({ code: 2 }, { proc });
     expect(exits).toEqual([2]);
   });
 
   it("runCli returns the body's code, or reports the error and returns 1", async () => {
     const reports = [];
-    expect(await runCli("tool", async () => 0, (m) => reports.push(m))).toBe(0);
+    expect(await runCli({ label: "tool", body: async () => 0, report: (m) => reports.push(m) })).toBe(0);
     expect(
-      await runCli("tool", () => {
+      await runCli({ label: "tool", body: () => {
         throw new Error("boom");
-      }, (m) => reports.push(m)),
+      }, report: (m) => reports.push(m) }),
     ).toBe(1);
     expect(reports).toEqual(["tool failed: boom"]);
   });

@@ -29,7 +29,7 @@ const ARG_SPEC = {
 };
 
 export function parseArgs(argv) {
-  return parseCliArgs(argv, ARG_SPEC);
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
 export function imageDataUrl(file, fsPort = fs) {
@@ -169,16 +169,16 @@ async function visualDiff(args, deps) {
  * CLI entry: compare two screenshots, write metrics JSON (+ optional diff PNG).
  * @returns {Promise<number>} exit code (0 ok, 1 usage error or failure).
  */
-export async function main(argv, deps = {}) {
+export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
-  return runCli("visual-diff", () => {
+  return runCli({ label: "visual-diff", body: () => {
     const args = parseArgs(argv);
     if (args.help || !args.original || !args.clone) {
       usage(io.log);
       return args.help ? 0 : 1;
     }
     return visualDiff(args, io);
-  }, io.error);
+  }, report: io.error });
 }
 
-await runIfMain(import.meta.url, main);
+await runIfMain({ moduleUrl: import.meta.url, main });

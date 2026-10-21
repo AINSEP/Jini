@@ -35,7 +35,7 @@ const ARG_SPEC = {
 };
 
 export function parseArgs(argv) {
-  return parseCliArgs(argv, ARG_SPEC);
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
 // ---- Fidelity gates (fonts / images / palette vs. the original recon) ------

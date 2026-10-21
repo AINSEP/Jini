@@ -6,16 +6,17 @@
 /**
  * Parse `argv` against an option table.
  *
- * @param {string[]} argv - arguments after `node <script>`.
- * @param {{ defaults: object, options: Record<string, { key: string, flag?: boolean, parse?: (raw: string | undefined) => unknown }>, strict?: boolean }} spec
- *   `flag` options set `key` to true without consuming a value; value options
- *   consume the next argv entry (possibly `undefined`) and store `parse(raw)`.
+ * @param {{ argv: string[], defaults: object, options: Record<string, { key: string, flag?: boolean, parse?: (raw: string | undefined) => unknown }> }} required
+ *   `argv` is the arguments after `node <script>`. `flag` options set `key` to
+ *   true without consuming a value; value options consume the next argv entry
+ *   (possibly `undefined`) and store `parse(raw)`.
+ * @param {{ strict?: boolean }} [optional]
  *   `strict` (default true) throws on an unknown argument; non-strict
  *   silently skips it, matching scripts that historically ignored extras.
  * @returns {object} a fresh object: `defaults` overlaid with parsed values.
  * @throws {Error} `Unexpected argument: <arg>` in strict mode.
  */
-export function parseCliArgs(argv, { defaults, options, strict = true }) {
+export function parseCliArgs({ argv, defaults, options }, { strict = true } = {}) {
   const out = { ...defaults };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];

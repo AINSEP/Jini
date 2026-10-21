@@ -157,16 +157,16 @@ describe("summarizeMarkdown", () => {
 describe("main", () => {
   it("prints usage: exit 0 for --help, 1 without --url, 1 on a bad flag", async () => {
     const out = createOutput();
-    expect(await main(["--help"], out)).toBe(0);
-    expect(await main([], out)).toBe(1);
-    expect(await main(["--x"], out)).toBe(1);
+    expect(await main({ argv: ["--help"] }, out)).toBe(0);
+    expect(await main({ argv: [] }, out)).toBe(1);
+    expect(await main({ argv: ["--x"] }, out)).toBe(1);
     expect(out.logs[0]).toContain("node scripts/route-crawl.mjs --url <url>");
     expect(out.errors).toEqual(["route-crawl failed: Unexpected argument: --x"]);
   });
 
   it("rejects a non-http start URL", async () => {
     const out = createOutput();
-    expect(await main(["--url", "ftp://s.test/"], out)).toBe(1);
+    expect(await main({ argv: ["--url", "ftp://s.test/"] }, out)).toBe(1);
     expect(out.errors).toEqual(["route-crawl failed: Invalid URL: ftp://s.test/"]);
   });
 
@@ -175,7 +175,7 @@ describe("main", () => {
     const out = createOutput();
     const page = sitePage({ failOn: "https://s.test/blog?a=1&b=2", nullResponseOn: "https://s.test/about" });
     const browser = createFakeBrowser(() => page);
-    const code = await main(["--url", "https://s.test/", "--out", outDir, "--label", "orig", "--max-depth", "1", "--wait", "3", "--width", "1024"], {
+    const code = await main({ argv: ["--url", "https://s.test/", "--out", outDir, "--label", "orig", "--max-depth", "1", "--wait", "3", "--width", "1024"] }, {
       ...out,
       ...playwrightPorts(browser),
       now: () => new Date("2026-07-08T09:10:11Z"),
@@ -211,7 +211,7 @@ describe("main", () => {
     const out = createOutput();
     const page = sitePage();
     const before = Date.now();
-    const code = await main(["--url", "https://s.test", "--out", outDir, "--allow-subdomains", "--max-pages", "4", "--wait", "0"], { ...out, ...playwrightPorts(createFakeBrowser(() => page)) });
+    const code = await main({ argv: ["--url", "https://s.test", "--out", outDir, "--allow-subdomains", "--max-pages", "4", "--wait", "0"] }, { ...out, ...playwrightPorts(createFakeBrowser(() => page)) });
     expect(code).toBe(0);
     const result = JSON.parse(fs.readFileSync(path.join(outDir, "site-route-map.json"), "utf8"));
     expect(result.routes.map((r) => r.url)).toEqual(["https://s.test", "https://s.test/about", "https://s.test/blog?a=1&b=2", "https://sub.s.test"]);

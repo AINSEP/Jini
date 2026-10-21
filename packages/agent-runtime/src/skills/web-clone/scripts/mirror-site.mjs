@@ -24,7 +24,6 @@ const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, war
 
 // 未知参数被静默忽略(与原脚本行为一致)，所以 strict: false。
 const ARG_SPEC = {
-  strict: false,
   defaults: { url: "", out: "", scrollStep: 700, settle: 2500, maxMs: 90000, help: false },
   options: {
     ...HELP_OPTIONS,
@@ -37,7 +36,7 @@ const ARG_SPEC = {
 };
 
 export function parseArgs(argv) {
-  return parseCliArgs(argv, ARG_SPEC);
+  return parseCliArgs({ argv, ...ARG_SPEC }, { strict: false });
 }
 
 export function usage(log = console.log) {
@@ -157,7 +156,7 @@ async function mirror(args, deps) {
  * original script let it crash with a stack trace and exit 1).
  * @returns {Promise<number>} 0 ok, 1 usage error.
  */
-export async function main(argv, deps = {}) {
+export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
   const args = parseArgs(argv);
   if (args.help || !args.url || !args.out) {
@@ -168,4 +167,4 @@ export async function main(argv, deps = {}) {
   return 0;
 }
 
-await runIfMain(import.meta.url, main);
+await runIfMain({ moduleUrl: import.meta.url, main });

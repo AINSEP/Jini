@@ -39,7 +39,7 @@ const ARG_SPEC = {
 };
 
 export function parseArgs(argv) {
-  return parseCliArgs(argv, ARG_SPEC);
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
 export function summarizeFlags(signals) {
@@ -413,16 +413,16 @@ async function recon(args, deps) {
  * CLI entry: recon each viewport width, write `<label>-recon.json` + summary.
  * @returns {Promise<number>} exit code (0 ok, 1 usage error or failure).
  */
-export async function main(argv, deps = {}) {
+export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
-  return runCli("recon-site", () => {
+  return runCli({ label: "recon-site", body: () => {
     const args = parseArgs(argv);
     if (args.help || !args.url) {
       usage(io.log);
       return args.help ? 0 : 1;
     }
     return recon(args, io);
-  }, io.error);
+  }, report: io.error });
 }
 
-await runIfMain(import.meta.url, main);
+await runIfMain({ moduleUrl: import.meta.url, main });

@@ -290,15 +290,15 @@ describe("page actions", () => {
 describe("main", () => {
   it("prints usage and exits 0 for --help, 1 when --url is missing", async () => {
     const out = createOutput();
-    expect(await main(["--help"], out)).toBe(0);
-    expect(await main([], out)).toBe(1);
+    expect(await main({ argv: ["--help"] }, out)).toBe(0);
+    expect(await main({ argv: [] }, out)).toBe(1);
     expect(out.logs).toHaveLength(2);
     expect(out.logs[0]).toContain("node scripts/interaction-probe.mjs --url <url>");
   });
 
   it("reports a parse failure as exit 1", async () => {
     const out = createOutput();
-    expect(await main(["--bogus"], out)).toBe(1);
+    expect(await main({ argv: ["--bogus"] }, out)).toBe(1);
     expect(out.errors).toEqual(["interaction-probe failed: Unexpected argument: --bogus"]);
   });
 
@@ -317,7 +317,7 @@ describe("main", () => {
       return createFakePage({ env: siteEnv(state), hooks });
     });
     const code = await main(
-      ["--url", "https://example.test/", "--out", outDir, "--label", "orig", "--max-hovers", "1", "--max-clicks", "2", "--wait", "0"],
+      { argv: ["--url", "https://example.test/", "--out", outDir, "--label", "orig", "--max-hovers", "1", "--max-clicks", "2", "--wait", "0"] },
       { ...out, ...playwrightPorts(browser), now: () => new Date("2026-01-02T03:04:05Z") },
     );
     expect(code).toBe(0);
@@ -347,13 +347,13 @@ describe("main", () => {
     const ok = createFakeBrowser(() => createFakePage({ env: browserEnv({ document: fakeDocument({ html: { outerHTML: "<html></html>" } }) }) }));
     const outDir = tempDir();
     const before = Date.now();
-    expect(await main(["--url", "https://example.test/", "--out", outDir, "--wait", "0"], { ...out, ...playwrightPorts(ok) })).toBe(0);
+    expect(await main({ argv: ["--url", "https://example.test/", "--out", outDir, "--wait", "0"] }, { ...out, ...playwrightPorts(ok) })).toBe(0);
     const result = JSON.parse(fs.readFileSync(path.join(outDir, "site-interactions.json"), "utf8"));
     expect(Date.parse(result.capturedAt)).toBeGreaterThanOrEqual(before - 1000);
     expect(result.actions).toHaveLength(2);
 
     const failing = createFakeBrowser(() => createFakePage({ gotoError: new Error("net::ERR_NAME_NOT_RESOLVED") }));
-    expect(await main(["--url", "https://nope.test/", "--out", outDir], { ...out, ...playwrightPorts(failing) })).toBe(1);
+    expect(await main({ argv: ["--url", "https://nope.test/", "--out", outDir] }, { ...out, ...playwrightPorts(failing) })).toBe(1);
     expect(out.errors).toEqual(["interaction-probe failed: net::ERR_NAME_NOT_RESOLVED"]);
   });
 });

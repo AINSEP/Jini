@@ -90,8 +90,8 @@ describe("argument parsing and pure helpers", () => {
 describe("main", () => {
   it("prints usage: exit 0 for --help, 1 when --url or --out is missing", async () => {
     const out = createOutput();
-    expect(await main(["--help"], out)).toBe(0);
-    expect(await main(["--url", "https://s.test"], out)).toBe(1);
+    expect(await main({ argv: ["--help"] }, out)).toBe(0);
+    expect(await main({ argv: ["--url", "https://s.test"] }, out)).toBe(1);
     expect(out.logs[0]).toContain("node scripts/mirror-site.mjs --url <URL> --out <dir>");
   });
 
@@ -121,7 +121,7 @@ describe("main", () => {
       "https://s.test/boom.bin": new Error("socket hang up"),
     });
 
-    expect(await main(["--url", "https://s.test/", "--out", outDir, "--scroll-step", "700", "--settle", "10"], { ...out, ...playwrightPorts(browser) })).toBe(0);
+    expect(await main({ argv: ["--url", "https://s.test/", "--out", outDir, "--scroll-step", "700", "--settle", "10"] }, { ...out, ...playwrightPorts(browser) })).toBe(0);
 
     const site = path.join(outDir, "site");
     expect(fs.readFileSync(path.join(site, "index.html"), "utf8")).toBe("<html>home</html>");
@@ -156,13 +156,13 @@ describe("main", () => {
     const out = createOutput();
     const { page } = pageEmitting([fakeResponse({ url: "https://s.test/" })], { scrollHeight: 0 });
     const browser = mirrorBrowser(page, { "https://s.test/": { status: 200, body: "ok" } });
-    expect(await main(["--url", "https://s.test/", "--out", outDir], { ...out, ...playwrightPorts(browser) })).toBe(0);
+    expect(await main({ argv: ["--url", "https://s.test/", "--out", outDir] }, { ...out, ...playwrightPorts(browser) })).toBe(0);
     expect(out.logs).toContain("▸ 第三方 host: (无)");
     expect(out.logs.some((line) => line.includes("失败:"))).toBe(false);
     expect(out.logs.some((line) => line.includes("webfont"))).toBe(false);
   });
 
   it("lets an invalid --url propagate as a failure", async () => {
-    await expect(main(["--url", "not-a-url", "--out", tempDir()], createOutput())).rejects.toThrow(/Invalid URL/);
+    await expect(main({ argv: ["--url", "not-a-url", "--out", tempDir()] }, createOutput())).rejects.toThrow(/Invalid URL/);
   });
 });

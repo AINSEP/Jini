@@ -19,7 +19,8 @@ file preview and exported zip can render the clone from nested entry files.
 }
 
 export function parseArgs(argv, cwd) {
-  return parseCliArgs(argv, {
+  return parseCliArgs({
+    argv,
     defaults: { project: cwd, help: false },
     options: { ...HELP_OPTIONS, "--project": { key: "project", parse: (raw) => raw || cwd } },
   });
@@ -219,16 +220,16 @@ function rewriteProject(args, deps) {
  * CLI entry: rewrite project-root asset URLs under --project (default cwd).
  * @returns {Promise<number>} exit code (0 ok, 1 failure).
  */
-export async function main(argv, deps = {}) {
+export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
-  return runCli("od-preview-rewrite", () => {
+  return runCli({ label: "od-preview-rewrite", body: () => {
     const args = parseArgs(argv, io.cwd());
     if (args.help) {
       usage(io.log);
       return 0;
     }
     return rewriteProject(args, io);
-  }, io.error);
+  }, report: io.error });
 }
 
-await runIfMain(import.meta.url, main);
+await runIfMain({ moduleUrl: import.meta.url, main });

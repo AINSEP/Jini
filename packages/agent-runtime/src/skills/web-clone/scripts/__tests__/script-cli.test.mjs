@@ -61,20 +61,20 @@ describe("parseCliArgs", () => {
   };
 
   it("applies value readers, switches and the onOther policy in argv order", () => {
-    expect(parseCliArgs(["x", "--name", "n", "--on", "--tags", "a, b,,", "y"], spec)).toEqual({
+    expect(parseCliArgs({ argv: ["x", "--name", "n", "--on", "--tags", "a, b,,", "y"], ...spec })).toEqual({
       name: "n", tags: ["a", "b"], on: true, rest: ["x", "y"],
     });
   });
 
   it("consumes the next entry even when it looks like a flag, and falls back on empty values", () => {
-    expect(parseCliArgs(["--name", "--on"], spec)).toEqual({ name: "--on", tags: [], on: false });
-    expect(parseCliArgs(["--name", ""], spec).name).toBe("fallback");
-    expect(parseCliArgs(["--name"], spec).name).toBe("fallback");
-    expect(parseCliArgs(["--tags"], spec).tags).toEqual([]);
+    expect(parseCliArgs({ argv: ["--name", "--on"], ...spec })).toEqual({ name: "--on", tags: [], on: false });
+    expect(parseCliArgs({ argv: ["--name", ""], ...spec }).name).toBe("fallback");
+    expect(parseCliArgs({ argv: ["--name"], ...spec }).name).toBe("fallback");
+    expect(parseCliArgs({ argv: ["--tags"], ...spec }).tags).toEqual([]);
   });
 
   it("does not mutate the defaults and does not treat inherited keys as flags", () => {
-    const out = parseCliArgs(["toString"], spec);
+    const out = parseCliArgs({ argv: ["toString"], ...spec });
     expect(out.rest).toEqual(["toString"]);
     expect(spec.defaults).toEqual({ name: "d", tags: [], on: false });
     expect(text()(undefined)).toBe("");

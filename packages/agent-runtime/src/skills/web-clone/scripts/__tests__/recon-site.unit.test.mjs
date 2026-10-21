@@ -315,9 +315,9 @@ describe("summary", () => {
 describe("main", () => {
   it("prints usage: exit 0 for --help, 1 without --url, 1 on a bad flag", async () => {
     const out = createOutput();
-    expect(await main(["--help"], out)).toBe(0);
-    expect(await main([], out)).toBe(1);
-    expect(await main(["--x"], out)).toBe(1);
+    expect(await main({ argv: ["--help"] }, out)).toBe(0);
+    expect(await main({ argv: [] }, out)).toBe(1);
+    expect(await main({ argv: ["--x"] }, out)).toBe(1);
     expect(out.logs[0]).toContain("node scripts/recon-site.mjs --url <url> --out <RECON dir>");
     expect(out.errors).toEqual(["recon-site failed: Unexpected argument: --x"]);
   });
@@ -339,7 +339,7 @@ describe("main", () => {
         },
       }),
     );
-    const code = await main(["--url", "https://s.test/", "--out", outDir, "--label", "orig", "--widths", "1440,390", "--wait", "5"], {
+    const code = await main({ argv: ["--url", "https://s.test/", "--out", outDir, "--label", "orig", "--widths", "1440,390", "--wait", "5"] }, {
       ...out,
       ...playwrightPorts(browser),
       now: () => new Date("2026-05-06T07:08:09Z"),
@@ -383,13 +383,13 @@ describe("main", () => {
     const out = createOutput();
     const browser = createFakeBrowser(() => createFakePage({ env: sparseEnv() }));
     const before = Date.now();
-    expect(await main(["--url", "https://s.test/", "--out", outDir, "--widths", "800", "--wait", "0"], { ...out, ...playwrightPorts(browser) })).toBe(0);
+    expect(await main({ argv: ["--url", "https://s.test/", "--out", outDir, "--widths", "800", "--wait", "0"] }, { ...out, ...playwrightPorts(browser) })).toBe(0);
     expect(browser.pages[0].calls.filter(([name, ms]) => name === "waitForTimeout" && ms === 0)).toEqual([]);
     const result = JSON.parse(fs.readFileSync(path.join(outDir, "site-recon.json"), "utf8"));
     expect(Date.parse(result.capturedAt)).toBeGreaterThanOrEqual(before - 1000);
 
     const failing = createFakeBrowser(() => createFakePage({ gotoError: new Error("net::ERR_ABORTED") }));
-    expect(await main(["--url", "https://s.test/", "--out", outDir], { ...out, ...playwrightPorts(failing) })).toBe(1);
+    expect(await main({ argv: ["--url", "https://s.test/", "--out", outDir] }, { ...out, ...playwrightPorts(failing) })).toBe(1);
     expect(out.errors).toEqual(["recon-site failed: net::ERR_ABORTED"]);
   });
 });

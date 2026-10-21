@@ -35,9 +35,9 @@ describe("argument parsing and pure helpers", () => {
 describe("main", () => {
   it("prints usage: exit 0 for --help, 1 without --url, 1 on a bad flag", async () => {
     const out = createOutput();
-    expect(await main(["-h"], out)).toBe(0);
-    expect(await main([], out)).toBe(1);
-    expect(await main(["--bogus"], out)).toBe(1);
+    expect(await main({ argv: ["-h"] }, out)).toBe(0);
+    expect(await main({ argv: [] }, out)).toBe(1);
+    expect(await main({ argv: ["--bogus"] }, out)).toBe(1);
     expect(out.logs[0]).toContain("node scripts/network-capture.mjs --url <url>");
     expect(out.errors).toEqual(["network-capture failed: Unexpected argument: --bogus"]);
   });
@@ -64,7 +64,7 @@ describe("main", () => {
       },
     });
     const browser = createFakeBrowser(() => page);
-    const code = await main(["--url", "https://s.test/", "--out", outDir, "--label", "orig", "--wait", "7", "--max-bytes", "10"], {
+    const code = await main({ argv: ["--url", "https://s.test/", "--out", outDir, "--label", "orig", "--wait", "7", "--max-bytes", "10"] }, {
       ...out,
       ...playwrightPorts(browser),
       now: () => new Date("2026-03-04T05:06:07Z"),
@@ -106,7 +106,7 @@ describe("main", () => {
     };
     const page = createFakePage({ hooks: { goto: async (url, p) => p.emit("response", slow) } });
     browser = createFakeBrowser(() => page);
-    expect(await main(["--url", "https://s.test/", "--out", outDir, "--wait", "0"], { ...out, ...playwrightPorts(browser) })).toBe(0);
+    expect(await main({ argv: ["--url", "https://s.test/", "--out", outDir, "--wait", "0"] }, { ...out, ...playwrightPorts(browser) })).toBe(0);
     const manifest = JSON.parse(fs.readFileSync(path.join(outDir, "site-network.json"), "utf8"));
     expect(manifest).toMatchObject({ responseCount: 1, fixtureCount: 1 });
     expect(manifest.responses[0]).toMatchObject({ url: "https://s.test/api/slow", error: "", bytes: 13 });
@@ -119,13 +119,13 @@ describe("main", () => {
     const out = createOutput();
     const page = createFakePage();
     const before = Date.now();
-    expect(await main(["--url", "https://s.test/", "--out", outDir, "--wait", "0"], { ...out, ...playwrightPorts(createFakeBrowser(() => page)) })).toBe(0);
+    expect(await main({ argv: ["--url", "https://s.test/", "--out", outDir, "--wait", "0"] }, { ...out, ...playwrightPorts(createFakeBrowser(() => page)) })).toBe(0);
     expect(page.calls.some(([name]) => name === "waitForTimeout")).toBe(false);
     const manifest = JSON.parse(fs.readFileSync(path.join(outDir, "site-network.json"), "utf8"));
     expect(Date.parse(manifest.capturedAt)).toBeGreaterThanOrEqual(before - 1000);
 
     const failing = createFakeBrowser(() => createFakePage({ gotoError: new Error("net::ERR_FAILED") }));
-    expect(await main(["--url", "https://s.test/", "--out", outDir], { ...out, ...playwrightPorts(failing) })).toBe(1);
+    expect(await main({ argv: ["--url", "https://s.test/", "--out", outDir] }, { ...out, ...playwrightPorts(failing) })).toBe(1);
     expect(out.errors).toEqual(["network-capture failed: net::ERR_FAILED"]);
   });
 });

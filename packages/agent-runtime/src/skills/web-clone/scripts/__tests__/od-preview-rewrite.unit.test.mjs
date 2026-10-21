@@ -73,9 +73,9 @@ describe("helpers", () => {
 describe("main", () => {
   it("prints usage for --help and reports bad arguments as exit 1", async () => {
     const out = createOutput();
-    expect(await main(["--help"], out)).toBe(0);
+    expect(await main({ argv: ["--help"] }, out)).toBe(0);
     expect(out.logs[0]).toContain("node scripts/od-preview-rewrite.mjs [--project <clone-dir>]");
-    expect(await main(["--bogus"], out)).toBe(1);
+    expect(await main({ argv: ["--bogus"] }, out)).toBe(1);
     expect(out.errors).toEqual(["od-preview-rewrite failed: Unexpected argument: --bogus"]);
   });
 
@@ -103,7 +103,7 @@ describe("main", () => {
     write(root, "node_modules/pkg/index.html", '<img src="/assets/logo.png">');
     const out = createOutput();
 
-    expect(await main(["--project", root], out)).toBe(0);
+    expect(await main({ argv: ["--project", root] }, out)).toBe(0);
 
     expect(out.logs.at(-1)).toBe("od-preview-rewrite: 4 file(s) updated");
     expect(out.logs.slice(0, -1).sort()).toEqual(["icon.svg", "index.html", "pages/about/index.html", "styles/site.css"]);
@@ -131,14 +131,14 @@ describe("main", () => {
     const root = makeProject();
     write(root, "index.html", '<img src="/assets/logo.png">');
     const out = createOutput();
-    expect(await main([], { ...out, cwd: () => root })).toBe(0);
-    expect(await main([], { ...out, cwd: () => root })).toBe(0);
+    expect(await main({ argv: [] }, { ...out, cwd: () => root })).toBe(0);
+    expect(await main({ argv: [] }, { ...out, cwd: () => root })).toBe(0);
     expect(out.logs).toEqual(["index.html", "od-preview-rewrite: 1 file(s) updated", "od-preview-rewrite: 0 file(s) updated"]);
   });
 
   it("fails with exit 1 when the project directory does not exist", async () => {
     const out = createOutput();
-    expect(await main(["--project", path.join(tempDir(), "missing")], out)).toBe(1);
+    expect(await main({ argv: ["--project", path.join(tempDir(), "missing")] }, out)).toBe(1);
     expect(out.errors[0]).toMatch(/^od-preview-rewrite failed: ENOENT/);
   });
 });

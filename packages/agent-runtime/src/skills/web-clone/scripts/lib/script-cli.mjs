@@ -63,7 +63,7 @@ export function rejectUnknown(arg) {
 }
 
 /**
- * Table-driven argv parser. `flags` maps an exact argument to either a
+ * Table-driven argv parser over `argv`. `flags` maps an exact argument to either a
  * switch (`flag(key)`) or `{ key, read(raw, out) }`, where `raw` is the next
  * argv entry (consumed even when it is missing or looks like a flag — the
  * historical `argv[++i]` behaviour). Anything else goes to
@@ -71,7 +71,7 @@ export function rejectUnknown(arg) {
  *
  * @complexity O(n) in argv length
  */
-export function parseCliArgs(argv, { defaults, flags, onOther }) {
+export function parseCliArgs({ argv, defaults, flags, onOther }) {
   const out = { ...defaults };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
