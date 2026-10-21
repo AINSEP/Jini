@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "vitest";
-import { createMailDeliveryPolicy, createPolicyMailer, hasOneClickUnsubscribe, laneForPurpose, mailPayloadHash } from "../policy.js";
+import { createMailDeliveryPolicy, createPolicyMailer, hasOneClickUnsubscribe, isMailRateLimited, laneForPurpose, MAIL_RATE_LIMITED, mailPayloadHash } from "../policy.js";
 import type { MailCapturePort, MailDeliveryLane, MailerPort, MailSendLedgerPort, MailSuppressionRepoPort } from "../ports.js";
 import type { MailerSendOptions, MailerSendResult, OutboundEmail } from "../types.js";
 
@@ -58,6 +58,11 @@ describe("helpers", () => {
     assert.equal(hasOneClickUnsubscribe({ headers: BULK_HEADERS }), true);
     assert.equal(hasOneClickUnsubscribe({ headers: { "List-Unsubscribe": "<x>" } }), false);
     assert.equal(hasOneClickUnsubscribe({ headers: undefined }), false);
+  });
+  test("rate limited: the shared code from the local bucket or a provider adapter, nothing else", () => {
+    assert.equal(isMailRateLimited({ result: { ok: false, retryable: true, errorCode: MAIL_RATE_LIMITED, message: "429", retryAfterMs: 1000 } }), true);
+    assert.equal(isMailRateLimited({ result: { ok: false, retryable: true, errorCode: "rate_limit_exceeded", message: "429" } }), false);
+    assert.equal(isMailRateLimited({ result: OK }), false);
   });
   test("payload hash is stable and content-sensitive", () => {
     const withAll = { ...MESSAGE, html: "<p>x</p>", headers: { b: "2", a: "1" }, attachments: [{ filename: "a.txt", contentType: "text/plain", contentBase64: "" }] };

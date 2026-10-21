@@ -8,7 +8,7 @@ export { createMailProviderRegistry, validateMailProvider, initialMailProviderSe
 export type * from "./provider.js";
 export { createMailLaneLimiter } from "./rate-limit.js";
 export type { MailLaneLimiter } from "./rate-limit.js";
-export { createMailDeliveryPolicy, createPolicyMailer, laneForPurpose, hasOneClickUnsubscribe, mailPayloadHash } from "./policy.js";
+export { createMailDeliveryPolicy, createPolicyMailer, laneForPurpose, hasOneClickUnsubscribe, mailPayloadHash, MAIL_RATE_LIMITED, isMailRateLimited } from "./policy.js";
 export type { MailDeliveryPolicy, MailDeliveryPolicyDeps, MailDeliveryPolicyOptions, MailResendPolicy, MailTestMode } from "./policy.js";
 export { createMailFeedbackIngest, suppressionScopeFor } from "./feedback.js";
 export type { MailFeedbackInboxPort, MailFeedbackIngestDeps, MailFeedbackIngestOptions, MailFeedbackResponse } from "./feedback.js";

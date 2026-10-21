@@ -11,6 +11,18 @@ import type { MailCapturePort, MailDeliveryLane, MailerPort, MailSendLedgerPort,
 import type { MailLaneLimiter } from "./rate-limit.js";
 import type { EmailAddress, MailerBatchRequired, MailerOptional, MailerSendOptions, MailerSendResult, MailerSendRequired, OutboundEmail } from "./types.js";
 
+/**
+ * The one throttling code of the mail contract: the local token bucket's refusal and a provider's own
+ * throttling (e.g. an HTTP 429, which adapters normalize to it) are the same retryable back-pressure,
+ * with `retryAfterMs` as the hint. Callers defer such a recipient instead of recording a failure.
+ */
+export const MAIL_RATE_LIMITED = "MAIL_RATE_LIMITED";
+
+/** Whether a send result is the typed rate-limited refusal. @complexity O(1). */
+export function isMailRateLimited({ result }: { result: MailerSendResult }): boolean {
+  return !result.ok && result.errorCode === MAIL_RATE_LIMITED;
+}
+
 /** `never`: login links — the user asks again; `on_unknown`: confirmations may be re-sent once unknown. */
 export type MailResendPolicy = "never" | "on_unknown";
 
@@ -143,7 +155,7 @@ export function createMailDeliveryPolicy(required: MailDeliveryPolicyDeps, optio
       const tested = await applyTestMode({ message, options, lane, nowIso }, optional.testMode ? { testMode: optional.testMode } : {});
       if ("result" in tested) return tested.result;
       const taken = optional.limiter?.tryTake({ lane }) ?? { ok: true as const };
-      if (!taken.ok) return refuse("MAIL_RATE_LIMITED", `${lane} lane is rate limited`, { retryable: true, retryAfterMs: taken.retryAfterMs });
+      if (!taken.ok) return refuse(MAIL_RATE_LIMITED, `${lane} lane is rate limited`, { retryable: true, retryAfterMs: taken.retryAfterMs });
       const key = { workspaceId: options.workspaceId, idempotencyKey: options.idempotencyKey, recipient: message.to.email.trim().toLowerCase() };
       const payloadHash = mailPayloadHash({ message });
       const reclaimUnknown = resendPolicy({ purpose: options.purpose }) === "on_unknown";
