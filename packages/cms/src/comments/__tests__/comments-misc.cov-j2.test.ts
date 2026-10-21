@@ -78,3 +78,20 @@ test("purge of an unknown comment reports not-found and touches neither the Tras
   assert.deepEqual(trash.forgotten, []);
   assert.deepEqual(await outbox.claimPending({ batchSize: 10, nowIso: NOW }), []);
 });
+
+test("InMemoryCommentRepo moderation queue breaks createdAt ties by id, across pages", async () => {
+  const repo = new InMemoryCommentRepo({
+    initialComments: [
+      comment("c-b", { createdAt: "2026-07-16T00:00:00.000Z" }),
+      comment("c-a", { createdAt: "2026-07-16T00:00:00.000Z" }),
+      comment("c-early", { createdAt: "2026-07-15T00:00:00.000Z" }),
+      comment("c-c", { createdAt: "2026-07-16T00:00:00.000Z" }),
+    ],
+  });
+
+  const first = await repo.listModerationQueue({ workspaceId: WS, status: "pending", limit: 2 });
+  assert.deepEqual(first.items.map((c) => c.id), ["c-early", "c-a"]);
+  const second = await repo.listModerationQueue({ workspaceId: WS, status: "pending", limit: 2, cursor: first.nextCursor });
+  assert.deepEqual(second.items.map((c) => c.id), ["c-b", "c-c"]);
+  assert.equal(second.nextCursor, null);
+});
