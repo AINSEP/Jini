@@ -213,10 +213,11 @@ describe("relocate", () => {
     const oldDefault = path.join(root, "Documents", "Product"), unrelated = path.join(root, "unrelated");
     if (legacyExists) fs.mkdirSync(oldDefault, { recursive: true });
     const file = workspace.config({}).configPath; fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify({ siteRoots: [oldDefault, path.join(from, "child"), from, unrelated] }));
+    fs.writeFileSync(file, JSON.stringify({ sitesHome: oldDefault, siteRoots: [oldDefault, path.join(from, "child"), from, unrelated] }));
     workspace.relocate({ from, to, entry: entry(root) });
-    // The old default parent becomes the nested default home only while it is a real legacy home.
-    expect(readJson(file)).toEqual({ siteRoots: [legacyExists ? path.join(oldDefault, "sites") : oldDefault, path.join(to, "child"), to, unrelated] });
+    // The saved old default pointer is nested even while missing; the old default *root* becomes
+    // the nested home only while it is a real (existing) legacy home.
+    expect(readJson(file)).toEqual({ sitesHome: path.join(oldDefault, "sites"), siteRoots: [legacyExists ? path.join(oldDefault, "sites") : oldDefault, path.join(to, "child"), to, unrelated] });
     expect(workspace.registry({}).list({})).toEqual([record("move-id", to)]);
   });
 
@@ -225,6 +226,37 @@ describe("relocate", () => {
     workspace.relocate({ from: path.join(root, "from"), to, entry: entry(root) });
     expect(fs.existsSync(workspace.config({}).configPath)).toBe(false);
     expect(readJson(catalog(workspace))).toMatchObject({ entries: [record("move-id", to)] });
+  });
+
+  it("commits injected path references in the same unit, including a reference that deletes its file", () => {
+    const root = tempRoot(), workspace = nestedWorkspace(root), to = path.join(root, "to");
+    const pointer = path.join(root, "pointer.json"), stale = path.join(root, "stale.json");
+    fs.writeFileSync(pointer, JSON.stringify({ site: path.join(root, "from") })); fs.writeFileSync(stale, "{}");
+    workspace.updateRoots({ add: [path.join(root, "from", "child")] });
+    workspace.relocate({ from: path.join(root, "from"), to, entry: entry(root), references: [
+      { filePath: pointer, transform: () => ({ site: to }) }, { filePath: stale, transform: () => undefined },
+    ] });
+    expect(readJson(pointer)).toEqual({ site: to });
+    expect(fs.existsSync(stale)).toBe(false);
+    expect(readJson(workspace.config({}).configPath)).toEqual({ siteRoots: [path.join(to, "child")] });
+    expect(workspace.registry({}).list({})).toEqual([record("move-id", to)]);
+  });
+
+  it("removes a freshly created catalog again when a later reference write fails", () => {
+    const root = tempRoot(), pointer = path.join(root, "z-pointer.json");
+    fs.writeFileSync(pointer, JSON.stringify({ site: "old" }));
+    // Catalog paths sort before the pointer, so the catalog is written first and must be rolled back.
+    let failures = 0;
+    const ports: DurableJsonPorts = { ...createNodeDurableJsonPorts({}), filesystem: observedFilesystem((method, args) => {
+      if (method === "renameSync" && args[1] === pointer && failures++ === 0) throw errno("EIO");
+      return args;
+    }) };
+    const workspace = nestedWorkspace(root, { ports });
+    expect(() => workspace.relocate({ from: path.join(root, "from"), to: path.join(root, "to"), entry: entry(root), references: [
+      { filePath: pointer, transform: () => ({ site: "new" }) },
+    ] })).toThrow("EIO");
+    expect(fs.existsSync(catalog(workspace))).toBe(false);
+    expect(readJson(pointer)).toEqual({ site: "old" });
   });
 
   it("moves an already-registered source in place rather than duplicating it", () => {
