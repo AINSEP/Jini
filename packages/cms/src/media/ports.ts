@@ -108,6 +108,9 @@ export interface PutBlobInput {
  * workspace-prefixed and sha256-sharded: `ws/{workspaceId}/blobs/{sha256[0..1]}/{sha256}`
  * (see `blob-key.ts`). No per-generation epoch in this build (that machinery
  * belongs to the deferred journaled-GC protocol — see `media-service.ts`).
+ *
+ * Media's content-addressed view over `@jini-ai/core/object-store`: hosts build it with
+ * `blobStoreFromObjectStore({ store })` so the bytes go to any object-store provider.
  */
 export interface BlobStorePort {
   put(input: PutBlobInput): Promise<{ storageKey: string }>;

@@ -9,6 +9,10 @@
  * entry point; the non-production in-memory reference stub
  * (`createInMemoryStorageProvider`) lives under `src/unsafe-reference/`,
  * exported only from `@jini-ai/capability-providers/unsafe-reference`.
+ *
+ * Superseded (2026-10-21) by the one object-storage contract, `@jini-ai/core/object-store`
+ * (`ObjectStore`, keyed providers, default `local`). Kept until a consumer moves; new code
+ * implements `ObjectStore` instead of adding to this port.
  */
 
 export interface StorageObjectMeta {
