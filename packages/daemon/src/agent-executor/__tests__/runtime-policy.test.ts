@@ -24,13 +24,14 @@ async function startFixture(
   { agentId, hostEnv }: { agentId: 'codex' | 'pi' | 'claude'; hostEnv: NodeJS.ProcessEnv },
   policies: { codexDisablePlugins?: boolean; piGracefulShutdownMs?: number } = {},
   runPolicy: { nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
+  { ownRuntimeState = true }: { ownRuntimeState?: boolean } = {},
 ) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = new FakeChild();
   const calls: { args: readonly string[]; env: NodeJS.ProcessEnv | undefined }[] = [];
   const def: RuntimeAgentDef = { ...getAgentDef({ id: agentId })!, ...fixtureModelDiscovery };
   const executor = createAgentExecutor({ lifecycle }, {
-    ...policies, hostEnv, runtimeState: createAgentRuntimeState({}),
+    ...policies, hostEnv, ...(ownRuntimeState ? { runtimeState: createAgentRuntimeState({}) } : {}),
     getAgentDef: () => def,
     resolveAgentLaunch: () => ({ selectedPath: '/fake/cli', pathResolvedPath: '/fake/cli',
       configuredOverridePath: null, launchPath: '/fake/cli', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
@@ -89,6 +90,20 @@ it('passes explicit plugin policy through the executor instead of consulting amb
     expect(baseline.calls[0]!.env).toEqual({ PATH: '/fake/bin' });
   } finally {
     baseline.child.emit('close', 0, null); treatment.child.emit('close', 0, null);
+  }
+});
+
+it('binds the plugin policy against the process default runtime state when the host owns none', async () => {
+  const hostEnv = { PATH: '/fake/bin' };
+  const disabled = await startFixture({ agentId: 'codex', hostEnv }, { codexDisablePlugins: true }, {}, { ownRuntimeState: false });
+  const enabled = await startFixture({ agentId: 'codex', hostEnv }, { codexDisablePlugins: false }, {}, { ownRuntimeState: false });
+  try {
+    const args = disabled.calls[0]!.args;
+    const i = args.indexOf('--disable');
+    expect(args.slice(i, i + 2)).toEqual(['--disable', 'plugins']);
+    expect(enabled.calls[0]!.args).toEqual([...args.slice(0, i), ...args.slice(i + 2)]);
+  } finally {
+    disabled.child.emit('close', 0, null); enabled.child.emit('close', 0, null);
   }
 });
 
