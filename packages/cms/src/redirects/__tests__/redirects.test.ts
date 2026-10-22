@@ -18,6 +18,7 @@ import { InMemoryRedirectRepo } from "../repo.memory.js";
 import {
   createRedirect,
   importRedirects,
+  listRedirects,
   tombstoneRedirect,
   updateRedirect,
   type RedirectsWriteDeps,
@@ -852,6 +853,46 @@ test("S7(c): a rule merely toggled off (status:'disabled', no Trash row) stays f
 });
 
 
+// ---------------------------------------------------------------------------
+// Bug B (2026-10-22) — "remove" means the Trash: a removed rule leaves the normal list (only the
+// Trash shows it) and comes back when restored, while a rule merely toggled off stays listed.
+// ---------------------------------------------------------------------------
+
+test("Bug B: listRedirects omits a rule in the Trash, shows it again once restored, and keeps a toggled-off rule", async () => {
+  const deps = makeDepsWithRealTrash();
+  const create = async (fromPattern: string) => (await createRedirect({
+    deps,
+    input: { workspaceId: WORKSPACE_ID, matchType: "exact", fromPattern, toTarget: "/target", statusCode: 301, actorId: ACTOR_ID },
+  })).record;
+  const removed = await create("/removed");
+  const switchedOff = await create("/switched-off");
+  const live = await create("/live");
+  await updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: switchedOff.id, status: "disabled", actorId: ACTOR_ID } });
+  await tombstoneRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: removed.id, actorId: ACTOR_ID } });
+  const ids = async (filter: { status?: RedirectStatus } = {}) =>
+    (await listRedirects({ deps, filter: { workspaceId: WORKSPACE_ID, ...filter } })).map((rule) => rule.id).sort();
+
+  assert.deepEqual(await ids(), [live.id, switchedOff.id].sort());
+  assert.deepEqual(await ids({ status: "disabled" }), [switchedOff.id]);
+
+  await updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: removed.id, status: "active", actorId: ACTOR_ID } });
+  assert.deepEqual(await ids(), [live.id, removed.id, switchedOff.id].sort());
+});
+
+test("Bug B: tombstoneRedirect on a toggled-off rule moves it to the Trash instead of silently doing nothing", async () => {
+  const deps = makeDepsWithRealTrash();
+  const { record } = await createRedirect({
+    deps,
+    input: { workspaceId: WORKSPACE_ID, matchType: "exact", fromPattern: "/off-then-removed", toTarget: "/target", statusCode: 301, actorId: ACTOR_ID },
+  });
+  await updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: record.id, status: "disabled", actorId: ACTOR_ID } });
+
+  await tombstoneRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: record.id, actorId: ACTOR_ID } });
+
+  assert.equal(await deps.isInTrash({ workspaceId: WORKSPACE_ID, id: record.id }), true);
+  assert.deepEqual(await listRedirects({ deps, filter: { workspaceId: WORKSPACE_ID } }), []);
+});
+
 for (const [label, overrides] of [
   ["status 200", { statusCode: 200 }], ["status 303", { statusCode: 303 }], ["status 404", { statusCode: 404 }],
   ["empty target", { toTarget: "" }], ["oversized target", { toTarget: "/" + "x".repeat(2048) }],
@@ -910,6 +951,15 @@ test("create/update/tombstone enqueue their mutation envelopes once; repeated to
     workspaceId: WORKSPACE_ID, matchType: "exact", fromPattern: "/events", toTarget: "/target", statusCode: 301, actorId: ACTOR_ID,
   } });
   await updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: record.id, toTarget: "/updated", actorId: ACTOR_ID } });
+  // The no-op is keyed on the Trash index row (Bug B), so record what `remove` indexed.
+  const trashed = new Set<string>();
+  const remove = deps.remove;
+  deps.remove = async (required) => {
+    const removed = await remove(required);
+    trashed.add(required.id);
+    return removed;
+  };
+  deps.isInTrash = async ({ id }) => trashed.has(id);
   const { record: disabled } = await tombstoneRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: record.id, actorId: ACTOR_ID } });
   const repo = deps.repo as InMemoryRedirectRepo;
   const before = repo.listRevisionsForTests({ redirectId: record.id }, {});
