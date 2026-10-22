@@ -67,6 +67,17 @@ export interface SourceTrustOption {
   label: string;
 }
 
+/**
+ * The trust selector's two inputs, bound together. The selector only renders when `trustOptions` is
+ * non-empty, so its change handler is required exactly when options can be present and may be
+ * omitted when they are not — a host whose sources have no trust concept passes neither, instead of a
+ * no-op `onTrustChange` that can never fire. Passing options (even possibly-undefined ones) still
+ * requires the handler, so every pre-existing caller type-checks unchanged.
+ */
+export type SourceTrustSelectorProps =
+  | { trustOptions?: readonly SourceTrustOption[] | undefined; onTrustChange: (trust: string) => void }
+  | { trustOptions?: undefined; onTrustChange?: undefined };
+
 export type SourceConnectionStatus = 'idle' | 'testing' | 'connected' | 'error';
 
 export interface SourceTestResult {

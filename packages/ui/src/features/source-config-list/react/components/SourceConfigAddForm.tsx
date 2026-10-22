@@ -6,15 +6,15 @@ import type {
   SourceFieldSpec,
   SourceFieldValues,
   SourceTestResult,
-  SourceTrustOption,
+  SourceTrustSelectorProps,
 } from '../../types.js';
 import { SourceConfigField } from './SourceConfigField.js';
 import { SourceConfigTestControl } from './SourceConfigTestControl.js';
 import { SourceConfigTrustOptions } from './SourceConfigTrustOptions.js';
 
-export interface SourceConfigAddFormProps {
+/** Every add-form prop except the trust selector's pair (see {@link SourceTrustSelectorProps}). */
+export interface SourceConfigAddFormBaseProps {
   fieldSpecs: readonly SourceFieldSpec[];
-  trustOptions?: readonly SourceTrustOption[];
   values: SourceFieldValues;
   trust?: string | undefined;
   validation: SourceDraftValidation;
@@ -23,7 +23,6 @@ export interface SourceConfigAddFormProps {
   submitError?: string | null | undefined;
   addLabel?: string;
   onFieldChange: (key: string, value: string) => void;
-  onTrustChange: (value: string) => void;
   onSubmit: () => void;
   /**
    * Test-before-save (the origin BYOK `EntryShell.tsx`/`ByokConnectionTestControl`
@@ -57,6 +56,9 @@ export interface SourceConfigAddFormProps {
   /** Cancel button copy, translated. Defaults to `'Cancel'`. */
   cancelLabel?: string;
 }
+
+/** `onTrustChange` is required only together with `trustOptions` — see {@link SourceTrustSelectorProps}. */
+export type SourceConfigAddFormProps = SourceConfigAddFormBaseProps & SourceTrustSelectorProps;
 
 /**
  * The "add a source" form: one `SourceConfigField` per host-supplied field
@@ -132,9 +134,12 @@ function AddFormFields({ fieldSpecs, values, validation, submitAttempted, submit
 }
 
 /** Rendered only when `trustOptions` is non-empty — the origin MCP-server shape has no trust concept at all. */
-function AddFormTrustSelect({ trustOptions, trust, submitting, onTrustChange, agentHandle }: SourceConfigAddFormProps) {
+function AddFormTrustSelect(props: SourceConfigAddFormProps) {
   const t = useT();
-  if (!trustOptions || trustOptions.length === 0) return null;
+  // Narrow on `props` itself (not a destructured copy) so the non-empty `trustOptions` check also
+  // proves `onTrustChange` present — the `SourceTrustSelectorProps` union binds the two.
+  if (!props.trustOptions || props.trustOptions.length === 0) return null;
+  const { trustOptions, trust, submitting, onTrustChange, agentHandle } = props;
   const trustLabel = t('Trust level');
   return (
     <label className="source-config-field" htmlFor="source-config-add-form-trust">

@@ -12,7 +12,7 @@ import type {
   SourceFieldSpec,
   SourceFieldValues,
   SourceTestResult,
-  SourceTrustOption,
+  SourceTrustSelectorProps,
   SourceUpdateInput,
 } from '../../types.js';
 import { SourceConfigField } from './SourceConfigField.js';
@@ -20,10 +20,10 @@ import { SourceConfigTestControl } from './SourceConfigTestControl.js';
 import { SourceConfigTrustOptions } from './SourceConfigTrustOptions.js';
 import type { SourceConfigListCapabilities } from '../hooks/useSourceConfigList.js';
 
-export interface SourceConfigItemCardProps<TSource extends SourceConfigItem> {
+/** Every item-card prop except the trust selector's pair (see {@link SourceTrustSelectorProps}). */
+export interface SourceConfigItemCardBaseProps<TSource extends SourceConfigItem> {
   source: TSource;
   fieldSpecs: readonly SourceFieldSpec[];
-  trustOptions?: readonly SourceTrustOption[];
   capabilities: SourceConfigListCapabilities;
   removing: boolean;
   refreshing: boolean;
@@ -34,7 +34,6 @@ export interface SourceConfigItemCardProps<TSource extends SourceConfigItem> {
   testResult?: SourceTestResult;
   onRefresh: () => void;
   onRemove: () => void;
-  onTrustChange: (trust: string) => void;
   onTest: () => void;
   /** Patches this item's `label`/`enabled`/`fields`. Only ever called when `capabilities.canUpdate` is true. */
   onUpdate: (patch: SourceUpdateInput) => void;
@@ -53,6 +52,9 @@ export interface SourceConfigItemCardProps<TSource extends SourceConfigItem> {
    */
   agentHandle?: string;
 }
+
+/** `onTrustChange` is required only together with `trustOptions` — see {@link SourceTrustSelectorProps}. */
+export type SourceConfigItemCardProps<TSource extends SourceConfigItem> = SourceConfigItemCardBaseProps<TSource> & SourceTrustSelectorProps;
 
 /**
  * One configured source: a collapsed summary row (an always-visible
@@ -197,17 +199,12 @@ function ItemCardActions<TSource extends SourceConfigItem>(props: ItemCardPartPr
   );
 }
 
-function ItemCardTrustSelect<TSource extends SourceConfigItem>({
-  source,
-  trustOptions,
-  capabilities,
-  settingTrust,
-  onTrustChange,
-  agentHandle,
-  label,
-}: ItemCardPartProps<TSource>) {
+function ItemCardTrustSelect<TSource extends SourceConfigItem>(props: ItemCardPartProps<TSource>) {
   const t = useT();
-  if (!capabilities.canSetTrust || !trustOptions || trustOptions.length === 0) return null;
+  // Narrow on `props` itself (not a destructured copy) so the non-empty `trustOptions` check also
+  // proves `onTrustChange` present — the `SourceTrustSelectorProps` union binds the two.
+  if (!props.capabilities.canSetTrust || !props.trustOptions || props.trustOptions.length === 0) return null;
+  const { source, trustOptions, settingTrust, onTrustChange, agentHandle, label } = props;
   const trustLabel = t('Trust level for {name}', { name: label });
   return (
     <select

@@ -459,3 +459,13 @@ describe('SourceConfigItemCard', () => {
     });
   });
 });
+
+describe('SourceConfigItemCard without the trust pair (SourceTrustSelectorProps)', () => {
+  it('renders with neither trustOptions nor onTrustChange, even when the host can set trust', () => {
+    const { onTrustChange: _unused, trustOptions: _none, ...withoutTrust } = baseProps();
+    const { container } = render(<SourceConfigItemCard {...withoutTrust} capabilities={FULL_CAPS} />);
+    expect(container.querySelector('.source-config-item-card')).not.toBeNull();
+    expect(screen.queryByLabelText(/Trust level for/)).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+  });
+});
