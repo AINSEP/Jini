@@ -538,6 +538,102 @@ test('a non-strict downgrade refresh selects its matching decoder and preserves 
   expect(executeTool).toHaveBeenCalledWith({ id: 'call', name: 'write', input: { optional: null } });
 });
 
+describe.each(['anthropic', 'openai', 'azure', 'google'] as const)('%s: unexposed tool refusals', protocol => {
+  const defaultText = 'Tool is not exposed in this turn.';
+  const call = { id: 'hidden-call', name: 'hidden_tool', input: { query: 'raw input' } };
+  const options = { baseUrl: 'https://endpoint.invalid' };
+
+  test.each([
+    { label: 'custom text', reply: { text: 'This tool is unavailable.' }, text: 'This tool is unavailable.' },
+    { label: 'undefined fallback', reply: undefined, text: defaultText },
+    { label: 'empty text', reply: { text: '' }, text: '' },
+  ])('$label: an awaited refusal hook changes only refusal content compared with omission', async ({ reply, text }) => {
+    const results: unknown[] = [];
+    const executeTool = vi.fn(async (_call: ProviderToolCall) => ({ content: 'must not execute' }));
+    const onUnexposedToolCall = vi.fn(async () => reply);
+    const adapters = projectionAdapters(async port => { results.push(await port.executeTool(call)); });
+    const input = { ...projectionInput(protocol, adapters), executeTool };
+
+    await runProviderToolTurn(input, options);
+    await runProviderToolTurn(input, { ...options, onUnexposedToolCall });
+
+    const wireResult = (content: string) => protocol === 'openai' || protocol === 'azure'
+      ? { content: `[tool error] ${content}` } : { content, isError: true };
+    expect(results).toEqual([wireResult(defaultText), wireResult(text)]);
+    expect(onUnexposedToolCall).toHaveBeenCalledTimes(1);
+    expect(onUnexposedToolCall).toHaveBeenCalledWith({ toolName: call.name, callId: call.id, input: call.input, protocol });
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  test('a synchronous hook cannot turn a refusal into a successful result', async () => {
+    const executeTool = vi.fn(async (_call: ProviderToolCall) => ({ content: 'must not execute' }));
+    const adapters = projectionAdapters(async port => {
+      expect(await port.executeTool(call)).toEqual(protocol === 'openai' || protocol === 'azure'
+        ? { content: '[tool error] Denied.' } : { content: 'Denied.', isError: true });
+    });
+    await runProviderToolTurn({ ...projectionInput(protocol, adapters), executeTool }, {
+      ...options, onUnexposedToolCall: () => ({ text: 'Denied.', isError: false }),
+    });
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  test('published wire names bypass the refusal hook and retain canonical name/input decoding', async () => {
+    const executeTool = vi.fn(async (_call: ProviderToolCall) => ({ content: 'allowed' }));
+    const onUnexposedToolCall = vi.fn(() => ({ text: 'Denied.' }));
+    const adapters = projectionAdapters(async port => {
+      port.getTools({ strict: true });
+      expect(await port.executeTool({ id: 'allowed-call', name: 'read_wire', input: { optional: null, clear: null } }))
+        .toEqual({ content: 'allowed' });
+    });
+    await runProviderToolTurn({ ...projectionInput(protocol, adapters), executeTool,
+      tools: [{ ...closedTool('content.read'), wireName: 'read_wire' }],
+    }, { ...options, onUnexposedToolCall });
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(executeTool).toHaveBeenCalledWith({ id: 'allowed-call', name: 'content.read', input: { clear: null } });
+    expect(onUnexposedToolCall).not.toHaveBeenCalled();
+  });
+
+  test.each(['throw', 'reject'] as const)('a hook %s propagates without falling through to execution', async failure => {
+    const error = new Error('Audit unavailable');
+    const executeTool = vi.fn(async (_call: ProviderToolCall) => ({ content: 'must not execute' }));
+    const onUnexposedToolCall = vi.fn(() => {
+      if (failure === 'throw') throw error;
+      return Promise.reject(error);
+    });
+    const adapters = projectionAdapters(async port => { await port.executeTool(call); });
+    await expect(runProviderToolTurn({ ...projectionInput(protocol, adapters), executeTool }, {
+      ...options, onUnexposedToolCall,
+    })).rejects.toBe(error);
+    expect(onUnexposedToolCall).toHaveBeenCalledTimes(1);
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+
+  test('an asynchronous policy change cannot execute an unpublished canonical name', async () => {
+    let snapshot: readonly ToolDescriptor[] = [{ ...closedTool('content.read'), wireName: 'read_wire' }];
+    const executeTool = vi.fn(async (_call: ProviderToolCall) => ({ content: 'must not execute' }));
+    const onUnexposedToolCall = vi.fn(async () => {
+      await Promise.resolve();
+      snapshot = [...snapshot, closedTool('hidden_tool')];
+      return { text: 'Denied.' };
+    });
+    const adapters = projectionAdapters(async port => {
+      const expected = protocol === 'openai' || protocol === 'azure'
+        ? { content: '[tool error] Denied.' } : { content: 'Denied.', isError: true };
+      expect(await port.executeTool({ ...call, name: 'content.read' })).toEqual(expected);
+      expect(await port.executeTool(call)).toEqual(expected);
+      expect(declarations(protocol, port.tools).map(tool => tool.name)).toEqual(['read_wire']);
+    });
+    await runProviderToolTurn({ ...projectionInput(protocol, adapters), executeTool }, {
+      ...options, getToolSnapshot: () => snapshot, onUnexposedToolCall,
+    });
+    expect(onUnexposedToolCall.mock.calls).toEqual([
+      [{ toolName: 'content.read', callId: call.id, input: call.input, protocol }],
+      [{ toolName: call.name, callId: call.id, input: call.input, protocol }],
+    ]);
+    expect(executeTool).not.toHaveBeenCalled();
+  });
+});
+
 test('long/unsafe/colliding names stay stable through repeated refresh and unpublished names cannot reach the host', async () => {
   const long = `domain.${'x'.repeat(90)}`;
   let snapshot = [closedTool(long)];

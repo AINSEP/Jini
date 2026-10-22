@@ -66,6 +66,30 @@ Azure requires `baseUrl` and reports an error/end event when it is absent.
 Low-level provider adapters retain their individual required inputs and optional
 HTTP/DNS ports; they are not replaced by a second implementation of tool loops.
 
+Hosts may supply `onUnexposedToolCall` in the second argument to audit and word a
+refusal when the model calls a name that has not been published in this turn:
+
+```ts
+await runProviderToolTurn(required, {
+  onUnexposedToolCall: async ({ toolName, callId, input, protocol }) => {
+    await auditDeniedAttempt({ toolName, callId, input, protocol });
+    return { text: 'This tool is unavailable.' };
+  },
+});
+```
+
+The callback receives `ProviderUnexposedToolCall` with the raw wire name and
+arguments, since an unpublished name has no canonical ID or input decoder.
+Audit storage/redaction belongs to the host. Its `ProviderToolRefusal` result
+contains only `text`; synchronous callbacks are also supported. Omission or an
+`undefined` reply retains `Tool is not exposed in this turn.`; empty text is
+preserved. All protocols retain their normal error formatting (including the
+OpenAI/Azure `[tool error] ` prefix). Throws/rejections propagate to the caller.
+The normal executor is never called for an unpublished name, even if policy
+changes while the callback awaits. The callback must only deny/audit and must
+never execute a handler. Previously published names remain resolvable for
+in-flight calls after a snapshot refresh and bypass this callback.
+
 The same subpath exports `googleParametersOf({ descriptor }, { maxRefDepth })`,
 `sanitizeGoogleSchema({ schema }, { defs, maxRefDepth })`,
 `findNumericEnumPaths({ schema }, { prefix })`, and
