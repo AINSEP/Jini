@@ -27,6 +27,17 @@ describe('gateConsentHtml attribute edges', () => {
   });
 });
 
+describe('gateConsentHtml normalization that does not converge', () => {
+  it('refuses a malformed page whose re-serialized form still carries a duplicate attribute (mutation-XSS shape)', () => {
+    // The repeated <body> forces normalization. Parsed, the <style> is an HTML raw-text element
+    // holding `<img … a=1 a=2>` as text; serialized, it sits under <mtext><mglyph>, where the
+    // reparse treats it as MathML and reads that text as an <img> with a duplicate attribute. The
+    // page never converges to one unambiguous form, so the gate refuses it instead of guessing.
+    expect(() => gate('<body a=1><body b=2><math><mtext><table><mglyph><style><img src=x a=1 a=2>'))
+      .toThrow('Consent could not normalize repeated root tags or duplicate attributes. Serve this page under the restrictive consent fallback.');
+  });
+});
+
 describe('renderConsentHead origin contract', () => {
   it('rejects an origin the URL parser cannot read with the same exact-origin guidance', () => {
     expect(() => renderConsentHead({ record: null, gpc: false }, { resourceOrigins: ['cdn.example'] }))
