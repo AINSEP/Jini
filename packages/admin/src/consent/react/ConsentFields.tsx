@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from 'react';
+import { defaultAdminTheme } from '@jini-ai/ui/theme';
 import type { ConsentAppearanceView, ConsentFieldProblem, ConsentSettingsView } from './ConsentSettingsPanel.js';
 import { pixelInputValue, problemsFor, useConsentSettingsPanel, usePolicyVersionInput } from './settings-panel.hooks.js';
 
@@ -34,8 +35,9 @@ const REGION_LABELS: Readonly<Record<ConsentSettingsView['regionMode'], string>>
   auto: 'Automatic (unknown region: opt-in)', 'opt-in': 'Opt-in everywhere (EU / UK)', 'opt-out': 'Opt-out everywhere (California)',
 };
 const PLACEMENT_LABELS: Readonly<Record<string, string>> = { 'bottom-bar': 'Bottom bar', 'bottom-left': 'Bottom left', 'bottom-right': 'Bottom right', 'top-bar': 'Top bar' };
+// Native color inputs need concrete colors rather than CSS variable expressions.
 const COLOR_TOKENS: readonly { key: keyof ConsentAppearanceView; label: string; fallback: string }[] = [
-  { key: 'backgroundColor', label: 'Background', fallback: '#ffffff' }, { key: 'textColor', label: 'Text', fallback: '#222222' }, { key: 'borderColor', label: 'Border', fallback: '#222222' },
+  { key: 'backgroundColor', label: 'Background', fallback: defaultAdminTheme.light.bg }, { key: 'textColor', label: 'Text', fallback: defaultAdminTheme.light.text }, { key: 'borderColor', label: 'Border', fallback: defaultAdminTheme.light.border },
 ];
 /** The engine's own pixel bounds (`compileConsentCss`); out-of-range values come back as problems. */
 const PIXEL_TOKENS: readonly { key: keyof ConsentAppearanceView; label: string; min: number; max: number }[] = [
@@ -115,7 +117,7 @@ export function ConsentLookFields({ value, onChange, disabled = false, problems,
   </fieldset>;
 }
 
-/** A native color picker; unset shows the engine default and offers no reset. */
+/** A native color picker; unset shows the shared theme default and offers no reset. */
 function ColorToken({ label, value, fallback, resetLabel, onChange }: { label: string; value: string | undefined; fallback: string; resetLabel: string; onChange(next: string): void }) {
   const id = useId();
   return <div className="jini-consent-settings-field"><label htmlFor={id} className="jini-field-label">{label}</label>
