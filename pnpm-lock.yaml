@@ -291,6 +291,9 @@ importers:
       '@jini-ai/oauth':
         specifier: workspace:^
         version: link:../oauth
+      '@jini-ai/protocol':
+        specifier: workspace:^
+        version: link:../protocol
     devDependencies:
       '@jini-ai/integrations':
         specifier: workspace:^
@@ -298,9 +301,6 @@ importers:
       '@jini-ai/platform':
         specifier: workspace:^
         version: link:../platform
-      '@jini-ai/protocol':
-        specifier: workspace:^
-        version: link:../protocol
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
@@ -866,6 +866,9 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+      '@jini-ai/protocol':
+        specifier: workspace:^
+        version: link:../protocol
     devDependencies:
       '@cfworker/json-schema':
         specifier: ^4.1.1

@@ -1,3 +1,9 @@
+import { delegatedResultMarker } from '@jini-ai/protocol';
+import { createDelegatedResultCorrelation, type DelegatedResultCorrelation } from '../../delegated-result-correlation.js';
+import { createNodeCredentialCrypto } from '../../run-credentials.js';
+import { createDelegatedToolBridge } from '../../delegated-tool-bridge.js';
+import { createToolExecutor } from '../../tool-executor.js';
+import type { StdoutJournalBlobPort } from '../../tool-result-diagnostics.js';
 import { fixtureModelDiscovery, fixtureLaunchModel } from './model-discovery-fixture.js';
 import { EventEmitter } from 'node:events';
 import os from 'node:os';
@@ -63,6 +69,114 @@ import {
 } from '../../index.js';
 
 const TEST_PRINCIPAL: Principal = { id: 'test-principal' };
+
+describe('delegated result image retention', () => {
+  const pixels = 'iVBORw0KGgo_UNIQUE_PIXELS';
+  const image = { type: 'image', mimeType: 'image/png', data: pixels };
+  const def = () => createFakeDef({ streamFormat: 'claude-stream-json', promptInputFormat: 'stream-json' });
+  const correlation = () => createDelegatedResultCorrelation({ crypto: createNodeCredentialCrypto({}) });
+  const echoFrame = (content: unknown[], isError = false) => JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'C', content, is_error: isError }] } }) + '\n';
+
+  it.each([false, true])('saves one canonical image, summarizes the matching echo and replays it unchanged (error: %s)', async isError => {
+    const store = correlation();
+    const { lifecycle, executor, child } = createHarness({ def: def(), delegatedResultCorrelation: store });
+    const { run } = await lifecycle.start({ contextRef: 'single-image' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'capture', cwd: '/work' });
+    const registry = createToolRegistry({});
+    registry.register({ descriptor: { id: 'capture' }, policy: { authorize: () => 'allow' }, handler: async () => ({ content: [image], ...(isError ? { isError: true } : {}) }) });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) }, { delegatedResultCorrelation: store });
+    const modelResult = await bridge.execute({ runId: run.id, toolUseId: 'B', toolId: 'capture', principal: TEST_PRINCIPAL, input: {} });
+    expect(modelResult.output).toEqual({ content: [image], ...(isError ? { isError: true } : {}) });
+    child.stdout.emit('data', JSON.stringify({ type: 'assistant', message: { id: 'm', content: [{ type: 'tool_use', id: 'C', name: 'capture', input: {} }] } }) + '\n');
+    const echo = echoFrame([delegatedResultMarker({ toolUseId: 'B' }), image], isError);
+    const cut = echo.indexOf(pixels) + 5;
+    child.stdout.emit('data', echo.slice(0, cut));
+    child.stdout.emit('data', echo.slice(cut));
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+    const events = await collectEvents(lifecycle, run.id);
+    const results = events.filter(event => event.kind === 'agent' && event.payload.type === 'tool_result').map(event => event.payload);
+    expect(results).toEqual([
+      { type: 'tool_result', toolUseId: 'B', content: JSON.stringify({ content: [], ...(isError ? { isError: true } : {}) }), ...(isError ? { isError: true } : {}), media: [image] },
+      { type: 'tool_result', toolUseId: 'C', content: 'Result shown by delegated call B.', delegatedToolUseId: 'B', isError },
+    ]);
+    expect(JSON.stringify(events).split(pixels)).toHaveLength(2);
+    expect(JSON.stringify(events.filter(event => event.kind === 'stdout'))).not.toContain(pixels);
+    expect(events.some(event => event.kind === 'agent' && event.payload.type === 'tool_use' && event.payload.id === 'C')).toBe(true);
+    expect(await collectEvents(lifecycle, run.id)).toEqual(events);
+    expect(JSON.parse(JSON.stringify(events))).toEqual(events);
+  });
+
+  it.each(['unknown', 'other-run', 'outcome', 'content', 'missing'] as const)('keeps full legacy output for %s correlation', async mismatch => {
+    const store = correlation();
+    const { lifecycle, executor, child } = createHarness({ def: def(), delegatedResultCorrelation: store });
+    const { run } = await lifecycle.start({ contextRef: 'fallback' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'capture', cwd: '/work' });
+    store.record({ runId: mismatch === 'other-run' ? 'elsewhere' : run.id, toolUseId: mismatch === 'unknown' ? 'other' : 'B', content: [image], isError: mismatch === 'outcome' });
+    const content = [...(mismatch === 'missing' ? [] : [delegatedResultMarker({ toolUseId: 'B' })]), image, ...(mismatch === 'content' ? [{ type: 'text', text: 'changed' }] : [])];
+    child.stdout.emit('data', echoFrame(content));
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+    const event = (await collectEvents(lifecycle, run.id)).find(event => event.kind === 'agent' && event.payload.type === 'tool_result');
+    expect(event?.payload).toMatchObject({ toolUseId: 'C', isError: false });
+    expect(JSON.stringify(event?.payload)).toContain(pixels);
+    expect(JSON.stringify(event?.payload)).not.toContain('Result shown by delegated');
+  });
+
+  it('preserves legacy raw diagnostics when the host has not negotiated v1', async () => {
+    const { lifecycle, executor, child } = createHarness({ def: def() });
+    const { run } = await lifecycle.start({ contextRef: 'legacy' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'capture', cwd: '/work' });
+    const frame = echoFrame([image]);
+    child.stdout.emit('data', frame);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+    expect((await collectEvents(lifecycle, run.id)).filter(event => event.kind === 'stdout').map(event => event.payload)).toEqual([{ chunk: frame }]);
+  });
+
+  it.each([
+    { data: 'CHANGED_PIXELS', mimeType: 'image/png' },
+    { data: pixels, mimeType: 'image/jpeg' },
+  ])('retains an echo with changed MCP image fields beside unchanged source pixels: %j', async changed => {
+    const store = correlation();
+    const { lifecycle, executor, child } = createHarness({ def: def(), delegatedResultCorrelation: store });
+    const { run } = await lifecycle.start({ contextRef: 'conflicting-image' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'capture', cwd: '/work' });
+    const source = { type: 'base64', media_type: 'image/png', data: pixels };
+    store.record({ runId: run.id, toolUseId: 'B', content: [{ ...image, source }], isError: false });
+    const echoedImage = { ...image, ...changed, source };
+    const marker = delegatedResultMarker({ toolUseId: 'B' });
+    child.stdout.emit('data', echoFrame([marker, echoedImage]));
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+    const results = (await collectEvents(lifecycle, run.id)).filter(event => event.kind === 'agent' && event.payload.type === 'tool_result').map(event => event.payload);
+    expect(results).toEqual([{
+      type: 'tool_result', toolUseId: 'C', delegatedToolUseId: 'B', isError: false,
+      content: `${marker.text}\n${JSON.stringify(echoedImage)}`,
+    }]);
+  });
+
+  it('requires a separate exact-byte blob/reference writer when journaling is enabled', () => {
+    const journal = createRunByteJournal({ eventLog: createInMemoryEventLog({}) });
+    expect(() => createHarness({ def: def(), delegatedResultCorrelation: correlation(), journal })).toThrow('requires stdoutJournalBlobs');
+  });
+
+  it('sends exact stdout chunks to the injected audit writer while retained diagnostics omit pixels', async () => {
+    const journal = createRunByteJournal({ eventLog: createInMemoryEventLog({}) });
+    const record = vi.fn(async () => {});
+    const { lifecycle, executor, child } = createHarness({ def: def(), delegatedResultCorrelation: correlation(), journal, stdoutJournalBlobs: { record } });
+    const { run } = await lifecycle.start({ contextRef: 'audit' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'capture', cwd: '/work' });
+    const frame = echoFrame([image]);
+    const bytes = Buffer.from(frame);
+    child.stdout.emit('data', bytes);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+    expect(record).toHaveBeenCalledWith({ runId: run.id, chunk: bytes });
+    expect(JSON.stringify(await journal.read({ runId: run.id }))).not.toContain(pixels);
+    expect(JSON.stringify((await collectEvents(lifecycle, run.id)).filter(event => event.kind === 'stdout'))).not.toContain(pixels);
+  });
+});
 
 describe('run output settlement', () => {
   it.each([
@@ -242,6 +356,8 @@ interface SpawnCall {
 }
 
 interface HarnessOptions {
+  delegatedResultCorrelation?: DelegatedResultCorrelation;
+  stdoutJournalBlobs?: StdoutJournalBlobPort;
   probeMcpBridge?: typeof probeMcpBridge;
   def?: RuntimeAgentDef | null;
   launchPath?: string | null;
@@ -310,7 +426,7 @@ function createHarness(options: HarnessOptions = {}): Harness {
 
   const onCleanupFailure = vi.fn();
 
-  const executor = createAgentExecutor({ lifecycle }, { ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle }, { ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}), ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}), ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: launchPath,
         pathResolvedPath: launchPath,
@@ -3899,6 +4015,10 @@ describe('AgentExecutor — gap 3 capability-routed continuation (stdin-tool-res
     const toolResultEvent = events.find((e) => e.kind === 'agent' && (e.payload as RunAgentPayload).type === 'tool_result');
     expect(toolResultEvent?.payload).toMatchObject({ type: 'tool_result', toolUseId: 'tu-1', media: [image] });
     expect(toolResultEvent?.payload).not.toHaveProperty('isError');
+    expect(toolResultEvent?.payload).toMatchObject({ content: '{"content":[{"type":"text","text":"shot taken"}]}' });
+    expect(JSON.stringify(toolResultEvent?.payload).split(image.data)).toHaveLength(2);
+    const injected = JSON.parse(child.stdin!.writes.at(-1)!.trim());
+    expect(JSON.parse(injected.message.content[0].content)).toEqual({ content: [{ type: 'text', text: 'shot taken' }, image] });
 
     child.emit('close', 0, null);
     await runPromise;

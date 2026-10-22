@@ -5,6 +5,9 @@ import { createDelegatedToolBridge } from '../delegated-tool-bridge.js';
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle } from '../run-lifecycle.js';
 import { createToolExecutor } from '../tool-executor.js';
+import { constrainPrincipalToReadOnlyTools, defaultDaemonMessages, withReadOnlyToolConstraint } from '../read-only-tools.js';
+import { createDelegatedResultCorrelation } from '../delegated-result-correlation.js';
+import { createNodeCredentialCrypto } from '../run-credentials.js';
 
 /**
  * The typed-media path, end to end through the bridge — the counterpart to
@@ -47,6 +50,22 @@ function toolResultPayload(events: RunProtocolEvent[]): { content: string; media
 }
 
 describe('DelegatedToolBridge — typed media', () => {
+  it('keeps the required read-only executor when broader route deps are passed as options', async () => {
+    const registry = createToolRegistry({});
+    const executed: string[] = [];
+    registry.register({ descriptor: { id: 'write' }, policy: { authorize: () => 'allow' }, handler: async () => { executed.push('write'); return 'written'; } });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const toolExecutor = createToolExecutor({ registry });
+    const deps = { lifecycle, toolExecutor, delegatedResultCorrelation: createDelegatedResultCorrelation({ crypto: createNodeCredentialCrypto({}) }) };
+    const gated = withReadOnlyToolConstraint({ inner: toolExecutor, registry, messages: defaultDaemonMessages.readOnly, idGenerator: { newId: () => 'denial' } });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: gated }, deps);
+    const { run } = await lifecycle.start({ contextRef: 'required-executor' });
+    const principal = constrainPrincipalToReadOnlyTools({ principal: { id: 'user' } });
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call', toolId: 'write', principal, input: {} });
+    expect(result.status).toBe('denied');
+    expect(executed).toEqual([]);
+  });
+
   it('attaches an image block to the tool_result event as `media`', async () => {
     const { events } = await runImageTool({
       content: [
@@ -58,6 +77,8 @@ describe('DelegatedToolBridge — typed media', () => {
     const toolResult = toolResultPayload(events);
     expect(toolResult.media).toEqual([{ type: 'image', mimeType: 'image/png', data: PNG_BASE64 }]);
     expect(toolResult.content).toContain('Generated a swatch.');
+    expect(toolResult.content).not.toContain(PNG_BASE64);
+    expect(JSON.stringify(toolResult).split(PNG_BASE64)).toHaveLength(2);
   });
 
   it('an image block does not ALSO leak out as a duplicate mcp-ui surface event', async () => {
@@ -85,6 +106,17 @@ describe('DelegatedToolBridge — typed media', () => {
     expect(result.output).toEqual(plain);
     const toolResult = toolResultPayload(events);
     expect(toolResult).not.toHaveProperty('media');
+  });
+
+  it('saves an image-only event once while the model receives the original decoded pixels', async () => {
+    const image = { type: 'image', mimeType: 'image/png', data: PNG_BASE64 };
+    const { result, events } = await runImageTool({ content: [image], isError: true, caption: 'preview' });
+    const event = toolResultPayload(events);
+    expect(JSON.parse(event.content)).toEqual({ content: [], isError: true, caption: 'preview' });
+    expect(event).toMatchObject({ isError: true, media: [image] });
+    expect(JSON.stringify(event).split(PNG_BASE64)).toHaveLength(2);
+    const model = result.output as { content: Array<{ data: string }> };
+    expect(Buffer.from(model.content[0]!.data, 'base64')).toEqual(Buffer.from(PNG_BASE64, 'base64'));
   });
 
   it('leaves a text-only envelope result with no `media` field — nothing to extract', async () => {

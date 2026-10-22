@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { extractResultMedia } from '../tool-result-media.js';
+import { extractResultMedia, projectToolResultEvent, resultContent } from '../tool-result-media.js';
+
+describe('projectToolResultEvent', () => {
+  it('stores interleaved text and multiple images once without mutating model output', () => {
+    const output = { content: [{ type: 'image', mimeType: 'image/png', data: 'PIXELS_ONE' }, { type: 'text', text: 'middle' }, { type: 'image', mimeType: 'image/jpeg', data: 'PIXELS_TWO' }], caption: 'kept' };
+    const result = { executionId: 'e', status: 'completed' as const, output };
+    const event = projectToolResultEvent({ result });
+    expect(JSON.parse(event.content)).toEqual({ content: [{ type: 'text', text: 'middle' }], caption: 'kept' });
+    expect(event.media).toEqual([output.content[0], output.content[2]]);
+    expect(JSON.stringify(event).split('PIXELS_ONE')).toHaveLength(2);
+    expect(JSON.stringify(event).split('PIXELS_TWO')).toHaveLength(2);
+    expect(resultContent({ result })).toBe(JSON.stringify(output));
+  });
+
+  it.each(['denied', 'confirmation-denied', 'timed-out', 'cancelled', 'failed'] as const)('preserves the existing %s status mapping', status => {
+    const result = { executionId: 'e', status };
+    expect(projectToolResultEvent({ result })).toEqual({ content: resultContent({ result }), isError: true });
+  });
+
+  it('preserves explicit MCP errors without changing the envelope', () => {
+    expect(projectToolResultEvent({ result: { executionId: 'e', status: 'completed', output: { content: [{ type: 'text', text: 'failure' }], isError: true } } })).toEqual({ content: '{"content":[{"type":"text","text":"failure"}],"isError":true}', isError: true });
+  });
+});
 
 describe('extractResultMedia', () => {
   it('extracts a well-formed image block and removes it from the remainder', () => {

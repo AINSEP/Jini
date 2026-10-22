@@ -1,3 +1,6 @@
+import { createToolResultDiagnosticProjection, projectDiagnosticFrame } from '../tool-result-diagnostics.js';
+import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
+import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
 import { appendSerialTask } from "@jini-ai/core/primitives";
 import { randomUUID } from 'node:crypto';
 import type { probeMcpBridge, McpBridgeProbeResult } from './mcp-bridge-probe.js';
@@ -47,7 +50,7 @@ import {
   resultContent,
 } from '../delegated-tool-bridge.js';
 import {
-  extractResultMedia,
+  projectToolResultEvent,
   type ToolResultMediaBlock,
 } from '../tool-result-media.js';
 import type {
@@ -310,6 +313,8 @@ function bufferedStdoutTruncationNotice(droppedBytes: number, maxBytes: number):
 }
 
 interface WireChildLifecycleContext extends TerminateChildTreeDeps {
+  readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
+  readonly stdoutJournalBlobs?: StdoutJournalBlobPort;
   readonly startingModel?: string;
   readonly modelCatalog?: ModelCatalogSnapshot;
   readonly runId: string;
@@ -345,6 +350,38 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
   readonly expectsJiniBridge: boolean;
   readonly bridgeProbeEntry: Parameters<typeof probeMcpBridge>[0]['entry'] | undefined;
   readonly probeMcpBridge: typeof probeMcpBridge;
+}
+
+/** Keeps exact-byte auditing separate from retained diagnostics on the run's existing FIFO.
+ * Projection retains at most one bounded frame; ordinary stdout keeps its legacy byte journal. */
+function createStdoutDiagnostics({ ctx, enqueueEmit }: {
+  ctx: WireChildLifecycleContext;
+  enqueueEmit: (task: () => Promise<unknown>) => void;
+}, _options = {}) {
+  const { runId, lifecycle, journal, stdoutJournalBlobs } = ctx;
+  const projection = ctx.delegatedResultCorrelation && ctx.streamFormat === 'claude-stream-json'
+    ? createToolResultDiagnosticProjection({}) : undefined;
+
+  function emit({ text }: { text: string }): void {
+    if (text) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'stdout', data: { chunk: text } } }));
+  }
+
+  return {
+    record({ chunk, text }: { chunk: Buffer | string; text: string }): void {
+      if (!journal) return;
+      if (projection && stdoutJournalBlobs) {
+        enqueueEmit(() => stdoutJournalBlobs.record({ runId, chunk }));
+      } else {
+        enqueueEmit(() => journal.record({ runId, entry: receivedJournalEntry('stdout', text) }));
+      }
+    },
+    feed({ text }: { text: string }): void {
+      emit({ text: projection ? projection.feed({ chunk: text }) : text });
+    },
+    flush(): void {
+      emit({ text: projection?.flush({}) ?? '' });
+    },
+  };
 }
 
 /**
@@ -409,6 +446,7 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
  */
 export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
   const { runId, def, streamFormat, child, lifecycle, journal, continuation, classifyFailure } = ctx;
+  const stdoutDiagnostics = createStdoutDiagnostics({ ctx, enqueueEmit });
   const output = observeRunOutput({ lifecycle, runId, agentName: def.name }, { plainStdout: streamFormat === 'plain' });
   const modelReceipt = createModelReceiptTracker(ctx.startingModel, ctx.modelCatalog?.models);
   let stdinClosed = false;
@@ -616,11 +654,8 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       const run: RunRef = { id: runId };
       let content: string;
       let isError: boolean;
-      // Same extraction `delegated-tool-bridge.ts`'s `execute()` runs, kept consistent per
-      // `resultContent`'s own doc ("both callers share one mapping"). This path never ran
-      // `splitToolResultSurfaces` (it has no `mcp-ui` withhold-from-model concept — the flattened
-      // `content` below already carries the whole raw output, a pre-existing, unrelated gap), so
-      // there is no `remainder` to thread back in — only the extracted blocks are used here.
+      // Event projection removes pixels only from saved content; stdin keeps the original.
+      let eventContent: string;
       let media: readonly ToolResultMediaBlock[] = [];
       // Suspend the slow-run watchdog for the duration of this daemon-awaited execution: the daemon
       // knows exactly why the run is quiet here (it dispatched the tool itself and is waiting on it),
@@ -632,10 +667,13 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       try {
         const result = await continuation.toolExecutor.execute({ principal: continuation.principal, run: run, toolId: toolUse.name, input: toolUse.input });
         content = resultContent({ result: result });
-        isError = result.status !== 'completed';
-        media = extractResultMedia({ output: result.output }).media;
+        const projection = projectToolResultEvent({ result });
+        eventContent = projection.content;
+        isError = projection.isError === true;
+        media = projection.media ?? [];
       } catch (error) {
         content = errorMessage(error);
+        eventContent = content;
         isError = true;
       } finally {
         lifecycle.resumeSlowRunNotice({ runId: runId });
@@ -645,7 +683,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
         data: {
           type: 'tool_result',
           toolUseId: toolUse.id,
-          content,
+          content: eventContent,
           ...(isError ? { isError: true } : {}),
           ...(media.length > 0 ? { media } : {}),
         },
@@ -674,13 +712,25 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
               onUserVisibleOutput: () => { userVisibleOutputSeen = true; },
             } });
             if (rejectUnavailableBridge({ payload: translation.payload, rawEvent }, {})) return;
-            enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: statusWithChildIdentity({ payload: translation.payload, childPid: ctx.child.pid }, {}) } }));
+            enqueueEmit(() => {
+              const payload = projectEcho({ payload: translation.payload, rawEvent }, {});
+              return lifecycle.emit({ runId, input: { event: 'agent', data: statusWithChildIdentity({ payload, childPid: ctx.child.pid }, {}) } });
+            });
           } else if (translation.kind === 'error') {
             enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
           } else if (translation.kind === 'turn-end') {
             handleTurnEnd(translation.stopReason);
           }
         });
+
+  /** Verify against an already-saved call in this run; unverified metadata preserves all output. */
+  function projectEcho({ payload, rawEvent }: { payload: RunAgentPayload; rawEvent: Record<string, unknown> }, _options = {}): RunAgentPayload {
+    if (!ctx.delegatedResultCorrelation) return payload;
+    if (payload.type === 'raw') return { ...payload, line: projectDiagnosticFrame({ line: payload.line }) };
+    if (payload.type !== 'tool_result' || !payload.delegatedToolUseId || !Array.isArray(rawEvent.delegatedResultContent)) return payload;
+    const matches = ctx.delegatedResultCorrelation.matches({ runId, toolUseId: payload.delegatedToolUseId, content: rawEvent.delegatedResultContent, isError: payload.isError === true });
+    return matches ? { ...payload, content: `Result shown by delegated call ${payload.delegatedToolUseId}.` } : payload;
+  }
 
   function rejectUnavailableBridge({ payload, rawEvent }: { payload: RunAgentPayload; rawEvent: Record<string, unknown> }, _options = {}): boolean {
     if (!bridgeChecked && payload.type === 'status' && payload.label === 'initializing') {
@@ -751,7 +801,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
 
   child.stdout?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
-    if (journal) enqueueEmit(() => journal.record({ runId: runId, entry: receivedJournalEntry('stdout', text) }));
+    stdoutDiagnostics.record({ chunk, text });
     if (streamFormat === 'plain') {
       if (text.length > 0) userVisibleOutputSeen = true;
       if (bufferStdoutUntilClose) {
@@ -776,7 +826,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: { type: 'text_delta', delta: text } } }));
       return;
     }
-    enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stdout', data: { chunk: text } } }));
+    stdoutDiagnostics.feed({ text });
     // Before the parser: an ack and the aborted turn's end can share a chunk, and the turn end must
     // see that no interrupt is still waiting (see `stdinHoldAfterTurnEnd`); a background task
     // starting and the turn's end can share one too.
@@ -821,6 +871,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
       // driver dispatches to. `streamHandler` is null for `'plain'` (no
       // parser, hence nothing to flush) — `?.` skips it cleanly.
       streamHandler?.flush();
+      stdoutDiagnostics.flush();
       // Queued before `await emitQueue` so the flushed text is durably appended ahead of
       // `finish()`'s `'end'` event, exactly like every live-path emit already is.
       flushBufferedStdout();

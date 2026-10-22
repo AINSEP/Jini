@@ -89,7 +89,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/protocol": "workspace:^"
   },
   "peerDependencies": {
     "@cfworker/json-schema": "^4.1.1",

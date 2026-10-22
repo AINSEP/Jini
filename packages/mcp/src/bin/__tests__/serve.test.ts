@@ -40,6 +40,15 @@ function flushAsync(): Promise<void> {
 }
 
 describe('serve() — wiring, with a fully-injected fake createMcpToolServer', () => {
+  it.each([undefined, '0', '1'])('enables delegated metadata only for explicit host environment opt-in: %s', async flag => {
+    let seen: McpToolServerOptions | undefined;
+    await serve({}, makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1', ...(flag === undefined ? {} : { JINI_DELEGATED_RESULT_MARKERS: flag }) }, createMcpToolServer: (_required, options) => {
+      seen = options;
+      return { run: async () => {} };
+    } }));
+    if (flag === '1') expect(seen?.delegatedTools?.delegatedResultMarkers).toBe(true);
+    else expect(seen?.delegatedTools).not.toHaveProperty('delegatedResultMarkers');
+  });
   it('carries trusted launch IDs into the server and daemon-client sanitizer', async () => {
     const { daemonCallOptions } = await import('../../server/tool-protocol.js');
     const { getDaemonJson } = await import('../../server/daemon-client.js');

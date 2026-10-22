@@ -37,6 +37,7 @@
  * exercised only through `feed`/`flush` in the test suite.
  */
 
+import { readDelegatedResult } from '@jini-ai/protocol';
 import { createRoleMarkerGuard, type RoleMarkerGuard, type RoleMarkerWarningEvent } from './role-marker-guard.js';
 import { createClaudeSegmentUsage } from './claude-segment-usage.js';
 
@@ -64,7 +65,7 @@ export type ClaudeStreamEvent =
   | { type: 'thinking_start' }
   | { type: 'tool_use'; id: unknown; name: unknown; input: unknown }
   | { type: 'tool_input_delta'; id: string; name: string; delta: string }
-  | { type: 'tool_result'; toolUseId: unknown; content: string; isError: boolean }
+  | { type: 'tool_result'; toolUseId: unknown; content: string; isError: boolean; delegatedToolUseId?: string; delegatedResultContent?: readonly unknown[] }
   | { type: 'turn_end'; stopReason: string }
   | { type: 'usage'; usage: unknown; costUsd: unknown; cumulativeCostUsd?: number; costSessionId?: string; durationMs: unknown; stopReason: string | null }
   | { type: 'error'; message: string; code: string }
@@ -408,10 +409,13 @@ export function handleUserMessage(obj: Record<string, unknown>, onEvent: EventSi
   for (const block of obj.message.content) {
     if (!isRecord(block)) continue;
     if (block.type === 'tool_result') {
+      const delegated = readDelegatedResult({ content: block.content });
       onEvent({
         type: 'tool_result',
         toolUseId: block.tool_use_id,
+        // Keep original pixels until the daemon verifies the run, outcome and digest.
         content: stringifyToolResult(block.content),
+        ...(delegated ? { delegatedToolUseId: delegated.marker.toolUseId, delegatedResultContent: delegated.content } : {}),
         isError: Boolean(block.is_error),
       });
     }

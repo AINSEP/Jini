@@ -118,7 +118,11 @@ export type RunAgentPayload =
    * blocks stay on the ordinary `tool_result` event, visible to whatever reads the run stream — the
    * model still only ever sees `content`, since no driver forwards `media` into a prompt.
    */
-  | { type: 'tool_result'; toolUseId: string; content: string; isError?: boolean; media?: unknown }
+  | {
+      type: 'tool_result'; toolUseId: string; content: string; isError?: boolean; media?: unknown;
+      /** Optional v1 echo hint; only a daemon-verified match may replace content with a note. */
+      delegatedToolUseId?: string;
+    }
   | { type: 'usage'; usage?: { input_tokens?: number; output_tokens?: number }; costUsd?: number; cumulativeCostUsd?: number; costSessionId?: string; durationMs?: number }
   | { type: 'raw'; line: string }
   /**

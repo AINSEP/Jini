@@ -6,10 +6,11 @@
  * enforces Jini's registry policy, confirmation, timeout, cancellation, and
  * audit trail before any registered handler runs.
  */
-import { batchOutcomeFor, type Principal, type RunRef, type SurfaceEmission } from '@jini-ai/core';
+import { type Principal, type RunRef, type SurfaceEmission } from '@jini-ai/core';
 import type { RunAgentPayload } from '@jini-ai/protocol';
 import type { RunLifecycle } from './run-lifecycle.js';
-import { extractResultMedia } from './tool-result-media.js';
+import { projectToolResultEvent } from './tool-result-media.js';
+import type { DelegatedResultCorrelation } from './delegated-result-correlation.js';
 import { splitToolResultSurfaces } from './tool-result-surfaces.js';
 import type { ToolExecutionResult, ToolExecutor } from './tool-executor.js';
 
@@ -49,6 +50,8 @@ export interface DelegatedToolBridge {
 export interface CreateDelegatedToolBridgeOptions {
   readonly lifecycle: RunLifecycle;
   readonly toolExecutor: ToolExecutor;
+  /** Share with the executor and lifecycle only after the host negotiates marker v1. */
+  readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
 }
 
 /**
@@ -75,43 +78,12 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Converts arbitrary registered-tool output into the string-bearing run protocol. */
-export function serializeDelegatedToolOutput({ output }: { readonly output: unknown }): string {
-  if (typeof output === 'string') return output;
-  if (output === undefined) return '';
-  try {
-    const serialized = JSON.stringify(output);
-    return serialized === undefined ? String(output) : serialized;
-  } catch {
-    return String(output);
-  }
-}
-
-/**
- * Maps a `ToolExecutionResult`'s status to the string a delegated-tool caller (this bridge, or
- * gap 3's stdin-tool-result injector in `agent-executor.ts`) reports back as the tool's visible
- * output/failure reason. Exported so both real callers share one mapping rather than drifting.
- */
-export function resultContent({ result }: { readonly result: ToolExecutionResult }): string {
-  switch (result.status) {
-    case 'completed':
-      return serializeDelegatedToolOutput({ output: result.output });
-    case 'denied':
-      return 'Tool execution denied by policy.';
-    case 'confirmation-denied':
-      return 'Tool execution denied during confirmation.';
-    case 'timed-out':
-      return 'Tool execution timed out.';
-    case 'cancelled':
-      return 'Tool execution cancelled.';
-    case 'failed':
-      return result.error ?? 'Tool execution failed.';
-  }
-}
+export { serializeDelegatedToolOutput, resultContent } from './tool-result-media.js';
 
 /** Context shared by the helpers of one delegated call. */
 interface DelegatedCall {
   readonly lifecycle: RunLifecycle;
+  readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   readonly runId: string;
   readonly toolUseId: string;
 }
@@ -209,22 +181,7 @@ function createSurfaceSeam({ lifecycle, runId, toolUseId }: DelegatedCall): { em
 }
 
 /** Splits human-only surfaces out of an executed result, emits them, then the matching `tool_result`. */
-async function emitExecutedResult({ lifecycle, runId, toolUseId }: DelegatedCall, { executed }: { readonly executed: ToolExecutionResult }): Promise<ToolExecutionResult> {
-    // Recognized media blocks (images) are collected here purely to populate the sibling
-    // `media` field the `tool_result` event carries below, for a UI that wants to render one
-    // inline without re-parsing `content` (`ToolCard`'s `<img>`, per `assistant_demo_image`'s
-    // own doc). This does NOT remove the image block from `executed.output` — `image` is one
-    // of `tool-result-surfaces.ts`'s own `MODEL_VISIBLE_BLOCK_TYPES`, so the split below already
-    // keeps it in `modelOutput` on its own. An image reaching the model IS the point
-    // (`assistant_demo_image`/`admin.capture_screenshot` exist to prove exactly that round
-    // trip) — unlike an `mcp-ui` resource, which is genuinely human-only and must never survive
-    // into `modelOutput`. (Earlier this extraction fed its own de-imaged `remainder` into the
-    // surfaces split below and discarded the image from `output` entirely, on the assumption
-    // that the sibling `media` field was the only channel a caller needed — true for a UI
-    // reading the run's event stream, false for `@jini-ai/mcp`'s `execute_delegated_tool`, which
-    // hands the bridge's RETURN VALUE to the model with no access to that event stream at all.)
-  const { media } = extractResultMedia({ output: executed.output });
-
+async function emitExecutedResult({ lifecycle, runId, toolUseId, delegatedResultCorrelation }: DelegatedCall, { executed }: { readonly executed: ToolExecutionResult }): Promise<ToolExecutionResult> {
     // THE MODEL/HUMAN FORK. A tool call's return value is definitionally what the model
     // receives, so a UI resource left inside it is model-visible context no matter what any
     // downstream layer does — `@jini-ai/mcp`'s `okResult()` JSON.stringifies the whole result
@@ -246,17 +203,25 @@ async function emitExecutedResult({ lifecycle, runId, toolUseId }: DelegatedCall
     } });
   }
 
+  // The return keeps model-visible images; only the stored event removes their duplicate.
+  const projection = projectToolResultEvent({ result });
   await lifecycle.emit({ runId: runId, input: {
     event: 'agent',
     data: {
       type: 'tool_result',
       toolUseId,
-      content: resultContent({ result }),
-      ...(result.status === 'completed' && (batchOutcomeFor({ output: result.output }) ?? 'completed') === 'completed' ? {} : { isError: true }),
-      ...(media.length > 0 ? { media } : {}),
+      ...projection,
     },
   } });
+  // Record only after the canonical result is saved; failed emission cannot hide an echo.
+  if (result.status === 'completed' && isContentEnvelope(result.output)) {
+    delegatedResultCorrelation?.record({ runId, toolUseId, content: result.output.content, isError: projection.isError === true });
+  }
   return result;
+}
+
+function isContentEnvelope(output: unknown): output is { content: readonly unknown[] } {
+  return typeof output === 'object' && output !== null && 'content' in output && Array.isArray(output.content);
 }
 
 /**
@@ -265,15 +230,17 @@ async function emitExecutedResult({ lifecycle, runId, toolUseId }: DelegatedCall
  * concrete protocol calls this bridge after it has decoded and authenticated a
  * delegated tool request.
  */
-export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOptions): DelegatedToolBridge {
-  const { lifecycle, toolExecutor } = options;
+export function createDelegatedToolBridge(requiredArgs: Pick<CreateDelegatedToolBridgeOptions, 'lifecycle' | 'toolExecutor'>, optionalArgs: Pick<CreateDelegatedToolBridgeOptions, 'delegatedResultCorrelation'> = {}): DelegatedToolBridge {
+  const options = { ...requiredArgs, ...optionalArgs };
+  // A route may pass its broader deps as options; its wrapped executor remains authoritative.
+  const { lifecycle, toolExecutor } = requiredArgs;
 
   async function execute(requiredArgs: Pick<DelegatedToolInvocation, "runId" | "toolUseId" | "toolId" | "principal" | "input">, optionalArgs: Pick<DelegatedToolInvocation, "signal"> = {}): Promise<ToolExecutionResult> {
     // Merged rather than read from `optionalArgs` alone: a caller may hand `signal` in the first
     // object (the delegated-tools HTTP route does), and it must still be honoured.
     const invocation: DelegatedToolInvocation = { ...requiredArgs, ...optionalArgs };
     const { runId, toolUseId, toolId, principal, input } = invocation;
-    const call: DelegatedCall = { lifecycle, runId, toolUseId };
+    const call: DelegatedCall = { lifecycle, runId, toolUseId, ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}) };
     await lifecycle.emit({ runId: runId, input: {
       event: 'agent',
       data: { type: 'tool_use', id: toolUseId, name: toolId, input },

@@ -210,7 +210,7 @@ function withProcessDefaults(deps: ServeDeps) {
   };
 }
 
-type DelegatedGatewayOptions = { generateToolUseId?: (required: Record<string, never>) => string; delegatedToolTimeoutMs?: number };
+type DelegatedGatewayOptions = { generateToolUseId?: (required: Record<string, never>) => string; delegatedToolTimeoutMs?: number; delegatedResultMarkers?: boolean };
 
 // Drops `undefined` values so an absent dependency leaves no key at all — required under
 // `exactOptionalPropertyTypes`, and it keeps built option objects byte-identical to the
@@ -225,6 +225,7 @@ function buildDelegatedGatewayOptions({ env }: { env: NodeJS.ProcessEnv }, deps:
   const rawTimeout = env[DELEGATED_TOOL_TIMEOUT_ENV_VAR];
   return definedOnly({
     generateToolUseId: deps.generateToolUseId,
+    delegatedResultMarkers: env.JINI_DELEGATED_RESULT_MARKERS === '1' ? true : undefined,
     // Parsed, not validated: `createExecuteDelegatedToolTool` already rejects a non-finite or
     // non-positive value back to the default, so `NaN` from a malformed env var lands there too.
     delegatedToolTimeoutMs: rawTimeout === undefined ? undefined : Number(rawTimeout),

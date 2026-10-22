@@ -1,10 +1,12 @@
 import { withReadOnlyToolConstraint, defaultDaemonMessages } from '../../read-only-tools.js';
+import { createNodeCredentialCrypto } from '../../run-credentials.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createToolRegistry, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import {
   createInMemoryEventLog,
   createRunLifecycle,
   createToolExecutor,
+  createDelegatedResultCorrelation,
   type RunLifecycle,
   type ToolExecutor,
 } from '../../index.js';
@@ -136,6 +138,17 @@ describe('delegatedToolExecuteRoute.parse (parseDelegatedToolExecute)', () => {
 });
 
 describe('delegatedToolExecuteRoute.handle', () => {
+  it('shares the host correlation store with the bridge created by the HTTP route', async () => {
+    const delegatedResultCorrelation = createDelegatedResultCorrelation({ crypto: createNodeCredentialCrypto({}) });
+    const image = { type: 'image', mimeType: 'image/png', data: 'ORIGINAL_PIXELS' };
+    const registry = createToolRegistry({});
+    registry.register({ descriptor: { id: 'capture' }, policy: { authorize: () => 'allow' }, handler: async () => ({ content: [image] }) });
+    const deps = makeDeps({ delegatedResultCorrelation, toolExecutor: createToolExecutor({ registry }) });
+    const { run } = await deps.lifecycle.start({ contextRef: 'correlation' });
+    const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'B', toolId: 'capture' }, deps });
+    expect(result).toMatchObject({ ok: true, value: { result: { status: 'completed', output: { content: [image] } } } });
+    expect(delegatedResultCorrelation.matches({ runId: run.id, toolUseId: 'B', content: [image], isError: false })).toBe(true);
+  });
   it('returns NOT_FOUND when the run does not exist, without ever calling resolvePrincipal', async () => {
     const resolvePrincipal = vi.fn(() => TEST_PRINCIPAL);
     const deps = makeDeps({ resolvePrincipal });
