@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { DEFAULT_STALE_TIME, FetchQueryCache, toQueryError, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
+import { DEFAULT_STALE_TIME, FetchQueryCache, toQueryError, withCachedLoaderFetch, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
 import { FetchQueryBinding } from './binding.react.js';
-import type { CachedLoader, CachedLoaderOptions, FetchMutationOptions, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from '@jini-ai/core/fetch';
+import type { CachedLoader, CachedLoaderDefaults, CachedLoaderOptions, FetchMutationOptions, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from '@jini-ai/core/fetch';
 
 const CacheContext = createContext<FetchQueryCache | null>(null);
 
@@ -106,12 +106,14 @@ export function useFetchMutation<TInput, TOutput>(required: Pick<FetchMutationOp
 }
 
 /** Promise loader sharing the provider cache; replace wins over an older in-flight read. */
-export function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, "key" | "fetch">, { staleTime = DEFAULT_STALE_TIME }: Omit<CachedLoaderOptions<T>, "key" | "fetch"> = {}): CachedLoader<T> {
+export function useCachedLoader<T>({ key, fetch }: CachedLoaderDefaults<T>, { staleTime = DEFAULT_STALE_TIME }: Omit<CachedLoaderOptions<T>, "key" | "fetch"> = {}): CachedLoader<T> {
   const cache = useCache();
   return useMemo(() => ({
     peek: () => cache.entry({ key: key }, { staleTime: staleTime }).state.data as T | undefined,
-    load: (required = { key, fetch }, { staleTime: readStaleTime = staleTime }: { staleTime?: number } = {}) =>
-      cache.load({ entry: cache.entry({ key: required.key }, { staleTime }), fetch: required.fetch, staleTime: readStaleTime }),
+    // `fetch` is the loader's optional default; `withCachedLoaderFetch` rejects an argument-less read
+    // that has none before the cache is touched (see `CachedLoaderDefaults`).
+    load: (required: CachedLoaderDefaults<T> = { key, fetch }, { staleTime: readStaleTime = staleTime }: { staleTime?: number } = {}) =>
+      withCachedLoaderFetch(required, read => cache.load({ entry: cache.entry({ key: read.key }, { staleTime }), fetch: read.fetch, staleTime: readStaleTime })),
     replace: ({ value }: { value: T }) => cache.replace({ entry: cache.entry({ key: key }, { staleTime: staleTime }), data: value }),
   }), [cache, key, fetch, staleTime]);
 }
