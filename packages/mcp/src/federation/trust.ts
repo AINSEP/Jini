@@ -424,17 +424,17 @@ export function writeShapedSchemaInputNames({ schema }: { schema: unknown }): st
   return sortedUnique(found);
 }
 
-/** R3 action-name rules, applied to the snake_cased remote name. Kept as named module constants
+/** R3 action-name rules, applied to the snake_cased remote name (camelCase split, `-` read as `_`). Kept as named module constants
  * (none carries the `g` flag, so `.test` is stateless) so {@link federatedCallConfirmationForAction}
  * reads as the ordered policy it is. */
-const DELIVERY_ACTION = /(?:send|deliver|invite|reply|forward).*(?:email|mail|newsletter|message|sms|invitation)|(?:email|mail|newsletter|message|sms).*(?:send|deliver|reply|forward)|(?:post|publish).*(?:message|newsletter)/;
+const DELIVERY_ACTION = /(?:send|deliver|invite|reply|forward|broadcast).*(?:email|mail|newsletter|message|sms|invitation|broadcast)|(?:email|mail|newsletter|message|sms).*(?:send|deliver|reply|forward)|(?:post|publish).*(?:message|newsletter)/;
 const SYSTEM_PROMPT_ACTION = /(?:set|update|edit|change).*(?:system_prompt|system_instruction)/;
 const ASSISTANT_PREFIX = /^(?:assistant|agent)_/;
 const READ_ACTION = /^(?:get|list|read|search|describe)_/;
 const ASSISTANT_ACCESS_ACTION = /(?:assistant|agent).*(?:instruction|privacy|permission|access|policy)/;
 const SQL_ACTION = /(?:execute_sql|apply_migration|run_query|query_database)/;
 const REVERSIBLE_REMOVAL_ACTION = /(?:^|_)(?:trash|archive|tombstone|unpublish)(?:_|$)/;
-const PERMANENT_REMOVAL_ACTION = /(?:^|_)(?:delete|purge|drop|destroy|truncate)(?:_|$)/;
+const PERMANENT_REMOVAL_ACTION = /(?:^|_)(?:delete|purge|drop|destroy|truncate|remove|revoke)(?:_|$)/;
 
 /**
  * Owner confirmation policy (2026-10-01). Ordinary writes run immediately; permanent deletion,
@@ -450,7 +450,8 @@ const PERMANENT_REMOVAL_ACTION = /(?:^|_)(?:delete|purge|drop|destroy|truncate)(
  */
 export function federatedCallConfirmationForAction({ remoteName, annotations, args }: { remoteName: string; annotations: RemoteToolDescriptorAnnotations; args: Readonly<Record<string, unknown>> }
 ): FederatedCallConfirmation {
-  const name = remoteName.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
+  // `-` separates words like `_` does (`remove-domain`, `send-broadcast`): MCP servers use both.
+  const name = remoteName.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace(/-/g, "_");
   const declaredDestructive = annotations?.destructiveHint === true;
   if (DELIVERY_ACTION.test(name) || SYSTEM_PROMPT_ACTION.test(name)) return "confirm";
   if (READ_ACTION.test(name.replace(ASSISTANT_PREFIX, "")) && !declaredDestructive) return "none";

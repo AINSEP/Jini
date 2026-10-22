@@ -112,6 +112,13 @@ describe("federatedCallConfirmationForAction truth table", () => {
     ["post_message", undefined, {}, "confirm"],
     ["publish_newsletter", undefined, {}, "confirm"],
     ["post_comment", undefined, {}, "none"],
+    // hyphenated names tokenize like snake_case (Resend's MCP server names its tools this way)
+    ["send-email", undefined, {}, "confirm"],
+    ["send-broadcast", undefined, {}, "confirm"],
+    ["send_broadcast", undefined, {}, "confirm"],
+    ["broadcast_message", undefined, {}, "confirm"],
+    ["create-broadcast", undefined, {}, "none"],
+    ["list-broadcasts", undefined, {}, "none"],
     // system prompt
     ["update_system_prompt", undefined, {}, "confirm"],
     ["change_system_instruction", undefined, {}, "confirm"],
@@ -144,6 +151,15 @@ describe("federatedCallConfirmationForAction truth table", () => {
     ["destroyThing", undefined, {}, "confirm-destructive"],
     ["truncate_table", undefined, {}, "confirm-destructive"],
     ["deleted_items_report", undefined, {}, "none"],
+    ["delete-domain", undefined, {}, "confirm-destructive"],
+    ["remove-domain", undefined, {}, "confirm-destructive"],
+    ["remove_user", undefined, {}, "confirm-destructive"],
+    ["removeContact", undefined, {}, "confirm-destructive"],
+    ["revoke-api-key", undefined, {}, "confirm-destructive"],
+    ["revoke_token", undefined, {}, "confirm-destructive"],
+    ["removed_items_report", undefined, {}, "none"],
+    ["get-domain", undefined, {}, "none"],
+    ["trash-item", { destructiveHint: true }, {}, "none"],
     // fallback on hints
     ["create_project", { destructiveHint: true }, {}, "confirm-destructive"],
     ["create_project", { destructiveHint: false }, {}, "none"],
@@ -161,8 +177,8 @@ describe("name-heuristic gaps (reported, not fixed)", () => {
     expect(federatedCallConfirmationForAction({ remoteName: "list_and_drop_tables", annotations: undefined, args: {} })).toBe("none");
   });
 
-  test("removal verbs outside the vocabulary (remove, erase, wipe) run without a card when the remote omits hints (reported, not fixed)", () => {
-    for (const remoteName of ["remove_user", "erase_bucket", "wipe_project"]) {
+  test("removal verbs outside the vocabulary (erase, wipe) run without a card when the remote omits hints (reported, not fixed)", () => {
+    for (const remoteName of ["erase_bucket", "wipe_project"]) {
       expect(federatedCallConfirmationForAction({ remoteName, annotations: undefined, args: {} })).toBe("none");
     }
   });
