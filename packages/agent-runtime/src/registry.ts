@@ -142,3 +142,26 @@ export function agentSupportsSubagents(
   const def = getDef({ id: agentId });
   return def !== null && runtimeSupportsSubagents({ def });
 }
+
+/**
+ * Whether this def's `buildArgs` honors `RuntimeBuildOptions.chromeIntegration`, per its own
+ * `supportsChromeIntegration` declaration. Same seam shape as {@link runtimeSupportsSubagents}.
+ *
+ * @complexity Time/space: O(1).
+ */
+export function runtimeSupportsChromeIntegration({ def }: { def: Pick<RuntimeAgentDef, 'supportsChromeIntegration'> }): boolean {
+  return def.supportsChromeIntegration === true;
+}
+
+/**
+ * {@link runtimeSupportsChromeIntegration} by agent id; same lookup contract as {@link agentSupportsSubagents}.
+ *
+ * @complexity Time/space: O(n) for n registered defs (one lookup).
+ */
+export function agentSupportsChromeIntegration(
+  { agentId }: { agentId: string },
+  { getDef = getAgentDef }: { getDef?: (input: { id: string }) => Pick<RuntimeAgentDef, 'supportsChromeIntegration'> | null } = {},
+): boolean {
+  const def = getDef({ id: agentId });
+  return def !== null && runtimeSupportsChromeIntegration({ def });
+}

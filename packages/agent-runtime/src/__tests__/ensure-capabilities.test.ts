@@ -55,6 +55,8 @@ describe('ensureAgentCapabilities — fills the capability gate on the run path,
       effort: true,
       appendSystemPrompt: true,
       settingSources: false,
+      // The fixture help predates `--chrome`, so the probe records it as absent.
+      chrome: false,
     });
     const after = def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'high' }, runtimeContext: {} });
     expect(after).toContain('--include-partial-messages');

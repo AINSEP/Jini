@@ -149,6 +149,13 @@ export type RuntimeBuildOptions = {
    * still hand the run the few it wants, e.g. one PreToolUse hook. `undefined`/empty = no flag.
    */
   settings?: string;
+  /**
+   * Browser integration for this run — today `claude`'s `--chrome` (true) / `--no-chrome` (false),
+   * "Enable/Disable Claude in Chrome integration" in Claude Code 2.1.307's `-p --help`. A mechanism
+   * only: the host decides. Probe-gated like `--effort`, so a CLI without the flag gets neither.
+   * `undefined` = no flag, byte-identical to before; defs without `supportsChromeIntegration` ignore it.
+   */
+  chromeIntegration?: boolean;
 };
 
 export type RuntimeContext = {
@@ -353,6 +360,9 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
    * Declarative only: hosts read it through `runtimeSupportsSubagents`, never by model name.
    * Absent = no native subagents. */
   supportsSubagents?: boolean;
+  /** `buildArgs` honors `RuntimeBuildOptions.chromeIntegration` (today Claude Code's
+   * `--chrome`/`--no-chrome`). Read through `runtimeSupportsChromeIntegration`; absent = unsupported. */
+  supportsChromeIntegration?: boolean;
   id: string;
   name: string;
   bin: string;
