@@ -104,9 +104,9 @@ function pinWireNames(descriptors: readonly ProviderToolDescriptor[], names: Map
 }
 /** Per-turn projection state only; the host registry/executor retains definition and policy ownership.
  * Names and previously published decoders survive refresh so in-flight calls remain resolvable.
- * Work is O(n log n + s) per snapshot for n IDs and s bounded expanded schema nodes; no I/O.
+ * Snapshot work is O(n log n + s) for n IDs and s bounded expanded schema nodes; host ports own I/O.
  */
-function createToolProjection(input: InternalTurnInput) {
+function createToolProjection(input: InternalTurnInput, _options = {}) {
   const names = new Map<string, string>();
   const published = new Map<string, PublishedTool>();
   const reported = new Set<string>();
@@ -131,8 +131,16 @@ function createToolProjection(input: InternalTurnInput) {
   }
   return {
     getTools,
-    async execute(call: ProviderToolCall): Promise<ProviderToolResult> {
-      if (!published.has(call.name)) return { isError: true, content: 'Tool is not exposed in this turn.' };
+    /** Dispatch a published call or await host refusal wording/audit; callback errors propagate.
+     * O(1) local lookup and space; host callback/executor costs belong to those ports.
+     */
+    async execute(call: ProviderToolCall, _options = {}): Promise<ProviderToolResult> {
+      if (!published.has(call.name)) {
+        // MOVE: Refusal auditing must stay separate from execution so a policy change during
+        // the callback cannot authorize a call whose name was never published this turn.
+        const refusal = await input.onUnexposedToolCall?.({ toolName: call.name, callId: call.id, input: call.input, protocol: input.protocol });
+        return { isError: true, content: refusal?.text ?? 'Tool is not exposed in this turn.' };
+      }
       return input.executeTool(decode(call));
     },
     onEvent(event: ProviderTurnEvent): void {

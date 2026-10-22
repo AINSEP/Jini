@@ -87,6 +87,18 @@ export interface ProviderToolResult {
   readonly isError?: boolean;
 }
 export type ProviderToolExecutor = (call: ProviderToolCall) => Promise<ProviderToolResult>;
+/** Raw provider call metadata: an unpublished wire name has no canonical tool ID or decoder. */
+export interface ProviderUnexposedToolCall {
+  readonly toolName: string;
+  readonly callId: string;
+  readonly input: unknown;
+  readonly protocol: ProviderProtocol;
+}
+/** Refusal wording only; no result content, success flag, or execution capability is accepted. */
+export interface ProviderToolRefusal { readonly text: string }
+/** May audit the denied attempt; throws/rejections propagate and never authorize execution. */
+export type ProviderUnexposedToolCallHandler = (call: ProviderUnexposedToolCall) =>
+  ProviderToolRefusal | undefined | Promise<ProviderToolRefusal | undefined>;
 export interface ProviderToolTurnInput {
   readonly protocol: ProviderProtocol;
   readonly adapters: ProviderTurnAdapters;
@@ -105,6 +117,14 @@ export interface ProviderToolTurnResult {
 
 /** Optional turn controls; dependencies belong in the required input object. */
 export interface ProviderToolTurnOptions {
+  /** Audit and word an unpublished call's refusal. Undefined retains the built-in text.
+   * The result is always an error; this callback must never execute a tool handler.
+   * @example onUnexposedToolCall: async ({ toolName, callId }) => {
+   *   await auditDeniedAttempt({ toolName, callId });
+   *   return { text: 'This tool is unavailable.' };
+   * }
+   */
+  readonly onUnexposedToolCall?: ProviderUnexposedToolCallHandler;
   /** Current run-scoped descriptors; adapters refresh the projection before every request. */
   readonly getToolSnapshot?: () => readonly ProviderToolDescriptor[];
   /** Value-free diagnostic only; execution must still validate through the host executor. */
