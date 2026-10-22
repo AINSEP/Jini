@@ -114,9 +114,13 @@ describe('useChatPane — guarded prompt sends', () => {
     await act(() => result.current.send());
     expect(result.current.queuedPrompt).toBe('also fix the footer');
     let rejectStart: ((error: Error) => void) | undefined;
-    transport.startRun = () => new Promise((_resolve, reject) => { rejectStart = reject; });
+    const startRun = vi.fn((_input: Parameters<typeof transport.startRun>[0]) => new Promise<never>((_resolve, reject) => { rejectStart = reject; }));
+    transport.startRun = startRun as unknown as typeof transport.startRun;
     act(() => transport.finish());
-    await waitFor(() => expect(rejectStart).toBeDefined());
+    // The finished run flushes the queue: exactly one new run starts, carrying the queued prompt.
+    await waitFor(() => expect(startRun).toHaveBeenCalledTimes(1));
+    expect(startRun.mock.calls[0]?.[0].history.at(-1)?.content).toBe('also fix the footer');
+    expect(result.current.queuedPrompt).toBeNull();
 
     act(() => result.current.reset());
     await act(async () => { rejectStart!(new Error('offline')); });
