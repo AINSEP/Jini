@@ -136,6 +136,28 @@ export async function markAttempt(
   await tx.updateAttempt({ id: attemptId, patch: { outcome: outcome.kind, ...error, updatedAt: deps.now() } });
 }
 
+/**
+ * What a non-ok outcome reports. A `rejected` attempt spends its idempotency key: a retry under it
+ * only replays this answer (`rejectedReplay`), so it is never retryable whatever the provider said
+ * (a 429's `retryable` means "try again", which here needs a new key — and a new grant).
+ */
+export function outcomeError({ outcome }: { outcome: Exclude<Outcome<unknown>, { kind: "ok" }> }, _optional: Record<string, never> = {}): PaymentError {
+  return outcome.kind === "rejected" ? { ...outcome.error, retryable: false } : outcome.error;
+}
+
+/** The suffix a replayed failure carries: the key is spent, nothing moved, a new attempt needs a new key. */
+export const SPENT_KEY = "moved no money; a new attempt needs a new idempotencyKey";
+
+/**
+ * A replay of a key whose attempt was `rejected` reports that rejection again — never `ok` (C-1).
+ * `markAttempt` writes `errorCode`/`errorMessage` for every non-ok outcome, so both are present.
+ */
+export function rejectedReplay({ attempt }: { attempt: AttemptRecord }, _optional: Record<string, never> = {}): Failure | null {
+  if (attempt.outcome !== "rejected") return null;
+  const message = `${attempt.errorMessage as string} (replayed: the earlier ${attempt.op} under this idempotencyKey was rejected and ${SPENT_KEY})`;
+  return fail({ code: attempt.errorCode as PaymentErrorCode, message });
+}
+
 /** Raises an alert; a failing sink never fails the money operation that raised it. */
 export async function raiseAlert(
   { deps, kind, payment, detail }: { deps: OpsDeps; kind: PaymentsAlertKind; payment: Pick<PaymentRecord, "workspaceId" | "mode" | "id">; detail: string },

@@ -20,8 +20,8 @@ import { applyRefundEvidence, recordRefundDispatchOutcome, reserveRefund, type R
 import type { LedgerTx } from "../ledger/repo.js";
 import type { AttemptRecord, PaymentRecord, RefundRecord } from "../ledger/rows.js";
 import {
-  checkAmount, checkProvider, checkText, dispatch, fail, markAttempt, newAttempt, noteApplied, onUniqueRace, readPayment,
-  resolveContext, type Failure,
+  SPENT_KEY, checkAmount, checkProvider, checkText, dispatch, fail, markAttempt, newAttempt, noteApplied, onUniqueRace, outcomeError,
+  readPayment, rejectedReplay, resolveContext, type Failure,
 } from "./common.js";
 import type { OpsDeps } from "./deps.js";
 import { paymentView, refundView, scopeOf } from "./view.js";
@@ -54,11 +54,22 @@ function checkRefund(
 type Done = { readonly kind: "done"; readonly result: RefundResult };
 type Opened = { readonly kind: "opened"; readonly payment: PaymentRecord; readonly refund: RefundRecord; readonly attempt: AttemptRecord };
 
+/**
+ * A `failed` refund replayed under its key reports the failure, never `ok` (C-1): its own rejected
+ * attempt's answer when the dispatch was rejected, else (the provider reported it failed later) a decline.
+ */
+async function failedReplay({ tx, prior }: { tx: LedgerTx; prior: RefundRecord }): Promise<Failure> {
+  // Tx1 wrote the refund and its attempt together, so the attempt is there.
+  const attempt = (await tx.listAttempts({ paymentId: prior.paymentId })).find((a) => a.refundId === prior.id) as AttemptRecord;
+  return rejectedReplay({ attempt }) ?? fail({ code: "DECLINED", message: `the refund under this idempotencyKey failed at the provider and ${SPENT_KEY}` });
+}
+
 /** A prior refund under this key: the same request is replayed from the ledger, anything else conflicts. */
 async function replayOrConflict({ tx, required, prior }: { tx: LedgerTx; required: RefundRequired; prior: RefundRecord }): Promise<Done> {
   const same = sameScope({ a: scopeOf(prior), b: required.scope }) && prior.paymentId === required.paymentId
     && prior.amountMinor === required.amount.minorUnits && prior.currency === required.amount.currency;
   if (!same) return { kind: "done", result: fail({ code: "IDEMPOTENCY_CONFLICT", message: "idempotency key already used for a different refund request" }) };
+  if (prior.status === "failed") return { kind: "done", result: await failedReplay({ tx, prior }) };
   // A refund row's payment exists in the same scope: the composite foreign key guarantees it.
   const payment = (await readPayment({ tx, scope: required.scope, paymentId: prior.paymentId })) as PaymentRecord;
   return { kind: "done", result: { ok: true, refund: refundView(prior), payment: paymentView(payment), replayed: true } };
@@ -130,7 +141,7 @@ async function settleRefund({ deps, opened, outcome }: { deps: OpsDeps; opened: 
     if (outcome.kind === "ok") return applyRefundEvidence({ ...target, tx, source: "response", evidence: outcome.value }, { refundId: refund.id });
     return recordRefundDispatchOutcome({ ...target, tx, refundId: refund.id, outcome: outcome.kind });
   } });
-  if (outcome.kind !== "ok") return { ok: false, error: outcome.error };
+  if (outcome.kind !== "ok") return { ok: false, error: outcomeError({ outcome }) };
   if (!(await noteApplied({ deps, payment, result }))) {
     return fail({ code: "PROVIDER_ERROR", message: "the provider's refund response could not be applied and was quarantined for review" });
   }

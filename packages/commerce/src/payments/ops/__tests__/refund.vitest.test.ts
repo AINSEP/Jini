@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 
+import { paymentError } from "../../contract/provider.js";
 import type { LedgerTx, PaymentsLedger } from "../../ledger/repo.js";
 import { LIPAY, SCRIPTED, USD, authorizedScripted, paidLipay, recordingAlerts, rejected, timedOut, world, type World } from "./harness.js";
 
@@ -154,6 +155,33 @@ describe("refund: provider answers", () => {
     expect(result).toEqual({ ok: false, error: { code: "DECLINED", message: "provider said no", retryable: false } });
     expect((await w.read(id)).refunds.map((r) => r.status)).toEqual(["failed"]);
     expect((await w.read(id)).payment?.refundHeldMinor).toBe(0);
+  });
+
+  test("rejected, then replayed under the same key: the rejection again, not success (C-1)", async () => {
+    const w = await world({ scripted: { capture: "auto" } });
+    const id = await scriptedPaid(w);
+    w.scripted.queue("refund", { kind: "rejected", error: paymentError({ code: "PROVIDER_ERROR", message: "rate limited" }, { retryable: true }) });
+    const first = await w.service.refund({ scope: SCRIPTED, paymentId: id, amount: USD(3_000), idempotencyKey: "rk", grant: await refundGrant(w, id, 3_000, "rk", SCRIPTED) });
+    expect(first).toEqual({ ok: false, error: { code: "PROVIDER_ERROR", message: "rate limited", retryable: false } });
+    const again = await w.service.refund({ scope: SCRIPTED, paymentId: id, amount: USD(3_000), idempotencyKey: "rk", grant: "g" });
+    expect(again).toEqual({ ok: false, error: {
+      code: "PROVIDER_ERROR", retryable: false,
+      message: "rate limited (replayed: the earlier refund under this idempotencyKey was rejected and moved no money; a new attempt needs a new idempotencyKey)",
+    } });
+    expect(w.scripted.calls.filter((c) => c.op === "refund")).toHaveLength(1);
+  });
+
+  test("a refund the provider later reported failed replays as a failure, not success (C-1)", async () => {
+    const w = await world({ scripted: { capture: "auto" } });
+    const id = await scriptedPaid(w);
+    await w.service.refund({ scope: SCRIPTED, paymentId: id, amount: USD(3_000), idempotencyKey: "rk", grant: await refundGrant(w, id, 3_000, "rk", SCRIPTED) });
+    const [row] = (await w.read(id)).refunds;
+    await w.ledger.transaction({ fn: (tx) => tx.updateRefund({ id: row!.id, patch: { status: "failed", updatedAt: 1 } }) });
+    const again = await w.service.refund({ scope: SCRIPTED, paymentId: id, amount: USD(3_000), idempotencyKey: "rk", grant: "g" });
+    expect(again).toEqual({ ok: false, error: {
+      code: "DECLINED", retryable: false,
+      message: "the refund under this idempotencyKey failed at the provider and moved no money; a new attempt needs a new idempotencyKey",
+    } });
   });
 
   test("unknown: the refund is unknown and keeps holding the money (B4)", async () => {

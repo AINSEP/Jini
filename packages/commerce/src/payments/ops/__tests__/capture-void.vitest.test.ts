@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 
+import { paymentError } from "../../contract/provider.js";
 import type { LedgerTx, PaymentsLedger } from "../../ledger/repo.js";
 import { LIPAY, NOW, SCRIPTED, USD, authorizedScripted, paidLipay, recordingAlerts, rejected, timedOut, world, type World } from "./harness.js";
 
@@ -86,7 +87,8 @@ describe("capture/void: idempotency", () => {
     blind = true;
     // The blind lookup lets a second call with vk-1 reach the attempt insert, as a concurrent call would.
     const result = await w.service.void({ scope: SCRIPTED, paymentId: held.id, idempotencyKey: "vk-1", grant: await voidGrant(w, held.id) });
-    expect(result).toMatchObject({ ok: true, replayed: true, payment: { status: "authorized" } });
+    // The winner's attempt was rejected, so the replay reports that rejection, never success (C-1).
+    expect(result).toMatchObject({ ok: false, error: { code: "DECLINED", retryable: false }, payment: { status: "authorized" } });
     expect(w.scripted.calls.filter((c) => c.op === "void")).toHaveLength(1);
   });
 });
@@ -153,6 +155,21 @@ describe("capture/void: provider answers", () => {
     expect(await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(100), idempotencyKey: "ck-1", grant: await captureGrant(w, held.id, 100) }))
       .toMatchObject({ ok: false, error: { code: "DECLINED" }, payment: { status: "authorized" } });
     expect((await w.read(held.id)).attempts.at(-1)).toMatchObject({ op: "capture", outcome: "rejected", errorCode: "DECLINED" });
+  });
+
+  test("a rejected capture replayed under the same key reports the rejection, not success, and moves no money (C-1)", async () => {
+    const w = await world();
+    const held = await authorizedScripted(w);
+    // A rate-limit rejection says a same-key retry may succeed; once rejected, this key can only replay.
+    w.scripted.queue("capture", { kind: "rejected", error: paymentError({ code: "PROVIDER_ERROR", message: "rate limited" }, { retryable: true }) });
+    const first = await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(100), idempotencyKey: "ck-1", grant: await captureGrant(w, held.id, 100) });
+    expect(first).toMatchObject({ ok: false, error: { code: "PROVIDER_ERROR", retryable: false } });
+    const again = await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(100), idempotencyKey: "ck-1", grant: "g" });
+    expect(again).toEqual({
+      ok: false, payment: expect.objectContaining({ status: "authorized" }),
+      error: { code: "PROVIDER_ERROR", message: "rate limited (replayed: the earlier capture under this idempotencyKey was rejected and moved no money; a new attempt needs a new idempotencyKey)", retryable: false },
+    });
+    expect(w.scripted.calls.filter((c) => c.op === "capture")).toHaveLength(1);
   });
 
   test("a void response the writer quarantines is PROVIDER_ERROR with an alert", async () => {
