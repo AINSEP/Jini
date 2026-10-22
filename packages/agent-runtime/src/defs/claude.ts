@@ -114,10 +114,22 @@ function claudeSettingSourcesArgs({ options, caps }: { options: RuntimeBuildOpti
   return [];
 }
 
+// See `RuntimeBuildOptions.chromeIntegration`. Probe-gated like `--effort`: `--chrome`/`--no-chrome`
+// are newer than `--model`, and an older build rejects an unknown option with exit 1, which would
+// kill the chat rather than degrade it. Undefined emits nothing, so existing argv is unchanged.
+function claudeChromeArgs({ options, caps }: { options: RuntimeBuildOptions; caps: RuntimeCapabilityMap }): string[] {
+  if (options.chromeIntegration === undefined || !caps.chrome) return [];
+  return [options.chromeIntegration ? '--chrome' : '--no-chrome'];
+}
+
 export const claudeAgentDef = {
   ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
     id: 'claude',
     supportsNativeToolAccess: true,
+    // Native Task/Agent subagent tool (see `native-tool-policy.ts`'s `subagents` dimension).
+    supportsSubagents: true,
+    // `--chrome`/`--no-chrome` via `RuntimeBuildOptions.chromeIntegration` (see `claudeChromeArgs`).
+    supportsChromeIntegration: true,
     name: 'Claude Code',
     bin: 'claude',
     // Drop-in forks that ship a CLI argv-compatible with `claude`. Tried in
@@ -142,6 +154,8 @@ export const claudeAgentDef = {
       '--effort': 'effort',
       '--append-system-prompt': 'appendSystemPrompt',
       '--setting-sources': 'settingSources',
+      // Also matches `--no-chrome`; both ship together (Claude Code 2.1.307 `-p --help`).
+      '--chrome': 'chrome',
     },
     // `claude` has no list-models subcommand, so the model list is answered from the best source
     // available, in this order:
@@ -238,6 +252,7 @@ export const claudeAgentDef = {
         ...claudeSettingSourcesArgs({ options, caps }),
         // See `RuntimeBuildOptions.settings`. Not probe-gated: `--settings` long predates `--setting-sources`.
         ...(options.settings ? ['--settings', options.settings] : []),
+        ...claudeChromeArgs({ options, caps }),
       ];
     },
     promptViaStdin: true,

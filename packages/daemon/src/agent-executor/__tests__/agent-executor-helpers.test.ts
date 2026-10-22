@@ -248,6 +248,10 @@ describe('buildAgentBuildArgsOptions', () => {
   it('forwards settings verbatim', () => {
     expect(buildAgentBuildArgsOptions({ input: { settings: '{"hooks":{}}' }, systemPromptOverlay: undefined })).toEqual({ permissionMode: 'restricted',  settings: '{"hooks":{}}' });
   });
+  it('forwards chromeIntegration verbatim, including an explicit false (disable)', () => {
+    expect(buildAgentBuildArgsOptions({ input: { chromeIntegration: true }, systemPromptOverlay: undefined })).toEqual({ permissionMode: 'restricted', chromeIntegration: true });
+    expect(buildAgentBuildArgsOptions({ input: { chromeIntegration: false }, systemPromptOverlay: undefined })).toEqual({ permissionMode: 'restricted', chromeIntegration: false });
+  });
   it('returns undefined when nothing was selected at all', () => {
     expect(buildAgentBuildArgsOptions({ input: {}, systemPromptOverlay: undefined })).toEqual({ permissionMode: 'restricted' });
   });
