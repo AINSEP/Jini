@@ -5,6 +5,7 @@ import {
     createOAuthUrlGuard, OAuthError, requestOAuthToken, revokeOAuthToken, validateOidcIdToken,
     type OAuthFetch, type OAuthTokenSet,
 } from '../src/index.js';
+import { requireValidatedClaims } from '../src/oidc.js';
 import { fixtureFetch, fixtureGuard } from './fixtures.js';
 import {
     assertOAuthRejects, createFetchDouble, createTestClock, sendJson, startLoopbackServer, TEST_CLIENT,
@@ -347,4 +348,10 @@ test('an empty token is refused as an invalid request before anything is sent', 
     assert.equal(error.operatorAction, 'Check the client identity, authentication method and token.');
     assert.equal(error.cause, undefined);
     assert.equal(http.callCount(), 0);
+});
+
+test('OIDC claim extraction fails closed when the upstream library ever yields no validated claims', () => {
+    const claims = { iss: 'https://issuer.example', sub: 'user-1', aud: 'client', iat: 1, exp: 2 };
+    assert.equal(requireValidatedClaims(claims), claims);
+    assert.throws(() => requireValidatedClaims(undefined), { message: 'ID token claims unavailable' });
 });
