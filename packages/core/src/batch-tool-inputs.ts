@@ -14,6 +14,21 @@ export interface BatchableTool {
   readonly validateItem?: (required: { input: unknown }) => void;
 }
 
+/** Where every batch descriptor's appended guidance starts. */
+export const BATCH_GUIDANCE_MARKER = " Batch: ";
+const BATCH_GUIDANCE_END = "one item's failure does not stop the others.";
+
+/** A description without {@link batchDescriptorFor}'s appended guidance, wherever it sits (a merged
+ * description may carry several), e.g. for a search index: the same boilerplate on most tools would
+ * otherwise dilute relevance. Other text is kept. @complexity O(n) in the description length. */
+export function withoutBatchGuidance({ description }: { description: string }, _optional = {}): string {
+  return description.split(`${BATCH_GUIDANCE_MARKER}to do several at once,`).map((part, index) => {
+    if (index === 0) return part;
+    const end = part.indexOf(BATCH_GUIDANCE_END);
+    return end === -1 ? `${BATCH_GUIDANCE_MARKER}to do several at once,${part}` : part.slice(end + BATCH_GUIDANCE_END.length);
+  }).join("");
+}
+
 /** Used when a {@link BatchableTool} names no `maxItems`. */
 export const DEFAULT_MAX_BATCH_ITEMS = 25;
 
@@ -95,7 +110,7 @@ export function batchDescriptorFor(
   return {
     ...descriptor,
     description:
-      `${descriptor.description ?? ""} Batch: to do several at once, pass items: [{...}, ...] (up to ${maxItems}) in ONE call instead of one call per item. ` +
+      `${descriptor.description ?? ""}${BATCH_GUIDANCE_MARKER}to do several at once, pass items: [{...}, ...] (up to ${maxItems}) in ONE call instead of one call per item. ` +
       "Canonical shape: {items:[{...}, ...]} only. Legacy shared top-level fields are normalized into each item; item values win. " +
       "Returns { batch: true, outcome: completed | partial_failure | error, total, succeeded, failed, results: [{ index, ok, result | error }] }; one item's failure does not stop the others.",
     inputSchema: { ...rest, properties: { ...schema.properties, items } },
@@ -184,7 +199,7 @@ export function withBatchInput(
   const descriptor = batchDescriptorFor({ descriptor: registration.descriptor, tool });
   if (mode === 'plan') return {
     ...registration, descriptor: { ...descriptor,
-      description: `${registration.descriptor.description ?? ''} Batch: up to ${maxItems} inputs are normalized before authorization and passed to the existing combined approval plan.`,
+      description: `${registration.descriptor.description ?? ''}${BATCH_GUIDANCE_MARKER}up to ${maxItems} inputs are normalized before authorization and passed to the existing combined approval plan.`,
     },
     // The plan owns one confirmation. Normalize every merged item before the outer gate so
     // its policy and planner receive the same targets; never execute items to preflight them.

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  applyBatchInputs, batchDescriptorFor, batchEligibilityFor, batchOutcomeFor, DEFAULT_MAX_BATCH_ITEMS, defaultBatchableTools, withBatchInput,
+  applyBatchInputs, BATCH_GUIDANCE_MARKER, batchDescriptorFor, batchEligibilityFor, withoutBatchGuidance, batchOutcomeFor, DEFAULT_MAX_BATCH_ITEMS, defaultBatchableTools, withBatchInput,
 } from '../batch-tool-inputs.js';
 import { ToolInputError } from '../tool-input-errors.js';
 import type { ToolExecutionContext, ToolHandler, ToolRegistration } from '../tool-registry.js';
@@ -294,5 +294,17 @@ describe('default-on batching', () => {
 
   it('batches every eligible tool when the host names no opt-outs or settings', () => {
     expect(defaultBatchableTools({ registrations: [tool('get', objectSchema(['id']), true)] })).toEqual([{ toolId: 'get' }]);
+  });
+});
+
+describe('withoutBatchGuidance', () => {
+  it('drops the appended batch guidance and keeps a description without it unchanged', () => {
+    const { description } = batchDescriptorFor({ descriptor: { id: 'edit', description: 'Edits a file.', inputSchema: schema }, tool: { toolId: 'edit' } });
+    expect(description!.startsWith(`Edits a file.${BATCH_GUIDANCE_MARKER}`)).toBe(true);
+    expect(withoutBatchGuidance({ description: description! })).toBe('Edits a file.');
+    expect(withoutBatchGuidance({ description: 'Edits a file.' })).toBe('Edits a file.');
+    expect(withoutBatchGuidance({ description: `A.${description!.slice('Edits a file.'.length)} B.${description!.slice('Edits a file.'.length)} C.` })).toBe('A. B. C.');
+    const unterminated = `X.${BATCH_GUIDANCE_MARKER}to do several at once, but cut short`;
+    expect(withoutBatchGuidance({ description: unterminated })).toBe(unterminated);
   });
 });
