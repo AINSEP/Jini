@@ -5,7 +5,7 @@ export type { LoginProps } from './auth/Login.js';
 export { useLogin } from './auth/hooks/use-login.hooks.js';
 export type { LoginController, LoginHookProps, LoginOptions } from './auth/hooks/use-login.hooks.js';
 export { Users, UserManagePanel } from './users/Users.js';
-export type { UsersProps, GrantOption, GrantSelectController, UserManageController, UserManagePanelProps, UserRowActionsController, UserRowProps, UsersTableProps } from './users/Users.js';
+export type { UsersProps, UsersBaseProps, UsersHook, UsersHookDependencies, GrantOption, GrantSelectController, UserManageController, UserManagePanelProps, UserRowActionsController, UserRowProps, UsersTableProps } from './users/Users.js';
 export { useUsers } from './users/hooks/use-users.hooks.js';
 export type { UsersController, UsersDependencies, UsersOptions } from './users/hooks/use-users.hooks.js';
 export { useResetPasswordFields } from './users/hooks/use-reset-password-fields.hooks.js';
