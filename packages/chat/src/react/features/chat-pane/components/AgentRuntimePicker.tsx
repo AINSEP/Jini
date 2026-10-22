@@ -330,7 +330,7 @@ function RuntimeTrigger({ picker, isApi, byokRuntime, agentIconBasePath, t }: Ru
     <button
       ref={picker.triggerRef}
       type="button"
-      className="jini-runtime-trigger"
+      className={isApi ? 'jini-runtime-trigger' : 'jini-runtime-trigger jini-runtime-trigger--icon-only'}
       aria-label={t('Choose AI runtime')}
       aria-haspopup="dialog"
       aria-expanded={picker.open}

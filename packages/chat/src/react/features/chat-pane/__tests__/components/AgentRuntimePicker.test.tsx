@@ -351,6 +351,8 @@ describe('AgentRuntimePicker', () => {
     rerender(<AgentRuntimePicker agents={agents} value={{ agentId: 'claude', model: 'claude-sonnet-5' }} onChange={onChange} />);
     expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Model: Claude Sonnet 5' })).toHaveTextContent(/^Sonnet 5$/);
+    // Local mode's trigger is the icon alone, so it is marked never to shrink under its icon.
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveClass('jini-runtime-trigger--icon-only');
 
     // API mode: neither CLI menu; the trigger names the provider's model and the popover keeps its picker.
     rerender(
@@ -366,6 +368,7 @@ describe('AgentRuntimePicker', () => {
     expect(screen.queryByRole('button', { name: /^Model:/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('gemini-2.5-flash-lite');
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).not.toHaveClass('jini-runtime-trigger--icon-only');
   });
 
   it('supports upward/downward portal placement, Escape dismissal, and rescanning', async () => {
