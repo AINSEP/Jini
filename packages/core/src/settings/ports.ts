@@ -53,7 +53,13 @@ export interface SettingsRepoPort {
   deleteWorkspaceValue(required: { workspaceId: UUID; settingId: UUID }): Promise<void>;
   deleteUserValue(required: { workspaceId: UUID; principalId: UUID; settingId: UUID }): Promise<void>;
 
-  /** Appends a revision and returns its assigned `seq` (used to stamp the paired value row). */
+  /**
+   * Appends a revision and returns its assigned `seq` (used to stamp the paired value row).
+   * Inside a transaction, serialize revision writers until that enclosing transaction ends:
+   * `set`/`clear` compare the stored value's seq AFTER this call, so the lock must cover the
+   * comparison and value save too. SQLite's write transaction and Postgres's transaction-scoped
+   * ledger lock provide this; memory refuses overlapping transactions.
+   */
   appendRevision(record: Omit<SettingRevisionRecord, "seq">): Promise<number>;
   listRevisions(required: { settingId: UUID }): Promise<SettingRevisionRecord[]>;
   /**

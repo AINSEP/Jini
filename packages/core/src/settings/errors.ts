@@ -15,6 +15,25 @@ export class SecretNotSupportedError extends Error {
   }
 }
 export class ValueValidationFailedError extends Error {}
+/**
+ * A scoped value changed since the caller's snapshot; read again before retrying.
+ * Both sequences refer to the addressed value row, never the ledger's global watermark.
+ * @example if (error instanceof SettingsRevisionConflictError) await refreshSnapshot();
+ */
+export class SettingsRevisionConflictError extends Error {
+  readonly expectedRevisionSeq: number;
+  readonly actualRevisionSeq: number;
+
+  constructor(
+    required: { expectedRevisionSeq: number; actualRevisionSeq: number },
+    optional: ErrorOptions = {},
+  ) {
+    super(`Setting revision changed: expected ${required.expectedRevisionSeq}, found ${required.actualRevisionSeq}.`, optional);
+    this.name = "SettingsRevisionConflictError";
+    this.expectedRevisionSeq = required.expectedRevisionSeq;
+    this.actualRevisionSeq = required.actualRevisionSeq;
+  }
+}
 export class RenameRetypeConflictError extends Error {}
 export class AliasDepthExceededError extends Error {}
 export class DefinitionTombstonedError extends Error {}
