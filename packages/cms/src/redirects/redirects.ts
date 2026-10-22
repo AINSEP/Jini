@@ -42,6 +42,7 @@ import {
 } from "./types.js";
 import type {
   CreateRedirectInput,
+  ListRedirectsFilter,
   RedirectMatchType,
   RedirectRecord,
   RedirectRevision,
@@ -713,8 +714,10 @@ export async function tombstoneRedirect(
   const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!existing) throw new RedirectNotFoundError(`redirect '${input.id}' was not found`);
 
-  if (existing.status === "disabled") {
-    // Idempotent no-op: already tombstoned, no new revision needed.
+  // Idempotent no-op: already in the Trash, no new revision needed. Keyed on the Trash index row,
+  // not `status === "disabled"` (Bug B, 2026-10-22): a rule an operator merely toggled off is also
+  // `disabled`, and treating that as "already removed" left it in the normal list for good.
+  if (await deps.isInTrash({ workspaceId: input.workspaceId, id: input.id })) {
     return { record: existing };
   }
 
@@ -754,6 +757,37 @@ export async function tombstoneRedirect(
   await enqueueMutatedEvent(deps, record, "tombstoned");
 
   return { record };
+}
+
+/** The two ports {@link listRedirects} reads — a structural slice of {@link RedirectsWriteDeps}. */
+export interface ListRedirectsDeps {
+  repo: Pick<RedirectRepoPort, "list">;
+  isInTrash: RedirectsWriteDeps["isInTrash"];
+}
+
+export interface ListRedirectsRequired {
+  deps: ListRedirectsDeps;
+  filter: ListRedirectsFilter;
+}
+
+/**
+ * The admin/AI rule list (Bug B, 2026-10-22): {@link RedirectRepoPort.list} minus every rule in the
+ * Trash. Removing a rule moves it to the Trash, so it must leave the normal list and be visible only
+ * there until it is restored (Trash restore, or an `updateRedirect` `status: "active"` PATCH). Only
+ * `disabled` rules are checked — {@link tombstoneRedirect}'s marker is `disabled`, so an `active`
+ * row cannot be in the Trash — which keeps the lookups to the switched-off rows. They run one at a
+ * time so a long list never fans out into a burst of concurrent index reads.
+ *
+ * @complexity O(n) for n listed rules, plus one Trash index lookup per `disabled` rule.
+ */
+export async function listRedirects(required: ListRedirectsRequired, _optional: Record<string, never> = {}): Promise<RedirectRecord[]> {
+  const { deps, filter } = required;
+  const listed: RedirectRecord[] = [];
+  for (const rule of await deps.repo.list(filter)) {
+    const removed = rule.status === "disabled" && await deps.isInTrash({ workspaceId: filter.workspaceId, id: rule.id });
+    if (!removed) listed.push(rule);
+  }
+  return listed;
 }
 
 export interface ImportRedirectsRequired {

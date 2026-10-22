@@ -202,6 +202,16 @@ describe("content embed resolution", () => {
     });
   });
 
+  // Bug D (2026-10-22): the header's date label is formatted in the site's zone, so the IR carries it.
+  it("carries the site's normalized time zone only when the host supplies one", async () => {
+    const zoned = await content([ref({ type: "content", id: "post-1" })], deps({ postRepo, host: hostPorts([post()]), siteTimeZone: { resolveTimeZone: async () => "Asia/Tokyo" } }));
+    expect(zoned.get("post-1")!.props.timeZone).toBe("Asia/Tokyo");
+    const invalid = await content([ref({ type: "content", id: "post-1" })], deps({ postRepo, host: hostPorts([post()]), siteTimeZone: { resolveTimeZone: async () => "No/Such_Zone" } }));
+    expect(invalid.get("post-1")!.props.timeZone).toBe("UTC");
+    const absent = await content([ref({ type: "content", id: "post-1" })], deps({ postRepo, host: hostPorts([post()]) }));
+    expect("timeZone" in absent.get("post-1")!.props).toBe(false);
+  });
+
   it("finds a slug-only reference by slug and defaults an absent publishAt to null", async () => {
     const resolved = await content([ref({ type: "content", slug: "hello" })], deps({ postRepo, host: hostPorts([post()]) }));
     expect(resolved.get("hello")!.props).toMatchObject({ title: "Hello", publishAt: null });

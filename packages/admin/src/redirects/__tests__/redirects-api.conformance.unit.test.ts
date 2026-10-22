@@ -23,8 +23,9 @@ const REFERENCE_CHECKS = [
   'prior snapshots stay unchanged',
   'status filter',
   'tombstone returns the disabled rule',
-  'soft deletion retains the rule',
+  'removed rule leaves the list',
   'tombstoned rule remains readable',
+  'restore returns the rule to the list',
   'missing rule rejects',
   'missing hits differs from zero hits',
   'missing update rejects',
@@ -37,7 +38,7 @@ const REFERENCE_CHECKS = [
 ];
 
 const ALTERNATE_CHECKS = [
-  ...REFERENCE_CHECKS.slice(0, 14),
+  ...REFERENCE_CHECKS.slice(0, 15),
   'valid import batch succeeds',
   'import provenance is stamped by the backend',
 ];
@@ -97,11 +98,12 @@ describe('runRedirectsApiConformance — passing ports', () => {
     const api = memory();
     const tombstone = vi.spyOn(api, 'tombstoneRedirect');
     await runRedirectsApiConformance({ api }, {});
-    const imported = (await api.listRedirects({}, { source: 'import' }));
-    expect(imported).toHaveLength(2);
-    expect(imported.every(row => row.status === 'disabled')).toBe(true);
-    // The conformance rule, the missing-id probe, then each of the two imported rows.
-    expect(tombstone).toHaveBeenCalledTimes(4);
+    // Removed rules leave the list (Bug B), so a clean run leaves nothing listed.
+    expect(await api.listRedirects({}, {})).toEqual([]);
+    const removed = tombstone.mock.calls.map(([{ id }]) => id).filter(id => id !== MISSING);
+    expect((await Promise.all(removed.map(id => api.getRedirect({ id })))).map(row => row.status)).toEqual(['disabled', 'disabled', 'disabled', 'disabled']);
+    // The conformance rule (removed, restored, removed again), the missing-id probe, then each of the two imported rows.
+    expect(tombstone).toHaveBeenCalledTimes(5);
   });
 
   it('passes a port whose status filter returns nothing (reported, not fixed)', async () => {
@@ -188,10 +190,33 @@ describe('runRedirectsApiConformance — soft-delete checks', () => {
     await expectFailure(runRedirectsApiConformance({ api }, {}), 'tombstone returns the disabled rule');
   });
 
-  it('refuses a list that hides tombstoned rules', async () => {
+  it('refuses a list that still shows a removed rule', async () => {
     const base = memory();
-    const api = memory({ ...base, listRedirects: async (r, f) => (await base.listRedirects(r, f)).filter(row => f?.status || row.status !== 'disabled') });
-    await expectFailure(runRedirectsApiConformance({ api }, {}), 'soft deletion retains the rule');
+    const created: string[] = [];
+    const api = memory({
+      ...base,
+      createRedirect: async (input, options) => {
+        const row = await base.createRedirect(input, options);
+        created.push(row.id);
+        return row;
+      },
+      listRedirects: async () => Promise.all(created.map(id => base.getRedirect({ id }))),
+    });
+    await expectFailure(runRedirectsApiConformance({ api }, {}), 'removed rule leaves the list');
+  });
+
+  it('refuses a restore that leaves the rule out of the list', async () => {
+    const base = memory();
+    const removed = new Set<string>();
+    const api = memory({
+      ...base,
+      tombstoneRedirect: async (args) => {
+        removed.add(args.id);
+        return base.tombstoneRedirect(args);
+      },
+      listRedirects: async (r, f) => (await base.listRedirects(r, f)).filter(row => !removed.has(row.id)),
+    });
+    await expectFailure(runRedirectsApiConformance({ api }, {}), 'restore returns the rule to the list');
   });
 
   it('refuses a get that reports a tombstoned rule as active', async () => {

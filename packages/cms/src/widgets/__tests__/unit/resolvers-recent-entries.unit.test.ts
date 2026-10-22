@@ -49,6 +49,7 @@ function harness(optional: {
   displayRows?: EntryRecord[];
   contentTypes?: Record<string, ContentTypeRecord>;
   parse?: CollectionListPort["parseCollectionListConfig"];
+  siteTimeZone?: string;
 } = {}): Harness {
   const legacyQueries: unknown[] = [];
   const displayQueries: CollectionListQuery[] = [];
@@ -66,7 +67,11 @@ function harness(optional: {
     systemContentTypes: ["widget", "widget_area"],
   };
   const contentTypes: ContentTypeLookup = { async findByKey({ key }) { return optional.contentTypes?.[key] ?? null; } };
-  const resolver = createRecentEntriesResolver({ collectionList, entryList, contentTypes });
+  const siteTimeZone = optional.siteTimeZone;
+  const resolver = createRecentEntriesResolver({
+    collectionList, entryList, contentTypes,
+    ...(siteTimeZone === undefined ? {} : { siteTimeZone: { resolveTimeZone: async () => siteTimeZone } }),
+  });
   return { resolve: (instances) => resolver.resolveMany(instances, CTX), legacyQueries, displayQueries };
 }
 
@@ -196,4 +201,24 @@ test("collection path: structuredData is carried only when the parser declares i
   assert.deepEqual(h.displayQueries, [query]);
   assert.deepEqual(result.ir.props, { layout: "accordion", columns: 2, typeKey: "recipes", structuredData: "faq-page" });
   assert.deepEqual(result.ir.children, []);
+});
+
+// Bug D (2026-10-22): 07:30 UTC on Mar 4 is still Mar 3 in Los Angeles; 16:30 UTC on Mar 3 is already Mar 4 in Tokyo.
+test("both paths: dateLabel is the calendar day in the site's time zone; dateIso stays the stored instant", async () => {
+  const rows = [entry({ id: "a", publishedAt: "2026-03-04T07:30:00.000Z" }), entry({ id: "b", publishedAt: "2026-03-03T16:30:00.000Z" })];
+  const query: CollectionListQuery = { type: "recipes", where: [], sort: { by: "updated", dir: "desc" }, limit: 5 };
+  const labels = async (siteTimeZone?: string) => {
+    const h = harness({
+      legacyRows: rows, displayRows: rows, contentTypes: { recipes: RECIPES }, ...(siteTimeZone === undefined ? {} : { siteTimeZone }),
+      parse: () => ({ ok: true, query, display: { columns: 2, layout: "list", fields: [] } }),
+    });
+    const results = await h.resolve([instance("w1"), instance("c1", { collection: "recipes" })]);
+    return ["w1", "c1"].map((id) => okIr(results.get(id)).ir.children!.map((child) => [child.props.dateIso, child.props.dateLabel]));
+  };
+  const both = (a: string, b: string) => [[["2026-03-04T07:30:00.000Z", a], ["2026-03-03T16:30:00.000Z", b]], [["2026-03-04T07:30:00.000Z", a], ["2026-03-03T16:30:00.000Z", b]]];
+  assert.deepEqual(await labels("America/Los_Angeles"), both("Mar 3, 2026", "Mar 3, 2026"));
+  assert.deepEqual(await labels("Asia/Tokyo"), both("Mar 4, 2026", "Mar 4, 2026"));
+  // No port, or an invalid zone: UTC, the pre-fix output.
+  assert.deepEqual(await labels(), both("Mar 4, 2026", "Mar 3, 2026"));
+  assert.deepEqual(await labels("Nowhere/Invalid"), both("Mar 4, 2026", "Mar 3, 2026"));
 });

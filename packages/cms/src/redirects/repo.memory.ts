@@ -9,6 +9,7 @@
  * semantics without this file importing `ports.internal.ts`'s function value
  * (only its `RedirectDbHandle` type, structurally satisfied here).
  */
+import { sameRedirectPath } from "./path-key.js";
 import { compareLongestFirst, compareSamePatternExactFirst, compareTieBreak } from "./order.js";
 import type { RedirectDbHandle } from "./ports.internal.js";
 import type { RedirectRepoPort } from "./ports.js";
@@ -41,7 +42,7 @@ export class InMemoryRedirectRepo implements RedirectRepoPort, RedirectDbHandle 
       (r) =>
         r.status === "active" &&
         r.matchType === "exact" &&
-        r.fromPattern === required.path &&
+        sameRedirectPath({ a: r.fromPattern, b: required.path }, {}) &&
         (!required.includeOverrideOnly || r.override)
     );
     candidates.sort((a, b) => compareTieBreak({ a, b }, {}));

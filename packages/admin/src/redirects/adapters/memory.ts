@@ -13,6 +13,8 @@ export function createMemoryRedirectsApi(
 ): AdminRedirectsPort {
   const rows = new Map(redirects.map(row => [row.id, Object.freeze({ ...row })]));
   const stats = new Map(Object.entries(hits).map(([id, value]) => [id, Object.freeze({ ...value })]));
+  // Ids removed to the Trash: hidden from the list, still readable by id, restored by `status: 'active'`.
+  const trashed = new Set<string>();
   let nextId = 1;
   function get(id: string): AdminRedirect {
     const row = rows.get(id);
@@ -34,7 +36,7 @@ export function createMemoryRedirectsApi(
   }
   return {
     async listRedirects(_required, filter = {}) {
-      return Object.freeze([...rows.values()].filter(row =>
+      return Object.freeze([...rows.values()].filter(row => !trashed.has(row.id) &&
         (filter.status === undefined || row.status === filter.status) &&
         (filter.source === undefined || row.source === filter.source) &&
         (filter.matchType === undefined || row.matchType === filter.matchType)));
@@ -48,13 +50,16 @@ export function createMemoryRedirectsApi(
       else if (patch.matchType === 'regex') throw new AdminApiError({ message: 'regex match type is not supported', status: 400 }, { code: 'REDIRECT_VALIDATION_ERROR' });
       const row = Object.freeze({ ...next, version: before.version + 1 });
       rows.set(id, row);
+      if (patch.status === 'active') trashed.delete(id);
       return row;
     },
     async tombstoneRedirect({ id }) {
       const row = get(id);
-      if (row.status === 'disabled') return row;
+      // Keyed on the Trash, not on `status`: a rule already toggled off still moves to the Trash.
+      if (trashed.has(id)) return row;
       const disabled = Object.freeze({ ...row, status: 'disabled', version: row.version + 1 });
       rows.set(id, disabled);
+      trashed.add(id);
       return disabled;
     },
     async getRedirectHitStats({ id }) {

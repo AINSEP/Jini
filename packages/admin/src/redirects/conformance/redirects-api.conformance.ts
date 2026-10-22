@@ -51,8 +51,13 @@ async function checkUpdate(
 async function checkSoftDelete({ api, list, id }: { api: AdminRedirectsPort; list: Checklist; id: string }, _optional = {}): Promise<void> {
   const disabled = await api.tombstoneRedirect({ id });
   list.check({ ok: disabled.status === 'disabled', name: 'tombstone returns the disabled rule' });
-  list.check({ ok: (await api.listRedirects({})).some(row => row.id === id), name: 'soft deletion retains the rule' });
+  // Removal moves the rule to the Trash: it leaves the list and is shown only there (Bug B).
+  list.check({ ok: !(await api.listRedirects({})).some(row => row.id === id), name: 'removed rule leaves the list' });
   list.check({ ok: (await api.getRedirect({ id })).status === 'disabled', name: 'tombstoned rule remains readable' });
+  // A pure `status: 'active'` update is the restore; remove the rule again so the run leaves it in the Trash.
+  await api.updateRedirect({ id }, { status: 'active' });
+  list.check({ ok: (await api.listRedirects({})).some(row => row.id === id), name: 'restore returns the rule to the list' });
+  await api.tombstoneRedirect({ id });
 }
 
 async function checkMissingRule({ api, list }: { api: AdminRedirectsPort; list: Checklist }, _optional = {}): Promise<void> {

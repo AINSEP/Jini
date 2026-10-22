@@ -2,6 +2,7 @@
 export * from "./types.js";
 export * from "./ports.js";
 export * from "./matcher.js";
+export * from "./path-key.js";
 export * from "./order.js";
 export * from "./referrer-alias.js";
 export * from "./reserved-destination.js";

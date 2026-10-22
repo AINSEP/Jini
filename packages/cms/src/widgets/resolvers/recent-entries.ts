@@ -4,6 +4,7 @@ import type { EntryListPort, EntryRecord } from "../../entries/index.js";
 import { getWidgetTypeRegistration } from "../registry.js";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import type { WidgetInstanceView, WidgetResolveResult, WidgetResolver } from "../types.js";
+import { formatDateLabel, resolveSiteTimeZoneSafely, type SiteTimeZonePort } from "../date-label.js";
 
 /**
  * @file `recent-entries` widget resolver (SPEC-043 REQ-25, ADR-047 §9) — extended by the
@@ -68,6 +69,8 @@ export interface RecentEntriesResolverDeps {
   collectionList: CollectionListPort;
   entryList: EntryListPort & EntryDisplayListPort & EntryListExcludingTypesPort;
   contentTypes: ContentTypeLookup;
+  /** The site's zone for item date labels (Bug D); absent renders UTC, as before it existed. */
+  siteTimeZone?: SiteTimeZonePort;
 }
 
 /** Every field kind's default-displayable value plus a resolved date — the IR shape `render.ts`
@@ -92,24 +95,12 @@ function entryDateIso(entry: EntryRecord): string {
   return entry.publishedAt ?? entry.updatedAt;
 }
 
-/** Pure display formatting for an entry's date (e.g. "Sep 3, 2026") — the same short en-US
- *  convention `pages.ts`'s `formatPostPreviewDate` already established for post-previews/collection
- *  cards. Duplicated rather than imported: that function is file-private and this widgets/route-layer
- *  boundary has no barrel re-export for it, the same accepted-duplication precedent `pages.ts`'s own
- *  `collectionEntryFieldValue` doc already documents for this exact kind of small formatting helper.
- *  A malformed timestamp degrades to the raw ISO string rather than "Invalid Date".
- *  @complexity O(1). */
-function formatEntryDate(iso: string): string {
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
 /** Legacy (no-`collection`) path: no single content type is in scope, so there is no field list to
- *  display — matches today's rendering exactly (title only). @complexity O(1). */
-function toLegacyItemProps(entry: EntryRecord, collectionList: CollectionListPort): RecentEntryItemProps {
+ *  display — matches today's rendering exactly (title only). The label is the short en-US date
+ *  (`formatDateLabel`, shared with the host's post cards) in the site's zone. @complexity O(1). */
+function toLegacyItemProps(entry: EntryRecord, collectionList: CollectionListPort, timeZone: string): RecentEntryItemProps {
   const dateIso = entryDateIso(entry);
-  return { title: entry.title, href: collectionList.entryPublicHref(entry.type, entry.slug), dateIso, dateLabel: formatEntryDate(dateIso), fields: NO_DISPLAY_FIELDS };
+  return { title: entry.title, href: collectionList.entryPublicHref(entry.type, entry.slug), dateIso, dateLabel: formatDateLabel({ iso: dateIso }, { timeZone }), fields: NO_DISPLAY_FIELDS };
 }
 
 /** Route-layer twin of `repo.sqlite.ts`'s `json_extract($.ext.site.<name>)` / `trash-aware-memory-
@@ -124,13 +115,13 @@ function entryFieldValue(entry: EntryRecord, name: string): unknown {
 /** `collection`-path item: the content type's resolved `display.fields` (already validated/ordered
  *  by `parseCollectionListConfig`) become this entry's shown field values.
  *  @complexity O(f) over the displayed field count. */
-function toCollectionItemProps(entry: EntryRecord, fields: readonly ContentTypeFieldDef[], collectionList: CollectionListPort): RecentEntryItemProps {
+function toCollectionItemProps(entry: EntryRecord, fields: readonly ContentTypeFieldDef[], collectionList: CollectionListPort, timeZone: string): RecentEntryItemProps {
   const dateIso = entryDateIso(entry);
   return {
     title: entry.title,
     href: collectionList.entryPublicHref(entry.type, entry.slug),
     dateIso,
-    dateLabel: formatEntryDate(dateIso),
+    dateLabel: formatDateLabel({ iso: dateIso }, { timeZone }),
     fields: fields.map((f) => ({ name: f.name, label: collectionList.humanizeFieldName(f.name), kind: f.kind, value: entryFieldValue(entry, f.name) })),
   };
 }
@@ -172,7 +163,8 @@ async function resolveLegacyInstances(
   instances: readonly WidgetInstanceView[],
   workspaceId: string,
   registryMax: number,
-  results: Map<string, WidgetResolveResult>
+  results: Map<string, WidgetResolveResult>,
+  timeZone: string
 ): Promise<void> {
   if (instances.length === 0) return;
 
@@ -198,7 +190,7 @@ async function resolveLegacyInstances(
       ir: {
         componentId: "recent-entries",
         props: { layout: widgetLayout(instance.config, deps.collectionList), columns: legacyColumns(instance.config), typeKey: "recent-entries" },
-        children: entries.map((entry) => toItemIr(toLegacyItemProps(entry, deps.collectionList))),
+        children: entries.map((entry) => toItemIr(toLegacyItemProps(entry, deps.collectionList, timeZone))),
       },
       dependencyKeys: entries.map((entry) => entry.id),
     });
@@ -214,7 +206,8 @@ async function resolveCollectionInstance(
   instance: WidgetInstanceView,
   workspaceId: string,
   registryMax: number,
-  typeKey: string
+  typeKey: string,
+  timeZone: string
 ): Promise<WidgetResolveResult> {
   const contentType = await deps.contentTypes.findByKey({ workspaceId, key: typeKey });
   if (contentType === null) {
@@ -244,7 +237,7 @@ async function resolveCollectionInstance(
         typeKey,
         ...(parsed.display.structuredData === undefined ? {} : { structuredData: parsed.display.structuredData }),
       },
-      children: rows.map((row) => toItemIr(toCollectionItemProps(row, parsed.display.fields, deps.collectionList))),
+      children: rows.map((row) => toItemIr(toCollectionItemProps(row, parsed.display.fields, deps.collectionList, timeZone))),
     },
     dependencyKeys: rows.map((row) => row.id),
   };
@@ -261,7 +254,9 @@ export function createRecentEntriesResolver(deps: RecentEntriesResolverDeps, _op
       const legacyInstances = instances.filter((instance) => collectionKey(instance.config) === undefined);
       const collectionInstances = instances.filter((instance) => collectionKey(instance.config) !== undefined);
 
-      await resolveLegacyInstances(deps, legacyInstances, context.workspaceId, registryMax, results);
+      // Read once per batch, shared by every instance's date labels.
+      const timeZone = await resolveSiteTimeZoneSafely({ workspaceId: context.workspaceId }, deps.siteTimeZone ? { siteTimeZone: deps.siteTimeZone } : {});
+      await resolveLegacyInstances(deps, legacyInstances, context.workspaceId, registryMax, results, timeZone);
 
       // Each collection-configured instance may name a different content type/filter/sort — unlike
       // the legacy batch above, there is no single shared query, so these resolve independently and
@@ -270,7 +265,7 @@ export function createRecentEntriesResolver(deps: RecentEntriesResolverDeps, _op
         collectionInstances.map(async (instance) => {
           // Safe: filtered by `collectionKey(instance.config) !== undefined` above.
           const typeKey = collectionKey(instance.config) as string;
-          results.set(instance.id, await resolveCollectionInstance(deps, instance, context.workspaceId, registryMax, typeKey));
+          results.set(instance.id, await resolveCollectionInstance(deps, instance, context.workspaceId, registryMax, typeKey, timeZone));
         })
       );
 

@@ -83,6 +83,24 @@ function runContractSuite(label: string, makeRepo: () => RedirectRepoPort & { li
     assert.equal(found?.id, "r-exact");
   });
 
+  test(`[${label}] lookupExact matches a multi-segment source with or without trailing slash and encoding (Bug A)`, async () => {
+    const repo = makeRepo();
+    const slashed = makeRecord({ id: "r-dated", matchType: "exact", fromPattern: "/2022/06/13/craving/" });
+    const bare = makeRecord({ id: "r-cafe", matchType: "exact", fromPattern: "/2021/01/02/café" });
+    await repo.save({ record: slashed, revision: makeRevision(slashed) });
+    await repo.save({ record: bare, revision: makeRevision(bare) });
+
+    for (const path of ["/2022/06/13/craving/", "/2022/06/13/craving"]) {
+      const found = await repo.lookupExact({ workspaceId: "workspace-1", path, includeOverrideOnly: false });
+      assert.equal(found?.id, "r-dated", path);
+    }
+    for (const path of ["/2021/01/02/caf%C3%A9/", "/2021/01/02/café"]) {
+      const found = await repo.lookupExact({ workspaceId: "workspace-1", path, includeOverrideOnly: false });
+      assert.equal(found?.id, "r-cafe", path);
+    }
+    assert.equal(await repo.lookupExact({ workspaceId: "workspace-1", path: "/2022/06/13", includeOverrideOnly: false }), null);
+  });
+
   test(`[${label}] lookupExact excludes a disabled rule`, async () => {
     const repo = makeRepo();
     const record = makeRecord({ id: "r-disabled", matchType: "exact", fromPattern: "/a", status: "disabled" });

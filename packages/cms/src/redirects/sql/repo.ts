@@ -2,6 +2,7 @@ import type { StorageKernel } from "@jini-ai/db/kernel";
 import type { RedirectDbHandle } from "../ports.internal.js";
 import type { RedirectRepoPort } from "../ports.js";
 import { compareLongestFirst, compareSamePatternExactFirst, compareTieBreak } from "../order.js";
+import { sameRedirectPath } from "../path-key.js";
 import { toRecord, toRevision, toRevisionRow, toRow, updatableColumns } from "./repo.rows.js";
 import { RedirectNotFoundError } from "../types.js";
 import type { ListRedirectsFilter, RedirectRecord, RedirectRevision } from "../types.js";
@@ -76,7 +77,7 @@ export class SqlRedirectRepo implements RedirectRepoPort, RedirectDbHandle {
         matchType: "exact",
         overrideOnly: required.includeOverrideOnly,
       })
-    ).filter((r) => r.fromPattern === required.path);
+    ).filter((r) => sameRedirectPath({ a: r.fromPattern, b: required.path }, {}));
     candidates.sort((a, b) => compareTieBreak({ a, b }, {}));
     return candidates[0] ?? null;
   }
