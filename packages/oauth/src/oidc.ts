@@ -59,16 +59,23 @@ export async function validateOidcIdToken(requiredArgs: OAuthRequiredArgs<OAuthH
         await validateApplicationLevelSignature(as, response, {
             [allowInsecureRequests]: jwksUrl.protocol === 'http:', [customFetch]: guardedFetch,
         });
-        // requireIdToken guarantees claims; fail closed if that upstream contract changes.
-        const claims = getValidatedIdTokenClaims(processed);
-        if (!claims) throw new Error('ID token claims unavailable');
-        return claims;
+        return requireValidatedClaims(getValidatedIdTokenClaims(processed));
     } catch {
         if (guardedFetch.failure) throw guardedFetch.failure.error;
         // Upstream causes retain JWTs/claims/responses. Expose only secret-free facade text.
         throw new OAuthError({ code: 'OAUTH_MALFORMED_RESPONSE', message: 'the OpenID Connect ID token could not be validated',
             operatorAction: 'Restart authorization with the trusted issuer and check its client, nonce and signing configuration.' });
     }
+}
+
+/**
+ * `requireIdToken: true` makes oauth4webapi reject a response without an ID token, so claims are
+ * always present today; fail closed (the caller maps the throw to a secret-free facade error) if that
+ * upstream contract ever changes. Module-internal: not re-exported from the package entry.
+ */
+export function requireValidatedClaims<T>(claims: T | undefined): T {
+    if (!claims) throw new Error('ID token claims unavailable');
+    return claims;
 }
 
 /** Validate trusted configuration in the same order before constructing upstream state. */

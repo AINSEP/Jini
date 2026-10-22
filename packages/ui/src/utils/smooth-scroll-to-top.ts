@@ -16,36 +16,10 @@
  * - re-invoking on the same container retargets instead of running two
  *   competing tweens.
  *
- * The bezier solver is local math, avoiding a motion-library dependency in this utility and its tests.
+ * The bezier solver (`./unit-bezier.ts`) is local math, avoiding a motion-library dependency in this utility and its tests.
  */
 
-// cubic-bezier(x1, y1, x2, y2) solver (WebKit UnitBezier shape).
-function unitBezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
-  const cx = 3 * x1;
-  const bx = 3 * (x2 - x1) - cx;
-  const ax = 1 - cx - bx;
-  const cy = 3 * y1;
-  const by = 3 * (y2 - y1) - cy;
-  const ay = 1 - cy - by;
-  const sampleX = (t: number) => ((ax * t + bx) * t + cx) * t;
-  const sampleY = (t: number) => ((ay * t + by) * t + cy) * t;
-  const sampleDX = (t: number) => (3 * ax * t + 2 * bx) * t + cx;
-  return (x: number): number => {
-    if (x <= 0) return 0;
-    if (x >= 1) return 1;
-    let t = x;
-    for (let i = 0; i < 8; i += 1) {
-      const err = sampleX(t) - x;
-      if (Math.abs(err) < 1e-6) break;
-      const d = sampleDX(t);
-      // For the sole fixed curve, sampleDX stays at least about 0.6095 over the clamped [0, 1]
-      // domain. This guard cannot fire for current inputs; retain it for a future curve change.
-      if (Math.abs(d) < 1e-6) break;
-      t -= err / d;
-    }
-    return sampleY(Math.min(1, Math.max(0, t)));
-  };
-}
+import { unitBezier } from './unit-bezier.js';
 
 const EASE_OUT = unitBezier(0.23, 1, 0.32, 1);
 const MIN_DURATION_MS = 260;

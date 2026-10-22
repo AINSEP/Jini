@@ -1,11 +1,11 @@
 /** Optional TanStack translation layer. No library types escape the fetch-query contract. */
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { isCancelledError, replaceEqualDeep, QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
-import { DEFAULT_STALE_TIME, FetchQueryCache, IDLE_RETENTION, toQueryError, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
+import { DEFAULT_STALE_TIME, FetchQueryCache, IDLE_RETENTION, toQueryError, withCachedLoaderFetch, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
 import { resolveFetchQueryError, resolveFetchQueryStatus } from './adapter.react.js';
 import { FetchQueryBinding } from './binding.react.js';
-import type { CachedLoader, CachedLoaderOptions, FetchMutationOptions, FetchQueryAdapter, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from '@jini-ai/core/fetch';
+import type { CachedLoader, CachedLoaderDefaults, CachedLoaderOptions, FetchMutationOptions, FetchQueryAdapter, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from '@jini-ai/core/fetch';
 
 interface Scope {
   client: QueryClient;
@@ -185,8 +185,41 @@ function useFetchMutation<TInput, TOutput>({ run }: Pick<FetchMutationOptions<TI
   return { mutate, status: mutation.status, error: mutation.status === 'error' ? toQueryError(mutation.error) : null, reset };
 }
 
+/** The query template a loader's reads start from (see `useCachedLoader`'s own comment on it). */
+interface LoaderQueryTemplate { queryKey: QueryKey; structuralSharing: (previous: unknown, incoming: unknown) => unknown; staleTime: number; gcTime: number }
+
+/**
+ * One loader read of `required.key`, unwrapped to its value. Lifted out of `useCachedLoader`'s `load`
+ * verbatim so the missing-fetch guard (`withCachedLoaderFetch`) wrapping it does not push its
+ * callbacks past the function-nesting limit.
+ */
+function loadLoaderQuery<T>({ scope, options, required, staleTime }: {
+  scope: Scope; options: LoaderQueryTemplate; required: Pick<CachedLoaderOptions<T>, 'key' | 'fetch'>; staleTime: number;
+}): Promise<T> {
+  const selected = { ...options, staleTime, queryKey: required.key, queryFn: () => read({ scope, key: required.key, fetch: required.fetch }),
+    structuralSharing: (previous: unknown, incoming: unknown) => saveResult<T>({ scope, key: required.key, previous, incoming }) };
+  return scope.client.fetchQuery(selected).catch(error => {
+    // A forced refresh can supersede a loader's request without aborting its transport.
+    // Follow the new request instead of exposing TanStack's cancellation vocabulary.
+    if (!isCancelledError(error)) throw error;
+    // Invalidation also supersedes loader-only reads. Join (or start) the post-write
+    // request rather than returning an obsolete value while the key is invalidated.
+    const query = scope.client.getQueryCache().find({ queryKey: required.key, exact: true })!;
+    if (query.state.isInvalidated) return scope.client.fetchQuery(selected);
+    return (query.promise ?? scope.client.getQueryData<PublishedResult<T>>(required.key)) as Promise<ReadResult<T>> | ReadResult<T>;
+  }).then(result => {
+    const query = scope.client.getQueryCache().find({ queryKey: required.key, exact: true })!;
+    const history = historyFor({ scope, query });
+    // Query.fetch returns the transport envelope, not structuralSharing's accepted value.
+    // Unwrap against the current generation so awaiting loaders agree with observers.
+    if (result.generation !== history.replacement) return scope.client.getQueryData<PublishedResult<T>>(required.key)!.value;
+    if ('error' in result) throw result.error;
+    return result.value;
+  });
+}
+
 /** Loader shares reactive reads, retains fresh idle values, and protects replacement writes. */
-function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' | 'fetch'>, { staleTime = DEFAULT_STALE_TIME }: Omit<CachedLoaderOptions<T>, 'key' | 'fetch'> = {}): CachedLoader<T> {
+function useCachedLoader<T>({ key, fetch }: CachedLoaderDefaults<T>, { staleTime = DEFAULT_STALE_TIME }: Omit<CachedLoaderOptions<T>, 'key' | 'fetch'> = {}): CachedLoader<T> {
   const scope = useScope();
   return useMemo(() => {
     // The template every loader query starts from. It carries no `queryFn`: `load` always supplies
@@ -198,28 +231,10 @@ function useCachedLoader<T>({ key, fetch }: Pick<CachedLoaderOptions<T>, 'key' |
       structuralSharing: (previous: unknown, incoming: unknown) => saveResult<T>({ scope, key, previous, incoming }), staleTime, gcTime: gcTimeFor({ staleTime }) };
     return {
       peek: () => scope.client.getQueryData<PublishedResult<T>>(key)?.value,
-      load: (required = { key, fetch }, { staleTime: readStaleTime = staleTime }: { staleTime?: number } = {}) => {
-        const selected = { ...options, staleTime: readStaleTime, queryKey: required.key, queryFn: () => read({ scope, key: required.key, fetch: required.fetch }),
-          structuralSharing: (previous: unknown, incoming: unknown) => saveResult<T>({ scope, key: required.key, previous, incoming }) };
-        return scope.client.fetchQuery(selected).catch(error => {
-          // A forced refresh can supersede a loader's request without aborting its transport.
-          // Follow the new request instead of exposing TanStack's cancellation vocabulary.
-          if (!isCancelledError(error)) throw error;
-          // Invalidation also supersedes loader-only reads. Join (or start) the post-write
-          // request rather than returning an obsolete value while the key is invalidated.
-          const query = scope.client.getQueryCache().find({ queryKey: required.key, exact: true })!;
-          if (query.state.isInvalidated) return scope.client.fetchQuery(selected);
-          return (query.promise ?? scope.client.getQueryData<PublishedResult<T>>(required.key)) as Promise<ReadResult<T>> | ReadResult<T>;
-        }).then(result => {
-          const query = scope.client.getQueryCache().find({ queryKey: required.key, exact: true })!;
-          const history = historyFor({ scope, query });
-          // Query.fetch returns the transport envelope, not structuralSharing's accepted value.
-          // Unwrap against the current generation so awaiting loaders agree with observers.
-          if (result.generation !== history.replacement) return scope.client.getQueryData<PublishedResult<T>>(required.key)!.value;
-          if ('error' in result) throw result.error;
-          return result.value;
-        });
-      },
+      // `fetch` is the loader's optional default; `withCachedLoaderFetch` rejects an argument-less read
+      // that has none before any query is built (see `CachedLoaderDefaults`).
+      load: (requested: CachedLoaderDefaults<T> = { key, fetch }, { staleTime: readStaleTime = staleTime }: { staleTime?: number } = {}) =>
+        withCachedLoaderFetch(requested, required => loadLoaderQuery({ scope, options, required, staleTime: readStaleTime })),
       replace: ({ value }: { value: T }) => {
         const query = scope.client.getQueryCache().build(scope.client, options);
         const history = historyFor({ scope, query });

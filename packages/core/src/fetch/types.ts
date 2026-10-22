@@ -103,6 +103,15 @@ export interface CachedLoaderOptions<T> {
 
 
 /**
+ * What a loader hook is created with: the key its `peek`/`replace` (and an argument-less `load`)
+ * address, plus an optional default `fetch`. The default is optional because a loader whose every
+ * `load` names its own `{ key, fetch }` (per-id detail lookups, per-path file reads) would otherwise
+ * have to invent a fetch that can never run. An argument-less `load()` on a loader created without
+ * one rejects with {@link missingCachedLoaderFetchError} instead of touching the cache.
+ */
+export type CachedLoaderDefaults<T> = Pick<CachedLoaderOptions<T>, "key"> & { fetch?: CachedLoaderOptions<T>["fetch"] | undefined };
+
+/**
  * A plain promise loader serves components that own their loading UI rather than consuming
  * a hook result. It shares the provider cache, including one in-flight request per key.
  */
@@ -133,5 +142,5 @@ export interface FetchQueryAdapter {
     optional?: Omit<FetchMutationOptions<TInput, TOutput>, "run">,
   ) => MutationResult<TInput, TOutput>;
   useInvalidate: () => (required: { key: QueryKey }) => void;
-  useCachedLoader: <T>(required: Pick<CachedLoaderOptions<T>, "key" | "fetch">, optional?: Omit<CachedLoaderOptions<T>, "key" | "fetch">) => CachedLoader<T>;
+  useCachedLoader: <T>(required: CachedLoaderDefaults<T>, optional?: Omit<CachedLoaderOptions<T>, "key" | "fetch">) => CachedLoader<T>;
 }

@@ -69,11 +69,30 @@ import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
  * is the shared field+toggle shape both new inputs use, following this file's own `GrantSelect`
  * precedent for a shape used twice.
  */
-export interface UsersProps extends UsersDependencies, UsersOptions {
-  useUsersHook?: typeof useUsers | undefined;
+/**
+ * What a host-supplied `useUsersHook` is called with: `useUsers`' own inputs, except that `translate`
+ * may be absent. `Users` reads its copy from the controller the hook returns (`controller.translate`),
+ * never from this prop, so a host hook that builds its own controller has no use for it.
+ */
+export type UsersHookDependencies = Omit<UsersDependencies, "translate"> & { translate?: Translate | undefined };
+/** A host replacement for {@link useUsers} that does not need `translate` (see {@link UsersHookDependencies}). */
+export type UsersHook = (dependencies: UsersHookDependencies, options?: UsersOptions) => UsersController;
+
+/** Every `Users` prop except the hook/`translate` pair (see {@link UsersProps}). */
+export interface UsersBaseProps extends Omit<UsersDependencies, "translate">, UsersOptions {
   /** The host owns localization of protocol status/role labels. */
   renderServerLabel?: ((required: { value: string }) => ReactNode) | undefined;
 }
+
+/**
+ * `translate` is only ever forwarded to the hook, so it is required exactly when the default
+ * {@link useUsers} (or a hook typed like it) runs, and optional when the host supplies a
+ * {@link UsersHook} that does not read it — instead of a dead `translate={key => key}` stub.
+ */
+export type UsersProps = UsersBaseProps & (
+  | { useUsersHook?: typeof useUsers | undefined; translate: Translate }
+  | { useUsersHook: UsersHook; translate?: Translate | undefined }
+);
 
 interface NewUserFormProps {
   username: string;
@@ -843,9 +862,13 @@ function userManageController({ controller, roles, policies }: {
   };
 }
 
-export function Users({ useUsersHook = useUsers, port, translate: injectedTranslate, queryScope,
+export function Users({ useUsersHook, port, translate: injectedTranslate, queryScope,
   openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice, renderServerLabel }: UsersProps) {
-  const controller = useUsersHook({ port, translate: injectedTranslate, queryScope }, {
+  // Widening `useUsers` to `UsersHook` is sound only through the `UsersProps` union: whenever
+  // `useUsersHook` is omitted or typed as `useUsers`, `translate` is required, so the default hook
+  // never runs without it. TypeScript cannot correlate the two destructured props itself.
+  const useSelectedUsersHook = (useUsersHook ?? useUsers) as UsersHook;
+  const controller = useSelectedUsersHook({ port, translate: injectedTranslate, queryScope }, {
     openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice,
   });
   const {

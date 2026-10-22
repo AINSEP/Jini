@@ -159,7 +159,11 @@ export const identityDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToo
  */
 const IDENTITY_USER_LIST_MAX = 200;
 
-function requireIdentityCatalogEntry(toolId: string): IdentityAgentToolDefinition {
+/**
+ * Catalog lookup that fails loudly on drift between a handler's tool id and the published catalog.
+ * Exported for this module's tests only — the package entry does not re-export it.
+ */
+export function requireIdentityCatalogEntry({ toolId }: { toolId: string }): IdentityAgentToolDefinition {
   const entry = CATALOG_BY_ID.get(toolId);
   if (!entry) throw new Error(`agent-tool-registrations: catalog has no entry named '${toolId}' — @jini-ai/user-management/server catalog drifted`);
   return entry;
@@ -189,15 +193,19 @@ function requireIdentityCatalogEntry(toolId: string): IdentityAgentToolDefinitio
  * handler states which fields it is relying on, and a schema/handler disagreement throws at the
  * boundary naming the field.
  */
-interface ValidatedIdentityInput {
+export interface ValidatedIdentityInput {
   /** A field the tool's published `inputSchema` marks `required`. @throws {Error} If absent. */
   req(field: string): string;
   /** A field the schema leaves optional. `undefined` means the caller omitted it. */
   opt(field: string): string | undefined;
 }
 
-function identityInput(toolId: string, input: unknown): ValidatedIdentityInput {
-  const entry = requireIdentityCatalogEntry(toolId);
+/**
+ * Parses `input` against `toolId`'s published schema and returns the split required/optional reader.
+ * Exported for this module's tests only — the package entry does not re-export it.
+ */
+export function identityInput({ toolId, input }: { toolId: string; input: unknown }): ValidatedIdentityInput {
+  const entry = requireIdentityCatalogEntry({ toolId });
   const parsed = parseIdentityToolInput({ schema: entry.inputSchema, input });
   if (!parsed.ok) {
     const recovery = "Fix the input and retry — this will not resolve on retry without an input change.";
@@ -222,7 +230,7 @@ function identityInput(toolId: string, input: unknown): ValidatedIdentityInput {
 
 /** The permission set a tool's catalog entry declares — both halves when the gate is an OR. */
 function identityPermissionsFor(toolId: string): string[] {
-  const { authorization } = requireIdentityCatalogEntry(toolId);
+  const { authorization } = requireIdentityCatalogEntry({ toolId });
   return authorization.orPermission ? [authorization.permission, authorization.orPermission] : [authorization.permission];
 }
 
@@ -330,7 +338,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
 
   const handlers: Record<string, ToolHandler> = {
     identity_user_list: async (ctx) => {
-      identityInput("identity_user_list", ctx.input);
+      identityInput({ toolId: "identity_user_list", input: ctx.input });
       await assertIdentityReadAllowed(routeDeps, "identity_user_list", ctx.principal.id);
 
       const principals = await routeDeps.principalRepo.list({ workspaceId: routeDeps.workspaceId });
@@ -354,7 +362,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_role_list: async (ctx) => {
-      identityInput("identity_role_list", ctx.input);
+      identityInput({ toolId: "identity_role_list", input: ctx.input });
       await assertIdentityReadAllowed(routeDeps, "identity_role_list", ctx.principal.id);
 
       const roles = await routeDeps.roleRepo.list({ workspaceId: routeDeps.workspaceId });
@@ -362,7 +370,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_policy_list: async (ctx) => {
-      identityInput("identity_policy_list", ctx.input);
+      identityInput({ toolId: "identity_policy_list", input: ctx.input });
       await assertIdentityReadAllowed(routeDeps, "identity_policy_list", ctx.principal.id);
 
       const policies = await routeDeps.policyRepo.list({ workspaceId: routeDeps.workspaceId });
@@ -370,7 +378,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_user_create: async (ctx) => {
-      const input = identityInput("identity_user_create", ctx.input);
+      const input = identityInput({ toolId: "identity_user_create", input: ctx.input });
       const { principal, user } = await createUser({
         deps: serviceDeps(),
         input: {
@@ -385,7 +393,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_user_update_email: async (ctx) => {
-      const input = identityInput("identity_user_update_email", ctx.input);
+      const input = identityInput({ toolId: "identity_user_update_email", input: ctx.input });
       const { user } = await updateUser({
         deps: serviceDeps(),
         input: {
@@ -402,7 +410,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_user_change_username: async (ctx) => {
-      const input = identityInput("identity_user_change_username", ctx.input);
+      const input = identityInput({ toolId: "identity_user_change_username", input: ctx.input });
       const principalId = input.req("principalId");
       const { user } = await updateUser({ deps: serviceDeps(), input: {
         workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, principalId,
@@ -413,7 +421,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_user_disable: async (ctx) => {
-      const input = identityInput("identity_user_disable", ctx.input);
+      const input = identityInput({ toolId: "identity_user_disable", input: ctx.input });
       const { principal } = await disablePrincipal({
         deps: serviceDeps(),
         input: {
@@ -430,7 +438,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_user_enable: async (ctx) => {
-      const input = identityInput("identity_user_enable", ctx.input);
+      const input = identityInput({ toolId: "identity_user_enable", input: ctx.input });
       const { principal } = await enablePrincipal({
         deps: serviceDeps(),
         input: { workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, principalId: input.req("principalId") },
@@ -440,7 +448,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_role_create: async (ctx) => {
-      const input = identityInput("identity_role_create", ctx.input);
+      const input = identityInput({ toolId: "identity_role_create", input: ctx.input });
       const { role } = await createRole({
         deps: serviceDeps(),
         input: { workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, name: input.req("name") },
@@ -449,7 +457,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_role_assign: async (ctx) => {
-      const input = identityInput("identity_role_assign", ctx.input);
+      const input = identityInput({ toolId: "identity_role_assign", input: ctx.input });
       const { assignment }: { assignment: PrincipalRoleRecord } = await assignRole({
         deps: serviceDeps(),
         input: {
@@ -465,7 +473,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_role_rename: async (ctx) => {
-      const input = identityInput("identity_role_rename", ctx.input);
+      const input = identityInput({ toolId: "identity_role_rename", input: ctx.input });
       const { role } = await updateRole({
         deps: serviceDeps(),
         input: { workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, roleId: input.req("roleId"), name: input.req("name") },
@@ -474,7 +482,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_role_delete: async (ctx) => {
-      const input = identityInput("identity_role_delete", ctx.input);
+      const input = identityInput({ toolId: "identity_role_delete", input: ctx.input });
       await deleteRole({
         deps: serviceDeps(),
         input: { workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, roleId: input.req("roleId") },
@@ -485,7 +493,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_policy_create: async (ctx) => {
-      const input = identityInput("identity_policy_create", ctx.input);
+      const input = identityInput({ toolId: "identity_policy_create", input: ctx.input });
       const { policy } = await createPolicy({
         deps: serviceDeps(),
         input: {
@@ -501,7 +509,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_policy_update: async (ctx) => {
-      const input = identityInput("identity_policy_update", ctx.input);
+      const input = identityInput({ toolId: "identity_policy_update", input: ctx.input });
       const { policy } = await updatePolicy({
         deps: serviceDeps(),
         input: {
@@ -516,7 +524,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_policy_delete: async (ctx) => {
-      const input = identityInput("identity_policy_delete", ctx.input);
+      const input = identityInput({ toolId: "identity_policy_delete", input: ctx.input });
       await deletePolicy({
         deps: serviceDeps(),
         input: { workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, policyId: input.req("policyId") },
@@ -527,7 +535,7 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     },
 
     identity_policy_attach: async (ctx) => {
-      const input = identityInput("identity_policy_attach", ctx.input);
+      const input = identityInput({ toolId: "identity_policy_attach", input: ctx.input });
       const { attachment } = await attachPolicy({
         deps: serviceDeps(),
         input: {

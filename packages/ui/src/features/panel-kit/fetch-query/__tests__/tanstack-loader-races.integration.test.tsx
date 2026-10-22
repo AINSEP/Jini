@@ -53,6 +53,45 @@ describe("tanstack adapter races", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(result.current.loader.peek()).toBe("after-write");
   });
+  it("resolves a cancelled loader-only read to a write's replacement when the write invalidates then replaces", async () => {
+    // A host write that invalidates and then publishes its result in the same tick: the invalidation
+    // silently cancels the loader's request without starting another (the key has no observer), and
+    // the replacement clears the invalidated flag. So TanStack has no in-flight promise to join and
+    // nothing to refetch; the loader must settle on the replacement instead of the obsolete read.
+    const first = deferred<string>();
+    const fetch = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValue("unexpected-refetch");
+    const key = ["invalidate-then-replace"] as const;
+    const { result } = renderHook(() => ({ loader: useCachedLoader({ key, fetch }), invalidate: useInvalidate() }), { wrapper: FetchQueryProvider });
+    const pending = result.current.loader.load();
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    act(() => {
+      result.current.invalidate({ key });
+      result.current.loader.replace({ value: "written" });
+    });
+    await expect(pending).resolves.toBe("written");
+    await act(async () => { first.resolve("before-write"); });
+    expect(result.current.loader.peek()).toBe("written");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a loader that joined another loader's in-flight read when that read fails", async () => {
+    // The second load joins TanStack's in-flight request and so receives the raw transport envelope
+    // rather than going through the save boundary; the failure must still surface as a rejection.
+    const failure = new Error("transport down");
+    const gate = deferred<void>();
+    const fetch = vi.fn(async () => { await gate.promise; throw failure; });
+    const key = ["joined-loader-failure"] as const;
+    const { result } = renderHook(() => useCachedLoader({ key, fetch }), { wrapper: FetchQueryProvider });
+    const leader = result.current.load();
+    const joiner = result.current.load();
+    const settled = Promise.allSettled([leader, joiner]);
+    await act(async () => { gate.resolve(); });
+    const [leaderOutcome, joinerOutcome] = await settled;
+    expect(leaderOutcome).toEqual({ status: "rejected", reason: failure });
+    expect(joinerOutcome).toEqual({ status: "rejected", reason: failure });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(result.current.peek()).toBeUndefined();
+  });
 });
 
 describe("tanstack adapter cold replacement", () => {

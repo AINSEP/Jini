@@ -379,6 +379,11 @@ describe('findAwaitedTypedAnswerId', () => {
     expect(findAwaitedTypedAnswerId({ messages: [{ ...assistant([ask('call-1'), surface]), runStatus }], toolName })).toBeNull();
   });
 
+  it('finds nothing to await on a running assistant turn that has streamed no events yet', () => {
+    const justStarted: ChatMessage = { id: 'a1', role: 'assistant', content: '', runStatus: 'running' };
+    expect(findAwaitedTypedAnswerId({ messages: [justStarted], toolName })).toBeNull();
+  });
+
   it('requires an active run and ignores a question superseded by a later turn', () => {
     const unknownRun: ChatMessage = { id: 'unknown', role: 'assistant', content: '', events: [ask('call-1'), surface] };
     expect(findAwaitedTypedAnswerId({ messages: [unknownRun], toolName })).toBeNull();

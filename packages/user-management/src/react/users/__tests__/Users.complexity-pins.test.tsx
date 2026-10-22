@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeUsersPort } from "../../testing.js";
-import { Users, type UsersProps } from "../Users.js";
-import type { UsersController } from "../hooks/use-users.hooks.js";
+import { Users, type UsersHookDependencies, type UsersProps } from "../Users.js";
+import type { UsersController, UsersOptions } from "../hooks/use-users.hooks.js";
 import type { ChangeUsernameController } from "../hooks/use-change-username.hooks.js";
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../../models.js";
 
@@ -50,6 +50,25 @@ function renderUsers(controller: UsersController, extra: Partial<UsersProps> = {
   const port = createFakeUsersPort({}, {});
   return render(<Users useUsersHook={() => controller} port={port} translate={t} queryScope="w" {...extra} />);
 }
+
+describe("Users without translate (host-supplied hook)", () => {
+  it("renders from a custom hook's controller with no translate prop, and calls the hook without one", () => {
+    const hook = vi.fn((_deps: UsersHookDependencies, _options?: UsersOptions) => fakeController());
+    render(<Users useUsersHook={hook} port={createFakeUsersPort({}, {})} queryScope="w" openOwnPasswordReset />);
+    expect(screen.getByRole("button", { name: "alice" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "bob" })).toBeInTheDocument();
+    const [deps, options] = hook.mock.calls[0]!;
+    expect(deps.translate).toBeUndefined();
+    expect(deps.queryScope).toBe("w");
+    expect(options).toMatchObject({ openOwnPasswordReset: true });
+  });
+
+  it("still forwards translate to a custom hook when the host passes one", () => {
+    const hook = vi.fn((_deps: UsersHookDependencies) => fakeController());
+    render(<Users useUsersHook={hook} port={createFakeUsersPort({}, {})} translate={t} queryScope="w" />);
+    expect(hook.mock.calls[0]![0].translate).toBe(t);
+  });
+});
 
 function rowOf(username: string): HTMLTableRowElement {
   return screen.getByRole("button", { name: username }).closest("tr")!;

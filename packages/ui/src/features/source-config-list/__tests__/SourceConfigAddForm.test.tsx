@@ -224,3 +224,14 @@ describe('SourceConfigAddForm', () => {
     });
   });
 });
+
+describe('SourceConfigAddForm without the trust pair (SourceTrustSelectorProps)', () => {
+  it('renders and submits with neither trustOptions nor onTrustChange', async () => {
+    const { onTrustChange: _unused, trustOptions: _none, ...withoutTrust } = baseProps();
+    const onSubmit = vi.fn();
+    render(<SourceConfigAddForm {...withoutTrust} onSubmit={onSubmit} />);
+    expect(screen.getByLabelText('URL', { exact: false })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Trust level')).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+  });
+});

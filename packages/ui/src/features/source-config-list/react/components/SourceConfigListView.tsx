@@ -8,7 +8,7 @@ import type {
   SourceTrustOption,
   SourceUpdateInput,
 } from '../../types.js';
-import { SourceConfigAddForm, type SourceConfigAddFormProps } from './SourceConfigAddForm.js';
+import { SourceConfigAddForm, type SourceConfigAddFormBaseProps } from './SourceConfigAddForm.js';
 import { SourceConfigItemCard } from './SourceConfigItemCard.js';
 import type { SourceConfigListCapabilities } from '../hooks/useSourceConfigList.js';
 
@@ -24,7 +24,7 @@ export interface SourceConfigListViewProps<TSource extends SourceConfigItem> {
   capabilities: SourceConfigListCapabilities;
   pendingKeys: ReadonlySet<string>;
   testResults: Record<string, SourceTestResult>;
-  addForm: Omit<SourceConfigAddFormProps, 'fieldSpecs' | 'trustOptions'>;
+  addForm: Omit<SourceConfigAddFormBaseProps, 'fieldSpecs'> & { onTrustChange: (value: string) => void };
   onRefresh: (id: string) => void;
   onRemove: (id: string) => void;
   onTrustChange: (id: string, trust: string) => void;

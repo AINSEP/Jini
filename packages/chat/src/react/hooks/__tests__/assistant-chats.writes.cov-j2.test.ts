@@ -150,6 +150,14 @@ describe('persistUserTurn', () => {
     expect(writes()).toEqual(['a/u1']);
   });
 
+  it('starts tracking a conversation that was never selected, so a repeat of the same turn is not re-sent', async () => {
+    // The caller resolves the conversation id itself; it need not be the one this pane has open.
+    const { result, writes } = await mountOn('a', { conversations: [conv('a'), conv('b')] });
+    await act(async () => { await result.current.persistUserTurn({ conversationId: 'b', message: userTurn('u1') }); });
+    await act(async () => { await result.current.persistUserTurn({ conversationId: 'b', message: userTurn('u1') }); });
+    expect(writes()).toEqual(['b/u1']);
+  });
+
   it('awaits the PUT a delta already scheduled instead of writing again', async () => {
     const { result, writes, port } = await mountOn('a');
     const slow = deferred();
