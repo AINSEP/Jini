@@ -131,7 +131,7 @@ function keepToolCheckpoints(saved: readonly AgentEvent[], incoming: readonly Ag
  */
 export function createChatRunLedger<DB extends ChatDatabase>(
   { kernel: hostKernel, isDaemonRunId }: { kernel: ChatKernel<DB>; isDaemonRunId: RunIdPolicy },
-  { now = Date.now }: { now?: () => number } = {},
+  { now = () => Date.now() }: { now?: () => number } = {},
 ): ChatRunLedger {
   const kernel = chatKernelTables<DB, ChatDatabase>({ kernel: hostKernel }, {});
 
